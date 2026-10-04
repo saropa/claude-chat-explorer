@@ -1,0 +1,32 @@
+{
+  "name": "claude-chat-search",
+  "displayName": "Claude Chat Search",
+  "description": "Full-text search of Claude Code chats from the activity bar.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onView:claudeChatSearch.view"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "claudeChatSearch", "title": "Chat Search", "icon": "icon.svg" }
+      ]
+    },
+    "views": {
+      "claudeChatSearch": [
+        { "type": "webview", "id": "claudeChatSearch.view", "name": "Chat Search" }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "package": "npx @vscode/vsce package --allow-missing-repository --skip-license"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.4.0"
+  }
+}
