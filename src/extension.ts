@@ -1,14 +1,11 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import * as fs from 'fs';
-import { ChatIndex } from './index';
+import { TIMEOUT_MSG, WorkerClient } from './client';
 import { IndexStatus } from './indexStatus';
 import { compile, isEmpty } from './query';
 import { isSessionId, openChat } from './resume';
-import { expandChat, searchIndex } from './search';
 import { Saved, Store } from './store';
-import { Abort, Compiled, Ctx, Options, Result } from './types';
-import { projectOf, statFields } from './stats';
+import { Compiled, Options, Result } from './types';
 import { html, NAME } from './webview';
 
 const WHENS = ['any', '1h', '2h', '4h', '8h', 'today'];
@@ -19,7 +16,7 @@ type Base = Omit<Saved, 'results' | 'searched'>;
 
 function opts(m: any): Options {
   const when = WHENS.includes(m.when) ? String(m.when) : 'any';
-  return { all: !!m.all, cs: !!m.cs, ww: !!m.ww, re: !!m.re, when };
+  return { all: !!m.all, cs: !!m.cs, ww: !!m.ww, re: !!m.re, when, subs: m.subs !== false };
 }
 const sortOf = (m: any): string => (SORTS.includes(m.sort) ? String(m.sort) : 'score');
 
@@ -28,54 +25,60 @@ const log = (msg: string): void => channel.appendLine(`[${new Date().toISOString
 const logErr = (where: string, e: unknown): void => log(`${where}: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
 
 class Provider implements vscode.WebviewViewProvider {
-  private seq = 0;
-  private sig: Abort = { aborted: false };
   private view?: vscode.WebviewView;
-  private progress: { done: number; total: number; first: boolean } | null = null;
+  private progress: { done: number; total: number; subs: number; first: boolean } | null = null;
   private lastPost = 0;
 
-  constructor(private readonly store: Store, private readonly index: ChatIndex,
+  constructor(private readonly store: Store, private readonly client: WorkerClient,
     private readonly status: IndexStatus) {
-    index.onChange = () => this.postMeta();
+    client.onError = logErr;
+    client.onEvent = (m) => this.onWorker(m);
   }
 
   private post(m: unknown): void {
     try { this.view?.webview.postMessage(m).then(undefined, (e) => logErr('post', e)); } catch (e) { logErr('post', e); }
   }
 
-  /** Index progress shown in the panel and status bar; done >= total means finished. */
-  indexing(done: number, total: number): void {
-    const was = this.progress;
-    if (done >= total) {
-      this.progress = null;
-      this.status.hide();
-      this.post({ type: 'indexed' });
-      if (was?.first) { void vscode.window.showInformationMessage(`Saropa Chat Search: indexed ${total} chats.`); }
-      return;
-    }
-    this.progress = { done, total, first: this.index.building };
-    this.status.update(done, total);
+  private onWorker(m: any): void {
+    if (m.t === 'log') { log(String(m.msg)); }
+    else if (m.t === 'progress') { this.indexing(m.done, m.total, m.subs, !!m.first); }
+    else if (m.t === 'indexed') { this.indexed(); }
+    else if (m.t === 'changed') { void this.postMeta(); }
+  }
+
+  /** Index progress shown in the panel and status bar. */
+  private indexing(done: number, total: number, subs: number, first: boolean): void {
+    this.progress = { done, total, subs, first: first || !!this.progress?.first };
+    this.status.update(done, total, subs);
     const now = Date.now();
-    if (now - this.lastPost < POST_GAP_MS) { return; } // one webview message per file is wasteful
+    if (now - this.lastPost < POST_GAP_MS && done < total) { return; } // one webview message per file is wasteful
     this.lastPost = now;
     this.post({ type: 'indexing', ...this.progress });
   }
 
-  private get ctx(): Ctx { return { pins: new Set(Object.keys(this.store.pins)), tags: this.store.tags }; }
-
-  private meta() {
-    const pins = this.store.pins;
-    const pinned: Result[] = this.index.list().filter((c) => pins[c.id]).sort((a, b) => b.last - a.last)
-      .map((c) => ({ id: c.id, title: c.title, hits: 0, last: c.last, snippet: '', ranges: [], score: 0,
-        project: projectOf(c), ...statFields(c) }));
-    return { type: 'meta', pins: Object.keys(pins), tags: this.store.tags, all: this.store.allTags, pinned };
+  private indexed(): void {
+    const was = this.progress;
+    this.progress = null;
+    this.status.hide();
+    this.post({ type: 'indexed' });
+    if (was?.first) {
+      const n = was.total - was.subs;
+      void vscode.window.showInformationMessage(`Saropa Chat Search: indexed ${n} chats and ${was.subs} subagent files.`);
+    }
   }
-  private postMeta(): void { this.post(this.meta()); }
+
+  private get ctxMsg() { return { pins: Object.keys(this.store.pins), tags: this.store.tags }; }
+
+  private async postMeta(): Promise<void> {
+    try {
+      const pinned = await this.client.request({ t: 'pinned', ids: Object.keys(this.store.pins) });
+      this.post({ type: 'meta', pins: Object.keys(this.store.pins), tags: this.store.tags, all: this.store.allTags, pinned });
+    } catch (e) { logErr('meta', e); }
+  }
 
   private restore(): void {
-    this.post({ type: 'restore', state: this.store.state, history: this.store.history,
-      statuses: this.store.statuses });
-    this.postMeta();
+    this.post({ type: 'restore', state: this.store.state, history: this.store.history, statuses: this.store.statuses });
+    void this.postMeta();
     if (this.progress) { this.post({ type: 'indexing', ...this.progress }); }
   }
 
@@ -112,25 +115,29 @@ class Provider implements vscode.WebviewViewProvider {
     const id = m.id;
     if (!isSessionId(id)) { log(`Ignored ${String(m.type)} with invalid id`); return; }
     if (m.type === 'open') { await openChat(id, log); }
-    else if (m.type === 'expand') { this.expand(id, m); }
-    else if (m.type === 'pin') { await this.store.togglePin(id); this.postMeta(); }
-    else if (m.type === 'tagAdd') { await this.store.addTag(id, String(m.tag ?? '')); this.postMeta(); }
-    else if (m.type === 'tagRemove') { await this.store.removeTag(id, String(m.tag ?? '')); this.postMeta(); }
+    else if (m.type === 'expand') { await this.expand(id, m); }
+    else if (m.type === 'pin') { await this.store.togglePin(id); await this.postMeta(); }
+    else if (m.type === 'tagAdd') { await this.store.addTag(id, String(m.tag ?? '')); await this.postMeta(); }
+    else if (m.type === 'tagRemove') { await this.store.removeTag(id, String(m.tag ?? '')); await this.postMeta(); }
   }
 
-  private expand(id: string, m: any): void {
-    const chat = this.index.find(id);
-    if (!chat) { return; }
-    let c;
-    try { c = compile(String(m.query ?? ''), opts(m)); } catch { return; } // invalid regex: search shows the error
+  private async expand(id: string, m: any): Promise<void> {
+    const o = opts(m), query = String(m.query ?? '');
+    try { compile(query, o); } catch { return; } // invalid regex: search shows the error
     const offset = Math.max(0, Number(m.offset) || 0);
-    const related = offset === 0 ? this.index.related(chat) : []; // lazy: only on first expand
-    this.post({ type: 'expanded', id, offset, ...expandChat(chat, c, this.ctx, offset), related });
+    try {
+      const ex = await this.client.request({ t: 'expand', chat: id, query, o, offset, ...this.ctxMsg });
+      if (ex) { this.post({ type: 'expanded', id, offset, ...ex }); }
+    } catch (e) {
+      logErr('expand', e);
+      if ((e as Error).message === TIMEOUT_MSG) { this.post({ type: 'error', message: TIMEOUT_MSG }); }
+    }
   }
 
   /** Compile the query, or post the empty or error outcome and return undefined. */
   private async prepare(query: string, o: Options, base: Base): Promise<Compiled | undefined> {
     if (!query) {
+      this.client.cancel();
       await this.store.setState({ ...base, results: [], searched: '' });
       this.post({ type: 'results', results: [], searched: '' });
       return undefined;
@@ -147,71 +154,46 @@ class Provider implements vscode.WebviewViewProvider {
   private async search(m: any): Promise<void> {
     const query = String(m.query ?? '').trim();
     const o = opts(m);
-    const id = ++this.seq;
-    this.sig.aborted = true; // cancel the previous scan immediately
-    const sig: Abort = { aborted: false };
-    this.sig = sig;
     const base: Base = { ...o, sort: sortOf(m), query };
-    const compiled = await this.prepare(query, o, base);
-    if (!compiled) { return; }
+    if (!(await this.prepare(query, o, base))) { return; }
     this.post({ type: 'start' });
-    const live = () => id === this.seq && !sig.aborted;
-    try { await this.run(compiled, o, sig, live, base); } catch (e) {
-      logErr('search', e);
-      if (live()) { this.post({ type: 'results', results: [], searched: 'Search failed' }); }
-    }
+    const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+    this.client.search({ query, o, folders, ...this.ctxMsg }, (w) => this.onSearchMsg(w, base),
+      (why) => { if (why === 'timeout') { this.post({ type: 'error', message: TIMEOUT_MSG }); } });
   }
 
-  /** Refresh (unless an index pass is already running), scan and stream batches every 100 ms. */
-  private async run(compiled: Compiled, o: Options, sig: Abort, live: () => boolean, base: Base): Promise<void> {
-    // While indexing progress shows, search what is indexed so far; the panel reruns when it finishes.
-    if (!this.progress) { await this.index.refresh((d, t) => this.indexing(d, t)); }
-    if (!live()) { return; }
-    let pending: Result[] = [];
-    let prog = { done: 0, total: 0 };
-    let timer: NodeJS.Timeout | undefined;
-    const flush = () => {
-      timer = undefined;
-      if (live()) { this.post({ type: 'batch', results: pending, done: prog.done, total: prog.total }); }
-      pending = [];
-    };
-    const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+  /** Forward worker batches as they come; the final message saves state and history. */
+  private onSearchMsg(w: any, base: Base): void {
+    if (w.t === 'batch') { this.post({ type: 'batch', results: w.results, done: w.done, total: w.total }); }
+    else if (w.t === 'error') { logErr('search', w.message); this.post({ type: 'results', results: [], searched: 'Search failed' }); }
+    else if (w.t === 'done') { void this.finish(w.results, base); }
+  }
+
+  private async finish(results: Result[], base: Base): Promise<void> {
+    const searched = results.length ? '' : 'No matches';
+    this.post({ type: 'done', results, searched });
     try {
-      const results = await searchIndex(this.index.list(), compiled, o, folders, this.ctx, sig, (r, done, total) => {
-        if (!live()) { return; }
-        if (r) { pending.push(r); }
-        prog = { done, total };
-        timer ??= setTimeout(flush, POST_GAP_MS);
-      });
-      if (!live()) { return; }
-      clearTimeout(timer);
-      flush();
-      const searched = results.length ? '' : 'No matches';
       await this.store.setState({ ...base, results, searched });
-      if (!live()) { return; }
-      if (results.length) { this.post({ type: 'history', history: await this.store.addHistory({ query: base.query, ...o }) }); }
-      this.post({ type: 'done', results, searched });
-    } finally { clearTimeout(timer); }
+      if (results.length) {
+        const { sort: _s, ...h } = base;
+        this.post({ type: 'history', history: await this.store.addHistory(h) });
+      }
+    } catch (e) { logErr('save search', e); }
   }
 }
 
-let index: ChatIndex | undefined;
+let client: WorkerClient | undefined;
 
 export function activate(ctx: vscode.ExtensionContext): void {
   const dir = ctx.globalStorageUri.fsPath;
-  try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { logErr('create storage folder', e); } // persist() retries
-  index = new ChatIndex(path.join(dir, 'index-cache.jsonl'));
-  index.onError = logErr;
+  try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { logErr('create storage folder', e); } // the worker retries
+  client = new WorkerClient(dir);
   const status = new IndexStatus();
-  const provider = new Provider(new Store(ctx), index, status);
+  const provider = new Provider(new Store(ctx), client, status);
   ctx.subscriptions.push(channel, status,
     vscode.window.registerWebviewViewProvider('claudeChatSearch.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
-  const idx = index;
-  // Background build: never blocks activation.
-  void idx.load().then(() => idx.refresh((d, t) => provider.indexing(d, t)))
-    .catch((e) => logErr('initial index', e))
-    .finally(() => { provider.indexing(1, 1); idx.watch(); });
+  client.start(); // indexing runs in the worker; activation never waits for it
 }
 
-export async function deactivate(): Promise<void> { await index?.dispose(); }
+export async function deactivate(): Promise<void> { await client?.dispose(); }

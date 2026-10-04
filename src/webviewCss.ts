@@ -20,6 +20,7 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 #bar i{position:absolute;top:0;bottom:0;width:30%;background:var(--vscode-progressBar-background);animation:slide 1.2s linear infinite}
 @keyframes slide{0%{left:-30%}100%{left:100%}}
 label.al{display:block;margin:4px 0;cursor:pointer}
+.alr{display:flex;flex-wrap:wrap;gap:0 14px}
 #status{margin:4px 0;padding:0 10px;color:var(--vscode-descriptionForeground);font-size:0.92em}
 #status:empty{display:none}
 .sel{display:flex;gap:6px;margin-top:4px}
@@ -82,4 +83,9 @@ mark{background:var(--vscode-editor-findMatchHighlightBackground);color:inherit}
 .x:hover{color:var(--vscode-foreground)}
 .cap{margin:4px 10px;color:var(--vscode-descriptionForeground);font-size:0.9em}
 a{color:var(--vscode-textLink-foreground);cursor:pointer}
+.sub{flex:none;margin-left:0;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;white-space:nowrap;background:var(--vscode-charts-purple);color:var(--vscode-editor-background)}
+.sr{padding-left:22px;align-items:flex-start;flex-wrap:wrap}
+.sr .t{flex:1;min-width:0}
+.sr .s{flex-basis:100%;margin-left:0}
+.msub{font-size:0.85em;color:var(--vscode-charts-purple)}
 `;

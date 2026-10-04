@@ -2,9 +2,12 @@
 
 Activity-bar panel that searches the full text of Claude Code chats.
 
-- Install: `code --install-extension claude-chat-search-0.3.0.vsix`
-- Reads `~/.claude/projects/*/*.jsonl` into an in-memory index built in the background; the status bar and a panel banner show progress, and search covers what is indexed so far.
-- The index is cached in the extension's global storage and refreshed incrementally (file watcher plus a stat before each search). Each message is indexed up to 20,000 characters. Above a 200 MB cache, only the last 90 days of message text are kept.
+- Install: `code --install-extension claude-chat-search-0.4.0.vsix`
+- Indexes `~/.claude/projects/*/*.jsonl` and subagent chats (`<session>/subagents/agent-*.jsonl`) in a worker thread, so the editor never freezes. Memory holds only metadata and a per-chat trigram filter; message text sits in a compact store on disk and is read only for candidate chats. The status bar and a panel banner show progress (with the subagent file count), and search covers what is indexed so far.
+- Include subagents (checkbox, on by default, saved with the options): subagent matches nest under their parent chat with a purple "Subagent" pill and agent type; a parent that matched only through a subagent is marked "matched in subagent". Clicking a nested row resumes the parent chat. Subagent hits add to the parent's hit count and score.
+- Every search runs in the worker with a 3 second stall limit; a pattern that hangs (for example `(a+)+$`) shows "Search timed out: simplify the pattern" and the worker restarts.
+- `node scripts/bench.js` (after `npm run compile`) prints build, load, memory, cache size and query timings.
+- The index is cached in the extension's global storage and refreshed incrementally (file watcher plus a stat before each search). Each message is indexed up to 20,000 characters (8,000 for subagents); tool results are skipped. Above a 200 MB cache, only the last 90 days of message text are kept.
 - Scope: current workspace folders, or all projects (checkbox). When: any time, last 1/2/4/8 hours, or today.
 - Filters like the built-in Search: Match Case (Alt+C), Match Whole Word (Alt+W), Use Regular Expression (Alt+R).
 - Tokens: `file:<text>`, `edited:<text>`, `cmd:<text>`, `tag:<name>`; quote values with spaces (`cmd:"regen l10n"`). Tokens AND with plain words and match case-insensitively.

@@ -9,7 +9,7 @@ const STATUS_KEY = 'saropaChatSearch.statuses';
 const TAG_KEY = 'saropaChatSearch.tags';
 const HIST_MAX = 20;
 
-export interface HistItem { query: string; all: boolean; cs: boolean; ww: boolean; re: boolean; when: string; }
+export interface HistItem { query: string; all: boolean; cs: boolean; ww: boolean; re: boolean; when: string; subs: boolean; }
 export interface Saved extends HistItem { sort: string; results: Result[]; searched: string; }
 
 export const normTag = (raw: string): string =>
@@ -20,15 +20,18 @@ export class Store {
   constructor(private readonly ctx: vscode.ExtensionContext) {}
 
   get state(): Saved {
-    return this.ctx.workspaceState.get<Saved>(STATE_KEY)
-      ?? { query: '', all: false, cs: false, ww: false, re: false, when: 'any', sort: 'score', results: [], searched: '' };
+    const s = this.ctx.workspaceState.get<Saved>(STATE_KEY)
+      ?? { query: '', all: false, cs: false, ww: false, re: false, when: 'any', subs: true, sort: 'score', results: [], searched: '' };
+    return { ...s, subs: s.subs !== false }; // states saved before 0.4.0 have no subs flag
   }
   setState(s: Saved): Thenable<void> { return this.ctx.workspaceState.update(STATE_KEY, s); }
 
-  get history(): HistItem[] { return this.ctx.workspaceState.get<HistItem[]>(HIST_KEY) ?? []; }
+  get history(): HistItem[] {
+    return (this.ctx.workspaceState.get<HistItem[]>(HIST_KEY) ?? []).map((h) => ({ ...h, subs: h.subs !== false }));
+  }
   setHistory(h: HistItem[]): Thenable<void> { return this.ctx.workspaceState.update(HIST_KEY, h); }
   async addHistory(item: HistItem): Promise<HistItem[]> {
-    const same = (a: HistItem) => a.query === item.query && a.cs === item.cs && a.ww === item.ww && a.re === item.re && a.when === item.when;
+    const same = (a: HistItem) => a.query === item.query && a.cs === item.cs && a.ww === item.ww && a.re === item.re && a.when === item.when && (a.subs !== false) === item.subs;
     const h = [item, ...this.history.filter((x) => !same(x))].slice(0, HIST_MAX);
     await this.setHistory(h);
     return h;

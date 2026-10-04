@@ -27,7 +27,7 @@ ${STATUS_HTML}
 </div>
 <div id="err"></div>
 <div id="bar"><i></i></div>
-<label class="al"><input type="checkbox" id="all"> All projects</label>
+<div class="alr"><label class="al"><input type="checkbox" id="all"> All projects</label><label class="al"><input type="checkbox" id="subs" checked> Include subagents</label></div>
 <datalist id="tl"></datalist>
 </div>
 <div id="status" role="status" aria-live="polite"></div><div id="list"></div><div id="pin"></div><div id="hist"></div>

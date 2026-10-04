@@ -5,17 +5,18 @@ import { STATUS } from './webviewStatus';
 
 const CORE = String.raw`
 const vs=acquireVsCodeApi();const $=id=>document.getElementById(id);
-const q=$('q'),all=$('all'),when=$('when'),sort=$('sort'),st=$('status'),list=$('list'),hist=$('hist'),pinEl=$('pin'),bar=$('bar'),err=$('err'),tl=$('tl');
+const q=$('q'),all=$('all'),subs=$('subs'),when=$('when'),sort=$('sort'),st=$('status'),list=$('list'),hist=$('hist'),pinEl=$('pin'),bar=$('bar'),err=$('err'),tl=$('tl');
 const flags={cs:$('cs'),ww:$('ww'),re:$('re')};
 let timer,history=[],hasResults=false,busy=false,acc=[],prog=null,lastRs=[],lastMsg='',ix=null,dirty=false;
 const ixb=$('ixb'),ixt=$('ixt');
 let pins=new Set(),tags={},pinned=[],open=new Set(),ex={},col=new Set();
-function cur(){return{query:q.value.trim(),all:all.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),re:flags.re.classList.contains('on'),when:when.value,sort:sort.value};}
+function cur(){return{query:q.value.trim(),all:all.checked,subs:subs.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),re:flags.re.classList.contains('on'),when:when.value,sort:sort.value};}
 function setFlag(k,v){flags[k].classList.toggle('on',!!v);flags[k].setAttribute('aria-pressed',v?'true':'false');}
 function showErr(m){err.style.display=m?'block':'none';err.textContent=m||'';q.classList.toggle('bad',!!m);}
 function setBusy(b){busy=b;bar.classList.toggle('on',b);renderIdle();}
 function draft(){vs.postMessage(Object.assign({type:'draft'},cur()));}
-function showIx(){ixb.hidden=!ix;if(ix)ixt.textContent=ix.first?'Building the search index for the first time: '+ix.done+' of '+ix.total+'. Later launches are much faster.':'Indexing your chats: '+ix.done+' of '+ix.total+'. Results may be incomplete until this finishes.';}
+function subTxt(){return ix.subs?' (including '+ix.subs+' subagent files)':'';}
+function showIx(){ixb.hidden=!ix;if(ix)ixt.textContent=ix.first?'Building the search index for the first time: '+ix.done+' of '+ix.total+subTxt()+'. Later launches are much faster.':'Indexing your chats: '+ix.done+' of '+ix.total+subTxt()+'. Results may be incomplete until this finishes.';}
 function go(){clearTimeout(timer);const c=cur();showErr('');draft();dirty=!!(ix&&c.query);
 acc=[];prog=null;open.clear();ex={};
 stSync();if(!c.query){list.innerHTML='';hasResults=false;st.textContent='';setBusy(false);vs.postMessage(Object.assign({type:'search'},c));return;}
@@ -28,7 +29,7 @@ const n=Array.from(document.querySelectorAll('[data-sec]')).find(x=>x.dataset.se
 hist.addEventListener('click',e=>{
 const x=e.target.closest('[data-x]');if(x){e.stopPropagation();vs.postMessage({type:'histRemove',index:+x.dataset.x});return;}
 if(e.target.id==='clr'){vs.postMessage({type:'histClear'});return;}
-const h=e.target.closest('.h');if(h){const it=history[+h.dataset.i];q.value=it.query;all.checked=!!it.all;
+const h=e.target.closest('.h');if(h){const it=history[+h.dataset.i];q.value=it.query;all.checked=!!it.all;subs.checked=it.subs!==false;
 setFlag('cs',it.cs);setFlag('ww',it.ww);setFlag('re',it.re);when.value=it.when||'any';go();}});
 q.addEventListener('input',()=>{clearTimeout(timer);draft();stSync();timer=setTimeout(go,400);renderPinned();});
 q.addEventListener('keydown',e=>{
@@ -38,6 +39,7 @@ if(e.altKey&&!e.ctrlKey&&!e.metaKey){const k={KeyC:'cs',KeyW:'ww',KeyR:'re'}[e.c
 if(k){e.preventDefault();setFlag(k,!flags[k].classList.contains('on'));go();}}});
 Object.keys(flags).forEach(k=>flags[k].addEventListener('click',()=>{setFlag(k,!flags[k].classList.contains('on'));go();q.focus();}));
 all.addEventListener('change',go);
+subs.addEventListener('change',go);
 when.addEventListener('change',go);
 sort.addEventListener('change',()=>{draft();rerender();});
 function askExpand(id,offset){vs.postMessage(Object.assign({type:'expand',id:id,offset:offset},cur()));}
@@ -68,12 +70,12 @@ if(e.key==='ArrowDown'){e.preventDefault();step(t,1);}
 else if(e.key==='ArrowUp'){e.preventDefault();step(t,-1);}
 else if(e.key==='Enter'||e.key===' '){e.preventDefault();if(isSec)toggleSec(t.dataset.sec);else vs.postMessage({type:'open',id:t.dataset.id});}});
 window.addEventListener('message',e=>{const d=e.data;
-if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;setFlag('cs',s.cs);setFlag('ww',s.ww);setFlag('re',s.re);when.value=s.when||'any';sort.value=s.sort||'score';stLoad(d.statuses);
+if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;subs.checked=s.subs!==false;setFlag('cs',s.cs);setFlag('ww',s.ww);setFlag('re',s.re);when.value=s.when||'any';sort.value=s.sort||'score';stLoad(d.statuses);
 history=d.history||[];render(s.results||[],s.searched);}
 else if(d.type==='meta'){pins=new Set(d.pins);tags=d.tags||{};pinned=d.pinned||[];tl.innerHTML=(d.all||[]).map(t=>'<option value="'+esc(t)+'">').join('');rerender();}
 else if(d.type==='expanded'){const n=ex[d.id],more=d.offset>0&&n;
 ex[d.id]={items:more?n.items.concat(d.items):d.items,total:d.total,files:d.files,commands:d.commands,related:more?n.related:d.related};rerender();}
-else if(d.type==='indexing'){ix={done:d.done,total:d.total,first:!!d.first};showIx();if(dirty)st.textContent=stText();}
+else if(d.type==='indexing'){ix={done:d.done,total:d.total,subs:d.subs||0,first:!!d.first};showIx();if(dirty)st.textContent=stText();}
 else if(d.type==='indexed'){ix=null;showIx();if(dirty){dirty=false;go();}}
 else if(d.type==='history'){history=d.history||[];renderHist();}
 else if(d.type==='start'){acc=[];prog=null;}

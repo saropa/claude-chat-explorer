@@ -10,11 +10,11 @@ export class IndexStatus implements vscode.Disposable {
 
   constructor() { this.item.tooltip = TIP; }
 
-  update(done: number, total: number): void {
+  update(done: number, total: number, subs = 0): void {
     const now = Date.now();
     if (now - this.last < MIN_GAP_MS) { return; }
     this.last = now;
-    this.item.text = `$(sync~spin) Indexing chats ${done}/${total}`;
+    this.item.text = `$(sync~spin) Indexing chats ${done}/${total}` + (subs ? ` (${subs} subagent files)` : '');
     this.item.show();
   }
 

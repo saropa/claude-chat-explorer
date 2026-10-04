@@ -17,7 +17,8 @@ function snip(r){let o='',p=0;for(const g of r.ranges){o+=esc(r.snippet.slice(p,
 return o+esc(r.snippet.slice(p));}
 function tagActive(t){return new RegExp('(^|\\s)tag:'+reEsc(t)+'(\\s|$)','i').test(q.value);}
 function chips(id){return (tags[id]||[]).map(t=>'<span class="chip'+(tagActive(t)?' on':'')+'" data-a="tag" data-t="'+esc(t)+'" title="Filter by tag" role="button" tabindex="0">'+esc(t)+'<b class="cx" data-a="untag" data-t="'+esc(t)+'" title="Remove tag" aria-label="Remove tag '+esc(t)+'" role="button" tabindex="0">×</b></span>').join('');}
-function msgHtml(i){return '<div class="mm"><span class="who">'+(i.role==='user'?'You':'Claude')+'</span> <span class="m" title="'+esc(full(i.ts))+'">'+shortAgo(i.ts,Date.now())+'</span><div class="b">'+snip(i)+'</div></div>';}
+function subPill(t,tm){return '<span class="sub" title="Subagent'+(t?': '+esc(t):'')+'">Subagent'+(t?' · '+esc(t):'')+'</span>';}
+function msgHtml(i){return '<div class="mm"><span class="who">'+(i.role==='user'?'You':'Claude')+'</span> '+(i.sub!==undefined?subPill(i.sub)+' ':'')+'<span class="m" title="'+esc(full(i.ts))+'">'+shortAgo(i.ts,Date.now())+'</span><div class="b">'+snip(i)+'</div></div>';}
 function fileChip(f){const b=f.path.split(/[\\/]/).pop()||f.path;return '<span class="fp'+(f.edited?' ed':'')+'" title="'+esc((f.edited?'Edited: ':'Read: ')+f.path)+'">'+(f.edited?'✎ ':'')+esc(b)+'</span>';}
 function relHtml(x){const d=dotOf(x.last,Date.now());
 return '<div class="rr" data-id="'+esc(x.id)+'" tabindex="0" title="'+esc(x.title+'\nShares '+x.shared+(x.shared===1?' file':' files')+' with this chat\n'+full(x.last))+'"><span class="dot '+d+'" title="'+DOTS[d]+'"></span><span class="t">'+esc(x.title)+'</span><span class="pill" title="Shared files">'+x.shared+'</span><span class="tm">'+shortAgo(x.last,Date.now())+'</span></div>';}
@@ -31,6 +32,10 @@ h+=sec('rel:'+r.id,'Related chats',rel.length,rel.length?rel.map(relHtml).join('
 h+=e.items.map(msgHtml).join('');
 if(e.items.length<e.total)h+='<a data-a="more" role="button" tabindex="0">Show more ('+(e.total-e.items.length)+')</a>';
 return h;}
+function subRow(r,s){const now=Date.now();
+return '<div class="rr sr" data-id="'+esc(r.id)+'" tabindex="0" title="'+esc('Subagent'+(s.type?' ('+s.type+')':'')+(s.desc?': '+s.desc:'')+'\nResumes the parent chat\n'+full(s.last))+'"><span class="t">'+subPill(s.type)+' '+esc(s.desc||'')+'</span><span class="tm" title="'+esc(full(s.last))+'">'+shortAgo(s.last,now)+'</span>'+(s.snippet?'<div class="s">'+snip(s)+'</div>':'')+'</div>';}
+function subsHtml(r){if(!r.subs||!r.subs.length)return '';const more=(r.subTotal||r.subs.length)-r.subs.length;
+return r.subs.map(s=>subRow(r,s)).join('')+(more>0?'<div class="m sr">+'+more+' more subagent matches</div>':'');}
 function rowHtml(r){
 const now=Date.now(),p=pins.has(r.id),op=open.has(r.id),d=dotOf(r.last,now);
 const tip=[r.title,all.checked?r.project:'',r.hits?r.hits+(r.hits===1?' hit':' hits'):'',full(r.last),statsText(r)].filter(Boolean).join('\n');
@@ -39,7 +44,7 @@ return '<div class="r" data-id="'+esc(r.id)+'" tabindex="0" title="'+esc(tip)+'"
 +'<button class="ic'+(op?' on':'')+'" data-a="exp" title="'+(op?'Collapse':'Expand')+'" aria-expanded="'+op+'">'+CHEV+'</button>'
 +'<button class="ic pn'+(p?' on':'')+'" data-a="pin" title="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button>'
 +'<span class="tm" title="'+esc(full(r.last))+'">'+shortAgo(r.last,now)+'</span></div>'
-+(r.snippet?'<div class="s">'+snip(r)+'</div>':'')+'</div>'+(op?'<div class="ex">'+exHtml(r)+'</div>':'')+'</div>';}
++(r.self===false?'<div class="msub">matched in subagent</div>':'')+(r.snippet&&r.self!==false?'<div class="s">'+snip(r)+'</div>':'')+subsHtml(r)+'</div>'+(op?'<div class="ex">'+exHtml(r)+'</div>':'')+'</div>';}
 function resultsHtml(rs){const a=ordered(rs);if(!a.length)return '';
 if(sort.value==='time'){const now=Date.now(),g={};
 a.forEach(r=>{const k=dayBucket(r.last,now);(g[k]=g[k]||[]).push(r);});
@@ -55,7 +60,17 @@ function renderPinned(){
 if(!idle()||q.value.trim()||!pinned.length){pinEl.innerHTML='';return;}
 pinEl.innerHTML=sec('sec:pin','Pinned',pinned.length,pinned.map(rowHtml).join(''),'sl');}
 function stText(){const m=lastMsg||'';return ix&&dirty?'Searching what is indexed so far ('+ix.done+' of '+ix.total+' chats)'+(m?' - '+m:''):m;}
+function nkey(x,seen){const b=x.dataset.sec?'s:'+x.dataset.sec:'r:'+(x.dataset.id||x.className);seen[b]=(seen[b]||0)+1;return b+'#'+seen[b];}
+function patch(el,html){const t=document.createElement('template');t.innerHTML=html;const nw=Array.from(t.content.children);
+const act=document.activeElement,ak=act&&act.parentNode===el?nkey(act,{}):null;
+const old=new Map(),s1={};Array.from(el.children).forEach(c=>old.set(nkey(c,s1),c));
+const s2={};let prev=null;
+for(const n of nw){const k=nkey(n,s2),o=old.get(k);let node=n;
+if(o){old.delete(k);if(o.outerHTML===n.outerHTML)node=o;else el.replaceChild(n,o);}
+const ref=prev?prev.nextSibling:el.firstChild;if(node!==ref)el.insertBefore(node,ref);prev=node;}
+old.forEach(o=>o.remove());
+if(ak&&act&&!act.isConnected){const s3={},f=Array.from(el.children).find(c=>nkey(c,s3)===ak);if(f&&f.focus)f.focus();}}
 function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;
 const keep=stKeep(rs);stUi(stCounts(rs));const t=stText();st.innerHTML=esc(t)+stNote(rs.length-keep.length,!!t);
-list.innerHTML=resultsHtml(keep);renderIdle();stSync();}
+patch(list,resultsHtml(keep));renderIdle();stSync();}
 `;
