@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+- New: see which Claude chats touched a file, to hand a bug to the right chat. Right-click a file in the Explorer, in the editor or on its tab and choose "Saropa Chat Search: Show Chats That Touched This File" (also in the Command Palette for the active file). A list shows each chat, whether it edited or only read the file, when it was last active, its project folder, git branch and status. Pick a chat to resume it. Each row has buttons to copy a hand-over note (file, chat title, session id, edited or read, last active, project folder) and to search the panel for the file; a title button copies the whole list as Markdown.
+- New: a status bar count (chat icon and a number) for the active file, shown only when at least one chat touched it. Click it to open the list. Turn it off with the setting `saropaChatSearch.showFileSessionsStatusBar`.
+- New: "Find Chats For This File in Search Panel" and "Find Chats That Edited This File in Search Panel" open the panel with `file:<path>` or `edited:<path>` and run the search.
+- Subagent file activity counts toward its parent chat, once. The same file in a sibling git worktree (for example `contacts-wt-glass-buttons-2-6` for a `contacts` workspace) is found too. Matching ignores letter case on macOS and Windows. Edited chats list first, then read-only chats, each newest first (up to 200).
+
 ## 0.7.0
 - Changed: the whole search text is now one phrase by default. `my family` finds chats where "my family" appears together in one message, not chats that merely contain both words. Spaces, tabs and line breaks inside the phrase all match, and Match Case and Match Whole Word apply to the whole phrase. Double quotes are no longer needed (and are ignored).
 - New: a "Match any order" toggle (shuffle icon, Alt+O) next to Match Case, Whole Word and Regex. When it is on, the old behavior returns: every word must appear somewhere in the chat, and quoted phrases stay exact. It is off by default, remembered with your other options, and part of the recent-searches list (older entries load with it off). It is dimmed while Use Regular Expression is on.

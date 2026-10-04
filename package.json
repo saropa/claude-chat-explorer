@@ -2,7 +2,7 @@
   "name": "claude-chat-search",
   "displayName": "Saropa Chat Search",
   "description": "Full-text search of Claude Code chats from the activity bar.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -49,7 +49,84 @@
         "view": "claudeChatSearch.git",
         "contents": "No git activity found in your chats yet."
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "saropaChatSearch.fileSessions.show",
+        "title": "Saropa Chat Search: Show Chats That Touched This File"
+      },
+      {
+        "command": "saropaChatSearch.fileSessions.find",
+        "title": "Saropa Chat Search: Find Chats For This File in Search Panel"
+      },
+      {
+        "command": "saropaChatSearch.fileSessions.findEdited",
+        "title": "Saropa Chat Search: Find Chats That Edited This File in Search Panel"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "saropaChatSearch.fileSessions.show",
+          "when": "resourceScheme == file && !explorerResourceIsFolder",
+          "group": "saropaChatSearch@1"
+        },
+        {
+          "command": "saropaChatSearch.fileSessions.find",
+          "when": "resourceScheme == file && !explorerResourceIsFolder",
+          "group": "saropaChatSearch@2"
+        },
+        {
+          "command": "saropaChatSearch.fileSessions.findEdited",
+          "when": "resourceScheme == file && !explorerResourceIsFolder",
+          "group": "saropaChatSearch@3"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "saropaChatSearch.fileSessions.show",
+          "when": "resourceScheme == file",
+          "group": "saropaChatSearch@1"
+        },
+        {
+          "command": "saropaChatSearch.fileSessions.find",
+          "when": "resourceScheme == file",
+          "group": "saropaChatSearch@2"
+        },
+        {
+          "command": "saropaChatSearch.fileSessions.findEdited",
+          "when": "resourceScheme == file",
+          "group": "saropaChatSearch@3"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "saropaChatSearch.fileSessions.show",
+          "when": "resourceScheme == file",
+          "group": "saropaChatSearch@1"
+        },
+        {
+          "command": "saropaChatSearch.fileSessions.find",
+          "when": "resourceScheme == file",
+          "group": "saropaChatSearch@2"
+        },
+        {
+          "command": "saropaChatSearch.fileSessions.findEdited",
+          "when": "resourceScheme == file",
+          "group": "saropaChatSearch@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Saropa Chat Search",
+      "properties": {
+        "saropaChatSearch.showFileSessionsStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a status bar count of the Claude chats that touched the active file."
+        }
+      }
+    }
   },
   "scripts": {
     "compile": "tsc -p .",

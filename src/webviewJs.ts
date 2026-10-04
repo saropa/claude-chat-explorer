@@ -93,7 +93,8 @@ render(acc,'Searched '+d.done+' of '+d.total+' chats, '+acc.length+' matches');}
 else if(d.type==='done'){busy=false;bar.classList.remove('on');acc=d.results;render(d.results,d.searched||(prog?'Searched '+prog.total+' of '+prog.total+' chats, '+d.results.length+' matches':''));}
 else if(d.type==='error'){setBusy(false);st.textContent='';list.innerHTML='';hasResults=false;showErr(d.message);renderIdle();}
 else if(d.type==='short'){setBusy(false);st.textContent='';list.innerHTML='';hasResults=false;hint.textContent=d.message||'Type at least 2 characters';hint.hidden=false;renderIdle();}
-else if(d.type==='results'){busy=false;bar.classList.remove('on');render(d.results,d.searched);}});
+else if(d.type==='results'){busy=false;bar.classList.remove('on');render(d.results,d.searched);}
+else if(d.type==='setQuery'){q.value=d.query||'';go();}});
 vs.postMessage({type:'ready'});
 `;
 

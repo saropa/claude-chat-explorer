@@ -21,6 +21,7 @@ export abstract class RecReader {
   protected failed = new Map<string, string>(); // source file -> version that did not fit in memory; skipped until it changes
   protected fails = new Map<string, number>(); // record name -> consecutive read failures
   protected dirty = false;
+  gen = 0; // bumps on every change; caches keyed on the index compare it
   protected reparseTimer?: NodeJS.Timeout;
   private logged = new Set<string>();
   readonly recDir: string;
@@ -53,6 +54,7 @@ export abstract class RecReader {
   /** Top-level chats (subagents excluded). */
   tops(): Chat[] { return [...this.chats.values()].filter((c) => !c.parent); }
   get size(): number { return this.chats.size; }
+  all(): Chat[] { return [...this.chats.values()]; }
 
   /** Subagent chats of a parent session (same project folder), newest first. */
   subsOf(p: Chat): Chat[] {
@@ -78,7 +80,7 @@ export abstract class RecReader {
 
   fileOf(c: Chat): string { return fileOf(this.root, c); }
   protected srcOf(file: string): string { return path.relative(this.root, file); }
-  protected changed(): void { this.dirty = true; this.bySub = undefined; this.fmap = undefined; }
+  protected changed(): void { this.gen++; this.dirty = true; this.bySub = undefined; this.fmap = undefined; }
 
   related(chat: Chat): Related[] {
     this.fmap ??= buildFileMap(this.tops());

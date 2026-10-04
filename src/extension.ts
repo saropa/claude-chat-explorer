@@ -5,6 +5,7 @@ import { GIT_VIEW, GitTree, OPEN_CMD, RETRY_CMD } from './gitTree';
 import { IndexStatus } from './indexStatus';
 import { deliver } from './exporter';
 import { gitHint } from './gitMatch';
+import { registerFileSessions } from './fileSessionsUi';
 import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './query';
 import { isSessionId, openChat } from './resume';
 import { Draft, Store } from './store';
@@ -39,6 +40,8 @@ class Provider implements vscode.WebviewViewProvider {
   private lastPost = 0;
   onIndex?: () => void; // the index changed: refresh the Git Activity tree
   onScope?: () => void; // the All projects option changed
+  private ready = false; // the webview script has posted 'ready'
+  private pendingQuery?: string;
 
   constructor(private readonly store: Store, private readonly client: WorkerClient,
     private readonly status: IndexStatus) {
@@ -93,6 +96,21 @@ class Provider implements vscode.WebviewViewProvider {
       export: this.store.exportPrefs });
     void this.postMeta();
     if (this.progress) { this.post({ type: 'indexing', ...this.progress }); }
+    this.ready = true;
+    this.flushQuery();
+  }
+
+  /** Reveal the panel and run a query in it (queued until a new view is ready). */
+  async showQuery(query: string): Promise<void> {
+    this.pendingQuery = query;
+    await vscode.commands.executeCommand('claudeChatSearch.view.focus');
+    if (this.ready) { this.flushQuery(); }
+  }
+
+  private flushQuery(): void {
+    const query = this.pendingQuery;
+    this.pendingQuery = undefined;
+    if (query !== undefined) { this.post({ type: 'setQuery', query }); }
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -101,7 +119,7 @@ class Provider implements vscode.WebviewViewProvider {
     view.webview.options = { enableScripts: true, localResourceRoots: [] };
     view.webview.html = html();
     const sub = view.webview.onDidReceiveMessage((m) => { void this.onMessage(m); });
-    view.onDidDispose(() => { sub.dispose(); if (this.view === view) { this.view = undefined; } });
+    view.onDidDispose(() => { sub.dispose(); this.ready = false; if (this.view === view) { this.view = undefined; } });
     // The script posts 'ready' once its listener is attached; restore() runs then.
   }
 
@@ -250,6 +268,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(OPEN_CMD, (id: unknown) => (isSessionId(id) ? openChat(id, log) : undefined)),
     vscode.window.registerWebviewViewProvider('claudeChatSearch.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
+  registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), open: (id) => openChat(id, log),
+    showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { const was = provider.onIndex; provider.onIndex = () => { was?.(); fn(); }; } });
   client.start(); // indexing runs in the worker; activation never waits for it
 }
 
