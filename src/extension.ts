@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Options, searchChats, buildTerms, Result } from './search';
+import { Abort, Options, searchChats, buildTerms, Result } from './search';
 
 const NAME = 'Saropa Chat Search';
 const STATE_KEY = 'saropaChatSearch.state';
@@ -11,6 +11,7 @@ interface Saved extends HistItem { results: Result[]; searched: string; }
 
 class Provider implements vscode.WebviewViewProvider {
   private seq = 0;
+  private sig: Abort = { aborted: false };
   private view?: vscode.WebviewView;
 
   constructor(private readonly ctx: vscode.ExtensionContext) {}
@@ -61,6 +62,9 @@ class Provider implements vscode.WebviewViewProvider {
     const query = String(m.query ?? '').trim();
     const o = opts(m);
     const id = ++this.seq;
+    this.sig.aborted = true; // cancel the previous scan immediately
+    const sig: Abort = { aborted: false };
+    this.sig = sig;
     if (!query) {
       await this.ctx.workspaceState.update(STATE_KEY, { ...o, query: '', results: [], searched: '' });
       this.post({ type: 'results', results: [], searched: '' });
@@ -70,19 +74,36 @@ class Provider implements vscode.WebviewViewProvider {
       this.post({ type: 'error', message: (e as Error).message });
       return;
     }
-    let searched = '';
+    this.post({ type: 'start' });
+    let pending: Result[] = [];
+    let prog = { done: 0, total: 0 };
+    let timer: NodeJS.Timeout | undefined;
+    const live = () => id === this.seq && !sig.aborted;
+    const flush = () => {
+      timer = undefined;
+      if (!live()) { return; }
+      this.post({ type: 'batch', results: pending, done: prog.done, total: prog.total });
+      pending = [];
+    };
     try {
       const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
-      const results = await searchChats(query, o, folders, (p) => {
-        if (id === this.seq) { this.post({ type: 'progress', done: p.done, total: p.total }); }
+      const results = await searchChats(query, o, folders, sig, (r, done, total) => {
+        if (!live()) { return; }
+        if (r) { pending.push(r); }
+        prog = { done, total };
+        if (!timer) { timer = setTimeout(flush, 100); }
       });
-      if (id !== this.seq) { return; }
-      searched = results.length ? '' : 'No matches';
+      if (timer) { clearTimeout(timer); timer = undefined; }
+      if (!live()) { return; }
+      flush();
+      const searched = results.length ? '' : 'No matches';
       await this.ctx.workspaceState.update(STATE_KEY, { ...o, query, results, searched });
+      if (!live()) { return; }
       if (results.length) { await this.addHistory({ query, ...o }); }
-      this.post({ type: 'results', results, searched });
+      this.post({ type: 'done', results, searched });
     } catch {
-      if (id === this.seq) { this.post({ type: 'results', results: [], searched: 'Search failed' }); }
+      if (timer) { clearTimeout(timer); }
+      if (live()) { this.post({ type: 'results', results: [], searched: 'Search failed' }); }
     }
   }
 
@@ -172,7 +193,7 @@ a{color:var(--vscode-textLink-foreground);cursor:pointer}
 const vs=acquireVsCodeApi();const $=id=>document.getElementById(id);
 const q=$('q'),all=$('all'),st=$('status'),list=$('list'),hist=$('hist'),bar=$('bar'),err=$('err');
 const flags={cs:$('cs'),ww:$('ww'),re:$('re')};
-let timer,history=[],hasResults=false,busy=false;
+let timer,history=[],hasResults=false,busy=false,acc=[],prog=null;
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function cur(){return{query:q.value.trim(),all:all.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),re:flags.re.classList.contains('on')};}
 function setFlag(k,v){flags[k].classList.toggle('on',!!v);flags[k].setAttribute('aria-pressed',v?'true':'false');}
@@ -180,6 +201,7 @@ function showErr(m){err.style.display=m?'block':'none';err.textContent=m||'';q.c
 function setBusy(b){busy=b;bar.classList.toggle('on',b);renderHist();}
 function draft(){vs.postMessage(Object.assign({type:'draft'},cur()));}
 function go(){clearTimeout(timer);const c=cur();showErr('');draft();
+acc=[];prog=null;
 if(!c.query){list.innerHTML='';hasResults=false;st.textContent='';setBusy(false);vs.postMessage(Object.assign({type:'search'},c));return;}
 st.textContent='Searching...';setBusy(true);vs.postMessage(Object.assign({type:'search'},c));}
 function renderHist(){
@@ -215,7 +237,10 @@ window.addEventListener('message',e=>{const d=e.data;
 if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;setFlag('cs',s.cs);setFlag('ww',s.ww);setFlag('re',s.re);
 history=d.history||[];render(s.results||[],s.searched);}
 else if(d.type==='history'){history=d.history||[];renderHist();}
-else if(d.type==='progress'){st.textContent='Searched '+d.done+' of '+d.total+' chats';}
+else if(d.type==='start'){acc=[];prog=null;}
+else if(d.type==='batch'){if(!busy)return;acc=acc.concat(d.results).sort((a,b)=>b.score-a.score).slice(0,50);prog={done:d.done,total:d.total};
+render(acc,'Searched '+d.done+' of '+d.total+' chats, '+acc.length+' matches');}
+else if(d.type==='done'){busy=false;bar.classList.remove('on');acc=d.results;render(d.results,d.searched||(prog?'Searched '+prog.total+' of '+prog.total+' chats, '+d.results.length+' matches':''));}
 else if(d.type==='error'){setBusy(false);st.textContent='';list.innerHTML='';hasResults=false;showErr(d.message);renderHist();}
 else if(d.type==='results'){busy=false;bar.classList.remove('on');render(d.results,d.searched);}});
 list.addEventListener('click',e=>{const el=e.target.closest('.r');if(el)vs.postMessage({type:'open',id:el.dataset.id});});
