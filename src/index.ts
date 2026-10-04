@@ -26,6 +26,7 @@ export class ChatIndex {
   private watcher?: fs.FSWatcher;
   private fmap?: FileMap;
   cacheBytes = 0;
+  building = false;
   onChange?: () => void;
 
   constructor(private readonly cacheFile: string, private readonly root: string = projectsRoot()) {}
@@ -85,6 +86,7 @@ export class ChatIndex {
       return !c || c.mtime !== f.mtime || c.size !== f.size;
     });
     const cold = this.chats.size === 0 && todo.length > 0;
+    this.building = cold; // first build: no cache existed or its version changed
     let removed = false;
     for (const k of [...this.chats.keys()]) { if (!seen.has(k)) { this.chats.delete(k); removed = true; } }
     let done = 0, next = 0;

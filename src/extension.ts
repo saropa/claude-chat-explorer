@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ChatIndex } from './index';
+import { IndexStatus } from './indexStatus';
 import { compile, isEmpty } from './query';
 import { expandChat, searchIndex } from './search';
 import { Store } from './store';
@@ -35,18 +36,28 @@ class Provider implements vscode.WebviewViewProvider {
   private seq = 0;
   private sig: Abort = { aborted: false };
   private view?: vscode.WebviewView;
-  private progress: { done: number; total: number } | null = null;
+  private progress: { done: number; total: number; first: boolean } | null = null;
 
-  constructor(private readonly store: Store, private readonly index: ChatIndex) {
+  constructor(private readonly store: Store, private readonly index: ChatIndex,
+    private readonly status: IndexStatus) {
     index.onChange = () => this.postMeta();
   }
 
   private post(m: unknown): void { void this.view?.webview.postMessage(m); }
 
-  /** Index progress shown in the panel; null means done. */
+  /** Index progress shown in the panel and status bar; null means done. */
   indexing(done: number, total: number): void {
-    this.progress = done >= total ? null : { done, total };
-    this.post(this.progress ? { type: 'indexing', done, total } : { type: 'indexed' });
+    const was = this.progress;
+    if (done >= total) {
+      this.progress = null;
+      this.status.hide();
+      this.post({ type: 'indexed' });
+      if (was?.first) { void vscode.window.showInformationMessage(`Saropa Chat Search: indexed ${total} chats.`); }
+      return;
+    }
+    this.progress = { done, total, first: this.index.building };
+    this.status.update(done, total);
+    this.post({ type: 'indexing', ...this.progress });
   }
 
   private get ctx(): Ctx { return { pins: new Set(Object.keys(this.store.pins)), tags: this.store.tags }; }
@@ -171,8 +182,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const dir = ctx.globalStorageUri.fsPath;
   try { fs.mkdirSync(dir, { recursive: true }); } catch { /* persist() retries */ }
   index = new ChatIndex(path.join(dir, 'index-cache.jsonl'));
-  const provider = new Provider(new Store(ctx), index);
-  ctx.subscriptions.push(
+  const status = new IndexStatus();
+  const provider = new Provider(new Store(ctx), index, status);
+  ctx.subscriptions.push(status,
     vscode.window.registerWebviewViewProvider('claudeChatSearch.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
   const idx = index;

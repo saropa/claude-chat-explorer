@@ -53,6 +53,7 @@ return '<div class="h" data-i="'+i+'" title="'+esc(h.query)+'"><span class="q">'
 function renderPinned(){
 if(!idle()||q.value.trim()||!pinned.length){pinEl.innerHTML='';return;}
 pinEl.innerHTML=sec('sec:pin','Pinned',pinned.length,pinned.map(rowHtml).join(''),'sl');}
-function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;st.textContent=msg||'';
+function stText(){const m=lastMsg||'';return ix&&dirty?'Searching what is indexed so far ('+ix.done+' of '+ix.total+' chats)'+(m?' - '+m:''):m;}
+function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;st.textContent=stText();
 list.innerHTML=resultsHtml(rs);renderIdle();}
 `;

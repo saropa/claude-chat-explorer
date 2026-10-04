@@ -6,17 +6,19 @@ const CORE = String.raw`
 const vs=acquireVsCodeApi();const $=id=>document.getElementById(id);
 const q=$('q'),all=$('all'),when=$('when'),sort=$('sort'),st=$('status'),list=$('list'),hist=$('hist'),pinEl=$('pin'),bar=$('bar'),err=$('err'),tl=$('tl');
 const flags={cs:$('cs'),ww:$('ww'),re:$('re')};
-let timer,history=[],hasResults=false,busy=false,acc=[],prog=null,lastRs=[],lastMsg='';
+let timer,history=[],hasResults=false,busy=false,acc=[],prog=null,lastRs=[],lastMsg='',ix=null,dirty=false;
+const ixb=$('ixb'),ixt=$('ixt');
 let pins=new Set(),tags={},pinned=[],open=new Set(),ex={},col=new Set();
 function cur(){return{query:q.value.trim(),all:all.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),re:flags.re.classList.contains('on'),when:when.value,sort:sort.value};}
 function setFlag(k,v){flags[k].classList.toggle('on',!!v);flags[k].setAttribute('aria-pressed',v?'true':'false');}
 function showErr(m){err.style.display=m?'block':'none';err.textContent=m||'';q.classList.toggle('bad',!!m);}
 function setBusy(b){busy=b;bar.classList.toggle('on',b);renderIdle();}
 function draft(){vs.postMessage(Object.assign({type:'draft'},cur()));}
-function go(){clearTimeout(timer);const c=cur();showErr('');draft();
+function showIx(){ixb.hidden=!ix;if(ix)ixt.textContent=ix.first?'Building the search index for the first time: '+ix.done+' of '+ix.total+'. Later launches are much faster.':'Indexing your chats: '+ix.done+' of '+ix.total+'. Results may be incomplete until this finishes.';}
+function go(){clearTimeout(timer);const c=cur();showErr('');draft();dirty=!!(ix&&c.query);
 acc=[];prog=null;open.clear();ex={};
 if(!c.query){list.innerHTML='';hasResults=false;st.textContent='';setBusy(false);vs.postMessage(Object.assign({type:'search'},c));return;}
-st.textContent='Searching...';setBusy(true);vs.postMessage(Object.assign({type:'search'},c));}
+lastMsg='Searching...';st.textContent=stText();setBusy(true);vs.postMessage(Object.assign({type:'search'},c));}
 function idle(){return !(hasResults||busy||err.style.display==='block');}
 function renderIdle(){renderHist();renderPinned();}
 function rerender(){render(lastRs,lastMsg);}
@@ -70,8 +72,8 @@ history=d.history||[];render(s.results||[],s.searched);}
 else if(d.type==='meta'){pins=new Set(d.pins);tags=d.tags||{};pinned=d.pinned||[];tl.innerHTML=(d.all||[]).map(t=>'<option value="'+esc(t)+'">').join('');rerender();}
 else if(d.type==='expanded'){const n=ex[d.id],more=d.offset>0&&n;
 ex[d.id]={items:more?n.items.concat(d.items):d.items,total:d.total,files:d.files,commands:d.commands,related:more?n.related:d.related};rerender();}
-else if(d.type==='indexing'){bar.classList.add('on');st.textContent='Indexing '+d.done+' of '+d.total+' chats';}
-else if(d.type==='indexed'){bar.classList.toggle('on',busy);if(!busy&&/^Indexing/.test(st.textContent))st.textContent='';}
+else if(d.type==='indexing'){ix={done:d.done,total:d.total,first:!!d.first};showIx();if(dirty)st.textContent=stText();}
+else if(d.type==='indexed'){ix=null;showIx();if(dirty){dirty=false;go();}}
 else if(d.type==='history'){history=d.history||[];renderHist();}
 else if(d.type==='start'){acc=[];prog=null;}
 else if(d.type==='batch'){if(!busy)return;acc=acc.concat(d.results).sort((a,b)=>b.score-a.score).slice(0,` + MAX_RESULTS + String.raw`);prog={done:d.done,total:d.total};

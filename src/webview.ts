@@ -10,6 +10,7 @@ export function html(): string {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
 <style nonce="${nonce}">${CSS}</style></head><body>
 <div class="top">
+<div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div>
 <div class="box">
 <input type="text" id="q" placeholder="Search chats  (file: edited: cmd: tag:)" autofocus>
 <div class="opts">

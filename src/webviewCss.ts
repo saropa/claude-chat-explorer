@@ -11,6 +11,10 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .opt.on{background:var(--vscode-inputOption-activeBackground);border-color:var(--vscode-inputOption-activeBorder,transparent);color:var(--vscode-inputOption-activeForeground)}
 .opt u{text-decoration:underline}
 #err{display:none;margin-top:-1px;padding:3px 6px;font-size:0.9em;background:var(--vscode-inputValidation-errorBackground);border:1px solid var(--vscode-inputValidation-errorBorder);color:var(--vscode-inputValidation-errorForeground,var(--vscode-foreground))}
+#ixb{margin:0 0 6px;font-size:0.9em;color:var(--vscode-descriptionForeground)}
+#ixb[hidden]{display:none}
+.ixp{position:relative;height:2px;margin-top:3px;overflow:hidden;background:var(--vscode-widget-border,transparent)}
+.ixp i{position:absolute;top:0;bottom:0;width:30%;background:var(--vscode-progressBar-background);animation:slide 1.2s linear infinite}
 #bar{position:relative;height:2px;margin-top:2px;overflow:hidden;visibility:hidden}
 #bar.on{visibility:visible}
 #bar i{position:absolute;top:0;bottom:0;width:30%;background:var(--vscode-progressBar-background);animation:slide 1.2s linear infinite}
