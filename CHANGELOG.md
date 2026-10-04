@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chat Search, newest first. Dates are the git dates of each release.
 
+## 0.12.2 - 2026-10-04
+- The right-click item for the chats that touched a file now reads "Saropa: Chats That Touched This File".
+
 ## 0.11.1 - 2026-10-04
 - Changed: the chat title gets more room. The green Active chip is gone, because the status dot already shows running, waiting and unread. The status filter still has Active.
 - Changed: the Huge, Empty, Tiny and Abandoned chips and the Git count moved from the title line to the pill line, after the count and time pills. The title line now holds only the dot, the title and the chevron.
