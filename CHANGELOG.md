@@ -2,6 +2,11 @@
 
 Release notes for Saropa Chat Search, newest first. Dates are the git dates of each release.
 
+## 0.9.2 - 2026-10-04
+- Fixed: the sidebar icons were missing in 0.9.1 and earlier since 0.8.1. VS Code rejected the Git Activity container id because it held a dot, and dropped both sidebar containers. The id is now plain letters.
+- New: the packaging step checks the manifest and stops on a bad container id, an undeclared command, a missing icon, or a command with no handler.
+- After installing, run "Developer: Reload Window" so VS Code loads the new version.
+
 ## 0.9.1 - 2026-10-04
 - Fixed: the extension now has an icon in the Extensions list and its details page. Before, it had none. The sidebar icons were already packaged and render.
 - New: the command "Saropa Chat Search: Show Diagnostics" shows the version, whether startup finished, how many chats are indexed, and whether Claude Code and its sessions folder are found.

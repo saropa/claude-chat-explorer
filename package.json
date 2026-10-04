@@ -2,7 +2,7 @@
   "name": "claude-chat-search",
   "displayName": "Saropa Chat Search",
   "description": "Search Claude Code chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
@@ -42,7 +42,7 @@
           "icon": "icon.svg"
         },
         {
-          "id": "claudeChatSearch.gitContainer",
+          "id": "claudeChatSearchGit",
           "title": "Saropa Git Activity",
           "icon": "gitIcon.svg"
         }
@@ -57,7 +57,7 @@
           "icon": "icon.svg"
         }
       ],
-      "claudeChatSearch.gitContainer": [
+      "claudeChatSearchGit": [
         {
           "id": "claudeChatSearch.git",
           "name": "Git Activity",
@@ -254,6 +254,7 @@
   },
   "scripts": {
     "compile": "tsc -p .",
+    "prepackage": "node scripts/check_manifest.js",
     "package": "npx @vscode/vsce package --allow-missing-repository --skip-license"
   },
   "devDependencies": {
