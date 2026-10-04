@@ -43,7 +43,7 @@ async function stats(w) {
   return (await r).value;
 }
 
-const dirSize = (d) => fs.readdirSync(d).reduce((a, f) => a + fs.statSync(path.join(d, f)).size, 0);
+const dirSize = (d) => fs.readdirSync(d, { withFileTypes: true }).reduce((a, e) => a + (e.isDirectory() ? dirSize(path.join(d, e.name)) : fs.statSync(path.join(d, e.name)).size), 0);
 
 async function runBuild() {
   const w = spawn();

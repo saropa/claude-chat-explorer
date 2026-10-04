@@ -2,7 +2,7 @@
 
 export interface FileRef { path: string; edited: boolean; }
 
-/** In-memory metadata of one indexed chat file. Message text lives in the on-disk store. */
+/** In-memory metadata of one indexed chat file. Message text lives in its record file. */
 export interface Chat {
   id: string; // session id, or agent id for a subagent
   dir: string; // project folder name
@@ -10,7 +10,7 @@ export interface Chat {
   agentType?: string; desc?: string; // subagents only, from agent-<id>.meta.json
   mtime: number; size: number; title: string; last: number; first: number; count: number;
   files: FileRef[];
-  off: number; len: number; // record location in the store
+  rec: string; len: number; // record file name, and body length in bytes
   bloom: Uint8Array; // trigram prefilter over lowercased text and commands
 }
 

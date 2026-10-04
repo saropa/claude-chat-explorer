@@ -1,4 +1,3 @@
-import * as fs from 'fs';
 import { SEP } from './parse';
 import { Rec } from './types';
 
@@ -51,50 +50,3 @@ export function decodeRec(b: Buffer): Rec {
 
 /** Start offset of message i in a record's text. */
 export const startOf = (r: Rec, i: number): number => (i === 0 ? 0 : r.ends[i - 1] + SEP.length);
-
-/** Append-only file of records. Superseded records become garbage until the next compaction. */
-export class BlobStore {
-  private wfd = -1;
-  private rfd = -1;
-  size = 0;
-
-  constructor(readonly file: string) {}
-
-  open(): void {
-    this.wfd = fs.openSync(this.file, 'a');
-    this.rfd = fs.openSync(this.file, 'r');
-    this.size = fs.fstatSync(this.wfd).size;
-  }
-
-  /** Append a record; returns its offset. */
-  append(b: Buffer): number {
-    const off = this.size;
-    try {
-      for (let done = 0; done < b.length;) { done += fs.writeSync(this.wfd, b, done, b.length - done, null); }
-    } catch (e) {
-      try { fs.ftruncateSync(this.wfd, off); } catch { /* keep the original error */ } // drop a partial record
-      throw e;
-    }
-    this.size += b.length;
-    return off;
-  }
-
-  /** Flush appended data to disk. */
-  sync(): void { if (this.wfd >= 0) { fs.fsyncSync(this.wfd); } }
-
-  read(off: number, len: number): Buffer {
-    const b = Buffer.allocUnsafe(len);
-    let got = 0;
-    while (got < len) {
-      const n = fs.readSync(this.rfd, b, got, len - got, off + got);
-      if (!n) { throw new Error('store truncated'); }
-      got += n;
-    }
-    return b;
-  }
-
-  close(): void {
-    for (const fd of [this.wfd, this.rfd]) { if (fd >= 0) { try { fs.closeSync(fd); } catch { /* already closed */ } } }
-    this.wfd = this.rfd = -1;
-  }
-}

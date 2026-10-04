@@ -1,55 +1,57 @@
 /**
  * Architecture: the index lives in a worker thread (worker.ts), so parsing and regex matching never
  * block the extension host. In memory it keeps only per-chat metadata, file lists and a trigram
- * bloom filter (bloom.ts). Message text and commands sit in an append-only binary store on disk
- * (blob.ts): one packed record per chat, read only for chats the bloom filter cannot reject, and
- * served from the OS page cache after the first read. Parsing (parse.ts) scans raw bytes and runs
- * JSON.parse only on message and title rows, skipping tool results. Changed chats append a new
- * record; the metadata file (metaFile.ts) is rewritten and the store compacted when over half is garbage.
+ * bloom filter (bloom.ts). Each chat version is one immutable record file (record.ts) named by a hash
+ * of its source path, mtime and size, so windows share the folder with no lock: a name only ever
+ * holds one content. Failed writes fall back to memory; sweep.ts removes stale files.
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { BlobStore, decodeRec } from './blob';
+import { decodeRec } from './blob';
 import { buildChat } from './build';
 import { fileOf, FileStat, listFiles, projectsRoot } from './files';
-import { loadMeta, saveMeta, VERSION } from './metaFile';
-import { compactStore } from './compact';
-import { acquireLock, pidAlive, privatePid, LOCK, releaseLock } from './lock';
+import { chatOf, code, emptyRec, readHeaders, headerOf, quiet, unchanged } from './recChat';
+import { DIR_PREFIX, encodeFile, EXT, FORMAT, Parsed, readHeader, parseRecord, readRecordSync, recName, writeRecord } from './record';
+import { MemKeep } from './memKeep';
 import { buildFileMap, FileMap, relatedChats } from './related';
+import { DEFAULT_AGES, sweepAll, SweepAges } from './sweep';
 import { Chat, Rec, Related } from './types';
 
 export const CACHE_LIMIT = 200 * 1024 * 1024;
 const PRUNE_DAYS = 90;
-const PERSIST_DELAY = 30000;
 const WATCH_DELAY = 1000;
-const BUILD_SAVE_MS = 15000;
 const CONCURRENCY = 8;
 const REPARSE_DELAY = 1000;
-const OLD_CACHE = ['index-cache.jsonl', 'index-cache.jsonl.tmp'];
-const META = `meta-v${VERSION}.bin`;
+const SWEEP_EVERY = 6 * 3600e3;
 
 export type IndexProgress = (done: number, total: number, subs: number) => void;
+type Built = { chat: Chat; body: Buffer };
 
 export class ChatIndex {
-  private chats = new Map<string, Chat>(); // keyed by file path
+  private chats = new Map<string, Chat>(); // keyed by source file path
   private bySub?: Map<string, Chat[]>;
   private fmap?: FileMap;
-  private store!: BlobStore;
   private chain: Promise<void> = Promise.resolve();
-  private owner = false; // holds the lock on the shared cache files
-  private gate: Promise<void> = Promise.resolve(); // pending while a compaction runs; adds wait on it
-  private reparseTimer?: NodeJS.Timeout;
+  private keepMem = new MemKeep(); // records whose write failed
+  private keep = new Set<string>(); // record names current chats use, for the sweep
+  private memOnly = false;
+  private warned = false;
+  private swept = false;
   private pruned = false;
   private dirty = false;
-  private lastSave = 0;
-  private persistTimer?: NodeJS.Timeout;
+  private reparseTimer?: NodeJS.Timeout;
   private watchTimer?: NodeJS.Timeout;
+  private sweepTimer?: NodeJS.Timeout;
   private watcher?: fs.FSWatcher;
+  readonly recDir: string;
+  ages: SweepAges = { ...DEFAULT_AGES };
   building = false;
   onChange?: () => void;
   onError?: (where: string, e: unknown) => void;
 
-  constructor(private readonly dir: string, readonly root: string = projectsRoot()) {}
+  constructor(private readonly dir: string, readonly root: string = projectsRoot()) {
+    this.recDir = path.join(dir, DIR_PREFIX + FORMAT);
+  }
 
   /** Top-level chats (subagents excluded). */
   tops(): Chat[] { return [...this.chats.values()].filter((c) => !c.parent); }
@@ -78,20 +80,47 @@ export class ChatIndex {
   }
 
   fileOf(c: Chat): string { return fileOf(this.root, c); }
+  private srcOf(file: string): string { return path.relative(this.root, file); }
+
   /** Decode a chat's record; an unreadable one is evicted and re-parsed, and reads as empty. */
   rec(c: Chat): Rec {
-    try { return decodeRec(this.store.read(c.off, c.len)); }
-    catch (e) {
+    try {
+      const m = this.keepMem.bodies.get(c.rec);
+      if (m) { return decodeRec(m); }
+      if (this.keepMem.pend.has(c.rec)) { return emptyRec(); }
+      return decodeRec(parseRecord(readRecordSync(path.join(this.recDir, c.rec)), c.rec).body);
+    } catch (e) { return this.recFailed(c, e); }
+  }
+
+  private recFailed(c: Chat, e: unknown): Rec {
+    if (code(e) === 'ENOENT') {
+      const r = this.reresolve(c);
+      if (r) { return r; }
+    } else {
       this.onError?.('record ' + c.id, e);
-      this.evict(c);
-      return { text: '', ts: [], ends: [], roles: [], cmds: [], lines: new Uint32Array(0) };
+      try { fs.unlinkSync(path.join(this.recDir, c.rec)); } catch { /* already gone */ }
     }
+    this.evict(c);
+    return emptyRec();
+  }
+
+  /** The record vanished: use the one for the source's current version when it exists. */
+  private reresolve(c: Chat): Rec | undefined {
+    try {
+      const file = fileOf(this.root, c), st = fs.statSync(file);
+      const name = recName(this.srcOf(file), st.mtimeMs, st.size);
+      if (name === c.rec) { return undefined; }
+      const p = parseRecord(readRecordSync(path.join(this.recDir, name)), name);
+      this.chats.set(file, chatOf(p, name));
+      this.changed();
+      return decodeRec(p.body);
+    } catch { return undefined; }
   }
 
   /** Forget a chat and queue a refresh so it is parsed again. */
   private evict(c: Chat): void {
-    this.chats.delete(fileOf(this.root, c));
-    this.changed();
+    const k = fileOf(this.root, c);
+    if (this.chats.get(k) === c) { this.chats.delete(k); this.changed(); }
     if (this.reparseTimer) { return; }
     this.reparseTimer = setTimeout(() => { this.reparseTimer = undefined; this.refresh().catch(() => undefined); }, REPARSE_DELAY);
   }
@@ -103,6 +132,8 @@ export class ChatIndex {
 
   load(): Promise<void> { return this.enqueue(() => this.doLoad()); }
   refresh(cb?: IndexProgress): Promise<void> { return this.enqueue(() => this.doRefresh(cb)); }
+  /** Nothing to save: every record is written as it is built. */
+  persist(): Promise<void> { return Promise.resolve(); }
 
   private enqueue(job: () => Promise<void>): Promise<void> {
     const run = this.chain.then(job);
@@ -110,41 +141,46 @@ export class ChatIndex {
     return run;
   }
 
-  /** Take the lock and load shared metadata, or (without the lock) start a private empty store. */
+  /** Read every record header; a folder problem switches to memory only and never throws. */
   private async doLoad(): Promise<void> {
-    await fs.promises.mkdir(this.dir, { recursive: true });
-    this.owner = acquireLock(this.dir);
+    let names: string[] = [];
+    try { await fs.promises.mkdir(this.recDir, { recursive: true }); names = await fs.promises.readdir(this.recDir); }
+    catch (e) { this.memOnly = true; this.warn(e); }
+    this.adoptNewest(await readHeaders(this.recDir, names.filter((n) => n.endsWith(EXT))));
+    this.pruned = this.total() > CACHE_LIMIT;
+  }
+
+  /** Keep the newest version per source. */
+  private adoptNewest(found: Array<{ p: Parsed; name: string }>): void {
+    for (const { p, name } of found) {
+      const k = path.join(this.root, p.h.src), cur = this.chats.get(k);
+      if (!cur || cur.mtime < p.h.mtime) { this.chats.set(k, chatOf(p, name)); }
+    }
+    this.changed();
+  }
+
+  private total(): number { let n = 0; for (const c of this.chats.values()) { n += c.len; } return n; }
+
+  private warn(e: unknown): void {
+    if (this.warned) { return; }
+    this.warned = true;
+    this.onError?.('record folder unavailable, keeping records in memory', e);
+  }
+
+  private needs(f: FileStat): boolean {
+    const c = this.chats.get(f.file);
+    return !c || c.mtime !== f.mtime || c.size !== f.size || (this.keepMem.pend.has(c.rec) && !this.keepMem.bodies.has(c.rec));
+  }
+
+  /** Adopt the record another window wrote for this version, when it is valid. */
+  private async adopt(t: FileStat): Promise<boolean> {
+    if (this.memOnly) { return false; }
+    const name = recName(this.srcOf(t.file), t.mtime, t.size);
     try {
-      const m = this.owner ? await loadMeta(path.join(this.dir, META)) : undefined;
-      const storeName = this.owner ? (m?.head.store ?? `store-v${VERSION}-${Date.now()}.bin`)
-        : `store-v${VERSION}-p${process.pid}-${Date.now()}.bin`;
-      if (m) {
-        this.pruned = m.head.pruned;
-        for (const c of m.chats) { this.chats.set(fileOf(this.root, c), c); }
-      }
-      await this.cleanup(storeName);
-      this.store = new BlobStore(path.join(this.dir, storeName));
-      this.store.open();
-      this.dropOutOfRange();
-    } catch (e) { this.shutdown(); throw e; }
-  }
-
-  /** Drop chats whose record lies beyond the end of the store (missing or truncated file). */
-  private dropOutOfRange(): void {
-    for (const [k, c] of [...this.chats]) {
-      if (c.off < 0 || c.len < 0 || c.off + c.len > this.store.size) { this.chats.delete(k); this.changed(); }
-    }
-  }
-
-  /** Delete private stores of dead processes; the lock holder also deletes old caches and shared stores. */
-  private async cleanup(keep: string): Promise<void> {
-    for (const f of await fs.promises.readdir(this.dir)) {
-      if (f === keep || f === LOCK) { continue; }
-      const pp = privatePid(f);
-      const stale = pp !== undefined ? pp === process.pid || !pidAlive(pp)
-        : this.owner && (OLD_CACHE.includes(f) || f.startsWith('store-') || (f.startsWith('meta-') && f !== META));
-      if (stale) { await fs.promises.rm(path.join(this.dir, f), { force: true }).catch(() => undefined); }
-    }
+      this.chats.set(t.file, chatOf(await readHeader(path.join(this.recDir, name), name), name));
+      this.changed();
+      return true;
+    } catch { return false; }
   }
 
   /** Parse files newest first with a few concurrent readers; progress per file. */
@@ -156,21 +192,64 @@ export class ChatIndex {
     const worker = async () => {
       while (next < todo.length) {
         const t = todo[next++];
-        try { const b = await buildChat(t, before); await this.gate; this.add(t.file, b); }
-        catch (e) { this.onError?.('parse ' + t.file, e); }
+        try { await this.handle(t, before); } catch (e) { this.onError?.('parse ' + t.file, e); }
         try { cb?.(++done, todo.length, subs); } catch (e) { this.onError?.('progress', e); }
-        if (this.building && Date.now() - this.lastSave > BUILD_SAVE_MS) { await this.doPersist(); }
       }
     };
     if (todo.length) { cb?.(0, todo.length, subs); }
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, todo.length) }, worker));
   }
 
-  /** Append the record to the current store (sync, so a compaction cannot interleave). */
-  private add(file: string, b: { chat: Chat; rec: Buffer }): void {
-    b.chat.off = this.store.append(b.rec);
-    this.chats.set(file, b.chat);
+  private async handle(t: FileStat, before: number): Promise<void> {
+    if (await this.adopt(t)) { return; }
+    await this.put(t, await buildChat(t, before), before);
+  }
+
+  /** Write the record, then switch the chat to it and delete its previous version. */
+  private async put(t: FileStat, b: Built, cut: number): Promise<void> {
+    const src = this.srcOf(t.file), name = recName(src, t.mtime, t.size);
+    b.chat.rec = name;
+    const prev = this.chats.get(t.file);
+    try {
+      if (this.memOnly) { throw new Error('memory only'); }
+      const buf = encodeFile(headerOf(b.chat, src, cut), b.chat.bloom, b.body);
+      if (!(await writeRecord(this.recDir, name, buf, unchanged(t)))) { return; } // source moved; the watcher refreshes
+      this.keepMem.pend.delete(name);
+      this.install(t.file, b.chat, prev);
+      if (prev && prev.rec !== name) { await quiet(fs.promises.unlink(path.join(this.recDir, prev.rec))); }
+    } catch (e) { this.fallback(t.file, b, prev, e); }
+  }
+
+  private install(file: string, chat: Chat, prev?: Chat): void {
+    if (prev && prev.rec !== chat.rec) { this.keepMem.release(prev.rec); }
+    this.chats.set(file, chat);
     this.changed();
+  }
+
+  /** A failed write keeps the body in memory (capped); over the cap an existing record stays in use. */
+  private fallback(file: string, b: Built, prev: Chat | undefined, e: unknown): void {
+    if (!this.memOnly || !this.warned) { this.warn(e); }
+    if (this.keepMem.add(b.chat.rec, b.body)) {
+      this.install(file, b.chat, prev);
+    } else if (!prev) {
+      this.keepMem.pend.add(b.chat.rec);
+      this.install(file, b.chat);
+    }
+  }
+
+  /** Retry writing records held in memory. */
+  private async retryPending(): Promise<void> {
+    if (this.memOnly || !this.keepMem.bodies.size) { return; }
+    const byRec = new Map([...this.chats].map(([f, c]) => [c.rec, { f, c }]));
+    for (const [name, body] of [...this.keepMem.bodies]) {
+      const e = byRec.get(name);
+      if (!e) { this.keepMem.release(name); continue; }
+      const src = this.srcOf(e.f);
+      try {
+        const buf = encodeFile(headerOf(e.c, src, 0), e.c.bloom, body);
+        if (await writeRecord(this.recDir, name, buf, unchanged({ file: e.f, mtime: e.c.mtime, size: e.c.size }))) { this.keepMem.release(name); }
+      } catch { /* still failing; stay in memory */ }
+    }
   }
 
   private changed(): void { this.dirty = true; this.bySub = undefined; this.fmap = undefined; }
@@ -178,61 +257,27 @@ export class ChatIndex {
   private async doRefresh(cb?: IndexProgress): Promise<void> {
     const all = await listFiles(this.root, (w, e) => this.onError?.(w, e));
     const seen = new Set(all.map((f) => f.file));
-    const todo = all.filter((f) => {
-      const c = this.chats.get(f.file);
-      return !c || c.mtime !== f.mtime || c.size !== f.size;
-    });
-    const cold = this.chats.size === 0 && todo.length > 0;
-    this.building = cold;
-    this.lastSave = Date.now();
-    for (const k of [...this.chats.keys()]) { if (!seen.has(k)) { this.chats.delete(k); this.changed(); } }
+    this.pruned = this.total() > CACHE_LIMIT;
+    await this.retryPending();
+    const todo = all.filter((f) => this.needs(f));
+    this.building = this.chats.size === 0 && todo.length > 0;
+    for (const [k, c] of [...this.chats]) { if (!seen.has(k)) { this.chats.delete(k); this.keepMem.release(c.rec); this.changed(); } }
     try { await this.parseAll(todo, cb); } finally { this.building = false; }
-    if (this.dirty) {
-      if (cold) { await this.doPersist(); } else { this.schedulePersist(); }
-      this.onChange?.();
-    }
+    this.keep = new Set([...this.chats.values()].map((c) => c.rec));
+    if (this.dirty) { this.dirty = false; this.onChange?.(); }
+    this.startSweep();
   }
 
-  private schedulePersist(): void {
-    if (this.persistTimer) { return; }
-    this.persistTimer = setTimeout(() => { this.persistTimer = undefined; void this.persist(); }, PERSIST_DELAY);
+  /** Sweep once after the first refresh, then every 6 hours. */
+  private startSweep(): void {
+    if (this.swept) { return; }
+    this.swept = true;
+    void this.sweep();
+    this.sweepTimer = setInterval(() => void this.sweep(), SWEEP_EVERY);
+    this.sweepTimer.unref();
   }
 
-  /** Write metadata; serialized with refresh so the store never changes underneath. */
-  persist(): Promise<void> { return this.enqueue(() => this.doPersist()); }
-
-  /** Save metadata (lock holder only), compacting first when over half the store is garbage or over the limit. */
-  private async doPersist(): Promise<void> {
-    if (!this.dirty) { return; }
-    this.dirty = false;
-    if (!this.owner) { return; } // a private store is never saved
-    this.lastSave = Date.now();
-    try {
-      const live = [...this.chats.values()].reduce((a, c) => a + c.len, 0);
-      if (live > CACHE_LIMIT && !this.pruned) { this.pruned = true; }
-      const big = this.store.size > live * 2 + (1 << 20) || (this.pruned && live > CACHE_LIMIT);
-      const old = big ? await this.compact() : '';
-      this.store.sync(); // data must be on disk before metadata points at it
-      await saveMeta(path.join(this.dir, META), { v: VERSION, store: path.basename(this.store.file), pruned: this.pruned },
-        this.chats.values());
-      if (old) { await fs.promises.rm(old, { force: true }); } // metadata now points at the new store
-    } catch (e) { this.dirty = true; this.onError?.('save cache', e); }
-  }
-
-  /** Copy live records into a new store (async); returns the old path, or '' when compaction failed and was skipped. */
-  private async compact(): Promise<string> {
-    const old = this.store.file;
-    const file = path.join(this.dir, `store-v${VERSION}-${Date.now()}.bin`);
-    const cut = this.pruned ? Date.now() - PRUNE_DAYS * 86400000 : 0;
-    let release!: () => void;
-    this.gate = new Promise<void>((res) => { release = res; });
-    try {
-      const { store, bad } = await compactStore(this.store, file, this.chats.values(), cut);
-      this.store = store;
-      bad.forEach((c) => this.evict(c));
-      return old;
-    } catch (e) { this.onError?.('compact', e); return ''; } finally { release(); }
-  }
+  sweep(): Promise<void> { return quiet(sweepAll(this.dir, this.recDir, this.keep, this.ages)); }
 
   /** True while a file change is waiting for its debounced refresh. */
   get stale(): boolean { return !!this.watchTimer || !this.watcher; }
@@ -248,20 +293,13 @@ export class ChatIndex {
     } catch (e) { this.onError?.('watch', e); } // stale stays true, so each search refreshes first
   }
 
-  async dispose(): Promise<void> {
-    this.watcher?.close();
-    clearTimeout(this.watchTimer);
-    clearTimeout(this.persistTimer);
-    clearTimeout(this.reparseTimer);
-    this.persistTimer = undefined;
-    await this.persist();
-    this.shutdown();
-  }
+  async dispose(): Promise<void> { this.shutdown(); }
 
-  /** Sync and idempotent: close the store, delete a private store, release the lock. */
+  /** Sync and idempotent: close the watcher and clear timers. Touches no file. */
   shutdown(): void {
-    this.store?.close();
-    try { if (!this.owner && this.store) { fs.rmSync(this.store.file, { force: true }); } } catch { /* cleaned at next load */ }
-    if (this.owner) { releaseLock(this.dir); this.owner = false; }
+    this.watcher?.close();
+    this.watcher = undefined;
+    for (const t of [this.watchTimer, this.reparseTimer, this.sweepTimer]) { clearTimeout(t); clearInterval(t); }
+    this.watchTimer = this.reparseTimer = this.sweepTimer = undefined;
   }
 }

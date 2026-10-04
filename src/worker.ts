@@ -119,7 +119,7 @@ async function request(m: any): Promise<unknown> {
   return undefined;
 }
 
-process.on('exit', () => ix?.shutdown()); // release the cache lock however the worker ends
+process.on('exit', () => ix?.shutdown());
 
 port.on('message', (m: any) => {
   if (m.t === 'init') { void init(m); }
