@@ -153,7 +153,6 @@ function html(): string {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
 <style nonce="${nonce}">
 body{padding:6px 8px;color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
-h2{margin:0 0 6px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--vscode-descriptionForeground)}
 .box{position:relative}
 input[type=text]{width:100%;box-sizing:border-box;padding:4px 74px 4px 6px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);outline:none;font-family:inherit;font-size:inherit}
 input[type=text]:focus{border-color:var(--vscode-focusBorder)}
@@ -190,7 +189,6 @@ mark{background:var(--vscode-editor-findMatchHighlightBackground);color:inherit}
 .sel select option{color:var(--vscode-dropdown-foreground);background:var(--vscode-dropdown-listBackground,var(--vscode-dropdown-background))}
 a{color:var(--vscode-textLink-foreground);cursor:pointer}
 </style></head><body>
-<h2>${NAME}</h2>
 <div class="box">
 <input type="text" id="q" placeholder="Search chats" autofocus>
 <div class="opts">
