@@ -3,6 +3,7 @@ import { parentPort } from 'worker_threads';
 import { ExportOpts, exportIndex } from './export';
 import { ChatIndex } from './index';
 import { compile } from './query';
+import { fileSessionsOf, FileSessionsReply } from './fileSessions';
 import { gitSummary } from './gitSummary';
 import { expandChat, searchIndex } from './search';
 import { rowOf, sessionRows } from './sessions';
@@ -123,10 +124,19 @@ async function gitTree(m: any): Promise<unknown> {
   return ix ? gitSummary(ix, !!m.all, Array.isArray(m.folders) ? m.folders : [], idle) : { repos: [], branches: [] };
 }
 
+/** Chats that touched one file; while the first index build runs it answers empty with indexing set. */
+async function fileSessions(m: any): Promise<FileSessionsReply> {
+  await loaded;
+  if (!ix || ix.building) { return { indexing: true, total: 0, edited: 0, items: [] }; }
+  const roots = Array.isArray(m.roots) ? m.roots.filter((r: unknown) => typeof r === 'string') : [];
+  return fileSessionsOf(ix, String(m.file ?? ''), roots, new Set<string>(m.pins ?? []));
+}
+
 async function request(m: any): Promise<unknown> {
   if (m.t === 'gitSummary') { return gitTree(m); }
   if (m.t === 'expand') { return expand(m); }
   if (m.t === 'sessions') { return sessions(m); }
+  if (m.t === 'fileSessions') { return fileSessions(m); }
   if (m.t === 'pinned') { return pinned(m.ids ?? [], m.subs !== false); }
   if (m.t === 'stats') { return { chats: ix?.size ?? 0, heap: process.memoryUsage().heapUsed, rss: process.memoryUsage().rss, buf: process.memoryUsage().arrayBuffers }; }
   if (m.t === 'dispose') { await ix?.dispose(); return true; }

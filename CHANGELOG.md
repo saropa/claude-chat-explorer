@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.1
+## 0.8.1
 - Changed: search history now works like VS Code's own Search box. Press Up in the search box to see the previous search and Down for the next one; its text and its Match Case, Whole Word, Regex and Any order toggles and options come back and the search runs. Down past the newest entry, or Escape, restores what you had typed. The "Recent searches" list and "Clear history" link are gone. A small hint under the empty box says "Up and Down arrows show previous searches".
 - New: the command "Saropa Chat Search: Clear Search History" (Command Palette and the search view's menu) with a "Search history cleared" message.
 - Fixed: history no longer fills with typing prefixes (such as "spouse ch", "spouse chil"). A search is remembered only when you press Enter, click a result, or leave the query alone for 2 seconds after a search that found results. Searches with no results are never remembered.
@@ -11,6 +11,12 @@
 - Changed: the header is more compact so the first results show without scrolling. All projects and Subagents sit on the same row as When and Sort, the status line moved onto the results header ("19 of 19 chats, 4 matches"), and each new search scrolls the results back to the top.
 - Fixed: the chevron that expands a row is always visible (it only appeared on hover before), and the pin star is always visible in the narrowest layout. Snippets no longer show a sliver of a third line under the clamp.
 - Changed: Git Activity now has its own activity-bar icon ("Saropa Git Activity"). This adds a second icon, and the extra uppercase "SAROPA CHAT SEARCH" pane header above the search box is gone because each icon now holds a single view.
+
+## 0.8.0
+- New: see which Claude chats touched a file, to hand a bug to the right chat. Right-click a file in the Explorer, in the editor or on its tab and choose "Saropa Chat Search: Show Chats That Touched This File" (also in the Command Palette for the active file). A list shows each chat, whether it edited or only read the file, when it was last active, its project folder, git branch and status. Pick a chat to resume it. Each row has buttons to copy a hand-over note (file, chat title, session id, edited or read, last active, project folder) and to search the panel for the file; a title button copies the whole list as Markdown.
+- New: a status bar count (chat icon and a number) for the active file, shown only when at least one chat touched it. Click it to open the list. Turn it off with the setting `saropaChatSearch.showFileSessionsStatusBar`.
+- New: "Find Chats For This File in Search Panel" and "Find Chats That Edited This File in Search Panel" open the panel with `file:<path>` or `edited:<path>` and run the search.
+- Subagent file activity counts toward its parent chat, once. The same file in a sibling git worktree (for example `contacts-wt-glass-buttons-2-6` for a `contacts` workspace) is found too. Matching ignores letter case on macOS and Windows. Edited chats list first, then read-only chats, each newest first (up to 200).
 
 ## 0.7.0
 - Changed: the whole search text is now one phrase by default. `my family` finds chats where "my family" appears together in one message, not chats that merely contain both words. Spaces, tabs and line breaks inside the phrase all match, and Match Case and Match Whole Word apply to the whole phrase. Double quotes are no longer needed (and are ignored).
