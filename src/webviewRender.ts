@@ -5,7 +5,6 @@ const TAG_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="c
 function dotHtml(id){const d=dots[id]||{s:'idle',ring:false},t=dotText(d);
 return '<span class="dot '+d.s+(d.ring?' ring':'')+(d.win==='this'?' wt':d.win==='other'?' wo':'')+'" role="img" aria-label="'+esc(t)+'" data-tip="'+esc(dotTip(d))+'"></span>';}
 function decorated(r){const d=dots[r.id];return pins.has(r.id)||!!(d&&(d.ring||d.s!=='idle'));}
-function plainTime(r,op){return op||r.hits>0||decorated(r)?'':(all.checked&&r.project?'<span class="pj" data-tip="Project folder">'+esc(r.project)+'</span>':'')+timePill(r.last,Date.now()).replace('class="mp tp"','class="mp tp pl"');}
 function stamp(r){return r.hits>0&&r.snipAt?r.snipAt:r.last;}
 function resOf(id){return lastRs.concat(pinned,sess?sess.rows.concat(sess.arch||[]):[]).find(r=>r.id===id);}
 function reEsc(t){return t.replace(/[.*+?^$\x7b\x7d()|[\]\\]/g,'\\$&');}
@@ -32,7 +31,7 @@ function chips(id){return (tags[id]||[]).map(t=>'<span class="chip'+(tagActive(t
 function fileChip(f){const b=f.path.split(/[\\/]/).pop()||f.path;return '<span class="fp'+(f.edited?' ed':'')+'" data-tip="'+esc((f.edited?'Edited: ':'Read: ')+f.path)+'">'+(f.edited?'✎ ':'')+esc(b)+'</span>';}
 function hdHtml(r,op){const p=pins.has(r.id),ia=arch.has(r.id),tg=tagIn&&tagIn.id===r.id;
 const ti=r.titleShown&&(!op||r.titleShown===r.title)?marked(r.titleShown,r.titleRanges):esc(r.title);
-return '<div class="hd">'+(decorated(r)?dotHtml(r.id):'<span class="dot none" aria-hidden="true"></span>')+'<span class="t" data-tip="k:title">'+ti+'</span>'+plainTime(r,op)+'<span class="ia">'
+return '<div class="hd">'+(decorated(r)?dotHtml(r.id):'<span class="dot none" aria-hidden="true"></span>')+'<span class="t" data-tip="k:title">'+ti+'</span>'+rcHtml(r,op,Date.now())+'<span class="ia">'
 +'<button class="ic tg'+(tg?' on':'')+'" data-a="addtag" data-tip="Add tag" aria-label="Add tag">'+TAG_SVG+'</button>'
 +'<button class="ic ar'+(ia?' on':'')+'" data-a="arch" data-tip="'+(ia?'Unarchive':'Archive')+'" aria-label="'+(ia?'Unarchive':'Archive')+'">'+ARCH_SVG+'</button>'
 +'<button class="ic pn'+(p?' on':'')+'" data-a="pin" data-tip="'+(p?'Unpin':'Pin')+'" aria-label="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button></span>'

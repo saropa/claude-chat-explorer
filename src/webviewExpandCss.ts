@@ -9,7 +9,7 @@ const BASE = String.raw`
 .r.open .hd .t{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;padding:4px 0;-webkit-mask-image:none;mask-image:none}
 .r.open .hd .dot{margin-top:10px}
 .r.open .hd .ia{display:flex;position:static;transform:none;margin-top:5px}
-.r.open .hd .ic[data-a=exp]{margin-top:2px}
+.r.open .hd .ic[data-a=exp]{margin-top:2px;position:static;transform:none;opacity:1}
 .ex{display:flex;flex-direction:column;gap:13px;margin:0;padding:4px 8px 10px 23px;border:0;cursor:default}
 .xca,.xcl,.xcb{display:contents}
 .xa{display:flex;flex-wrap:wrap;align-items:center;gap:4px}

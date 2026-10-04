@@ -2,6 +2,12 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.15.2 - 2026-10-04
+- Changed: every chat is one line. The time of the last message is plain text at the right edge ("now", "5m", "2h", "3d", "2w"), not a pill, and the title is cut with an ellipsis before it.
+- Changed: the message-count pill and the "Huge" pill are gone from rows. The count stays in the title tooltip and the open card. A Huge chat shows a small chart icon with the tooltip "Huge chat".
+- Changed: for open, unread or pinned chats the right side reads, left to right: "% full" pill, Git icon with its count, chart icon (Huge only), time. The Empty, Tiny and Abandoned chips and the "% full" pill now share the look of the other pills.
+- Changed: the details arrow appears on hover, on focus and while the card is open, and covers the time and icons then. Search results keep the hits pill and show the time of the newest match at the right edge.
+
 ## 0.15.1 - 2026-10-04
 - Fixed: plain rows no longer show tag chips or the message-count pill (only open, unread and pinned chats do). Related chats in the card now re-collapses for each new search and shows no "0" pill. Results with equal scores are now ordered newest first.
 - Changed: with All projects on, plain rows show the project folder name next to the time again, including archived rows.

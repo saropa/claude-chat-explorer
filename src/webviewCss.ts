@@ -47,8 +47,7 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .dot{--dc:var(--vscode-descriptionForeground,#9d9d9d);width:8px;height:8px;border-radius:50%;flex:none;box-sizing:border-box;background:var(--dc)}
 .dot.idle{opacity:.4}
 .dot.none{visibility:hidden}
-.hd .mp.pl{margin-left:2px}
-.rh:hover .hd .mp.pl,.r:focus-within .hd .mp.pl{visibility:hidden}
+.rh:hover .hd .rc,.r:focus-within .hd .rc{visibility:hidden}
 .dot.running{--dc:#89d185}
 .dot.waiting{--dc:#3b82f6}
 .dot.unread{--dc:#d97757}
@@ -58,14 +57,15 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .dot.wo:not(.ring){outline-style:dashed}
 .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pj{flex:none;max-width:25%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85em;color:var(--vscode-descriptionForeground)}
-.tm{flex:none;min-width:28px;text-align:right;font-size:0.92em;color:var(--vscode-descriptionForeground)}
+.tm{flex:none;min-width:22px;text-align:right;font-size:0.92em;color:var(--vscode-descriptionForeground)}
 .r:focus-visible>.rh .tm,.r:focus-visible>.rh .s,.r:focus-visible>.rh .pj,.rr:focus-visible .tm{color:inherit;opacity:.85}
 .hd{--cw:16px;position:relative;padding-right:4px}
 .ia{display:none;position:absolute;right:calc(var(--cw) + 6px);top:50%;transform:translateY(-50%);align-items:center;gap:2px}
 .rh:hover .ia,.r:focus-within .ia{display:flex}
 .rh:hover .hd .t,.r:focus-within .hd .t{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 78px),transparent calc(100% - 60px));mask-image:linear-gradient(to right,#000 calc(100% - 78px),transparent calc(100% - 60px))}
 .ic{display:inline-flex;align-items:center;justify-content:center;flex:none;width:18px;height:18px;padding:0;border:none;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;font-size:13px;line-height:1}
-.ic[data-a=exp]{width:var(--cw);height:24px;margin-left:-4px}
+.ic[data-a=exp]{width:var(--cw);height:24px;position:absolute;right:4px;top:50%;transform:translateY(-50%);opacity:0}
+.rh:hover .ic[data-a=exp],.r:focus-within .ic[data-a=exp],.ic[data-a=exp]:focus-visible{opacity:1}
 .ic:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 .ic.tg svg{width:13px;height:13px}
 .ic:hover{color:var(--vscode-foreground);background:var(--vscode-toolbar-hoverBackground)}
