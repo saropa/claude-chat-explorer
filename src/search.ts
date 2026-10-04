@@ -1,43 +1,12 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-import * as readline from 'readline';
+import { Chat, Compiled, Ctx, Expanded, ExpandItem, Options, OnFile, Abort, Result, Token } from './types';
+import { cutoffOf } from './query';
 
 /** Maximum results kept by the scanner and the webview. */
 export const MAX_RESULTS = 500;
+export const EXPAND_PAGE = 20;
+const DAY = 86400000;
 
-export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; when: string; }
-
-/** Earliest allowed last-active time (ms) for a time-filter value; 0 means any time. */
-export function cutoffOf(when: string, now: number = Date.now()): number {
-  const h: { [k: string]: number } = { '1h': 1, '2h': 2, '4h': 4, '8h': 8 };
-  if (h[when]) { return now - h[when] * 3600000; }
-  if (when === 'today') { return new Date(now).setHours(0, 0, 0, 0); }
-  return 0;
-}
-export interface Abort { aborted: boolean; }
-export type OnFile = (r: Result | null, done: number, total: number) => void;
-export interface Result {
-  id: string; title: string; hits: number; last: number; project: string;
-  snippet: string; ranges: Array<[number, number]>; score: number;
-}
-
-const escRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-/** Build one RegExp per required term. Throws SyntaxError on an invalid regex. */
-export function buildTerms(query: string, o: Options): RegExp[] {
-  const q = query.trim();
-  if (!q) { return []; }
-  const parts = o.re ? [q] : q.split(/\s+/).filter(Boolean).map(escRe);
-  return parts.map((p) => new RegExp(o.ww ? '\\b(?:' + p + ')\\b' : p, o.cs ? 'g' : 'gi'));
-}
-
-/** Superset patterns (no word boundary) used to pre-filter raw JSON lines cheaply. */
-function buildPre(query: string, o: Options): RegExp[] {
-  const q = query.trim();
-  const parts = o.re ? [q] : q.split(/\s+/).filter(Boolean).map(escRe);
-  return parts.map((p) => new RegExp(p, o.cs ? '' : 'i'));
-}
+const encode = (p: string) => p.replace(/[^a-zA-Z0-9]/g, '-');
 
 function* matches(re: RegExp, text: string): Generator<[number, number]> {
   re.lastIndex = 0;
@@ -48,83 +17,10 @@ function* matches(re: RegExp, text: string): Generator<[number, number]> {
   }
 }
 
-const root = () => path.join(os.homedir(), '.claude', 'projects');
-const encode = (p: string) => p.replace(/[^a-zA-Z0-9]/g, '-');
-
-function textOf(content: unknown): string {
-  if (typeof content === 'string') { return content; }
-  if (Array.isArray(content)) {
-    return content.map((b) => (b && typeof b.text === 'string' ? b.text : '')).join('\n');
-  }
-  return '';
-}
-
-async function dirsFor(all: boolean, folders: string[]): Promise<string[]> {
-  if (all) {
-    const ents = await fs.promises.readdir(root(), { withFileTypes: true });
-    return ents.filter((e) => e.isDirectory()).map((e) => e.name);
-  }
-  return folders.map(encode);
-}
-
-const TITLE_MARKS = ['customTitle', 'aiTitle', 'lastPrompt', 'summary'];
-const DAY = 86400000;
-
-async function scanFile(
-  file: string, mtime: number, terms: RegExp[], pre: RegExp[], project: string, sig: Abort,
-): Promise<Result | null> {
-  const counts = terms.map(() => 0);
-  let custom = '', ai = '', lastPrompt = '', summary = '', firstUser = '';
-  let snippetSrc = '', snippetIdx = -1, snippetTs = -1, lastTs = 0, weightSum = 0;
-  const now = Date.now();
-  const input = fs.createReadStream(file, { encoding: 'utf8' });
-  const rl = readline.createInterface({ input, crlfDelay: Infinity });
-  try {
-    for await (const line of rl) {
-      if (sig.aborted) { return null; }
-      if (!line) { continue; }
-      const k = line.lastIndexOf('"timestamp":"');
-      if (k >= 0) {
-        const t = Date.parse(line.slice(k + 13, k + 37));
-        if (!Number.isNaN(t)) { lastTs = t; }
-      }
-      const hit = pre.some((re) => re.test(line));
-      const titled = TITLE_MARKS.some((m) => line.includes(m));
-      const needUser = !firstUser && line.includes('"type":"user"');
-      if (!hit && !titled && !needUser) { continue; }
-      let row: any;
-      try { row = JSON.parse(line); } catch { continue; }
-      // Same sources as the Claude Code extension: customTitle > aiTitle > lastPrompt > summary.
-      if (typeof row.customTitle === 'string' && row.customTitle) { custom = row.customTitle; }
-      if (typeof row.aiTitle === 'string' && row.aiTitle) { ai = row.aiTitle; }
-      if (typeof row.lastPrompt === 'string' && row.lastPrompt) { lastPrompt = row.lastPrompt; }
-      if (typeof row.summary === 'string' && row.summary) { summary = row.summary; }
-      if (row.type !== 'user' && row.type !== 'assistant') { continue; }
-      const text = textOf(row.message?.content);
-      if (!text) { continue; }
-      if (row.type === 'user' && !firstUser) { firstUser = text; }
-      if (!hit) { continue; }
-      const rts = typeof row.timestamp === 'string' ? Date.parse(row.timestamp) : NaN;
-      const ts = Number.isNaN(rts) ? mtime : rts;
-      const w = 1 / (1 + Math.max(0, (now - ts) / DAY) / 30);
-      let first = -1;
-      terms.forEach((re, i) => {
-        for (const [st] of matches(re, text)) {
-          counts[i]++; weightSum += w;
-          if (first < 0 || st < first) { first = st; }
-        }
-      });
-      if (first >= 0 && ts >= snippetTs) { snippetSrc = text; snippetIdx = first; snippetTs = ts; }
-    }
-  } finally { rl.close(); input.destroy(); }
-  if (counts.some((c) => c === 0)) { return null; }
-  const hits = counts.reduce((a, b) => a + b, 0);
-  const last = lastTs || mtime;
-  const flat = (x: string) => x.replace(/\s+/g, ' ');
-  const title = flat(custom || ai || lastPrompt || summary || flat(firstUser).slice(0, 80) || '(untitled)');
-  // Snippet window keeps original text; whitespace is flattened 1:1 so offsets stay valid.
-  const s = Math.max(0, snippetIdx - 40);
-  const snippet = snippetSrc.slice(s, snippetIdx + 120).replace(/\s/g, ' ');
+/** Window of text around idx (whitespace flattened 1:1) plus merged match ranges for all terms. */
+export function snippetOf(text: string, idx: number, terms: RegExp[], before: number, after: number) {
+  const s = Math.max(0, idx - before);
+  const snippet = text.slice(s, idx + after).replace(/\s/g, ' ');
   const raw: Array<[number, number]> = [];
   for (const re of terms) { for (const r of matches(re, snippet)) { raw.push(r); } }
   raw.sort((a, b) => a[0] - b[0]);
@@ -133,10 +29,7 @@ async function scanFile(
     const p = ranges[ranges.length - 1];
     if (p && r[0] <= p[1]) { p[1] = Math.max(p[1], r[1]); } else { ranges.push([r[0], r[1]]); }
   }
-  return {
-    id: path.basename(file, '.jsonl'), title, hits, last, project, snippet, ranges,
-    score: scoreOf(title, terms, weightSum, last, now),
-  };
+  return { snippet, ranges };
 }
 
 /** Title matches (x1000, +5000 if all terms hit, weighted by last-active) plus capped recency-weighted body. */
@@ -149,45 +42,107 @@ export function scoreOf(title: string, terms: RegExp[], weightSum: number, last:
   return titleScore + Math.min(900, weightSum * 10);
 }
 
-export async function searchChats(
-  query: string, o: Options, folders: string[], sig: Abort, onFile?: OnFile,
-): Promise<Result[]> {
-  const terms = buildTerms(query, o); // may throw: caller reports invalid regex
-  if (!terms.length) { return []; }
-  const pre = buildPre(query, o);
-  const cutoff = cutoffOf(o.when);
-  let dirs: string[] = [];
-  try { dirs = await dirsFor(o.all, folders); } catch { return []; }
-  const todo: Array<{ file: string; mtime: number; project: string }> = [];
-  for (const d of dirs) {
-    try {
-      const project = d.split('-').filter(Boolean).pop() ?? d;
-      const names = (await fs.promises.readdir(path.join(root(), d))).filter((f) => f.endsWith('.jsonl'));
-      await Promise.all(names.map(async (f) => {
-        try {
-          const file = path.join(root(), d, f);
-          const st = await fs.promises.stat(file);
-          // A file's mtime is never older than its last row, so an older mtime cannot pass the filter.
-          if (st.size > 0 && st.mtimeMs >= cutoff) { todo.push({ file, mtime: st.mtimeMs, project }); }
-        } catch { /* skip unreadable */ }
-      }));
-    } catch { continue; }
-  }
-  todo.sort((a, b) => b.mtime - a.mtime);
-  const out: Result[] = [];
-  let done = 0, next = 0;
-  const worker = async (): Promise<void> => {
-    while (!sig.aborted && next < todo.length) {
-      const t = todo[next++];
-      let r: Result | null = null;
-      try { r = await scanFile(t.file, t.mtime, terms, pre, t.project, sig); } catch { /* skip */ }
-      if (sig.aborted) { return; }
-      if (r && r.last < cutoff) { r = null; }
-      done++;
-      if (r) { out.push(r); }
-      onFile?.(r, done, todo.length);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(8, todo.length) }, worker));
-  return out.sort((a, b) => b.score - a.score).slice(0, MAX_RESULTS);
+const weightAt = (ts: number, now: number) => 1 / (1 + Math.max(0, (now - ts) / DAY) / 30);
+
+/** Files, commands or tags of a chat matched by one token (case-insensitive substring; tags exact). */
+export function matchedBy(chat: Chat, t: Token, ctx: Ctx): string[] {
+  const has = (s: string) => s.toLowerCase().includes(t.value);
+  if (t.kind === 'file') { return chat.files.filter((f) => has(f.path)).map((f) => f.path); }
+  if (t.kind === 'edited') { return chat.files.filter((f) => f.edited && has(f.path)).map((f) => f.path); }
+  if (t.kind === 'cmd') { return chat.commands.filter(has); }
+  return (ctx.tags[chat.id] ?? []).includes(t.value) ? [t.value] : [];
 }
+
+function scanChat(chat: Chat, c: Compiled, ctx: Ctx, now: number): Result | null {
+  const found = c.tokens.map((t) => matchedBy(chat, t, ctx));
+  if (found.some((f) => !f.length)) { return null; }
+  const counts = c.terms.map(() => 0);
+  let weightSum = 0, sTxt = '', sIdx = -1, sTs = -1;
+  if (c.terms.length) {
+    for (const m of chat.messages) {
+      const w = weightAt(m.ts, now);
+      let first = -1;
+      c.terms.forEach((re, i) => {
+        for (const [st] of matches(re, m.text)) {
+          counts[i]++; weightSum += w;
+          if (first < 0 || st < first) { first = st; }
+        }
+      });
+      if (first >= 0 && m.ts >= sTs) { sTxt = m.text; sIdx = first; sTs = m.ts; }
+    }
+    if (counts.some((n) => n === 0)) { return null; }
+  }
+  const tokenHits = found.reduce((a, f) => a + f.length, 0);
+  weightSum += tokenHits * weightAt(chat.last, now);
+  let snip = { snippet: '', ranges: [] as Array<[number, number]> };
+  if (sIdx >= 0) { snip = snippetOf(sTxt, sIdx, c.terms, 40, 120); } else {
+    const i = c.tokens.findIndex((t) => t.kind !== 'tag');
+    if (i >= 0) {
+      const s = found[i][0], at = s.toLowerCase().indexOf(c.tokens[i].value);
+      snip = { snippet: s, ranges: [[at, at + c.tokens[i].value.length]] };
+    }
+  }
+  return {
+    id: chat.id, title: chat.title, hits: counts.reduce((a, b) => a + b, 0) + tokenHits, last: chat.last,
+    project: chat.dir.split('-').filter(Boolean).pop() ?? chat.dir, ...snip,
+    score: scoreOf(chat.title, c.terms, weightSum, chat.last, now),
+  };
+}
+
+/** Search the in-memory index; streams one callback per chat and yields to the event loop. */
+export async function searchIndex(
+  chats: Chat[], c: Compiled, o: Options, folders: string[], ctx: Ctx, sig: Abort, onFile?: OnFile,
+): Promise<Result[]> {
+  const cutoff = cutoffOf(o.when);
+  const dirs = new Set(folders.map(encode));
+  const todo = chats.filter((x) => x.mtime >= cutoff && (o.all || dirs.has(x.dir)))
+    .sort((a, b) => b.mtime - a.mtime);
+  const out: Result[] = [];
+  const now = Date.now();
+  let lastYield = Date.now();
+  for (let i = 0; i < todo.length && !sig.aborted; i++) {
+    let r = scanChat(todo[i], c, ctx, now);
+    if (r && r.last < cutoff) { r = null; }
+    if (r) { out.push(r); }
+    onFile?.(r, i + 1, todo.length);
+    if (Date.now() - lastYield > 12) {
+      await new Promise((res) => setImmediate(res));
+      lastYield = Date.now();
+    }
+  }
+  const pin = (r: Result) => (ctx.pins.has(r.id) ? 1 : 0);
+  return out.sort((a, b) => pin(b) - pin(a) || b.score - a.score).slice(0, MAX_RESULTS);
+}
+
+/** Matching messages of one chat (newest first), and matched files/commands for active tokens. */
+export function expandChat(chat: Chat, c: Compiled, ctx: Ctx, offset: number): Expanded {
+  const items: ExpandItem[] = [];
+  let total = 0;
+  if (c.terms.length) {
+    const hits: Array<{ m: Chat['messages'][number]; first: number }> = [];
+    for (const m of chat.messages) {
+      let first = -1;
+      for (const re of c.terms) { for (const [st] of matches(re, m.text)) { if (first < 0 || st < first) { first = st; } break; } }
+      if (first >= 0) { hits.push({ m, first }); }
+    }
+    hits.sort((a, b) => b.m.ts - a.m.ts);
+    total = hits.length;
+    for (const h of hits.slice(offset, offset + EXPAND_PAGE)) {
+      items.push({ role: h.m.role, ts: h.m.ts, ...snippetOf(h.m.text, h.first, c.terms, 100, 200) });
+    }
+  }
+  const files = new Map<string, boolean>();
+  const commands = new Set<string>();
+  for (const t of c.tokens) {
+    if (t.kind === 'cmd') { matchedBy(chat, t, ctx).forEach((s) => commands.add(s)); }
+    if (t.kind === 'file' || t.kind === 'edited') {
+      for (const p of matchedBy(chat, t, ctx)) { files.set(p, chat.files.some((f) => f.path === p && f.edited)); }
+    }
+  }
+  return {
+    items, total,
+    files: [...files].slice(0, 50).map(([p, edited]) => ({ path: p, edited })),
+    commands: [...commands].slice(0, 50),
+  };
+}
+
