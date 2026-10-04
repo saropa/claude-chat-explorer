@@ -10,7 +10,7 @@ import { gitHint } from './gitMatch';
 import { registerDiagnostics } from './diagnostics';
 import { registerFileSessions } from './fileSessionsUi';
 import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './query';
-import { isSessionId, openChat } from './resume';
+import { copyId, isSessionId, openChat } from './resume';
 import { ArchiveActions, registerArchiveCommands } from './archiveActions';
 import { LiveWatcher } from './liveWatcher';
 import { sessionsDir, stateMap } from './liveState';
@@ -184,6 +184,8 @@ class Provider implements vscode.WebviewViewProvider {
     const id = m.id;
     if (!isSessionId(id)) { log(`Ignored ${String(m.type)} with invalid id`); return; }
     if (m.type === 'open') { await this.resume(id); }
+    else if (m.type === 'read') { await this.actions?.markRead(id); }
+    else if (m.type === 'copyId') { await copyId(id, log); }
     else if (m.type === 'archive') { await this.actions?.setArchived(id, !!m.on); }
     else if (m.type === 'expand') { await this.expand(id, m); }
     else if (m.type === 'pin') { await this.store.togglePin(id); await this.postMeta(); }

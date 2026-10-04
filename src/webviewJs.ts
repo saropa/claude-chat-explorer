@@ -6,6 +6,7 @@ import { CAP_JS } from './webviewCap';
 import { ADV_JS } from './webviewAdv';
 import { STATUS } from './webviewStatus';
 import { LAYOUT_JS } from './webviewLayout';
+import { EXPAND_JS } from './webviewExpand';
 import { HIST_JS } from './webviewHist';
 import { ARCH_JS } from './webviewArchive';
 
@@ -64,6 +65,10 @@ const row=e.target.closest('.r');if(!row)return;const id=row.dataset.id;const a=
 if(a){const k=a.dataset.a;e.stopPropagation();
 if(k==='exp'){if(open.has(id))open.delete(id);else{open.add(id);delete ex[id];askExpand(id,0);}rerender();}
 else if(k==='pin')vs.postMessage({type:'pin',id:id});
+else if(k==='resume')openId(id);
+else if(k==='read')vs.postMessage({type:'read',id:id});
+else if(k==='copyid')vs.postMessage({type:'copyId',id:id});
+else if(k==='addtag')tagOpen(id);
 else if(k==='arch')archToggle(id);
 else if(k==='tag')toggleTag(a.dataset.t);
 else if(k==='untag')vs.postMessage({type:'tagRemove',id:id,tag:a.dataset.t});
@@ -79,8 +84,7 @@ document.addEventListener('click',e=>{const s=e.target.closest('[data-sec]');if(
 function step(from,d){const all2=Array.from(document.querySelectorAll('[data-sec],.r,.rr'));const i=all2.indexOf(from)+d;
 if(i<0){q.focus();return;}if(all2[i])all2[i].focus();}
 document.addEventListener('keydown',e=>{const t=e.target;if(!t.classList)return;
-if(t.classList.contains('tin')){if(e.key!=='Enter')return;
-const row=t.closest('.r');const v=t.value.trim();if(!row||!v)return;vs.postMessage({type:'tagAdd',id:row.dataset.id,tag:v});t.value='';return;}
+if(t.classList.contains('tin')){tagKey(e,t);return;}
 const isSec=t.hasAttribute('data-sec'),isRow=t.classList.contains('r')||t.classList.contains('rr');
 if(!isSec&&!isRow){if((e.key==='Enter'||e.key===' ')&&t.getAttribute('role')==='button'&&t.tagName!=='BUTTON'){e.preventDefault();t.click();}return;}
 if(e.key==='ArrowDown'){e.preventDefault();step(t,1);}
@@ -111,4 +115,4 @@ else if(d.type==='setQuery'){q.value=d.query||'';go();}});
 vs.postMessage({type:'ready'});
 `;
 
-export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + GIT_JS + HIST_JS + CORE + STATUS + EXPORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS;
+export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + EXPAND_JS + GIT_JS + HIST_JS + CORE + STATUS + EXPORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS;

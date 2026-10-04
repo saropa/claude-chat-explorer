@@ -2,6 +2,14 @@
 
 Release notes for Saropa Chat Search, newest first. Dates are the git dates of each release.
 
+## 0.10.0 - 2026-10-04
+- Changed: an open chat is now a calm card with an action bar. Resume is the one filled button. Pin, Archive and Copy ID sit beside it, and Mark read appears only for an unread chat.
+- Changed: every row shows two small pills under its title: the message count and how long ago it was active (now, 3 mins, 6 hrs, 2 days, 3 wks, 4 mos). A search adds a hits pill. The time at the right of the title is gone, so each fact shows once.
+- Changed: the open card has labeled stats (Active for, Files edited, Size, Cost, Lines, Models) in place of one line of numbers. Matching messages come first, then matched files, stats, tags, Git and related chats. On a wide panel the card uses two columns.
+- Changed: tags are chips with a remove button, and + Add tag opens an input. Enter adds a tag and Escape cancels. Git shows as wrapped pills. Related chats show "3 shared files" and their own time pill.
+- New: Copy ID copies the chat's session id and shows "Copied session id".
+- After installing, run "Developer: Reload Window" so VS Code loads the new version.
+
 ## 0.9.3 - 2026-10-04
 - New: the result limit is now visible. When more than 500 chats match, the top of the results says "Showing the top 500 of 1,284 chats (21,904 matches)" and warns that the result set only contains a subset, as VS Code Search does. Every match is still counted. A chat with more than 9,999 hits shows "9,999+", and the match total stops at "1,000,000+".
 - New: All sessions and Archived show the same notice when their list is cut off, and an export that hits its limit says so and asks you to narrow the search.

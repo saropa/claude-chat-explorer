@@ -28,17 +28,19 @@ Saropa Chat Search lets you search your Claude Code chat history from the VS Cod
 | Ranking | Title matches rank first. Recent matches score higher. |
 | Instant results | A background index keeps results fast. Results show while indexing is still running. |
 | Search history | Up and Down in the search box step through your last 20 searches with their toggles. |
-| Expand in place | The chevron shows the matching messages in the row, 20 at a time, with stats, files and commands. |
+| Expand in place | The chevron opens the row as a card with an action bar (Resume, Pin, Archive, Mark read, Copy ID), the matching messages 20 at a time, matched files and commands, labeled stats, tags, Git and related chats. |
+| Row pills | Each row shows two small pills under its title: the message count and the time since it was last active (now, 3 mins, 6 hrs, 2 days, 3 wks, 4 mos, 2 yrs). A search adds a hits pill. Hover a pill for the full wording. |
 | Highlights | Snippets start just before the first match, so the match is always visible. |
-| Pin and tag | Star a chat to pin it. Add tags in the expanded row and click a tag to filter. |
+| Pin and tag | Star a chat to pin it. In the expanded row, choose + Add tag, type a name and press Enter. Escape cancels. Click a tag to filter. |
 | Search tokens | `file:`, `edited:`, `cmd:`, `tag:`, `sha:`, `pr:` and `branch:`. See Search syntax. |
-| Git section | The expanded row lists the chat's PRs and commits. Click one to search for it. |
+| Git section | The expanded row lists the chat's PRs and commits as pills. Click one to search for it. |
 | Git Activity tree | A second activity-bar icon lists repositories, PRs, branches and commits for the same scope. Click to resume. |
 | Cost info | Dollars, lines added and removed, and models used, such as `$1.23 · +120/-30 lines · opus, sonnet`. |
 | Status dot and pill | A dot shows Claude Code's own chat state (see Status dot). A pill shows Active, Huge, Empty, Tiny or Abandoned. |
 | Archive | Archive chats to move them into a collapsed Archived section. Import Claude Code's archived list once. See Archived chats. |
+| Copy ID | The Copy ID button in the expanded row copies the chat's session id. |
 | Day groups | Time-sorted results are grouped by day. |
-| Related chats | The expanded row lists up to 5 other chats that touched the same files. |
+| Related chats | The expanded row lists up to 5 other chats that touched the same files, each with its shared file count and last active time. |
 | Export | Copy or save one line per matching line, with or without context. |
 | Chats that touched this file | Commands, Explorer and editor menus, a status bar count, and a copyable hand-over note. |
 | Responsive layout | The panel fits any width, from a narrow sidebar to a wide editor tab. |

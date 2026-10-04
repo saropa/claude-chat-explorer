@@ -74,20 +74,10 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .cx:hover{opacity:1}
 .fp{max-width:100%;overflow:hidden;text-overflow:ellipsis;font-family:var(--vscode-editor-font-family,monospace);background:var(--vscode-editorWidget-background,var(--vscode-badge-background));color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border,transparent)}
 .fp.ed{color:var(--vscode-foreground)}
-.fps{display:flex;flex-wrap:wrap;gap:3px;margin:2px 0 4px}
-.ex{margin:0 8px 6px 18px;padding-left:8px;border-left:1px solid var(--vscode-widget-border,var(--vscode-descriptionForeground));cursor:default}
-.ex .cap{margin:4px 0}
-.stat{margin:2px 0 4px;font-size:0.9em;color:var(--vscode-descriptionForeground)}
-.tgs{margin-bottom:4px}
-.tin{width:80px;box-sizing:border-box;padding:1px 4px;font-size:0.85em;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);outline:none;font-family:inherit}
-.ex .sl{margin-top:4px;padding-left:0;border-top:none}
-.mm{margin:4px 0}
-.who{font-weight:600}
 .m{color:var(--vscode-descriptionForeground);font-size:0.9em}
 .mm .b{white-space:normal;word-break:break-word;color:var(--vscode-descriptionForeground)}
 .fi{font-family:var(--vscode-editor-font-family,monospace);font-size:0.85em;word-break:break-all;color:var(--vscode-descriptionForeground)}
 mark{background:var(--vscode-editor-findMatchHighlightBackground);color:inherit}
-.cap{margin:4px 10px;color:var(--vscode-descriptionForeground);font-size:0.9em}
 a{color:var(--vscode-textLink-foreground);cursor:pointer}
 .sub{flex:none;margin-left:0;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;white-space:nowrap;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
 .sr{padding-left:22px;align-items:flex-start;flex-wrap:wrap}

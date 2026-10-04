@@ -22,23 +22,9 @@ function marked(s,rg){let o='',p=0;for(const g of rg){o+=esc(s.slice(p,g[0]))+'<
 return o+esc(s.slice(p));}
 function snip(r){return marked(r.snippet,r.ranges);}
 function tagActive(t){return new RegExp('(^|\\s)tag:'+reEsc(t)+'(\\s|$)','i').test(q.value);}
-function chips(id){return (tags[id]||[]).map(t=>'<span class="chip'+(tagActive(t)?' on':'')+'" data-a="tag" data-t="'+esc(t)+'" title="Filter by tag" role="button" tabindex="0">'+esc(t)+'<b class="cx" data-a="untag" data-t="'+esc(t)+'" title="Remove tag" aria-label="Remove tag '+esc(t)+'" role="button" tabindex="0">×</b></span>').join('');}
+function chips(id){return (tags[id]||[]).map(t=>'<span class="chip'+(tagActive(t)?' on':'')+'" data-a="tag" data-t="'+esc(t)+'" title="Filter by tag" aria-label="Filter by tag '+esc(t)+'" role="button" tabindex="0">'+esc(t)+'<b class="cx" data-a="untag" data-t="'+esc(t)+'" title="Remove tag" aria-label="Remove tag '+esc(t)+'" role="button" tabindex="0">×</b></span>').join('');}
 function subPill(t){return '<span class="sub" title="Subagent'+(t?': '+esc(t):'')+'">Subagent'+(t?' · '+esc(t):'')+'</span>';}
-function msgHtml(i){return '<div class="mm"><span class="who">'+(i.role==='user'?'You':'Claude')+'</span> '+(i.sub!==undefined?subPill(i.sub)+' ':'')+'<span class="m" title="'+esc(full(i.ts))+'">'+shortAgo(i.ts,Date.now())+'</span><div class="b">'+snip(i)+'</div></div>';}
 function fileChip(f){const b=f.path.split(/[\\/]/).pop()||f.path;return '<span class="fp'+(f.edited?' ed':'')+'" title="'+esc((f.edited?'Edited: ':'Read: ')+f.path)+'">'+(f.edited?'✎ ':'')+esc(b)+'</span>';}
-function relHtml(x){
-return '<div class="rr" data-id="'+esc(x.id)+'" tabindex="0" title="'+esc(x.title+'\nShares '+x.shared+(x.shared===1?' file':' files')+' with this chat\n'+full(x.last))+'">'+dotHtml(x.id)+'<span class="t">'+esc(x.title)+'</span><span class="pill" title="Shared files">'+x.shared+'</span><span class="tm">'+shortAgo(x.last,Date.now())+'</span></div>';}
-function exHtml(r){const e=ex[r.id];
-let h='<div class="stat">'+esc(statsText(r))+'</div><div class="tgs"><input class="tin" list="tl" placeholder="+ tag" maxlength="40" aria-label="Add tag"></div>';
-if(!e)return h+'<div class="m">Loading...</div>';
-if(e.files.length)h+='<div class="cap">Files</div><div class="fps">'+e.files.map(fileChip).join('')+'</div>';
-if(e.commands.length)h+='<div class="cap">Commands</div>'+e.commands.map(c=>'<div class="fi">'+esc(c)+'</div>').join('');
-const rel=e.related||[];
-h+=gitHtml(r,e);
-h+=sec('rel:'+r.id,'Related chats',rel.length,rel.length?rel.map(relHtml).join(''):'<div class="m">None found</div>','sl');
-h+=e.items.map(msgHtml).join('');
-if(e.items.length<e.total)h+='<a data-a="more" role="button" tabindex="0">Show more ('+(e.total-e.items.length)+')</a>';
-return h;}
 function subRow(r,s){const now=Date.now();
 return '<div class="rr sr" data-id="'+esc(r.id)+'" tabindex="0" role="button" aria-label="'+esc('Subagent'+(s.type?' '+s.type:'')+': '+(s.desc||'')+'. Resumes the parent chat')+'" title="'+esc('Subagent'+(s.type?' ('+s.type+')':'')+(s.desc?': '+s.desc:'')+'\nResumes the parent chat\n'+full(s.last))+'"><span class="t">'+subPill(s.type)+' '+(s.descShown?marked(s.descShown,s.descRanges):esc(s.desc||''))+'</span><span class="tm" title="'+esc(full(s.last))+'">'+shortAgo(s.last,now)+'</span>'+(s.snippet?'<div class="s">'+snip(s)+'</div>':'')+'</div>';}
 function subsHtml(r){if(!r.subs||!r.subs.length)return '';const more=(r.subTotal||r.subs.length)-r.subs.length;
@@ -46,13 +32,12 @@ return r.subs.map(s=>subRow(r,s)).join('')+(more>0?'<div class="m sr">+'+more+' 
 function rowHtml(r){
 const now=Date.now(),p=pins.has(r.id),op=open.has(r.id),ia=arch.has(r.id);
 const tip=[r.title,all.checked?r.project:'',hitTxt(r),full(r.last),statsText(r)].filter(Boolean).join('\n');
-return '<div class="r" data-id="'+esc(r.id)+'" data-vscode-context="'+esc(JSON.stringify({webviewSection:'chat',id:r.id,ccsArchived:ia,ccsUnread:(dots[r.id]||{}).s==='unread'}))+'" tabindex="0" title="'+esc(tip)+'"><div class="rh"><div class="hd">'+dotHtml(r.id)+'<span class="t">'+(r.titleShown?marked(r.titleShown,r.titleRanges):esc(r.title))+'</span>'+pillHtml(r)+hitPill(r)
-+(all.checked?'<span class="pj">'+esc(r.project)+'</span>':'')+gitIcon(r)
+return '<div class="r'+(op?' open':'')+'" data-id="'+esc(r.id)+'" data-vscode-context="'+esc(JSON.stringify({webviewSection:'chat',id:r.id,ccsArchived:ia,ccsUnread:(dots[r.id]||{}).s==='unread'}))+'" tabindex="0" title="'+esc(tip)+'"><div class="rh"><div class="hd">'+dotHtml(r.id)+'<span class="t">'+(r.titleShown?marked(r.titleShown,r.titleRanges):esc(r.title))+'</span>'+pillHtml(r)+gitIcon(r)
 +'<button class="ic'+(op?' on':'')+'" data-a="exp" title="'+(op?'Collapse':'Expand')+'" aria-expanded="'+op+'">'+CHEV+'</button>'
 +'<button class="ic ar'+(ia?' on':'')+'" data-a="arch" title="'+(ia?'Unarchive':'Archive')+'" aria-label="'+(ia?'Unarchive':'Archive')+'">'+ARCH_SVG+'</button>'
 +'<button class="ic pn'+(p?' on':'')+'" data-a="pin" title="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button>'
-+'<span class="tm" title="'+esc(full(r.last))+'">'+shortAgo(r.last,now)+'</span></div>'+metaHtml(r,now)+'<span class="chips">'+chips(r.id)+'</span>'
-+(r.self===false?'<div class="msub">matched in subagent</div>':'')+(r.snippet&&r.self!==false?'<div class="s">'+snip(r)+'</div>':'')+subsHtml(r)+'</div>'+(op?'<div class="ex">'+exHtml(r)+'</div>':'')+'</div>';}
++'</div>'+metaHtml(r,now)+'<span class="chips">'+(op?'':chips(r.id))+'</span>'
++(r.self===false?'<div class="msub">matched in subagent</div>':'')+(r.snippet&&r.self!==false?'<div class="s">'+snip(r)+'</div>':'')+subsHtml(r)+'</div>'+(op?exHtml(r):'')+'</div>';}
 function groupsHtml(a){const now=Date.now(),g={};
 a.forEach(r=>{const k=dayBucket(r.last,now);(g[k]=g[k]||[]).push(r);});
 return DAY_ORDER.filter(k=>g[k]).map((k,i)=>sec('grp:'+k,k,g[k].length,g[k].map(rowHtml).join(''),'gh')).join('');}

@@ -6,6 +6,7 @@ import { GIT_CSS } from './webviewGit';
 import { SCRIPT } from './webviewJs';
 import { STATUS_CSS, STATUS_HTML } from './webviewStatus';
 import { ARCH_CSS } from './webviewArchive';
+import { EXPAND_CSS } from './webviewExpandCss';
 import { CAP_CSS } from './webviewCap';
 import { ADV_CSS, ADV_HTML } from './webviewAdv';
 
@@ -16,7 +17,7 @@ export function html(): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${NAME}</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${EXPORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}</style></head><body>
+<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${EXPORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}</style></head><body>
 <div id="hdr"><div class="top">
 <div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div>
 <div class="box">

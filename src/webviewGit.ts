@@ -5,9 +5,11 @@ export const GIT_CSS = String.raw`
 .gi{display:inline-flex;align-items:center;gap:2px;flex:none;padding:0 3px;border:none;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;font-size:10.5px;line-height:16px;opacity:.75}
 .gi:hover,.gi:focus-visible{opacity:1;color:var(--vscode-foreground);background:var(--vscode-toolbar-hoverBackground)}
 .gi svg{width:12px;height:12px}
-.gr{display:flex;margin:2px 0}
-.gp{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;border-radius:9px;font-size:0.85em;line-height:16px;cursor:pointer;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
-.gp.cm{font-family:var(--vscode-editor-font-family,monospace);background:var(--vscode-editorWidget-background,var(--vscode-badge-background));color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border,transparent)}
+.gps{display:flex;flex-wrap:wrap;gap:4px}
+.gp{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-width:0;padding:0 7px;border-radius:9px;font-size:0.85em;line-height:18px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.gp.cm{font-family:var(--vscode-editor-font-family,monospace);font-size:0.8em;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border,transparent)}
+.gp .br{opacity:.75}
+.gmore{align-self:center;font-size:0.85em;color:var(--vscode-descriptionForeground)}
 .gp:hover,.gp:focus-visible{outline:1px solid var(--vscode-focusBorder)}
 `;
 
@@ -19,12 +21,12 @@ return '<span class="stp '+k+'" role="img" aria-label="'+esc('Status: '+STATUS_L
 function gitIcon(r){const n=(r.prs||0)+(r.commits||0);if(!n)return '';
 const t=(r.prs?r.prs+(r.prs===1?' PR':' PRs'):'')+(r.prs&&r.commits?', ':'')+(r.commits?r.commits+(r.commits===1?' commit':' commits'):'');
 return '<button class="gi" data-a="git" title="'+esc(t+' - show Git section')+'" aria-label="'+esc('Git activity: '+t)+'">'+GIT_SVG+'<span>'+n+'</span></button>';}
-function gitPill(cls,a,k,v,label,tip){return '<div class="gr"><span class="gp'+cls+'" data-a="'+a+'" data-'+k+'="'+esc(v)+'" role="button" tabindex="0" title="'+esc(tip)+'">'+esc(label)+'</span></div>';}
+function gitPill(cls,a,k,v,label,tip,br){return '<span class="gp'+cls+'" data-a="'+a+'" data-'+k+'="'+esc(v)+'" role="button" tabindex="0" aria-label="'+esc(tip)+'" title="'+esc(tip)+'">'+esc(label)+(br?' <span class="br">on '+esc(br)+'</span>':'')+'</span>';}
 function gitHtml(r,e){const g=e.git;if(!g||(!g.prs.length&&!g.commits.length))return '';
 let b=g.prs.map(p=>gitPill('','pr','n',p.number,'#'+p.number+(p.repository?' '+p.repository:''),'Search chats that mention PR #'+p.number)).join('');
-b+=g.commits.map(c=>gitPill(' cm','sha','s',c.sha.slice(0,7),c.sha.slice(0,7)+(c.branch?' on '+c.branch:''),'Search chats with commit '+c.sha.slice(0,7))).join('');
-if(g.moreCommits>0)b+='<div class="m">+'+g.moreCommits+' more commits</div>';
-return sec('git:'+r.id,'Git',g.prs.length+g.commits.length+g.moreCommits,b,'sl');}
+b+=g.commits.map(c=>gitPill(' cm','sha','s',c.sha.slice(0,7),c.sha.slice(0,7),'Search chats with commit '+c.sha.slice(0,7),c.branch)).join('');
+if(g.moreCommits>0)b+='<span class="gmore">+'+g.moreCommits+' more</span>';
+return xsec('git:'+r.id,'Git',g.prs.length+g.commits.length+g.moreCommits,'<div class="gps">'+b+'</div>','xg');}
 function tokRewrite(v,t){const k=t.slice(0,t.indexOf(':')).toLowerCase();let r='',at=0;
 const re=/(?:^|\s)(?:(file|edited|cmd|tag|sha|pr|branch):(?:"[^"]*"?|\S*)|last:\d+(?=\s|$))|"[^"]*(?:"|$)|\S+/gi;
 for(const m of v.matchAll(re)){if(!m[1]||m[1].toLowerCase()!==k)continue;

@@ -16,3 +16,10 @@ export async function openChat(id: string, log: (msg: string) => void): Promise<
   } catch (e) { log('Claude Code URI fallback failed: ' + String(e)); }
   void vscode.window.showErrorMessage('Could not open Claude chat ' + id + '. Is the Claude Code extension installed?');
 }
+
+/** Copy a session id to the clipboard and say so. */
+export async function copyId(id: string, log: (msg: string) => void): Promise<void> {
+  if (!isSessionId(id)) { log('Rejected copy for invalid session id'); return; }
+  await vscode.env.clipboard.writeText(id);
+  void vscode.window.showInformationMessage('Copied session id');
+}

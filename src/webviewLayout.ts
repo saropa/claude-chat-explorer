@@ -1,5 +1,5 @@
 /** Webview layout: fills the panel, one scroll region, and width tiers for rows and controls. */
-const T = {
+export const T = {
   compact: '(max-width:259px)',
   medium: '(min-width:260px) and (max-width:520px)',
   wide: '(min-width:521px)',
@@ -7,15 +7,12 @@ const T = {
 };
 
 const COMPACT = `
-.hd .stp,.hd .pj,.hd .gi{display:none}
+.hd .stp,.hd .gi,.mt .pj,.mt .mp.n{display:none}
 .s{display:none}
 .qa .s{display:block;white-space:nowrap;text-overflow:ellipsis}
 .ic.pn{display:inline-flex}`;
 
 const WIDE = `
-.mt{display:none}
-.hp{display:inline-block}
-.hd>.tm{display:block;flex:none;width:56px}
 .s{-webkit-line-clamp:3}`;
 
 const XWIDE = `
@@ -25,7 +22,7 @@ const XWIDE = `
 .rh>.s{grid-column:2;grid-row:1;align-self:center;padding:0 10px 0 0}`;
 
 /** One tier rule set as a container query on the results region, plus a media-query fallback. */
-function tier(cond: string, css: string): string {
+export function tier(cond: string, css: string): string {
   return `@container res ${cond}{${css}}\n@supports not (container-type:inline-size){@media ${cond}{${css}}}\n`;
 }
 
@@ -48,9 +45,10 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 .sl>span:not(.pill),.gh>span:not(.pill){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pill,.sub{white-space:nowrap}
 .r,.rh,.hd,.ex,.mm,.gr,.s,.mt{min-width:0}
-.mt{padding:0 8px 2px 24px;font-size:0.9em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--vscode-descriptionForeground)}
-.mt .ms,.hp{display:none}
-.hp{flex:none;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.mt{display:flex;align-items:center;gap:4px;padding:1px 8px 4px 24px;overflow:hidden}
+.mp{flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.mp.hit{background:var(--vscode-editor-findMatchHighlightBackground);color:var(--vscode-foreground)}
+.mt .pj{flex:0 1 auto;min-width:0;max-width:40%;font-size:11px;line-height:16px}
 .rh>.chips{display:flex;flex-wrap:wrap;max-width:none;overflow:visible;padding:0 8px 3px 24px}
 .rh>.chips:empty{display:none}
 .chip{max-width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere}
@@ -71,11 +69,7 @@ input[type=text]{padding-right:72px}
 }
 `;
 
-const MEDIUM_FIX = `
-.mt .ml{display:inline}`;
-
-export const LAYOUT_CSS = BASE + tier(T.compact, COMPACT + '\n.mt .ml{display:none}\n.mt .ms{display:inline}')
-  + tier(T.medium, MEDIUM_FIX) + tier(T.wide, WIDE) + tier(T.xwide, XWIDE);
+export const LAYOUT_CSS = BASE + tier(T.compact, COMPACT) + tier(T.wide, WIDE) + tier(T.xwide, XWIDE);
 
 /** Webview script: relative time text, meta line, hit pill and the active-query body flag. */
 export const LAYOUT_JS = String.raw`
@@ -86,9 +80,15 @@ return u[0]+' '+u[1]+(u[0]===1?'':'s')+' ago';}
 function hitN(r){return r.hits>9999?nf(9999)+'+':nf(r.hits);}
 function hitTxt(r){return r.hits?hitN(r)+(r.hits===1?' hit':' hits'):'';}
 function msgTxt(r){return r.msgs?r.msgs+(r.msgs===1?' message':' messages'):'';}
-function metaHtml(r,now){const h=hitTxt(r)||msgTxt(r);
-return '<div class="mt" title="'+esc(full(r.last))+'">'+(h?'<span>'+h+'</span> · ':'')+'<span class="ml">'+agoLong(r.last,now)+'</span><span class="ms">'+shortAgo(r.last,now)+'</span></div>';}
-function hitPill(r){return r.hits?'<span class="hp" title="'+esc(hitTxt(r))+'">'+hitN(r)+'</span>':'';}
+function agoShort(ms,now){const m=Math.floor(Math.max(0,now-ms)/60000);if(m<1)return 'now';const d=Math.floor(m/1440);
+const u=m<60?[m,'min']:m<1440?[Math.floor(m/60),'hr']:d<7?[d,'day']:d<30?[Math.floor(d/7),'wk']:d<365?[Math.floor(d/30),'mo']:[Math.floor(d/365),'yr'];
+return u[0]+' '+u[1]+(u[0]===1?'':'s');}
+function timePill(ms,now){const a=agoLong(ms,now);
+return '<span class="mp tp" role="img" aria-label="active '+a+'" title="'+a+'\n'+esc(full(ms))+'">'+agoShort(ms,now)+'</span>';}
+function metaHtml(r,now){const mt=msgTxt(r),ht=r.hits?hitN(r)+' matching message'+(r.hits===1?'':'s'):'';
+return '<div class="mt">'+(all.checked&&r.project?'<span class="pj" title="Project folder">'+esc(r.project)+'</span>':'')
++(r.hits?'<span class="mp hit" role="img" aria-label="'+ht+'" title="'+ht+'">'+hitTxt(r)+'</span>':'')
++(mt?'<span class="mp n" role="img" aria-label="'+mt+'" title="'+mt+'">'+r.msgs+'</span>':'')+timePill(r.last,now)+'</div>';}
 function qSync(){document.body.classList.toggle('qa',!!q.value.trim());}
 q.addEventListener('input',qSync);window.addEventListener('message',qSync);qSync();
 `;
