@@ -28,10 +28,11 @@ function tagActive(t){return new RegExp('(^|\\s)tag:'+reEsc(t)+'(\\s|$)','i').te
 function chips(id){return (tags[id]||[]).map(t=>'<span class="chip'+(tagActive(t)?' on':'')+'" data-a="tag" data-t="'+esc(t)+'" data-tip="Filter by tag" aria-label="Filter by tag '+esc(t)+'" role="button" tabindex="0">'+esc(t)+'<b class="cx" data-a="untag" data-t="'+esc(t)+'" data-tip="Remove tag" aria-label="Remove tag '+esc(t)+'" role="button" tabindex="0">×</b></span>').join('');}
 function fileChip(f){const b=f.path.split(/[\\/]/).pop()||f.path;return '<span class="fp'+(f.edited?' ed':'')+'" data-tip="'+esc((f.edited?'Edited: ':'Read: ')+f.path)+'">'+(f.edited?'✎ ':'')+esc(b)+'</span>';}
 function hdHtml(r,op){const p=pins.has(r.id),ia=arch.has(r.id),tg=tagIn&&tagIn.id===r.id;
-return '<div class="hd">'+dotHtml(r.id)+'<span class="t" data-tip="k:title">'+(r.titleShown?marked(r.titleShown,r.titleRanges):esc(r.title))+'</span>'+pillHtml(r)+gitIcon(r)
+const ti=r.titleShown&&(!op||r.titleShown===r.title)?marked(r.titleShown,r.titleRanges):esc(r.title);
+return '<div class="hd">'+dotHtml(r.id)+'<span class="t" data-tip="k:title">'+ti+'</span><span class="ia">'
 +'<button class="ic tg'+(tg?' on':'')+'" data-a="addtag" data-tip="Add tag" aria-label="Add tag">'+TAG_SVG+'</button>'
 +'<button class="ic ar'+(ia?' on':'')+'" data-a="arch" data-tip="'+(ia?'Unarchive':'Archive')+'" aria-label="'+(ia?'Unarchive':'Archive')+'">'+ARCH_SVG+'</button>'
-+'<button class="ic pn'+(p?' on':'')+'" data-a="pin" data-tip="'+(p?'Unpin':'Pin')+'" aria-label="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button>'
++'<button class="ic pn'+(p?' on':'')+'" data-a="pin" data-tip="'+(p?'Unpin':'Pin')+'" aria-label="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button></span>'
 +'<button class="ic'+(op?' on':'')+'" data-a="exp" data-tip="'+(op?'Hide details':'Details')+'" aria-label="'+(op?'Hide details':'Details')+'" aria-expanded="'+op+'">'+CHEV+'</button></div>';}
 function rowHtml(r){
 const now=Date.now(),op=open.has(r.id),ia=arch.has(r.id);

@@ -1,7 +1,6 @@
-/** Webview script part: status pill, git icon, Git section and query shortcuts. Shares top-level scope with webviewJs. */
+/** Webview script part: status chip, git icon, Git section and query shortcuts. Shares top-level scope with webviewJs. */
 export const GIT_CSS = String.raw`
 .stp{flex:none;padding:0 6px;border-radius:9px;font-size:10.5px;line-height:15px;white-space:nowrap;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);opacity:.75}
-.stp.active{background:transparent;color:var(--vscode-charts-green,#89d185);border:1px solid var(--vscode-charts-green,#89d185);line-height:13px;opacity:1}
 .gi{display:inline-flex;align-items:center;gap:2px;flex:none;padding:0 3px;border:none;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;font-size:10.5px;line-height:16px;opacity:.75}
 .gi:hover,.gi:focus-visible{opacity:1;color:var(--vscode-foreground);background:var(--vscode-toolbar-hoverBackground)}
 .gi svg{width:12px;height:12px}

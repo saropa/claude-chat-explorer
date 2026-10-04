@@ -7,8 +7,7 @@ export const T = {
 };
 
 const COMPACT = `
-.hd .stp,.hd .gi,.mt .pj,.mt .mp.n{display:none}
-.ic.pn{display:inline-flex}`;
+.mt .stp,.mt .gi,.mt .pj,.mt .mp.n{display:none}`;
 
 const WIDE = `
 .mp.n.sq{display:inline-block}`;
@@ -45,7 +44,8 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 .pill{white-space:nowrap}
 .mp.n.sq{display:none}
 .r,.rh,.hd,.ex,.s,.mt{min-width:0}
-.mt{display:flex;align-items:center;gap:4px;padding:1px 8px 4px 24px;overflow:hidden}
+.mt{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;padding:1px 8px 4px 24px;overflow:hidden}
+.pst{flex:none;font-size:12px;line-height:16px;color:var(--vscode-charts-yellow,var(--vscode-foreground))}
 .mp{flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
 .mp.hit{background:var(--vscode-editor-findMatchHighlightBackground);color:var(--vscode-foreground)}
 .mt .pj{flex:0 1 auto;min-width:0;max-width:40%;font-size:11px;line-height:16px}
@@ -86,10 +86,11 @@ function timePill(ms,now,latest){const a=agoLong(ms,now);
 return '<span class="mp tp" role="img" aria-label="'+(latest?'latest match ':'active ')+a+'" data-tip="'+(latest?'k:time':esc(a+'\n'+full(ms)))+'">'+agoShort(ms,now)+'</span>';}
 function hitsPill(r){const m=r.mc?' in '+r.mc+(r.mc===1?' matching message':' matching messages'):'';
 return '<span class="mp hit" role="img" aria-label="'+hitN(r)+(r.hits===1?' occurrence':' occurrences')+m+'" data-tip="k:hits">'+hitTxt(r)+'</span>';}
+function pinStar(r){return pins.has(r.id)?'<span class="pst" role="img" aria-label="Pinned" data-tip="Pinned">★</span>':'';}
 function metaHtml(r,now){const q=r.hits>0,mt=msgTxt(r);
-return '<div class="mt">'+(all.checked&&r.project?'<span class="pj" data-tip="Project folder">'+esc(r.project)+'</span>':'')
+return '<div class="mt">'+pinStar(r)+(all.checked&&r.project?'<span class="pj" data-tip="Project folder">'+esc(r.project)+'</span>':'')
 +(q?hitsPill(r):'')+(mt?'<span class="mp n'+(q?' sq':'')+'" role="img" aria-label="'+mt+'" data-tip="k:count">'+r.msgs+'</span>':'')
-+timePill(stamp(r),now,q&&!!r.snipAt)+(q&&r.snipSub!==undefined?saPill(r.snipSub,'k:snipsub'):'')+'</div>';}
++timePill(stamp(r),now,q&&!!r.snipAt)+(q&&r.snipSub!==undefined?saPill(r.snipSub,'k:snipsub'):'')+pillHtml(r)+gitIcon(r)+'</div>';}
 function qSync(){document.body.classList.toggle('qa',!!q.value.trim());}
 q.addEventListener('input',qSync);window.addEventListener('message',qSync);qSync();
 `;

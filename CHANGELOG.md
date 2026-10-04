@@ -2,6 +2,15 @@
 
 Release notes for Saropa Chat Search, newest first. Dates are the git dates of each release.
 
+## 0.11.1 - 2026-10-04
+- Changed: the chat title gets more room. The green Active chip is gone, because the status dot already shows running, waiting and unread. The status filter still has Active.
+- Changed: the Huge, Empty, Tiny and Abandoned chips and the Git count moved from the title line to the pill line, after the count and time pills. The title line now holds only the dot, the title and the chevron.
+- Changed: the pin, archive and tag icons appear over the end of the title (with a soft fade) when you hover a row or tab into it. They take no room at rest. They are still reachable with Tab and at every panel width.
+- New: a pinned chat shows a small filled star at the start of the pill line, so a pinned chat is never hidden.
+- Changed: the chevron is narrower, and its click area is 24 px tall. Clicking anywhere on the row still opens it.
+- New: an open card shows the whole title, wrapped. The tooltip on a title (row, related chat, archived or pinned) starts with the full title, and focusing a row with the keyboard shows it too.
+- After installing, run "Developer: Reload Window" so VS Code loads the new version.
+
 ## 0.11.0 - 2026-10-04
 - Changed: one row per chat. A search row shows only the newest match across the chat and its subagents, as a snippet of at most two lines. Before, the row showed the main thread's match first and listed subagent matches under it.
 - New: a quiet "+N more" under the snippet opens the other matches in place, newest first, 20 at a time. They load only when you open the list. Identical texts collapse into one item with a count such as x3, and "Same text as the latest match" marks copies of the row's snippet. Click an item to resume the chat. Right Arrow opens the list, Left Arrow or Escape closes it.

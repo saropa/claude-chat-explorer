@@ -25,7 +25,7 @@ export function statusesOf(r: { msgs: number; last: number; size: number }, pinn
   return out.length ? out : ['normal'];
 }
 
-const PILL_ORDER = ['active', 'huge', 'empty', 'tiny', 'abandoned']; // priority of the row pill; normal and pinned never show one
+const PILL_ORDER = ['huge', 'empty', 'tiny', 'abandoned']; // priority of the row chip; normal, active and pinned never show one (the dot and star say it)
 
 /** The status a row pill shows (most important of the chat's statuses), or '' for none. */
 export function pillOf(statuses: string[]): string {

@@ -28,18 +28,18 @@ Saropa Chat Search lets you search your Claude Code chat history from the VS Cod
 | Ranking | Title matches rank first. Recent matches score higher. |
 | Instant results | A background index keeps results fast. Results show while indexing is still running. |
 | Search history | Up and Down in the search box step through your last 20 searches with their toggles. |
-| Expand in place | The chevron opens the row as a card with an action bar (Resume, Pin, Archive, Mark read, Copy ID), matched files and commands, labeled stats, tags, Git and related chats. |
+| Expand in place | The chevron opens the row as a card that shows the whole title wrapped, with an action bar (Resume, Pin, Archive, Mark read, Copy ID), matched files and commands, labeled stats, tags, Git and related chats. |
 | Result rows | One row per chat. It shows only the newest match (across the chat and its subagents) as a snippet of at most two lines. With a search, the time pill, the day groups and the Time sort use the time of that match; the chat's last active time moves to the pill tooltip and a Last active stat in the card. |
 | More matches | A quiet +N more under the snippet opens the other matches in place, newest first, 20 at a time with Show more. They load only when you open the list. Identical texts collapse into one item with a count such as x3. Click an item to resume the chat. Right Arrow opens the list, Left Arrow or Escape closes it. |
-| Tooltips | One themed tooltip replaces the browser tooltips in the results and the card. It wraps, stays inside the panel, shows a bold first line and label/value rows, and caps text at 600 characters. It opens after a short hover or on keyboard focus, and Escape, scrolling or moving away closes it. |
-| Row pills | Each row shows two small pills under its title: the message count and the time since it was last active (now, 3 mins, 6 hrs, 2 days, 3 wks, 4 mos, 2 yrs). A search adds a hits pill, which counts occurrences, and the time pill then shows the newest match. Hover a pill for the full wording. |
+| Tooltips | One themed tooltip replaces the browser tooltips in the results and the card. It wraps, stays inside the panel, shows the full chat title as its bold first line and label/value rows, and caps text at 600 characters. It opens after a short hover or on keyboard focus, and Escape, scrolling or moving away closes it. |
+| Row pills | Each row shows two small pills under its title: the message count and the time since it was last active (now, 3 mins, 6 hrs, 2 days, 3 wks, 4 mos, 2 yrs). A search adds a hits pill, which counts occurrences, and the time pill then shows the newest match. Hover a pill for the full wording. A Huge, Empty, Tiny or Abandoned chip sits after the pills, and a pinned chat shows a small star before them. |
 | Highlights | Snippets start just before the first match, so the match is always visible. |
-| Pin and tag | Star a chat to pin it. Click the tag icon on a row (it shows on hover, and always when the card is open), type a name and press Enter. Escape cancels. A chat with no tags shows no tag row. Click a tag to filter. |
+| Pin and tag | Star a chat to pin it. The pin, archive and tag icons appear over the end of the title when you hover the row or tab into it, so they take no room at rest. Click the tag icon on a row (it also shows when the card is open), type a name and press Enter. Escape cancels. A chat with no tags shows no tag row. Click a tag to filter. |
 | Search tokens | `file:`, `edited:`, `cmd:`, `tag:`, `sha:`, `pr:` and `branch:`. See Search syntax. |
 | Git section | The expanded row lists the chat's PRs and commits as pills. Click one to search for it. |
 | Git Activity tree | A second activity-bar icon lists repositories, PRs, branches and commits for the same scope. Click to resume. |
 | Cost info | Dollars, lines added and removed, and models used, such as `$1.23 · +120/-30 lines · opus, sonnet`. |
-| Status dot and pill | A dot shows Claude Code's own chat state (see Status dot). A pill shows Active, Huge, Empty, Tiny or Abandoned. |
+| Status dot and pill | A dot shows Claude Code's own chat state (see Status dot). A chip on the pill line shows Huge, Empty, Tiny or Abandoned. The dot already says Active, so there is no Active chip. |
 | Open window marker | The dot's ring shows whether a live chat is open in this VS Code window (solid ring) or in another window (dashed ring). See Status dot. |
 | Archive | Archive chats to move them into a collapsed Archived section. Import Claude Code's archived list once. See Archived chats. |
 | Copy ID | The Copy ID button in the expanded row copies the chat's session id. |
@@ -54,7 +54,7 @@ Saropa Chat Search lets you search your Claude Code chat history from the VS Cod
 Command line:
 
 ```
-code --install-extension claude-chat-search-0.11.0.vsix
+code --install-extension claude-chat-search-0.11.1.vsix
 ```
 
 Extensions panel:
@@ -110,7 +110,7 @@ An 8 px dot sits left of each chat title. It uses the same states and colors as 
 - Live state comes from Claude Code's session files, checked every 30 seconds and when the panel becomes visible. Without those files every chat shows idle.
 - Unread is our guess: a chat you saw running or waiting that then went idle or closed. Resuming the chat from the panel or the Git Activity tree clears it. So does "Mark as Read" in the row's right-click menu.
 - Hover a dot for its name. The Git Activity tree uses the same dots (with the window text in its tooltip).
-- The Active status (pill and filter) means running, waiting for you or unread.
+- The Active status (the filter; the dot shows it on the row) means running, waiting for you or unread.
 
 ## Archived chats
 

@@ -33,7 +33,7 @@ const BASE = String.raw`
 
 const COMPACT = String.raw`
 .sa span,.mih .d{display:none}
-.mih,.mt{flex-wrap:wrap;row-gap:2px}
+.mih{flex-wrap:wrap;row-gap:2px}
 .sa{padding:0 3px}
 .s,.mib{-webkit-line-clamp:1}
 .ml{margin-left:16px;margin-right:4px;padding-left:6px}

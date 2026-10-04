@@ -63,8 +63,13 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .pj{flex:none;max-width:25%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85em;color:var(--vscode-descriptionForeground)}
 .tm{flex:none;min-width:28px;text-align:right;font-size:0.92em;color:var(--vscode-descriptionForeground)}
 .r:focus-visible>.rh .tm,.r:focus-visible>.rh .s,.r:focus-visible>.rh .pj,.rr:focus-visible .tm{color:inherit;opacity:.85}
-.ic{display:none;align-items:center;justify-content:center;flex:none;width:18px;height:18px;padding:0;border:none;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;font-size:13px;line-height:1}
-.ic[data-a=exp],.rh:hover .ic,.r:focus-within .ic,.ic.on,.r.open .ic.tg{display:inline-flex}
+.hd{--cw:16px;position:relative;padding-right:4px}
+.ia{display:none;position:absolute;right:calc(var(--cw) + 6px);top:50%;transform:translateY(-50%);align-items:center;gap:2px}
+.rh:hover .ia,.r:focus-within .ia{display:flex}
+.rh:hover .hd .t,.r:focus-within .hd .t{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 78px),transparent calc(100% - 60px));mask-image:linear-gradient(to right,#000 calc(100% - 78px),transparent calc(100% - 60px))}
+.ic{display:inline-flex;align-items:center;justify-content:center;flex:none;width:18px;height:18px;padding:0;border:none;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;font-size:13px;line-height:1}
+.ic[data-a=exp]{width:var(--cw);height:24px;margin-left:-4px}
+.ic:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 .ic.tg svg{width:13px;height:13px}
 .ic:hover{color:var(--vscode-foreground);background:var(--vscode-toolbar-hoverBackground)}
 .ic.pn.on{color:var(--vscode-charts-yellow,var(--vscode-foreground))}
