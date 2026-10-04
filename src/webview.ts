@@ -13,7 +13,7 @@ import { ROWS_CSS } from './webviewRows';
 import { TIP_CSS } from './webviewTip';
 import { CTX_CSS } from './webviewCtx';
 
-export const NAME = 'Saropa Chat Search';
+export const NAME = 'Saropa Chat Explorer';
 
 export function html(): string {
   const nonce = randomBytes(18).toString('base64url');

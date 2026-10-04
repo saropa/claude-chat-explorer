@@ -27,7 +27,7 @@ export class ArchiveActions {
   /** Read Claude Code's archived list once and merge it into ours; says exactly what it did or why it did nothing. */
   async importArchived(): Promise<void> {
     const r = await readHidden(stateDbOf(this.globalStorage));
-    if (!r.ok) { void vscode.window.showInformationMessage('Saropa Chat Search: nothing imported. ' + r.reason); return; }
+    if (!r.ok) { void vscode.window.showInformationMessage('Saropa Chat Explorer: nothing imported. ' + r.reason); return; }
     const { added, already } = await this.store.addArchived(r.ids);
     void vscode.window.showInformationMessage(`Imported ${added} archived chats (${already} already archived)`);
     this.hooks.changed();

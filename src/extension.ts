@@ -76,7 +76,7 @@ class Provider implements vscode.WebviewViewProvider {
     this.post({ type: 'indexed' });
     if (was?.first) {
       const n = was.total - was.subs;
-      void vscode.window.showInformationMessage(`Saropa Chat Search: indexed ${n} chats and ${was.subs} subagent files.`);
+      void vscode.window.showInformationMessage(`Saropa Chat Explorer: indexed ${n} chats and ${was.subs} subagent files.`);
     }
   }
 

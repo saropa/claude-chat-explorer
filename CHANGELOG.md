@@ -1,6 +1,11 @@
 # Changelog
 
-Release notes for Saropa Chat Search, newest first. Dates are the git dates of each release.
+Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
+
+## 0.12.1 - 2026-10-04
+- Renamed to Saropa Chat Explorer. The name shows in the Extensions list, the activity bar, the panel, messages, the output channel and the Command Palette. Settings, commands and your saved data keep working as before.
+- Changed: the file menu has one item, "Saropa: Chats for This File", in the Explorer, editor and tab menus. It lists the chats that touched the file, edited ones first. Use the buttons on a row to copy a hand-over note or to search the panel.
+- Removed: the menu items "Find Chats For This File" and "Find Chats That Edited This File". Search `file:<name>` or `edited:<name>` in the panel, or use the button on a row.
 
 ## 0.12.0 - 2026-10-04
 - New: a context pill on the pill line shows how full a chat's context window is. It appears only from 60 percent: amber at 60 to 79, orange at 80 to 89, red at 90 and above, such as "82% full". Its tooltip shows tokens used of the window, the model, the number of compactions, and notes when the figure lags one turn or the window size is a guess.

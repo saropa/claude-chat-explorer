@@ -1,6 +1,6 @@
-# Saropa Chat Search: Search and Resume Claude Code Chat History in VS Code
+# Saropa Chat Explorer: Search and Resume Claude Code Chat History in VS Code
 
-Saropa Chat Search lets you search your Claude Code chat history from the VS Code sidebar and resume the session you find.
+Saropa Chat Explorer lets you search your Claude Code chat history from the VS Code sidebar and resume the session you find.
 
 ## What it does
 
@@ -56,7 +56,7 @@ Saropa Chat Search lets you search your Claude Code chat history from the VS Cod
 Command line:
 
 ```
-code --install-extension claude-chat-search-0.11.1.vsix
+code --install-extension claude-chat-search-0.12.1.vsix
 ```
 
 Extensions panel:
@@ -67,7 +67,7 @@ Extensions panel:
 
 ## Quick start
 
-1. Click the Saropa Chat Search icon in the activity bar.
+1. Click the Saropa Chat Explorer icon in the activity bar.
 2. Wait for the first index to finish. Search works on what is indexed so far.
 3. Type a word or phrase. Results appear after you stop typing. Enter searches at once.
 4. Narrow the results with Sort, the toggles and the search details (`...`) button.
@@ -121,7 +121,7 @@ An 8 px dot sits left of each chat title. It uses the same states and colors as 
 - The archive icon on an archived row (or "Unarchive Chat") moves it back.
 - The archive list is shared by all your workspaces. The expanded state is remembered per workspace.
 - Export leaves out archived chats.
-- To bring in the chats you archived in Claude Code, run "Saropa Chat Search: Import Archived Chats from Claude Code" from the Command Palette, or press Import in the Archived header. It runs only when you ask, reads the list once and shows how many chats it added.
+- To bring in the chats you archived in Claude Code, run "Saropa Chat Explorer: Import Archived Chats from Claude Code" from the Command Palette, or press Import in the Archived header. It runs only when you ask, reads the list once and shows how many chats it added.
 - Import needs the `sqlite3` command-line tool on your PATH. If it is missing, or Claude Code has stored no list, you get a message and nothing changes.
 
 ## Keyboard shortcuts
@@ -149,7 +149,7 @@ These work with the cursor in the search box.
 - Pins, tags, archived chats, unread marks, history and options are saved by VS Code in its own storage.
 - The source contains no network, HTTP or telemetry calls. Nothing leaves your machine. The only programs it starts are `ps` (the open window marker) and `sqlite3` (during Import).
 - Resuming a chat hands the session id to the Claude Code extension through a VS Code command, or a VS Code link if the command fails. Export writes only where you choose.
-- Errors go to the "Saropa Chat Search" output channel.
+- Errors go to the "Saropa Chat Explorer" output channel.
 
 ## Performance
 
@@ -162,7 +162,7 @@ These work with the cursor in the search box.
 ## FAQ
 
 **How do I search my Claude Code chat history in VS Code?**
-Open the Saropa Chat Search icon in the activity bar and type a word or phrase. Results list every matching chat.
+Open the Saropa Chat Explorer icon in the activity bar and type a word or phrase. Results list every matching chat.
 
 **How do I resume an old Claude Code session?**
 Click a result or press Enter on it. The session opens in the Claude Code panel. This needs the Claude Code extension.
@@ -171,7 +171,7 @@ Click a result or press Enter on it. The session opens in the Claude Code panel.
 Yes. Keep the Subagents checkbox on. Subagent matches nest under their parent chat with a Subagent pill.
 
 **How do I find which Claude session edited a file?**
-Right-click the file in the Explorer, the editor or its tab and choose "Show Chats That Touched This File". Or search `edited:<file name>`.
+Right-click the file in the Explorer, the editor or its tab and choose "Saropa: Chats for This File". The list shows edited chats first and has buttons to copy a hand-over note and to search the panel. Or search `edited:<file name>`.
 
 **Where does it store its cache?**
 In the extension's global storage folder in VS Code, in folders named `records-v<number>`. Old folders are removed automatically once they are 7 days untouched.
