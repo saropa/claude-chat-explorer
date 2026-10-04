@@ -185,3 +185,11 @@ Issues and pull requests are welcome on the GitHub repository.
 ## License
 
 MIT.
+
+## Publishing
+
+- Needs accounts on the VS Code Marketplace (publisher `saropa`) and Open VSX, plus the `gh` CLI logged in.
+- Tokens are read from the environment, never printed: `VSCE_PAT` (Marketplace) and `OVSX_PAT` (Open VSX).
+- Dry run (default; builds and packages, publishes nothing): `python3 scripts/publish.py`
+- Publish, tag and release: `python3 scripts/publish.py --publish` (skip with `--skip-marketplace`, `--skip-openvsx`, `--skip-tag`, `--skip-release`).
+- Checks: clean tree on main in sync with origin, package.json version equals the top CHANGELOG heading, tag not taken, manifest check, compile, store metadata, and the .vsix contents (no plans, scripts or src).
