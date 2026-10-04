@@ -5,18 +5,19 @@ play:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.500v9l7-4.500z" 
 copy:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.200"><rect x="5.500" y="5.500" width="8" height="8" rx="1.500"/><path d="M10.500 3.500v-.500a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h.500"/></svg>',
 star:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.200" stroke-linejoin="round"><path d="M8 2l1.800 3.800 4.200.500-3.100 2.900.800 4.100L8 11.300 4.300 13.300l.800-4.100L2 6.300l4.200-.500z"/></svg>',
 starOn:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 2l1.800 3.800 4.200.500-3.100 2.900.800 4.100L8 11.300 4.300 13.300l.800-4.100L2 6.300l4.200-.500z"/></svg>',
+note:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.200" stroke-linejoin="round"><rect x="3" y="2.500" width="10" height="11.500" rx="1.500"/><path d="M5.500 6h5M5.500 8.500h5M5.500 11h3" stroke-linecap="round"/></svg>',
 read:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.400" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.500l3 3 7-7"/></svg>'};
 let tagIn=null;
 function plur(n,w){return n+' '+w+(n===1?'':'s');}
 function xsec(key,label,n,body,k){const o=!col.has(key),c=n===''?'':'<span class="xc">'+n+'</span>';
 return '<section class="'+k+'"><div class="xh'+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'" aria-label="'+esc(label+(n===''?'':', '+n))+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+c+'</div>'+(o?'<div class="xb2">'+body+'</div>':'')+'</section>';}
-function xbtn(a,ic,label,txt,cls,extra,tip){return '<button class="xb'+(cls||'')+'" data-a="'+a+'"'+(extra||'')+' aria-label="'+label+'" data-tip="'+(tip||label)+'">'+ic+'<span class="xl'+(a==='read'||a==='copyid'?' xo':'')+'">'+txt+'</span></button>';}
+function xbtn(a,ic,label,txt,cls,extra,tip){return '<button class="xb'+(cls||'')+'" data-a="'+a+'"'+(extra||'')+' aria-label="'+label+'" data-tip="'+(tip||label)+'">'+ic+'<span class="xl'+(a==='read'||a==='copyid'||a==='handover'?' xo':'')+'">'+txt+'</span></button>';}
 function actHtml(r){const p=pins.has(r.id),ia=arch.has(r.id);
 return '<div class="xa" role="toolbar" aria-label="Chat actions"><button class="xb pri" data-a="resume" aria-label="Resume chat">'+XI.play+'<span>Resume</span></button>'
 +xbtn('pin',p?XI.starOn:XI.star,p?'Unpin':'Pin',p?'Pinned':'Pin',p?' on':'',' aria-pressed="'+p+'"')
 +xbtn('arch',ARCH_SVG,ia?'Unarchive':'Archive',ia?'Unarchive':'Archive','')
 +((dots[r.id]||{}).s==='unread'?xbtn('read',XI.read,'Mark as read','Mark read',''):'')
-+'<span class="sp"></span>'+xbtn('copyid',XI.copy,'Copy session ID','Copy ID','','','Copy session ID '+esc(r.id))+'</div>';}
++'<span class="sp"></span>'+xbtn('handover',XI.note,'Copy hand-over note','Copy hand-over note','')+xbtn('copyid',XI.copy,'Copy session ID','Copy ID','','','Copy session ID '+esc(r.id))+'</div>';}
 function statCell(l,v,a){return '<div><dt>'+l+'</dt><dd'+(a?' aria-label="'+a+'"':'')+'>'+v+'</dd></div>';}
 function statsHtml(r){let h='';
 if(r.hits>0)h+=statCell('Last active',esc(agoLong(r.last,Date.now())));

@@ -12,6 +12,7 @@ import { ARCH_JS } from './webviewArchive';
 import { ROWS_JS } from './webviewRows';
 import { TIP_JS } from './webviewTip';
 import { CTX_JS } from './webviewCtx';
+import { TOUCH_JS } from './webviewTouch';
 
 const CORE = String.raw`
 const vs=acquireVsCodeApi();const $=id=>document.getElementById(id);
@@ -77,6 +78,7 @@ else if(k==='pin')vs.postMessage({type:'pin',id:id});
 else if(k==='resume')openId(id);
 else if(k==='read')vs.postMessage({type:'read',id:id});
 else if(k==='copyid')vs.postMessage({type:'copyId',id:id});
+else if(k==='handover')vs.postMessage({type:'handover',id:id,query:q.value.trim()});
 else if(k==='addtag')tagToggle(id);
 else if(k==='arch')archToggle(id);
 else if(k==='tag')toggleTag(a.dataset.t);
@@ -124,4 +126,4 @@ else if(d.type==='setQuery'){q.value=d.query||'';go();}});
 vs.postMessage({type:'ready'});
 `;
 
-export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + GIT_JS + HIST_JS + CORE + STATUS + EXPORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS;
+export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + GIT_JS + HIST_JS + CORE + STATUS + EXPORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS + TOUCH_JS;

@@ -4,6 +4,7 @@ import { ExportOpts, exportIndex } from './export';
 import { ChatIndex } from './index';
 import { compile } from './query';
 import { fileSessionsOf, FileSessionsReply } from './fileSessions';
+import { handoverData } from './handover';
 import { gitSummary } from './gitSummary';
 import { wipChats } from './wipChats';
 import { clampMax, Tally, totalsOf } from './limits';
@@ -136,6 +137,13 @@ async function fileSessions(m: any): Promise<FileSessionsReply> {
   return fileSessionsOf(ix, String(m.file ?? ''), roots, new Set<string>(m.pins ?? []), Date.now(), m.dots ?? {});
 }
 
+/** Facts for one chat's hand-over note; null when the chat is not indexed. */
+async function handover(m: any): Promise<unknown> {
+  await loaded;
+  const chat = ix?.find(String(m.chat ?? ''));
+  return ix && chat ? handoverData(ix, chat, String(m.query ?? '')) : null;
+}
+
 /** Chats in scope for the Work in Progress view. */
 async function wip(m: any): Promise<unknown> {
   await loaded;
@@ -149,6 +157,7 @@ async function request(m: any): Promise<unknown> {
   if (m.t === 'expand') { return expand(m); }
   if (m.t === 'sessions') { return sessions(m); }
   if (m.t === 'fileSessions') { return fileSessions(m); }
+  if (m.t === 'handover') { return handover(m); }
   if (m.t === 'ctx') { await loaded; return ctxReply((id) => ix?.find(id), Array.isArray(m.ids) ? m.ids.filter((x: unknown) => typeof x === 'string') : []); }
   if (m.t === 'pinned') { return pinned(m.ids ?? [], m.subs !== false); }
   if (m.t === 'stats') { return { chats: ix?.size ?? 0, heap: process.memoryUsage().heapUsed, rss: process.memoryUsage().rss, buf: process.memoryUsage().arrayBuffers }; }

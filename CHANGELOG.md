@@ -2,6 +2,12 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.14.3 - 2026-10-04
+- Changed: "Saropa: Chats That Touched This File" no longer opens a pop-up list. It opens the Saropa Chat Explorer panel and searches `file:<path>` there (the workspace-relative path, or the full path outside a workspace). The status bar count opens the same search. Your other options are left as they are.
+- New: for a `file:` or `edited:` search, each chat row shows a pill after the time: "edited" (green) or "read" (muted). With Score sort and a file-only search, edited chats come first, then read-only chats, each newest first.
+- New: the expanded row has a Copy hand-over note button for every chat. The note holds the title, session id, folder, git branch, last active time, context percent and, for file searches, the file and whether it was edited or read.
+- Removed: the pop-up list and its Copy list button. The Export button copies the matching lines instead.
+
 ## 0.14.2 - 2026-10-04
 - Fixed: the result counts no longer repeat. "All sessions" showed "146 of 146 chats" next to a "146" badge; it now shows only the badge.
 - Changed: search results show the number of matching chats once, in the badge. The grey text beside it now says something different: the total matches (for example "89 matches"), hidden-by-status-filter chats, or search progress. It is left out when it would repeat the badge.

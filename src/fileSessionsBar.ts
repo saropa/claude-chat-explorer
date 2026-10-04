@@ -35,7 +35,7 @@ export class FileSessionsBar implements vscode.Disposable {
       if (reply.indexing || reply.total < 1) { this.item.hide(); return; }
       const s = reply.total === 1 ? 'chat' : 'chats';
       this.item.text = `$(comment-discussion) ${reply.total}`;
-      this.item.tooltip = `${reply.total} Claude ${s} touched this file (${reply.edited} edited it). Click to list them.`;
+      this.item.tooltip = `${reply.total} Claude ${s} touched this file (${reply.edited} edited it). Click to search for them in the panel.`;
       this.item.show();
     } catch (e) { this.item.hide(); this.onError('file sessions status bar', e); }
   }

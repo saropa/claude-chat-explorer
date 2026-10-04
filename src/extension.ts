@@ -10,6 +10,8 @@ import { opts, sortOf } from './msgOpts';
 import { gitHint } from './gitMatch';
 import { registerDiagnostics } from './diagnostics';
 import { registerFileSessions } from './fileSessionsUi';
+import { copyHandover } from './handoverRun';
+import { QueryQueue } from './queryQueue';
 import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './query';
 import { copyId, isSessionId, openChat } from './resume';
 import { ArchiveActions, registerArchiveCommands } from './archiveActions';
@@ -22,6 +24,7 @@ import { Compiled, Options, Result } from './types';
 import { html, NAME } from './webview';
 
 const POST_GAP_MS = 100;
+const REVEAL_CMD = 'workbench.view.extension.claudeChatExplorer'; // opens the Saropa Chat Explorer container and its view
 
 type Base = Draft;
 
@@ -37,8 +40,7 @@ class Provider implements vscode.WebviewViewProvider {
   private lastPost = 0;
   onIndex?: () => void; // the index changed: refresh the Git Activity tree
   onScope?: () => void; // the All projects option changed
-  private ready = false; // the webview script has posted 'ready'
-  private pendingQuery?: string;
+  private readonly queue = new QueryQueue((m) => this.post(m), () => vscode.commands.executeCommand(REVEAL_CMD), logErr);
   watcher?: LiveWatcher; // live state of Claude sessions
   actions?: ArchiveActions;
 
@@ -108,22 +110,11 @@ class Provider implements vscode.WebviewViewProvider {
     this.postDots();
     void this.postMeta();
     if (this.progress) { this.post({ type: 'indexing', ...this.progress }); }
-    this.ready = true;
-    this.flushQuery();
+    this.queue.setReady(true);
   }
 
-  /** Reveal the panel and run a query in it (queued until a new view is ready). */
-  async showQuery(query: string): Promise<void> {
-    this.pendingQuery = query;
-    await vscode.commands.executeCommand('claudeChatExplorer.view.focus');
-    if (this.ready) { this.flushQuery(); }
-  }
-
-  private flushQuery(): void {
-    const query = this.pendingQuery;
-    this.pendingQuery = undefined;
-    if (query !== undefined) { this.post({ type: 'setQuery', query }); }
-  }
+  /** Reveal the panel and run a query in it (held until a new view is ready). */
+  showQuery(query: string): Promise<void> { return this.queue.show(query); }
 
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
@@ -132,7 +123,7 @@ class Provider implements vscode.WebviewViewProvider {
     view.webview.html = html();
     const sub = view.webview.onDidReceiveMessage((m) => { void this.onMessage(m); });
     view.onDidChangeVisibility(() => { if (view.visible) { this.watcher?.poke(); } });
-    view.onDidDispose(() => { sub.dispose(); this.ready = false; if (this.view === view) { this.view = undefined; } });
+    view.onDidDispose(() => { sub.dispose(); this.queue.setReady(false); if (this.view === view) { this.view = undefined; } });
     // The script posts 'ready' once its listener is attached; restore() runs then.
   }
 
@@ -189,11 +180,16 @@ class Provider implements vscode.WebviewViewProvider {
     if (m.type === 'open') { await this.resume(id); }
     else if (m.type === 'read') { await this.actions?.markRead(id); }
     else if (m.type === 'copyId') { await copyId(id, log); }
+    else if (m.type === 'handover') { await this.handover(id, String(m.query ?? '')); }
     else if (m.type === 'archive') { await this.actions?.setArchived(id, !!m.on); }
     else if (m.type === 'expand') { await this.expand(id, m); }
     else if (m.type === 'pin') { await this.store.togglePin(id); await this.postMeta(); }
     else if (m.type === 'tagAdd') { await this.store.addTag(id, String(m.tag ?? '')); await this.postMeta(); }
     else if (m.type === 'tagRemove') { await this.store.removeTag(id, String(m.tag ?? '')); await this.postMeta(); }
+  }
+
+  private async handover(id: string, query: string): Promise<void> {
+    await copyHandover(id, query, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true), roots: folderPaths, log: logErr });
   }
 
   private async expand(id: string, m: any): Promise<void> {
@@ -280,7 +276,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(OPEN_CMD, (id: unknown) => (isSessionId(id) ? provider.resume(id) : undefined)),
     vscode.window.registerWebviewViewProvider('claudeChatExplorer.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
-  registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), open: (id) => provider.resume(id), dots: () => provider.dotNames,
+  registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
     showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { const was = provider.onIndex; provider.onIndex = () => { was?.(); fn(); }; } });
   registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info, () => warner.atOrAbove80, () => wip?.diagLines() ?? []);
   wip = new WipController({ ctx, client, log: logErr, dots: live.dots, archived: live.archived, folders: folderPaths });

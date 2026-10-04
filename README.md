@@ -52,7 +52,8 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 | Day groups | Time-sorted results are grouped by day. |
 | Related chats | The expanded row lists up to 5 other chats that touched the same files, each with its shared file count and last active time. |
 | Export | The Export button copies or saves one line per matching line, with or without context. It is disabled until a search has results; clicking it then says to run a search first. |
-| Chats that touched this file | Commands, Explorer and editor menus, a status bar count, and a copyable hand-over note. |
+| Chats that touched this file | The Explorer, editor and tab menus and the status bar count open the panel and search `file:<path>`. Each row shows an edited or read pill. |
+| Copy hand-over note | The expanded row's Copy hand-over note button copies the chat title, session id, folder, branch, last active time, context percent and, for file searches, the file and whether it was edited or read. |
 | Responsive layout | The panel fits any width, from a narrow sidebar to a wide editor tab. |
 
 ## Install
@@ -60,7 +61,7 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 Command line:
 
 ```
-code --install-extension claude-chat-explorer-0.14.1.vsix
+code --install-extension claude-chat-explorer-0.14.3.vsix
 ```
 
 Extensions panel:
@@ -178,7 +179,7 @@ Click a result or press Enter on it. The session opens in the Claude Code panel.
 Yes. Keep the Subagents checkbox on. Subagent matches nest under their parent chat with a Subagent pill.
 
 **How do I find which Claude session edited a file?**
-Right-click the file in the Explorer, the editor or its tab and choose "Saropa: Chats for This File". The list shows edited chats first and has buttons to copy a hand-over note and to search the panel. Or search `edited:<file name>`.
+Right-click the file in the Explorer, the editor or its tab and choose "Saropa: Chats That Touched This File". The panel opens and searches `file:<path>`. Each chat has an edited or read pill, and with Score sort edited chats come first. Open a chat's details and press Copy hand-over note to pass a bug to it. Or search `edited:<file name>`.
 
 **Where does it store its cache?**
 In the extension's global storage folder in VS Code, in folders named `records-v<number>`. Old folders are removed automatically once they are 7 days untouched.

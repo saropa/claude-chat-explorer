@@ -60,7 +60,7 @@ const COMPACT = String.raw`
 .xs .wide{flex-direction:column}
 .xin .k{display:none}`;
 
-const MEDIUM = '.xa .xl.xo{display:none}';
+const MEDIUM = '.xa .xl.xo{display:none}.xa{gap:2px}.xa .xb:not(.pri){padding:0 4px}';
 
 const WIDE = `
 .xs{grid-template-columns:repeat(auto-fill,minmax(9em,1fr))}

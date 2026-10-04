@@ -6,6 +6,7 @@ import { subWinOf, topWinOf, Win } from './window';
 import { mergedGit } from './gitInfo';
 import { latestFields, latestOf } from './latest';
 import { projectOf, statFields } from './stats';
+import { touchFields } from './touch';
 import { clampMax, DEFAULT_MAX_RESULTS, HIT_DISPLAY_CAP, newTally, Tally, tallyAdd, totalsOf } from './limits';
 import { Abort, Chat, Compiled, Ctx, Expanded, ExpandItem, Options, Rec, Result, SubResult } from './types';
 
@@ -99,7 +100,7 @@ export function toResult(sc: Scan, f: Found, maxSubs: number = MAX_SUBS): Result
   const r: Result = {
     file: sc.ix.fileOf(p), id: p.id, title: p.title, hits, last: p.last, project: projectOf(p), ...statFields(p, sc.o.subs ? sc.ix.subsOf(p) : []),
     snippet: snip.snippet, ranges: snip.ranges, score: scoreOf(p.title, sc.c.terms, weight, p.last, sc.now), self: !!own,
-    ...shown(p.title, sc.c.terms, 'title'), ...latestFields(lat, own, subs),
+    ...shown(p.title, sc.c.terms, 'title'), ...latestFields(lat, own, subs), ...touchFields([p, ...subs.map(([s]) => s)], sc.c, p.last),
   };
   if (subs.length) { r.subs = subs.slice(0, maxSubs).map(([s, h]) => subResult(sc, s, h)); r.subTotal = subs.length; }
   return r;

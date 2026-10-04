@@ -60,6 +60,7 @@ export interface Result {
   self?: boolean; // false when only subagents matched
   snipAt?: number; snipSub?: string; snipDesc?: string; snipRole?: string; mc?: number; // newest match: time, subagent type and description, role; mc = matching messages (own and subagents)
   subs?: SubResult[]; subTotal?: number;
+  touch?: 'edited' | 'read'; // file:/edited: searches: whether the chat edited or only read a matching file
 }
 
 /** A chat that shares files with another chat. */
