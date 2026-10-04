@@ -6,6 +6,7 @@ import { IndexStatus } from './indexStatus';
 import { runExport } from './exportRun';
 import { opts, sortOf } from './msgOpts';
 import { gitHint } from './gitMatch';
+import { registerDiagnostics } from './diagnostics';
 import { registerFileSessions } from './fileSessionsUi';
 import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './query';
 import { isSessionId, openChat } from './resume';
@@ -252,6 +253,7 @@ class Provider implements vscode.WebviewViewProvider {
 
 let client: WorkerClient | undefined;
 let store: Store | undefined;
+let done = false; // set at the end of activate()
 
 export function activate(ctx: vscode.ExtensionContext): void {
   const dir = ctx.globalStorageUri.fsPath;
@@ -280,7 +282,10 @@ export function activate(ctx: vscode.ExtensionContext): void {
       { webviewOptions: { retainContextWhenHidden: true } }));
   registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), open: (id) => provider.resume(id), dots: () => provider.dotNames,
     showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { const was = provider.onIndex; provider.onIndex = () => { was?.(); fn(); }; } });
+  registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done);
   provider.watcher.start();
+  done = true;
+  log(`activated ${String(ctx.extension?.packageJSON?.version ?? 'unknown')}`);
   client.start(); // indexing runs in the worker; activation never waits for it
 }
 
