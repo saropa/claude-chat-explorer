@@ -14,28 +14,28 @@ Saropa Chat Search lets you search your Claude Code chat history from the VS Cod
 
 | Feature | What you get |
 |---|---|
-| Full-text search | Searches every chat under your Claude projects folder, one panel in the activity bar. |
+| Full-text search | Searches the Claude Code chats of the open workspace from one activity-bar panel. Tick All projects to search every project. |
 | Exact phrase by default | The whole query is one exact phrase. "my family" must appear together in one message. |
 | Match options | Match any order (Alt+O), Match Case (Alt+C), Whole Word (Alt+W), regular expression (Alt+R). |
 | Quoted phrases | With Match any order on, `"quoted phrases"` stay exact. |
-| Last N messages | `last:<n>` or the Messages dropdown searches only the final N messages of each chat. |
+| Last N messages | `last:<n>` or the Messages dropdown (10, 25, 50, 100) searches only the final N messages of each chat. |
 | When filter | Any time, last 1, 2, 4 or 8 hours, or today. |
 | Sort | Score, time (grouped by day), title, length or cost. Pinned chats list first. |
 | Status filter | Include or exclude Normal, Active, Empty, Tiny, Huge, Abandoned and Pinned chats. |
 | Subagent search | The Subagents checkbox is on by default. Matches nest under the parent chat with a Subagent pill. |
 | Ranking | Title matches rank first. Recent matches score higher. |
 | Instant results | A background index keeps results fast. Results show while indexing is still running. |
-| Search history | Up and Down in the search box step through earlier searches with their toggles. |
-| Expand in place | The chevron shows every matching message in the row, with stats, files and commands. |
+| Search history | Up and Down in the search box step through your last 20 searches with their toggles. |
+| Expand in place | The chevron shows the matching messages in the row, 20 at a time, with stats, files and commands. |
 | Highlights | Snippets start just before the first match, so the match is always visible. |
 | Pin and tag | Star a chat to pin it. Add tags in the expanded row and click a tag to filter. |
 | Search tokens | `file:`, `edited:`, `cmd:`, `tag:`, `sha:`, `pr:` and `branch:`. See Search syntax. |
 | Git section | The expanded row lists the chat's PRs and commits. Click one to search for it. |
-| Git Activity tree | A second activity-bar icon lists repositories, PRs, branches and commits. Click to resume. |
+| Git Activity tree | A second activity-bar icon lists repositories, PRs, branches and commits for the same scope. Click to resume. |
 | Cost info | Dollars, lines added and removed, and models used, such as `$1.23 · +120/-30 lines · opus, sonnet`. |
 | Status dot and pill | A dot shows recent activity. A pill shows Active, Huge, Empty, Tiny or Abandoned. |
 | Day groups | Time-sorted results are grouped by day. |
-| Related chats | The expanded row lists other chats that touched the same files. |
+| Related chats | The expanded row lists up to 5 other chats that touched the same files. |
 | Export | Copy or save one line per matching line, with or without context. |
 | Chats that touched this file | Commands, Explorer and editor menus, a status bar count, and a copyable hand-over note. |
 | Responsive layout | The panel fits any width, from a narrow sidebar to a wide editor tab. |
@@ -61,6 +61,7 @@ Extensions panel:
 3. Type a word or phrase. Results appear after you stop typing. Enter searches at once.
 4. Narrow the results with When, Sort, Messages and the toggles.
 5. Click a result to resume that session, or click its chevron to read the matching messages.
+6. Tick All projects to search chats from every project, not only this workspace.
 
 ## Search syntax
 
@@ -73,9 +74,9 @@ Extensions panel:
 | `edited:<text>` | `edited:search.ts` | Chats that edited a file path. |
 | `cmd:<text>` | `cmd:"npm run"` | Chats where Claude ran a matching command. |
 | `tag:<name>` | `tag:billing` | Chats you tagged. |
-| `sha:<prefix>` | `sha:a1b2c3d` | Chats with a commit (4 to 40 hex characters). |
-| `pr:<number>` | `pr:#123` | Chats that mention that PR. |
-| `branch:<text>` | `branch:main` | Chats with a matching branch name. |
+| `sha:<prefix>` | `sha:a1b2c3d` | Chats with a commit that starts with it (4 to 40 hex characters). |
+| `pr:<number>` | `pr:#123` | Chats linked to that PR. `pr:123` works too. |
+| `branch:<text>` | `branch:main` | Chats with a branch name containing the text. |
 
 - Tokens combine with plain words and with each other.
 - Tokens ignore case. A search needs at least 2 characters.
@@ -90,26 +91,26 @@ These work with the cursor in the search box.
 | Alt+C | Toggle Match Case |
 | Alt+W | Toggle Match Whole Word |
 | Alt+R | Toggle regular expression |
-| Alt+O | Toggle Match any order |
+| Alt+O | Toggle Match any order (off while regular expression is on) |
 | Up / Down | Previous or next search in history |
-| Down (no history step left) | Move to the first result |
+| Down (when not browsing history) | Move to the first result |
 | Enter | Search now |
 | Escape | Restore what you typed before browsing history |
 
 ## Privacy
 
 - Reads chat files from `~/.claude/projects` on your machine.
-- Writes a search cache to the extension's global storage folder in VS Code. Message text is stored there in record files, up to 20,000 characters per message (8,000 for subagents). Tool results are skipped.
+- Writes a search cache to the extension's global storage folder in VS Code. Message text is stored there in record files, up to 20,000 characters per message (8,000 for subagents). File paths and the first 300 characters of each command are stored too. Tool results are skipped.
 - Pins, tags, history and options are saved by VS Code in its own storage.
 - The source contains no network, HTTP or telemetry calls. Nothing leaves your machine.
-- Resuming a chat hands the session id to the Claude Code extension through a VS Code link. Export writes only where you choose.
+- Resuming a chat hands the session id to the Claude Code extension through a VS Code command, or a VS Code link if the command fails. Export writes only where you choose.
 - Errors go to the "Saropa Chat Search" output channel.
 
 ## Performance
 
 - Indexing and search run in a worker thread, so the editor does not freeze.
 - Index data is cached on disk and refreshed incrementally, so later starts are faster than the first.
-- Chat files are kept in memory up to 64 MB. Results are capped at 500 rows. Export is capped at 50,000 lines or 20 MB.
+- Recently read chat records are cached in memory, up to 64 MB. Results are capped at 500 rows. Export is capped at 50,000 lines or 20 MB.
 - A pattern that stalls for 3 seconds is stopped with "Search timed out: simplify the pattern".
 - `node scripts/bench.js` (after `npm run compile`) prints build, load and query timings for your machine. Timings depend on your machine and the size of your chat folder.
 
@@ -128,7 +129,7 @@ Yes. Keep the Subagents checkbox on. Subagent matches nest under their parent ch
 Right-click the file in the Explorer, the editor or its tab and choose "Show Chats That Touched This File". Or search `edited:<file name>`.
 
 **Where does it store its cache?**
-In the extension's global storage folder in VS Code, in folders named `records-v<number>`. Old folders are cleaned up automatically.
+In the extension's global storage folder in VS Code, in folders named `records-v<number>`. Old folders are removed automatically once they are 7 days untouched.
 
 **Does it work with multiple VS Code windows?**
 Yes. Windows share one cache with one file per chat, so they do not overwrite each other.
