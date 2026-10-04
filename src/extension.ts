@@ -6,8 +6,8 @@ const STATE_KEY = 'saropaChatSearch.state';
 const HIST_KEY = 'saropaChatSearch.history';
 const HIST_MAX = 20;
 
-interface HistItem { query: string; all: boolean; cs: boolean; ww: boolean; re: boolean; }
-interface Saved extends HistItem { results: Result[]; searched: string; }
+interface HistItem { query: string; all: boolean; cs: boolean; ww: boolean; re: boolean; when: string; }
+interface Saved extends HistItem { sort: string; results: Result[]; searched: string; }
 
 class Provider implements vscode.WebviewViewProvider {
   private seq = 0;
@@ -18,7 +18,7 @@ class Provider implements vscode.WebviewViewProvider {
 
   private get state(): Saved {
     return this.ctx.workspaceState.get<Saved>(STATE_KEY)
-      ?? { query: '', all: false, cs: false, ww: false, re: false, results: [], searched: '' };
+      ?? { query: '', all: false, cs: false, ww: false, re: false, when: 'any', sort: 'score', results: [], searched: '' };
   }
   private get history(): HistItem[] {
     return this.ctx.workspaceState.get<HistItem[]>(HIST_KEY) ?? [];
@@ -45,7 +45,7 @@ class Provider implements vscode.WebviewViewProvider {
         this.post({ type: 'restore', state: this.state, history: this.history });
       } else if (m.type === 'draft') {
         const s = this.state;
-        await this.ctx.workspaceState.update(STATE_KEY, { ...s, ...opts(m), query: String(m.query ?? '') });
+        await this.ctx.workspaceState.update(STATE_KEY, { ...s, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
       } else if (m.type === 'search') {
         await this.search(m);
       } else if (m.type === 'open') {
@@ -66,7 +66,7 @@ class Provider implements vscode.WebviewViewProvider {
     const sig: Abort = { aborted: false };
     this.sig = sig;
     if (!query) {
-      await this.ctx.workspaceState.update(STATE_KEY, { ...o, query: '', results: [], searched: '' });
+      await this.ctx.workspaceState.update(STATE_KEY, { ...o, sort: sortOf(m), query: '', results: [], searched: '' });
       this.post({ type: 'results', results: [], searched: '' });
       return;
     }
@@ -97,7 +97,7 @@ class Provider implements vscode.WebviewViewProvider {
       if (!live()) { return; }
       flush();
       const searched = results.length ? '' : 'No matches';
-      await this.ctx.workspaceState.update(STATE_KEY, { ...o, query, results, searched });
+      await this.ctx.workspaceState.update(STATE_KEY, { ...o, sort: sortOf(m), query, results, searched });
       if (!live()) { return; }
       if (results.length) { await this.addHistory({ query, ...o }); }
       this.post({ type: 'done', results, searched });
@@ -108,13 +108,21 @@ class Provider implements vscode.WebviewViewProvider {
   }
 
   private async addHistory(item: HistItem): Promise<void> {
-    const same = (a: HistItem) => a.query === item.query && a.cs === item.cs && a.ww === item.ww && a.re === item.re;
+    const same = (a: HistItem) => a.query === item.query && a.cs === item.cs && a.ww === item.ww && a.re === item.re && a.when === item.when;
     await this.setHistory([item, ...this.history.filter((h) => !same(h))].slice(0, HIST_MAX));
   }
 }
 
+const WHENS = ['any', '1h', '2h', '4h', '8h', 'today'];
+const SORTS = ['score', 'time', 'title'];
+
 function opts(m: any): Options {
-  return { all: !!m.all, cs: !!m.cs, ww: !!m.ww, re: !!m.re };
+  const when = WHENS.includes(m.when) ? String(m.when) : 'any';
+  return { all: !!m.all, cs: !!m.cs, ww: !!m.ww, re: !!m.re, when };
+}
+
+function sortOf(m: any): string {
+  return SORTS.includes(m.sort) ? String(m.sort) : 'score';
 }
 
 async function openChat(id: string): Promise<void> {
@@ -175,6 +183,11 @@ mark{background:var(--vscode-editor-findMatchHighlightBackground);color:inherit}
 #hist .x{border:none;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;padding:0 4px;font-size:14px;line-height:1}
 #hist .x:hover{color:var(--vscode-foreground)}
 #hist .cap{margin:4px 0;color:var(--vscode-descriptionForeground);font-size:0.9em}
+.sel{display:flex;gap:8px;margin-top:6px}
+.sel label{display:flex;align-items:center;gap:4px;margin:0;flex:1;min-width:0;cursor:default}
+.sel select{flex:1;min-width:0;padding:2px 4px;color:var(--vscode-dropdown-foreground);background:var(--vscode-dropdown-background);border:1px solid var(--vscode-dropdown-border);font-family:inherit;font-size:inherit;outline:none}
+.sel select:focus{border-color:var(--vscode-focusBorder)}
+.sel select option{color:var(--vscode-dropdown-foreground);background:var(--vscode-dropdown-listBackground,var(--vscode-dropdown-background))}
 a{color:var(--vscode-textLink-foreground);cursor:pointer}
 </style></head><body>
 <h2>${NAME}</h2>
@@ -185,17 +198,21 @@ a{color:var(--vscode-textLink-foreground);cursor:pointer}
 <button class="opt" id="ww" title="Match Whole Word (Alt+W)"><u>ab</u></button>
 <button class="opt" id="re" title="Use Regular Expression (Alt+R)">.*</button>
 </div></div>
+<div class="sel">
+<label>When <select id="when"><option value="any">Any time</option><option value="1h">Last hour</option><option value="2h">Last 2 hours</option><option value="4h">Last 4 hours</option><option value="8h">Last 8 hours</option><option value="today">Today</option></select></label>
+<label>Sort <select id="sort"><option value="score">Score</option><option value="time">Time</option><option value="title">Title</option></select></label>
+</div>
 <div id="err"></div>
 <div id="bar"><i></i></div>
 <label><input type="checkbox" id="all"> All projects</label>
 <div id="status"></div><div id="list"></div><div id="hist"></div>
 <script nonce="${nonce}">
 const vs=acquireVsCodeApi();const $=id=>document.getElementById(id);
-const q=$('q'),all=$('all'),st=$('status'),list=$('list'),hist=$('hist'),bar=$('bar'),err=$('err');
+const q=$('q'),all=$('all'),when=$('when'),sort=$('sort'),st=$('status'),list=$('list'),hist=$('hist'),bar=$('bar'),err=$('err');
 const flags={cs:$('cs'),ww:$('ww'),re:$('re')};
-let timer,history=[],hasResults=false,busy=false,acc=[],prog=null;
+let timer,history=[],hasResults=false,busy=false,acc=[],prog=null,lastRs=[],lastMsg='';
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-function cur(){return{query:q.value.trim(),all:all.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),re:flags.re.classList.contains('on')};}
+function cur(){return{query:q.value.trim(),all:all.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),re:flags.re.classList.contains('on'),when:when.value,sort:sort.value};}
 function setFlag(k,v){flags[k].classList.toggle('on',!!v);flags[k].setAttribute('aria-pressed',v?'true':'false');}
 function showErr(m){err.style.display=m?'block':'none';err.textContent=m||'';q.classList.toggle('bad',!!m);}
 function setBusy(b){busy=b;bar.classList.toggle('on',b);renderHist();}
@@ -214,7 +231,7 @@ hist.addEventListener('click',e=>{
 const x=e.target.closest('[data-x]');if(x){e.stopPropagation();vs.postMessage({type:'histRemove',index:+x.dataset.x});return;}
 if(e.target.id==='clr'){vs.postMessage({type:'histClear'});return;}
 const h=e.target.closest('.h');if(h){const it=history[+h.dataset.i];q.value=it.query;all.checked=!!it.all;
-setFlag('cs',it.cs);setFlag('ww',it.ww);setFlag('re',it.re);go();}});
+setFlag('cs',it.cs);setFlag('ww',it.ww);setFlag('re',it.re);when.value=it.when||'any';go();}});
 q.addEventListener('input',()=>{clearTimeout(timer);draft();timer=setTimeout(go,400);});
 q.addEventListener('keydown',e=>{
 if(e.key==='Enter'){go();return;}
@@ -222,19 +239,25 @@ if(e.altKey&&!e.ctrlKey&&!e.metaKey){const k={KeyC:'cs',KeyW:'ww',KeyR:'re'}[e.c
 if(k){e.preventDefault();setFlag(k,!flags[k].classList.contains('on'));go();}}});
 Object.keys(flags).forEach(k=>flags[k].addEventListener('click',()=>{setFlag(k,!flags[k].classList.contains('on'));go();q.focus();}));
 all.addEventListener('change',go);
+when.addEventListener('change',go);
+sort.addEventListener('change',()=>{draft();render(lastRs,lastMsg);});
+function ordered(rs){const a=rs.slice();
+if(sort.value==='time')a.sort((x,y)=>y.last-x.last);
+else if(sort.value==='title')a.sort((x,y)=>x.title.toLowerCase().localeCompare(y.title.toLowerCase()));
+else a.sort((x,y)=>y.score-x.score);return a;}
 function ago(ms){const s=Math.floor((Date.now()-ms)/1000);if(s<60)return 'just now';
 const u=[['minute',60],['hour',3600],['day',86400],['week',604800],['month',2592000],['year',31536000]];
 let pick=u[0];for(const x of u){if(s>=x[1])pick=x;}const n=Math.floor(s/pick[1]);return n+' '+pick[0]+(n===1?'':'s')+' ago';}
 function absShort(ms){return new Date(ms).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
 function snip(r){let o='',p=0;for(const g of r.ranges){o+=esc(r.snippet.slice(p,g[0]))+'<mark>'+esc(r.snippet.slice(g[0],g[1]))+'</mark>';p=g[1];}
 return o+esc(r.snippet.slice(p));}
-function render(rs,msg){hasResults=rs.length>0;st.textContent=msg||'';
-list.innerHTML=rs.map(r=>{
+function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;st.textContent=msg||'';
+list.innerHTML=ordered(rs).map(r=>{
 const meta=r.hits+(r.hits===1?' hit':' hits')+' \\u00b7 <span title="'+esc(new Date(r.last).toLocaleString())+'">'+ago(r.last)+' \\u00b7 '+esc(absShort(r.last))+'</span>'+(all.checked?' \\u00b7 '+esc(r.project):'');
 return '<div class="r" data-id="'+esc(r.id)+'" title="'+esc(new Date(r.last).toLocaleString())+'"><div class="t">'+esc(r.title)+'</div><div class="m">'+meta+'</div><div class="s">'+snip(r)+'</div></div>';}).join('');
 renderHist();}
 window.addEventListener('message',e=>{const d=e.data;
-if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;setFlag('cs',s.cs);setFlag('ww',s.ww);setFlag('re',s.re);
+if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;setFlag('cs',s.cs);setFlag('ww',s.ww);setFlag('re',s.re);when.value=s.when||'any';sort.value=s.sort||'score';
 history=d.history||[];render(s.results||[],s.searched);}
 else if(d.type==='history'){history=d.history||[];renderHist();}
 else if(d.type==='start'){acc=[];prog=null;}

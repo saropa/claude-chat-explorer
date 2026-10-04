@@ -3,7 +3,15 @@ import * as os from 'os';
 import * as path from 'path';
 import * as readline from 'readline';
 
-export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; }
+export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; when: string; }
+
+/** Earliest allowed last-active time (ms) for a time-filter value; 0 means any time. */
+export function cutoffOf(when: string, now: number = Date.now()): number {
+  const h: { [k: string]: number } = { '1h': 1, '2h': 2, '4h': 4, '8h': 8 };
+  if (h[when]) { return now - h[when] * 3600000; }
+  if (when === 'today') { return new Date(now).setHours(0, 0, 0, 0); }
+  return 0;
+}
 export interface Abort { aborted: boolean; }
 export type OnFile = (r: Result | null, done: number, total: number) => void;
 export interface Result {
@@ -144,6 +152,7 @@ export async function searchChats(
   const terms = buildTerms(query, o); // may throw: caller reports invalid regex
   if (!terms.length) { return []; }
   const pre = buildPre(query, o);
+  const cutoff = cutoffOf(o.when);
   let dirs: string[] = [];
   try { dirs = await dirsFor(o.all, folders); } catch { return []; }
   const todo: Array<{ file: string; mtime: number; project: string }> = [];
@@ -155,7 +164,8 @@ export async function searchChats(
         try {
           const file = path.join(root(), d, f);
           const st = await fs.promises.stat(file);
-          if (st.size > 0) { todo.push({ file, mtime: st.mtimeMs, project }); }
+          // A file's mtime is never older than its last row, so an older mtime cannot pass the filter.
+          if (st.size > 0 && st.mtimeMs >= cutoff) { todo.push({ file, mtime: st.mtimeMs, project }); }
         } catch { /* skip unreadable */ }
       }));
     } catch { continue; }
@@ -169,6 +179,7 @@ export async function searchChats(
       let r: Result | null = null;
       try { r = await scanFile(t.file, t.mtime, terms, pre, t.project, sig); } catch { /* skip */ }
       if (sig.aborted) { return; }
+      if (r && r.last < cutoff) { r = null; }
       done++;
       if (r) { out.push(r); }
       onFile?.(r, done, todo.length);
