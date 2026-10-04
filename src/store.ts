@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
+import { STATUS_KEYS } from './status';
 import { Result } from './types';
 
 const STATE_KEY = 'saropaChatSearch.state';
 const HIST_KEY = 'saropaChatSearch.history';
 const PIN_KEY = 'saropaChatSearch.pins';
+const STATUS_KEY = 'saropaChatSearch.statuses';
 const TAG_KEY = 'saropaChatSearch.tags';
 const HIST_MAX = 20;
 
@@ -30,6 +32,13 @@ export class Store {
     const h = [item, ...this.history.filter((x) => !same(x))].slice(0, HIST_MAX);
     await this.setHistory(h);
     return h;
+  }
+
+  /** Checked statuses of the status filter; all of them by default. Kept out of history entries. */
+  get statuses(): string[] { return this.ctx.workspaceState.get<string[]>(STATUS_KEY) ?? [...STATUS_KEYS]; }
+  setStatuses(checked: unknown): Thenable<void> {
+    const list = Array.isArray(checked) ? STATUS_KEYS.filter((k) => checked.includes(k)) : [...STATUS_KEYS];
+    return this.ctx.workspaceState.update(STATUS_KEY, list);
   }
 
   get pins(): { [id: string]: number } { return this.ctx.globalState.get(PIN_KEY) ?? {}; }

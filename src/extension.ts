@@ -73,7 +73,8 @@ class Provider implements vscode.WebviewViewProvider {
   private postMeta(): void { this.post(this.meta()); }
 
   private restore(): void {
-    this.post({ type: 'restore', state: this.store.state, history: this.store.history });
+    this.post({ type: 'restore', state: this.store.state, history: this.store.history,
+      statuses: this.store.statuses });
     this.postMeta();
     if (this.progress) { this.post({ type: 'indexing', ...this.progress }); }
   }
@@ -92,6 +93,7 @@ class Provider implements vscode.WebviewViewProvider {
     try {
       if (!m || typeof m !== 'object') { return; }
       if (m.type === 'ready') { this.restore(); }
+      else if (m.type === 'status') { await this.store.setStatuses(m.checked); }
       else if (m.type === 'draft') {
         await this.store.setState({ ...this.store.state, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
       } else if (m.type === 'search') { await this.search(m); }

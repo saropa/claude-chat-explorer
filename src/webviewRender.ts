@@ -55,6 +55,7 @@ function renderPinned(){
 if(!idle()||q.value.trim()||!pinned.length){pinEl.innerHTML='';return;}
 pinEl.innerHTML=sec('sec:pin','Pinned',pinned.length,pinned.map(rowHtml).join(''),'sl');}
 function stText(){const m=lastMsg||'';return ix&&dirty?'Searching what is indexed so far ('+ix.done+' of '+ix.total+' chats)'+(m?' - '+m:''):m;}
-function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;st.textContent=stText();
-list.innerHTML=resultsHtml(rs);renderIdle();}
+function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;
+const keep=stKeep(rs);stUi(stCounts(rs));const t=stText();st.innerHTML=esc(t)+stNote(rs.length-keep.length,!!t);
+list.innerHTML=resultsHtml(keep);renderIdle();stSync();}
 `;
