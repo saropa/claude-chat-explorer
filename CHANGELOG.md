@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.12.2 - 2026-10-04
+- The right-click item for the chats that touched a file now reads "Saropa: Chats That Touched This File".
+
 ## 0.12.1 - 2026-10-04
 - Renamed to Saropa Chat Explorer. The name shows in the Extensions list, the activity bar, the panel, messages, the output channel and the Command Palette. Settings, commands and your saved data keep working as before.
 - Changed: the file menu has one item, "Saropa: Chats for This File", in the Explorer, editor and tab menus. It lists the chats that touched the file, edited ones first. Use the buttons on a row to copy a hand-over note or to search the panel.
@@ -15,9 +18,6 @@ Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of
 - Changed: Show Diagnostics lists how many live chats are at 80 percent or more.
 - Note: the figure approximates Claude Code's own and lags one turn. Window sizes come from the model name. The first start rebuilds the search index once.
 - After installing, run "Developer: Reload Window" so VS Code loads the new version.
-
-## 0.12.2 - 2026-10-04
-- The right-click item for the chats that touched a file now reads "Saropa: Chats That Touched This File".
 
 ## 0.11.1 - 2026-10-04
 - Changed: the chat title gets more room. The green Active chip is gone, because the status dot already shows running, waiting and unread. The status filter still has Active.
