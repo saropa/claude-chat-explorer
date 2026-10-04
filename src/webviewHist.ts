@@ -4,7 +4,7 @@ let histIdx=-1,histSnap=null,histTimer,wantHist=false,lastRec='';
 const ah=document.getElementById('ah');
 function ahSync(){ah.hidden=!(document.activeElement===q&&!q.value&&history.length>0);}
 function applyState(it){q.value=it.query;all.checked=!!it.all;subs.checked=it.subs!==false;setFlag('cs',it.cs);setFlag('ww',it.ww);setFlag('any',it.any);setFlag('re',it.re);
-when.value=it.when||'any';msgSel.value=String(it.last||0);q.setSelectionRange(q.value.length,q.value.length);go();}
+setOpts(it.when,it.last);q.setSelectionRange(q.value.length,q.value.length);go();}
 function histNav(up){
 if(up){if(!history.length)return false;if(histIdx<0)histSnap=cur();
 const n=Math.min(histIdx+1,history.length-1);if(n!==histIdx){histIdx=n;applyState(history[n]);}return true;}

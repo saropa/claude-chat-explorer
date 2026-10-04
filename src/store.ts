@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { DebouncedWriter } from './debounced';
 import { addToHistory, dedupeHistory, HistItem } from './history';
+import { Totals } from './maxResults';
 import { STATUS_KEYS } from './status';
 import { Result } from './types';
 
@@ -14,11 +15,12 @@ const EXPORT_KEY = 'saropaChatSearch.export';
 const ARCH_KEY = 'saropaChatSearch.archived';
 const UNREAD_KEY = 'saropaChatSearch.unread';
 const ARCH_OPEN_KEY = 'saropaChatSearch.archOpen';
+const ADV_OPEN_KEY = 'saropaChatSearch.advOpen';
 const UNREAD_MAX = 500;
 
 export type { HistItem };
 export interface Draft extends HistItem { sort: string; }
-export interface Saved extends Draft { results: Result[]; searched: string; }
+export interface Saved extends Draft { results: Result[]; searched: string; totals?: Totals; }
 export interface ExportPrefs { context: boolean; unique: boolean; }
 
 export const normTag = (raw: string): string =>
@@ -45,21 +47,21 @@ export class Store {
 
   /** Query, options and sort as last typed. Results come from the last completed search. */
   get draft(): Draft {
-    const { results: _r, searched: _s, ...s } = this.read<Saved>(STATE_KEY) ?? BLANK as Saved; // legacy states held results; drop them
+    const { results: _r, searched: _s, totals: _t, ...s } = this.read<Saved>(STATE_KEY) ?? BLANK as Saved; // legacy states held results; drop them
     return { ...BLANK, ...s, subs: s.subs !== false, last: s.last || 0 }; // older states lack subs and last
   }
   setDraft(d: Draft): void { this.w.put(STATE_KEY, d); }
 
   get state(): Saved {
     const s = this.read<Saved>(STATE_KEY);
-    const r = this.read<{ results: Result[]; searched: string }>(RESULTS_KEY);
-    return { ...this.draft, results: r?.results ?? s?.results ?? [], searched: r?.searched ?? s?.searched ?? '' };
+    const r = this.read<{ results: Result[]; searched: string; totals?: Totals }>(RESULTS_KEY);
+    return { ...this.draft, results: r?.results ?? s?.results ?? [], searched: r?.searched ?? s?.searched ?? '', totals: r?.totals };
   }
   /** Save a completed search: its draft and its results. */
   setState(s: Saved): void {
-    const { results, searched, ...d } = s;
+    const { results, searched, totals, ...d } = s;
     this.setDraft(d);
-    this.w.put(RESULTS_KEY, { results, searched });
+    this.w.put(RESULTS_KEY, { results, searched, totals });
   }
 
   get history(): HistItem[] { return dedupeHistory(this.read<HistItem[]>(HIST_KEY) ?? []); }
@@ -113,6 +115,8 @@ export class Store {
   /** Whether the Archived section is expanded in this workspace. */
   get archOpen(): boolean { return this.read<boolean>(ARCH_OPEN_KEY) === true; }
   setArchOpen(open: boolean): void { this.w.put(ARCH_OPEN_KEY, !!open); }
+  get advOpen(): boolean { return this.read<boolean>(ADV_OPEN_KEY) === true; }
+  setAdvOpen(open: boolean): void { this.w.put(ADV_OPEN_KEY, !!open); }
 
   async togglePin(id: string): Promise<void> {
     const p = { ...this.pins };

@@ -8,8 +8,8 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 /** Toast text for a finished export. */
 export function toastText(out: ExportOut, mode: string, file = ''): string {
   const what = `${plural(out.lines, 'line')} from ${plural(out.chats, 'chat')}`;
-  const limit = out.capBy === 'bytes' ? `${MAX_EXPORT_BYTES / 1048576} MB` : `${MAX_EXPORT_LINES.toLocaleString('en-US')} line`;
-  const cap = out.capped ? ` (stopped at the ${limit} limit)` : '';
+  const limit = out.capBy === 'bytes' ? `${MAX_EXPORT_BYTES / 1048576} MB` : `${MAX_EXPORT_LINES.toLocaleString('en-US')} lines`;
+  const cap = out.capped ? `. Export stopped at ${limit}${out.capBy === 'bytes' ? ' (or 50,000 lines)' : ' (or 20 MB)'}. Be more specific in your search to narrow down the results.` : '';
   return (mode === 'save' ? `Saved ${what} to ${file}` : `Copied ${what}`) + cap;
 }
 

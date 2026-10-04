@@ -45,7 +45,7 @@ function subsHtml(r){if(!r.subs||!r.subs.length)return '';const more=(r.subTotal
 return r.subs.map(s=>subRow(r,s)).join('')+(more>0?'<div class="m sr">+'+more+' more subagent matches</div>':'');}
 function rowHtml(r){
 const now=Date.now(),p=pins.has(r.id),op=open.has(r.id),ia=arch.has(r.id);
-const tip=[r.title,all.checked?r.project:'',r.hits?r.hits+(r.hits===1?' hit':' hits'):'',full(r.last),statsText(r)].filter(Boolean).join('\n');
+const tip=[r.title,all.checked?r.project:'',hitTxt(r),full(r.last),statsText(r)].filter(Boolean).join('\n');
 return '<div class="r" data-id="'+esc(r.id)+'" data-vscode-context="'+esc(JSON.stringify({webviewSection:'chat',id:r.id,ccsArchived:ia,ccsUnread:(dots[r.id]||{}).s==='unread'}))+'" tabindex="0" title="'+esc(tip)+'"><div class="rh"><div class="hd">'+dotHtml(r.id)+'<span class="t">'+(r.titleShown?marked(r.titleShown,r.titleRanges):esc(r.title))+'</span>'+pillHtml(r)+hitPill(r)
 +(all.checked?'<span class="pj">'+esc(r.project)+'</span>':'')+gitIcon(r)
 +'<button class="ic'+(op?' on':'')+'" data-a="exp" title="'+(op?'Collapse':'Expand')+'" aria-expanded="'+op+'">'+CHEV+'</button>'
@@ -53,17 +53,18 @@ return '<div class="r" data-id="'+esc(r.id)+'" data-vscode-context="'+esc(JSON.s
 +'<button class="ic pn'+(p?' on':'')+'" data-a="pin" title="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button>'
 +'<span class="tm" title="'+esc(full(r.last))+'">'+shortAgo(r.last,now)+'</span></div>'+metaHtml(r,now)+'<span class="chips">'+chips(r.id)+'</span>'
 +(r.self===false?'<div class="msub">matched in subagent</div>':'')+(r.snippet&&r.self!==false?'<div class="s">'+snip(r)+'</div>':'')+subsHtml(r)+'</div>'+(op?'<div class="ex">'+exHtml(r)+'</div>':'')+'</div>';}
-function groupsHtml(a,note){const now=Date.now(),g={};
+function groupsHtml(a){const now=Date.now(),g={};
 a.forEach(r=>{const k=dayBucket(r.last,now);(g[k]=g[k]||[]).push(r);});
-return DAY_ORDER.filter(k=>g[k]).map((k,i)=>sec('grp:'+k,k,g[k].length,g[k].map(rowHtml).join(''),'gh',i?'':note)).join('');}
+return DAY_ORDER.filter(k=>g[k]).map((k,i)=>sec('grp:'+k,k,g[k].length,g[k].map(rowHtml).join(''),'gh')).join('');}
 function resultsHtml(rs){const a=ordered(rs);if(!a.length)return '';
-if(sort.value==='time')return groupsHtml(a,takeNote());
+if(sort.value==='time')return groupsHtml(a);
 return sec('sec:res','Results',a.length,a.map(rowHtml).join(''),'sl',takeNote());}
 function sessHtml(keep){if(!sessOn||!sess)return '';
 const nm=lastMsg==='No matches'?'<div class="nm">No matches for <b>'+esc(lastQ)+'</b></div>':'';
 if(!keep.length)return nm;
 const a=ordered(keep,sort.value==='score'?'time':sort.value);
-return nm+sec('sec:all','All sessions',a.length,sort.value==='time'?groupsHtml(a,''):a.map(rowHtml).join(''),'sl',takeNote());}
+if(sort.value==='time')return nm+groupsHtml(a);
+return nm+sec('sec:all','All sessions',a.length,a.map(rowHtml).join(''),'sl',takeNote());}
 function pinnedLive(){return pinned.filter(r=>!arch.has(r.id));}
 function pinShown(){return sessOn&&!lastQ&&!busy&&pinnedLive().length>0;}
 function sessBase(){return hasResults||!sessOn||!sess?[]:(pinShown()?sess.rows.filter(r=>!pins.has(r.id)):sess.rows);}
@@ -72,7 +73,7 @@ if(!pinShown()){pinEl.innerHTML='';return;}
 const pl=pinnedLive();pinEl.innerHTML=sec('sec:pin','Pinned',pl.length,pl.map(rowHtml).join(''),'sl');}
 function cnts(d,t,n){return d+' of '+t+' chats, '+n+(n===1?' match':' matches');}
 function noteText(){if(hasResults||busy||(lastMsg&&lastMsg!=='No matches'))return lastMsg||'';
-return sessOn&&sess?sess.rows.length+' of '+sess.total+' chats':'';}
+return sessOn&&sess&&(lastQ||sort.value!=='time')?sess.rows.length+' of '+sess.total+' chats':'';}
 function nkey(x,seen){const b=x.dataset.sec?'s:'+x.dataset.sec:'r:'+(x.dataset.id||x.className);seen[b]=(seen[b]||0)+1;return b+'#'+seen[b];}
 function topOf(el,x){while(x&&x.parentNode!==el)x=x.parentNode;return x;}
 function refocus(f,fd){let t=f;if(fd){t=Array.from(f.querySelectorAll(fd.tag)).find(x=>x.dataset.a===fd.a&&x.dataset.t===fd.t&&x.className===fd.c)||f;}if(t.focus)t.focus();}
@@ -87,10 +88,10 @@ old.forEach(o=>o.remove());
 if(ak&&!act.isConnected){const s3={},f=Array.from(el.children).find(c=>nkey(c,s3)===ak);if(f)refocus(f,fd);}}
 function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;
 const base=hasResults?rs.filter(r=>!arch.has(r.id)):sessBase(),keep=stKeep(base);stUi(stCounts(base));
-const t=noteText(),hid=base.length-keep.length;
+const capOn=capShown(),t=capOn?'':noteText(),hid=base.length-keep.length;
 noteIn=t||hid?esc(t)+stNote(hid,!!t):'';
 patch(list,hasResults?resultsHtml(keep):sessHtml(keep));
 const used=noteIn==='';st.classList.toggle('vh',used);st.textContent=t+(hid?(t?' · ':'')+hid+' hidden by status filter':'');
 if(!used){st.innerHTML=noteIn;noteIn='';}
-renderPinned();renderArch();stSync();exSync();}
+$('cap').innerHTML=capHtml();renderPinned();renderArch();stSync();exSync();}
 `;

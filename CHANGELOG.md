@@ -2,6 +2,15 @@
 
 Release notes for Saropa Chat Search, newest first. Dates are the git dates of each release.
 
+## 0.9.3 - 2026-10-04
+- New: the result limit is now visible. When more than 500 chats match, the top of the results says "Showing the top 500 of 1,284 chats (21,904 matches)" and warns that the result set only contains a subset, as VS Code Search does. Every match is still counted. A chat with more than 9,999 hits shows "9,999+", and the match total stops at "1,000,000+".
+- New: All sessions and Archived show the same notice when their list is cut off, and an export that hits its limit says so and asks you to narrow the search.
+- New: setting `saropaChatSearch.maxResults` (default 500, 50 to 2000) sets that limit.
+- New: "this week" (since Monday 00:00) and "this month" (since the 1st, 00:00) in the time filter, in local time. Saved searches and history keep working.
+- Changed: a `...` button under the search box (Toggle search details) shows or hides the When and Messages filters. They start hidden, the choice is remembered per workspace, and a count on the button shows when a filter is set. Each filter is now its own row with a label: "chats active during" and "messages to search".
+- Changed: with Sort set to Time, the day groups (Today, Yesterday, This week, Last week, Earlier) show directly, with no "All sessions" or "Results" header above them. The count summary shows only for a search.
+- After installing, run "Developer: Reload Window" so VS Code loads the new version.
+
 ## 0.9.2 - 2026-10-04
 - Fixed: the sidebar icons were missing in 0.9.1 and earlier since 0.8.1. VS Code rejected the Git Activity container id because it held a dot, and dropped both sidebar containers. The id is now plain letters.
 - New: the packaging step checks the manifest and stops on a bad container id, an undeclared command, a missing icon, or a command with no handler.

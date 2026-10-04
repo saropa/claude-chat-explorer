@@ -1,6 +1,6 @@
 import { Options } from './types';
 
-const WHENS = ['any', '1h', '2h', '4h', '8h', 'today'];
+const WHENS = ['any', '1h', '2h', '4h', '8h', 'today', 'week', 'month'];
 const LASTS = [0, 10, 25, 50, 100];
 const SORTS = ['score', 'time', 'title', 'length', 'cost'];
 

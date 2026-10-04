@@ -36,11 +36,9 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 #res{flex:1 1 auto;min-height:80px;overflow-x:hidden;overflow-y:auto;container-type:inline-size;container-name:res;overflow-wrap:anywhere}
 .sel label:not(.al){min-width:0;max-width:100%}
 .sel select{flex:1 1 0;width:0;min-width:0;max-width:100%;text-overflow:ellipsis}
-.sel .lw{order:1;flex:1 1 112px}
 .sel .ls{order:2;flex:1 1 84px}
 .sfw{order:3}
 .exw{order:4}
-.sel .lm{order:5;flex:1 1 104px}
 .sel .al{order:6}
 @media (min-width:521px){.sfw{order:8}.exw{order:9}}
 .sel .lb{flex:none}
@@ -85,11 +83,12 @@ function agoLong(ms,now){const m=Math.floor(Math.max(0,now-ms)/60000);
 if(m<1)return 'just now';
 const u=m<60?[m,'minute']:m<1440?[Math.floor(m/60),'hour']:m<43200?[Math.floor(m/1440),'day']:m<525600?[Math.floor(m/43200),'month']:[Math.floor(m/525600),'year'];
 return u[0]+' '+u[1]+(u[0]===1?'':'s')+' ago';}
-function hitTxt(r){return r.hits?r.hits+(r.hits===1?' hit':' hits'):'';}
+function hitN(r){return r.hits>9999?nf(9999)+'+':nf(r.hits);}
+function hitTxt(r){return r.hits?hitN(r)+(r.hits===1?' hit':' hits'):'';}
 function msgTxt(r){return r.msgs?r.msgs+(r.msgs===1?' message':' messages'):'';}
 function metaHtml(r,now){const h=hitTxt(r)||msgTxt(r);
 return '<div class="mt" title="'+esc(full(r.last))+'">'+(h?'<span>'+h+'</span> · ':'')+'<span class="ml">'+agoLong(r.last,now)+'</span><span class="ms">'+shortAgo(r.last,now)+'</span></div>';}
-function hitPill(r){return r.hits?'<span class="hp" title="'+esc(hitTxt(r))+'">'+r.hits+'</span>':'';}
+function hitPill(r){return r.hits?'<span class="hp" title="'+esc(hitTxt(r))+'">'+hitN(r)+'</span>':'';}
 function qSync(){document.body.classList.toggle('qa',!!q.value.trim());}
 q.addEventListener('input',qSync);window.addEventListener('message',qSync);qSync();
 `;

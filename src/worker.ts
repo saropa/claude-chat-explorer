@@ -5,6 +5,7 @@ import { ChatIndex } from './index';
 import { compile } from './query';
 import { fileSessionsOf, FileSessionsReply } from './fileSessions';
 import { gitSummary } from './gitSummary';
+import { clampMax, Tally, totalsOf } from './limits';
 import { expandChat, searchIndex } from './search';
 import { rowOf, sessionRows } from './sessions';
 import { Abort, Compiled, Ctx, Result } from './types';
@@ -66,12 +67,12 @@ async function job(m: any, run: (c: Compiled, sig: Abort) => Promise<object>): P
 function search(m: any): Promise<void> {
   return job(m, async (c, sig) => {
     let pending: Result[] = [], last = 0, sent = false;
-    const flush = (done: number, total: number) => { post({ t: 'batch', id: m.id, results: pending, done, total }); pending = []; last = Date.now(); };
-    const results = await searchIndex(ix!, c, m.o, m.folders ?? [], ctxOf(m), sig, (r, done, total) => {
+    const max = clampMax(m.max);
+    const flush = (done: number, total: number, t: Tally) => { post({ t: 'batch', id: m.id, results: pending, done, total, ...totalsOf(t, max) }); pending = []; last = Date.now(); };
+    return searchIndex(ix!, c, m.o, m.folders ?? [], ctxOf(m), sig, (r, done, total, tally) => {
       if (r) { pending.push(r); }
-      if ((pending.length && !sent) || Date.now() - last >= BATCH_MS) { sent = sent || pending.length > 0; flush(done, total); }
-    });
-    return { results };
+      if ((pending.length && !sent) || Date.now() - last >= BATCH_MS) { sent = sent || pending.length > 0; flush(done, total, tally); }
+    }, max);
   });
 }
 
@@ -110,7 +111,7 @@ function pinned(ids: string[], subs: boolean): Result[] {
 async function sessions(m: any): Promise<unknown> {
   await loaded;
   if (!ix) { return { rows: [], total: 0, arch: [], archTotal: 0 }; }
-  return sessionRows(ix, m.o, Array.isArray(m.folders) ? m.folders : [], String(m.sort ?? 'time'), new Set<string>(m.pins ?? []), new Set<string>(m.archived ?? []));
+  return sessionRows(ix, m.o, Array.isArray(m.folders) ? m.folders : [], String(m.sort ?? 'time'), new Set<string>(m.pins ?? []), new Set<string>(m.archived ?? []), clampMax(m.max));
 }
 
 /** Yield to the event loop; while a search or export runs, wait for it to end first. */

@@ -4,6 +4,7 @@ import { TIMEOUT_MSG, WorkerClient } from './client';
 import { GIT_VIEW, GitTree, OPEN_CMD, RETRY_CMD } from './gitTree';
 import { IndexStatus } from './indexStatus';
 import { runExport } from './exportRun';
+import { maxResults, pickTotals, Totals } from './maxResults';
 import { opts, sortOf } from './msgOpts';
 import { gitHint } from './gitMatch';
 import { registerDiagnostics } from './diagnostics';
@@ -99,8 +100,8 @@ class Provider implements vscode.WebviewViewProvider {
   }
 
   private restore(): void {
-    this.post({ type: 'restore', state: this.store.state, history: this.store.history, statuses: this.store.statuses,
-      export: this.store.exportPrefs, archOpen: this.store.archOpen });
+    this.post({ type: 'restore', max: maxResults(), state: this.store.state, history: this.store.history, statuses: this.store.statuses,
+      export: this.store.exportPrefs, archOpen: this.store.archOpen, advOpen: this.store.advOpen });
     this.postDots();
     void this.postMeta();
     if (this.progress) { this.post({ type: 'indexing', ...this.progress }); }
@@ -147,6 +148,7 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'cancel') { this.client.cancel(); }
       else if (m.type === 'sessions') { await this.sessions(m); }
       else if (m.type === 'histAdd') { this.histAdd(m); }
+      else if (m.type === 'advOpen') { this.store.setAdvOpen(!!m.open); }
       else if (m.type === 'archOpen') { this.store.setArchOpen(!!m.open); }
       else if (m.type === 'importArchived') { await this.actions?.importArchived(); }
       else { await this.onChatMessage(m); }
@@ -169,8 +171,8 @@ class Provider implements vscode.WebviewViewProvider {
   /** Chats in scope as rows for the empty query and the no-match list; the reply carries the search number so stale ones are dropped. */
   private async sessions(m: any): Promise<void> {
     try {
-      const r = await this.client.request({ t: 'sessions', o: opts(m), sort: sortOf(m), folders: folderPaths(), pins: Object.keys(this.store.pins), archived: [...this.store.archived], dots: this.dotNames }, true);
-      this.post({ type: 'sessions', sn: m.sn, rows: r?.rows ?? [], total: r?.total ?? 0, arch: r?.arch ?? [], archTotal: r?.archTotal ?? 0 });
+      const r = await this.client.request({ t: 'sessions', max: maxResults(), o: opts(m), sort: sortOf(m), folders: folderPaths(), pins: Object.keys(this.store.pins), archived: [...this.store.archived], dots: this.dotNames }, true);
+      this.post({ type: 'sessions', sn: m.sn, rows: r?.rows ?? [], total: r?.total ?? 0, arch: r?.arch ?? [], archTotal: r?.archTotal ?? 0, max: r?.max ?? maxResults() });
     } catch (e) { logErr('sessions', e); }
   }
 
@@ -233,21 +235,21 @@ class Provider implements vscode.WebviewViewProvider {
     if (!(await this.prepare(query, o, base, sn))) { return; }
     this.post({ type: 'start', sn });
     const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
-    this.client.search({ query, o, folders, ...this.ctxMsg }, (w) => this.onSearchMsg(w, base, sn),
+    this.client.search({ query, o, folders, max: maxResults(), ...this.ctxMsg }, (w) => this.onSearchMsg(w, base, sn),
       (why) => { if (why === 'timeout') { this.post({ type: 'error', sn, message: TIMEOUT_MSG }); } });
   }
 
   /** Forward worker batches as they come (stamped with the search number); the final message saves state. */
   private onSearchMsg(w: any, base: Base, sn: number): void {
-    if (w.t === 'batch') { this.post({ type: 'batch', sn, results: w.results, done: w.done, total: w.total }); }
+    if (w.t === 'batch') { this.post({ type: 'batch', sn, results: w.results, done: w.done, total: w.total, totals: pickTotals(w) }); }
     else if (w.t === 'error') { logErr('search', w.message); this.post({ type: 'results', sn, results: [], searched: 'Search failed' }); }
-    else if (w.t === 'done') { void this.finish(w.results, base, sn); }
+    else if (w.t === 'done') { void this.finish(w.results, base, sn, pickTotals(w)); }
   }
 
-  private async finish(results: Result[], base: Base, sn: number): Promise<void> {
+  private async finish(results: Result[], base: Base, sn: number, totals: Totals): Promise<void> {
     const searched = results.length ? '' : 'No matches';
-    this.post({ type: 'done', sn, results, searched });
-    try { this.store.setState({ ...base, results, searched }); } catch (e) { logErr('save search', e); }
+    this.post({ type: 'done', sn, results, searched, totals });
+    try { this.store.setState({ ...base, results, searched, totals }); } catch (e) { logErr('save search', e); }
   }
 }
 

@@ -8,7 +8,11 @@ const escRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export function cutoffOf(when: string, now: number = Date.now()): number {
   const h: { [k: string]: number } = { '1h': 1, '2h': 2, '4h': 4, '8h': 8 };
   if (h[when]) { return now - h[when] * 3600000; }
-  if (when === 'today') { return new Date(now).setHours(0, 0, 0, 0); }
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0); // local midnight
+  if (when === 'today') { return d.getTime(); }
+  if (when === 'week') { d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); } // Monday 00:00
+  if (when === 'month') { d.setDate(1); return d.getTime(); }
   return 0;
 }
 

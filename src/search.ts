@@ -5,17 +5,17 @@ import { snippetOf, titleView } from './snippet';
 import { subWinOf, topWinOf, Win } from './window';
 import { mergedGit } from './gitInfo';
 import { projectOf, statFields } from './stats';
+import { clampMax, DEFAULT_MAX_RESULTS, HIT_DISPLAY_CAP, newTally, Tally, tallyAdd, totalsOf } from './limits';
 import { Abort, Chat, Compiled, Ctx, Expanded, ExpandItem, Options, Rec, Result, SubResult } from './types';
 
-/** Maximum results kept by the scanner and the webview. */
-export const MAX_RESULTS = 500;
 export const EXPAND_PAGE = 20;
 export const MAX_SUBS = 10; // nested subagent rows sent per parent
 const YIELD_MS = 8;
 
 /** What search needs from the index. */
 export interface Source { tops(): Chat[]; subsOf(p: Chat): Chat[]; rec(c: Chat): Rec; fileOf(c: Chat): string; }
-export type OnResult = (r: Result | null, done: number, total: number) => void;
+export type OnResult = (r: Result | null, done: number, total: number, tally: Tally) => void;
+export type SearchOut = { results: Result[] } & ReturnType<typeof totalsOf>;
 
 const encode = (p: string) => p.replace(/[^a-zA-Z0-9]/g, '-');
 
@@ -86,10 +86,13 @@ export function findIn(sc: Scan, p: Chat): Found | null {
   return self || subs.length ? { p, own: self, subs } : null;
 }
 
+/** All hits of a found parent: its own plus its subagents'. */
+export const foundHits = (f: Found): number => (f.own?.hits ?? 0) + f.subs.reduce((a, [, h]) => a + h.hits, 0);
+
 /** One parent row: its own match plus matching subagents. Subagent hits add to hits and score. */
 export function toResult(sc: Scan, f: Found, maxSubs: number = MAX_SUBS): Result {
   const { p, own, subs } = f;
-  const hits = (own?.hits ?? 0) + subs.reduce((a, [, h]) => a + h.hits, 0);
+  const hits = Math.min(foundHits(f), HIT_DISPLAY_CAP + 1);
   const weight = (own?.weightSum ?? 0) + subs.reduce((a, [, h]) => a + h.weightSum, 0);
   const snip = own ?? subs[0][1];
   const r: Result = {
@@ -107,22 +110,24 @@ export const rank = (rs: Result[], ctx: Ctx): Result[] => {
   return rs.sort((a, b) => pin(b) - pin(a) || b.score - a.score);
 };
 
-/** Search the index newest chat first; streams one callback per chat and yields so cancels get through. */
+/** Search the index newest chat first; streams one callback per chat and yields so cancels get through. Counts every match; keeps only the top max rows. */
 export async function searchIndex(
-  ix: Source, c: Compiled, o: Options, folders: string[], ctx: Ctx, sig: Abort, onResult?: OnResult,
-): Promise<Result[]> {
+  ix: Source, c: Compiled, o: Options, folders: string[], ctx: Ctx, sig: Abort, onResult?: OnResult, maxRows: number = DEFAULT_MAX_RESULTS,
+): Promise<SearchOut> {
+  const max = clampMax(maxRows), tally = newTally();
   const sc = scanOf(ix, c, o, ctx);
   const todo = candidates(ix, o, folders, sc.cutoff);
-  const out: Result[] = [];
+  let out: Result[] = [];
   const pace = pacer();
   for (let i = 0; i < todo.length && !sig.aborted; i++) {
     const f = findIn(sc, todo[i]);
     const r = f ? toResult(sc, f) : null;
-    if (r) { out.push(r); }
-    onResult?.(r, i + 1, todo.length);
+    if (f && r) { tallyAdd(tally, foundHits(f)); out.push(r); }
+    if (out.length >= max * 2) { out = rank(out, ctx).slice(0, max); } // bounded memory: keep only the top rows
+    onResult?.(r, i + 1, todo.length, tally);
     await pace();
   }
-  return rank(out, ctx).slice(0, MAX_RESULTS);
+  return { results: rank(out, ctx).slice(0, max), ...totalsOf(tally, max) };
 }
 
 interface MsgHit { rec: Rec; i: number; first: number; sub?: string; }

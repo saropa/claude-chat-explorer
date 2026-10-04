@@ -6,6 +6,8 @@ import { GIT_CSS } from './webviewGit';
 import { SCRIPT } from './webviewJs';
 import { STATUS_CSS, STATUS_HTML } from './webviewStatus';
 import { ARCH_CSS } from './webviewArchive';
+import { CAP_CSS } from './webviewCap';
+import { ADV_CSS, ADV_HTML } from './webviewAdv';
 
 export const NAME = 'Saropa Chat Search';
 
@@ -14,7 +16,7 @@ export function html(): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${NAME}</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${EXPORT_CSS}${LAYOUT_CSS}${ARCH_CSS}</style></head><body>
+<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${EXPORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}</style></head><body>
 <div id="hdr"><div class="top">
 <div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div>
 <div class="box">
@@ -26,9 +28,8 @@ export function html(): string {
 <button class="opt" id="re" title="Use Regular Expression (Alt+R)" aria-label="Use Regular Expression" aria-pressed="false">.*</button>
 </div></div>
 <div id="ah" hidden>Up and Down arrows show previous searches</div>
+${ADV_HTML}
 <div class="sel">
-<label class="lw"><span class="lb">When</span> <select id="when" aria-label="When"><option value="any">Any time</option><option value="1h">Last hour</option><option value="2h">Last 2 hours</option><option value="4h">Last 4 hours</option><option value="8h">Last 8 hours</option><option value="today">Today</option></select></label>
-<label class="lm"><span class="lb">Messages</span> <select id="msgs" aria-label="Messages"><option value="0">All</option><option value="10">Last 10</option><option value="25">Last 25</option><option value="50">Last 50</option><option value="100">Last 100</option></select></label>
 <label class="ls"><span class="lb">Sort</span> <select id="sort" aria-label="Sort"><option value="score">Score</option><option value="time">Time</option><option value="title">Title</option><option value="length">Length</option><option value="cost">Cost</option></select></label>
 <label class="al" title="Search every project, not only this workspace"><input type="checkbox" id="all"> All projects</label><label class="al" title="Include subagent chats"><input type="checkbox" id="subs" checked> Subagents</label>
 ${STATUS_HTML}${EXPORT_HTML}
@@ -38,6 +39,6 @@ ${STATUS_HTML}${EXPORT_HTML}
 <div id="bar"><i></i></div>
 <datalist id="tl"></datalist>
 </div></div>
-<div id="res"><div id="status" role="status" aria-live="polite"></div><div id="pin"></div><div id="list"></div><div id="arch"></div></div>
+<div id="res"><div id="cap"></div><div id="status" role="status" aria-live="polite"></div><div id="pin"></div><div id="list"></div><div id="arch"></div></div>
 <script nonce="${nonce}">${SCRIPT}</script></body></html>`;
 }

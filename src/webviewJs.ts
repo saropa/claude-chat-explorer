@@ -2,7 +2,8 @@ import { SHARED_SRC } from './group';
 import { GIT_JS } from './webviewGit';
 import { EXPORT_JS } from './webviewExport';
 import { RENDER } from './webviewRender';
-import { MAX_RESULTS } from './search';
+import { CAP_JS } from './webviewCap';
+import { ADV_JS } from './webviewAdv';
 import { STATUS } from './webviewStatus';
 import { LAYOUT_JS } from './webviewLayout';
 import { HIST_JS } from './webviewHist';
@@ -24,7 +25,7 @@ function subTxt(){return ix.subs?' (including '+ix.subs+' subagent files)':'';}
 function showIx(){ixb.hidden=!ix;if(ix)ixt.textContent=ix.first?'Building the search index for the first time: '+ix.done+' of '+ix.total+subTxt()+'. Later launches are much faster.':'Indexing your chats: '+ix.done+' of '+ix.total+subTxt()+'. Results may be incomplete until this finishes.';}
 function go(){clearTimeout(timer);clearTimeout(histTimer);const c=cur();showErr('');hint.hidden=true;draft();dirty=!!ix;
 stale=false;res.classList.remove('stale');res.scrollTop=0;acc=[];prog=null;open.clear();ex={};sn++;sess=null;lastQ=c.query;sessOn=!c.query;
-stSync();hasResults=false;lastRs=[];lastMsg=c.query?'Searching...':'';setBusy(!!c.query);
+tot=null;stSync();hasResults=false;lastRs=[];lastMsg=c.query?'Searching...':'';setBusy(!!c.query);
 vs.postMessage(Object.assign({type:'search',sn:sn},c));if(!c.query)askSess();rerender();}
 function askSess(){vs.postMessage(Object.assign({type:'sessions',sn:sn},cur()));}
 function askSessSoon(){clearTimeout(sessTimer);sessTimer=setTimeout(askSess,200);}
@@ -86,8 +87,8 @@ if(e.key==='ArrowDown'){e.preventDefault();step(t,1);}
 else if(e.key==='ArrowUp'){e.preventDefault();step(t,-1);}
 else if(e.key==='Enter'||e.key===' '){e.preventDefault();if(isSec)toggleSec(t.dataset.sec);else openId(t.dataset.id);}});
 window.addEventListener('message',e=>{const d=e.data;const live=d.sn===undefined||(d.sn===sn&&!stale);
-if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;subs.checked=s.subs!==false;setFlag('cs',s.cs);setFlag('ww',s.ww);setFlag('any',s.any);setFlag('re',s.re);when.value=s.when||'any';msgSel.value=String(s.last||0);sort.value=s.sort||'score';stLoad(d.statuses);exLoad(d.export);archOpen=!!d.archOpen;
-history=d.history||[];lastQ=s.query||'';sessOn=!(s.results&&s.results.length);render(s.results||[],s.searched);if(sessOn)askSess();ahSync();}
+if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;subs.checked=s.subs!==false;setFlag('cs',s.cs);setFlag('ww',s.ww);setFlag('any',s.any);setFlag('re',s.re);setOpts(s.when,s.last);sort.value=s.sort||'score';stLoad(d.statuses);exLoad(d.export);archOpen=!!d.archOpen;advSet(!!d.advOpen,false);
+capN=d.max||500;tot=s.totals||null;history=d.history||[];lastQ=s.query||'';sessOn=!(s.results&&s.results.length);render(s.results||[],s.searched);if(sessOn)askSess();ahSync();}
 else if(d.type==='meta'){pins=new Set(d.pins);tags=d.tags||{};pinned=d.pinned||[];arch=new Set(d.arch||[]);tl.innerHTML=(d.all||[]).map(t=>'<option value="'+esc(t)+'">').join('');rerender();if(sessOn&&!hasResults)askSessSoon();}
 else if(d.type==='expanded'){const n=ex[d.id],more=d.offset>0&&n;
 ex[d.id]={items:more?n.items.concat(d.items):d.items,total:d.total,files:d.files,commands:d.commands,related:more?n.related:d.related,git:d.git};rerender();if(gitFocus===d.id){gitFocus='';gitScroll(d.id);}
@@ -95,19 +96,19 @@ if(!(d.offset>0))showMatch(d.id);}
 else if(d.type==='indexing'){ix={done:d.done,total:d.total,subs:d.subs||0,first:!!d.first};showIx();}
 else if(d.type==='indexed'){ix=null;showIx();if(dirty){dirty=false;go();}}
 else if(d.type==='history'){history=d.history||[];histIdx=-1;if(!history.length)lastRec='';ahSync();}
-else if(d.type==='sessions'){if(d.sn!==sn)return;sess={rows:d.rows||[],total:d.total||0,arch:d.arch||[],archTotal:d.archTotal||0};rerender();}
+else if(d.type==='sessions'){if(d.sn!==sn)return;sess={rows:d.rows||[],total:d.total||0,arch:d.arch||[],archTotal:d.archTotal||0};capN=d.max||capN;rerender();}
 else if(d.type==='dots'){dots=d.map||{};rerender();}
 else if(!live)return;
-else if(d.type==='start'){acc=[];prog=null;}
-else if(d.type==='batch'){if(!busy)return;acc=acc.concat(d.results).sort((a,b)=>b.score-a.score).slice(0,` + MAX_RESULTS + String.raw`);prog={done:d.done,total:d.total};
+else if(d.type==='start'){acc=[];prog=null;tot=null;}
+else if(d.type==='batch'){if(!busy)return;acc=acc.concat(d.results).sort((a,b)=>b.score-a.score).slice(0,capN);if(d.totals){tot=d.totals;capN=d.totals.max;}prog={done:d.done,total:d.total};
 sessOn=false;render(acc,cnts(d.done,d.total,liveN(acc)));}
-else if(d.type==='done'){busy=false;bar.classList.remove('on');acc=d.results;const n=d.results.length;sessOn=!n;
+else if(d.type==='done'){busy=false;bar.classList.remove('on');acc=d.results;tot=d.totals||null;const n=d.results.length;sessOn=!n;
 render(d.results,d.searched||(prog?cnts(prog.total,prog.total,liveN(d.results)):''));if(n)histAfter();else askSess();}
 else if(d.type==='error'){setBusy(false);sessOn=false;sess=null;lastMsg='';hasResults=false;lastRs=[];showErr(d.message);rerender();}
 else if(d.type==='short'){setBusy(false);hint.textContent=d.message||'Type at least 2 characters';hint.hidden=false;sessOn=true;hasResults=false;lastRs=[];lastMsg='';askSess();rerender();}
-else if(d.type==='results'){busy=false;bar.classList.remove('on');sessOn=!d.results.length;render(d.results,d.searched);if(sessOn&&lastQ)askSess();}
+else if(d.type==='results'){tot=null;busy=false;bar.classList.remove('on');sessOn=!d.results.length;render(d.results,d.searched);if(sessOn&&lastQ)askSess();}
 else if(d.type==='setQuery'){q.value=d.query||'';go();}});
 vs.postMessage({type:'ready'});
 `;
 
-export const SCRIPT = SHARED_SRC + RENDER + GIT_JS + HIST_JS + CORE + STATUS + EXPORT_JS + LAYOUT_JS + ARCH_JS;
+export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + GIT_JS + HIST_JS + CORE + STATUS + EXPORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS;

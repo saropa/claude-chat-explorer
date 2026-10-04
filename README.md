@@ -18,8 +18,10 @@ Saropa Chat Search lets you search your Claude Code chat history from the VS Cod
 | Exact phrase by default | The whole query is one exact phrase. "my family" must appear together in one message. |
 | Match options | Match any order (Alt+O), Match Case (Alt+C), Whole Word (Alt+W), regular expression (Alt+R). |
 | Quoted phrases | With Match any order on, `"quoted phrases"` stay exact. |
-| Last N messages | `last:<n>` or the Messages dropdown (10, 25, 50, 100) searches only the final N messages of each chat. |
-| When filter | Any time, last 1, 2, 4 or 8 hours, or today. |
+| Last N messages | `last:<n>` or the "messages to search" dropdown (last 10, 25, 50, 100) searches only the final N messages of each chat. |
+| When filter | "chats active during": any time, last hour, 2, 4 or 8 hours, today, this week or this month. Local time: today starts at midnight, this week at 00:00 on Monday, this month at 00:00 on the 1st. |
+| Search details | The `...` button under the search box (tooltip "Toggle search details") shows or hides the When and Messages rows. They start hidden, the choice is remembered per workspace, and a count on the button shows how many of them are set. |
+| Result limit | Like VS Code Search, the panel lists at most 500 chats (setting `saropaChatSearch.maxResults`, 50 to 2000) and says so: "Showing the top 500 of 1,284 chats (21,904 matches)" with a warning to narrow the search. Every match is still counted. A chat shows "9,999+" above 9,999 hits, and totals stop at "1,000,000+". All sessions and Archived show the same notice. |
 | Sort | Score, time (grouped by day), title, length or cost. Pinned chats list first. |
 | Status filter | Include or exclude Normal, Active, Empty, Tiny, Huge, Abandoned and Pinned chats. Active means running, waiting for you or unread, as Claude Code defines it. |
 | Subagent search | The Subagents checkbox is on by default. Matches nest under the parent chat with a Subagent pill. |
@@ -60,7 +62,7 @@ Extensions panel:
 1. Click the Saropa Chat Search icon in the activity bar.
 2. Wait for the first index to finish. Search works on what is indexed so far.
 3. Type a word or phrase. Results appear after you stop typing. Enter searches at once.
-4. Narrow the results with When, Sort, Messages and the toggles.
+4. Narrow the results with Sort, the toggles and the search details (`...`) button.
 5. Click a result to resume that session, or click its chevron to read the matching messages.
 6. Tick All projects to search chats from every project, not only this workspace.
 
@@ -141,7 +143,7 @@ These work with the cursor in the search box.
 
 - Indexing and search run in a worker thread, so the editor does not freeze.
 - Index data is cached on disk and refreshed incrementally, so later starts are faster than the first.
-- Recently read chat records are cached in memory, up to 64 MB. Results are capped at 500 rows. Export is capped at 50,000 lines or 20 MB.
+- Recently read chat records are cached in memory, up to 64 MB. Results are capped at 500 rows by default (see Result limit). Export is capped at 50,000 lines or 20 MB.
 - A pattern that stalls for 3 seconds is stopped with "Search timed out: simplify the pattern".
 - `node scripts/bench.js` (after `npm run compile`) prints build, load and query timings for your machine. Timings depend on your machine and the size of your chat folder.
 
