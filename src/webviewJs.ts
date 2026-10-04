@@ -4,6 +4,7 @@ import { EXPORT_JS } from './webviewExport';
 import { RENDER } from './webviewRender';
 import { MAX_RESULTS } from './search';
 import { STATUS } from './webviewStatus';
+import { LAYOUT_JS } from './webviewLayout';
 
 const CORE = String.raw`
 const vs=acquireVsCodeApi();const $=id=>document.getElementById(id);
@@ -94,4 +95,4 @@ else if(d.type==='results'){busy=false;bar.classList.remove('on');render(d.resul
 vs.postMessage({type:'ready'});
 `;
 
-export const SCRIPT = SHARED_SRC + RENDER + GIT_JS + CORE + STATUS + EXPORT_JS;
+export const SCRIPT = SHARED_SRC + RENDER + GIT_JS + CORE + STATUS + EXPORT_JS + LAYOUT_JS;

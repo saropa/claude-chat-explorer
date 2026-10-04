@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.3
+- Fixed: results and controls now fit the panel at any width, from a very narrow sidebar to a wide editor tab. Dropdowns no longer clip their text, the row meta line no longer wraps, and there is never a horizontal scrollbar.
+- The search box and filters stay in view while only the results scroll.
+- Rows adapt to the width: compact rows show hits and a short time on one line, medium rows add the time in words, and wide rows use a single line with a hit count pill and a time column. Very wide panels show the snippet beside the title.
+
 ## 0.6.2
 - Fixed: clicking a PR, commit or branch in the Git section no longer changes a `pr:`, `sha:` or `branch:` that sits inside a quoted phrase or a quoted `cmd:` value, and keeps the closing quote and your spacing.
 - Fixed: a long Git Activity refresh can no longer make a running search time out and restart the search worker. The refresh now waits while a search or export runs and pauses regularly so the search keeps going; commit merging is also much faster for chats with many commits.

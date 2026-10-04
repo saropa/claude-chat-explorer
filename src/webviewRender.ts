@@ -41,11 +41,11 @@ return r.subs.map(s=>subRow(r,s)).join('')+(more>0?'<div class="m sr">+'+more+' 
 function rowHtml(r){
 const now=Date.now(),p=pins.has(r.id),op=open.has(r.id),d=dotOf(r.last,now);
 const tip=[r.title,all.checked?r.project:'',r.hits?r.hits+(r.hits===1?' hit':' hits'):'',full(r.last),statsText(r)].filter(Boolean).join('\n');
-return '<div class="r" data-id="'+esc(r.id)+'" tabindex="0" title="'+esc(tip)+'"><div class="rh"><div class="hd"><span class="dot '+d+'" title="'+DOTS[d]+'"></span><span class="t">'+esc(r.title)+'</span>'+pillHtml(r)
-+(all.checked?'<span class="pj">'+esc(r.project)+'</span>':'')+'<span class="chips">'+chips(r.id)+'</span>'+gitIcon(r)
+return '<div class="r" data-id="'+esc(r.id)+'" tabindex="0" title="'+esc(tip)+'"><div class="rh"><div class="hd"><span class="dot '+d+'" title="'+DOTS[d]+'"></span><span class="t">'+esc(r.title)+'</span>'+pillHtml(r)+hitPill(r)
++(all.checked?'<span class="pj">'+esc(r.project)+'</span>':'')+gitIcon(r)
 +'<button class="ic'+(op?' on':'')+'" data-a="exp" title="'+(op?'Collapse':'Expand')+'" aria-expanded="'+op+'">'+CHEV+'</button>'
 +'<button class="ic pn'+(p?' on':'')+'" data-a="pin" title="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button>'
-+'<span class="tm" title="'+esc(full(r.last))+'">'+shortAgo(r.last,now)+'</span></div>'
++'<span class="tm" title="'+esc(full(r.last))+'">'+shortAgo(r.last,now)+'</span></div>'+metaHtml(r,now)+'<span class="chips">'+chips(r.id)+'</span>'
 +(r.self===false?'<div class="msub">matched in subagent</div>':'')+(r.snippet&&r.self!==false?'<div class="s">'+snip(r)+'</div>':'')+subsHtml(r)+'</div>'+(op?'<div class="ex">'+exHtml(r)+'</div>':'')+'</div>';}
 function resultsHtml(rs){const a=ordered(rs);if(!a.length)return '';
 if(sort.value==='time'){const now=Date.now(),g={};
