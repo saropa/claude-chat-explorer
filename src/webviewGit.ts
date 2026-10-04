@@ -17,11 +17,11 @@ export const GIT_JS = String.raw`
 const GIT_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="4" cy="3.5" r="1.6"/><circle cx="4" cy="12.5" r="1.6"/><circle cx="12" cy="6" r="1.6"/><path d="M4 5.1v5.8M12 7.6c0 2.4-3.4 2.4-8 4"/></svg>';
 let gitFocus='';
 function pillHtml(r){const ss=statusesOf(r,pins.has(r.id),Date.now(),(dots[r.id]||{}).s),k=pillOf(ss);if(!k)return '';
-return '<span class="stp '+k+'" role="img" aria-label="'+esc('Status: '+STATUS_LABELS[k])+'" title="'+esc('Status: '+ss.map(x=>STATUS_LABELS[x]).join(', '))+'">'+STATUS_LABELS[k]+'</span>';}
+return '<span class="stp '+k+'" role="img" aria-label="'+esc('Status: '+STATUS_LABELS[k])+'" data-tip="'+esc('Status: '+ss.map(x=>STATUS_LABELS[x]).join(', '))+'">'+STATUS_LABELS[k]+'</span>';}
 function gitIcon(r){const n=(r.prs||0)+(r.commits||0);if(!n)return '';
 const t=(r.prs?r.prs+(r.prs===1?' PR':' PRs'):'')+(r.prs&&r.commits?', ':'')+(r.commits?r.commits+(r.commits===1?' commit':' commits'):'');
-return '<button class="gi" data-a="git" title="'+esc(t+' - show Git section')+'" aria-label="'+esc('Git activity: '+t)+'">'+GIT_SVG+'<span>'+n+'</span></button>';}
-function gitPill(cls,a,k,v,label,tip,br){return '<span class="gp'+cls+'" data-a="'+a+'" data-'+k+'="'+esc(v)+'" role="button" tabindex="0" aria-label="'+esc(tip)+'" title="'+esc(tip)+'">'+esc(label)+(br?' <span class="br">on '+esc(br)+'</span>':'')+'</span>';}
+return '<button class="gi" data-a="git" data-tip="'+esc(t+' - show Git section')+'" aria-label="'+esc('Git activity: '+t)+'">'+GIT_SVG+'<span>'+n+'</span></button>';}
+function gitPill(cls,a,k,v,label,tip,br){return '<span class="gp'+cls+'" data-a="'+a+'" data-'+k+'="'+esc(v)+'" role="button" tabindex="0" aria-label="'+esc(tip)+'" data-tip="'+esc(tip)+'">'+esc(label)+(br?' <span class="br">on '+esc(br)+'</span>':'')+'</span>';}
 function gitHtml(r,e){const g=e.git;if(!g||(!g.prs.length&&!g.commits.length))return '';
 let b=g.prs.map(p=>gitPill('','pr','n',p.number,'#'+p.number+(p.repository?' '+p.repository:''),'Search chats that mention PR #'+p.number)).join('');
 b+=g.commits.map(c=>gitPill(' cm','sha','s',c.sha.slice(0,7),c.sha.slice(0,7),'Search chats with commit '+c.sha.slice(0,7),c.branch)).join('');
@@ -36,5 +36,5 @@ r=(r+v.slice(at)).trimEnd();return r?r+' '+t:t;}
 function addTok(t){q.value=tokRewrite(q.value,t);go();}
 function gitScroll(id){const n=Array.from(document.querySelectorAll('[data-sec]')).find(x=>x.dataset.sec==='git:'+id);if(n)n.scrollIntoView({block:'nearest'});}
 function gitOpen(id){col.delete('git:'+id);gitFocus=id;
-if(!open.has(id)){open.add(id);delete ex[id];askExpand(id,0);}rerender();if(ex[id]){gitFocus='';gitScroll(id);}}
+if(!open.has(id))openCard(id);rerender();if(ex[id]&&ex[id].full){gitFocus='';gitScroll(id);}}
 `;

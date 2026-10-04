@@ -16,8 +16,8 @@ return{rows:[],n:0};}
 function archHtml(){const d=archData();if(!d.n)return '';const o=archOpen;
 const tip=lastQ?'Archived chats that match':'Archived chats';
 let h='<div class="sl arh'+(o?' open':'')+'" data-sec="sec:arch" role="button" tabindex="0" aria-expanded="'+o+'">'+CHEV+'<span class="sn">Archived</span>'
-+'<button type="button" class="lnk imp" data-a="import" title="Import the archived chats list from Claude Code (read-only, once)" aria-label="Import archived chats from Claude Code">Import</button>'
-+'<span class="pill" title="'+tip+'">'+d.n+'</span></div>';
++'<button type="button" class="lnk imp" data-a="import" data-tip="Import the archived chats list from Claude Code (read-only, once)" aria-label="Import archived chats from Claude Code">Import</button>'
++'<span class="pill" data-tip="'+tip+'">'+d.n+'</span></div>';
 if(o)h+=capArch();
 if(o)h+=ordered(stKeep(d.rows),lastQ?undefined:(sort.value==='score'?'time':sort.value)).map(rowHtml).join('');
 return h;}

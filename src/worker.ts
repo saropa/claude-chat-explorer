@@ -96,8 +96,9 @@ async function expand(m: any): Promise<unknown> {
   const chat = ix?.find(m.chat);
   if (!ix || !chat) { return null; }
   const offset = Math.max(0, Number(m.offset) || 0);
-  const ex = expandChat(ix, chat, compile(m.query, m.o), m.o, ctxOf(m), offset);
-  if (offset === 0) { ex.related = ix.related(chat); } // lazy: only on first expand
+  const lite = m.lite === true;
+  const ex = expandChat(ix, chat, compile(m.query, m.o), m.o, ctxOf(m), offset, lite);
+  if (offset === 0 && !lite) { ex.related = ix.related(chat); } // lazy: only on first expand
   return ex;
 }
 

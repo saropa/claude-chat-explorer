@@ -3,12 +3,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { isSessionId } from './sessionId';
+import { WinMark } from './windowMarker';
 
 export type LiveStatus = 'busy' | 'waiting' | 'idle';
-/** Dot of one chat: s is running, waiting, unread or idle; ring means a live process has it open. */
-export interface Dot { s: string; ring: boolean; }
+/** Dot of one chat: s is running, waiting, unread or idle; ring means a live process has it open; win says in which window (absent when unknown). */
+export interface Dot { s: string; ring: boolean; win?: WinMark; }
 export type DotMap = { [id: string]: Dot };
-export interface LiveRead { exists: boolean; live: Map<string, LiveStatus>; bad: number; }
+export interface LiveRead { exists: boolean; live: Map<string, LiveStatus>; bad: number; pids: Map<string, number[]>; }
 
 const MAX_FILE_BYTES = 65536;
 const RANK: { [k: string]: number } = { idle: 0, busy: 1, waiting: 2 };
@@ -37,16 +38,17 @@ async function readOne(file: string, name: string): Promise<{ id: string; pid: n
 /** Sessions whose process is alive, with their status; the busiest status wins when a session has several files. */
 export async function readLive(dir: string, alive: (pid: number) => boolean = pidAlive): Promise<LiveRead> {
   let names: string[];
-  try { names = await fs.promises.readdir(dir); } catch { return { exists: false, live: new Map(), bad: 0 }; }
+  try { names = await fs.promises.readdir(dir); } catch { return { exists: false, live: new Map(), bad: 0, pids: new Map() }; }
   const files = names.filter((n) => /^\d+\.json$/.test(n));
   const rows = await Promise.all(files.map((n) => readOne(path.join(dir, n), n)));
-  const live = new Map<string, LiveStatus>();
+  const live = new Map<string, LiveStatus>(), pids = new Map<string, number[]>();
   rows.forEach((r) => {
     if (!r || !alive(r.pid)) { return; }
+    pids.set(r.id, [...(pids.get(r.id) ?? []), r.pid]);
     const was = live.get(r.id);
     if (!was || RANK[r.status] > RANK[was]) { live.set(r.id, r.status); }
   });
-  return { exists: true, live, bad: rows.filter((r) => !r).length };
+  return { exists: true, live, bad: rows.filter((r) => !r).length, pids };
 }
 
 /** Unread set after a poll: a session seen busy or waiting that is now idle or gone becomes unread. No previous poll marks nothing. */
@@ -58,17 +60,17 @@ export function nextUnread(prev: Map<string, LiveStatus> | undefined, next: Map<
 }
 
 /** Dot of one chat from its live status (undefined when no live process) and unread flag. */
-export function dotState(live: LiveStatus | undefined, unread: boolean): Dot {
-  if (live === 'busy') { return { s: 'running', ring: false }; }
-  if (live === 'waiting') { return { s: 'waiting', ring: false }; }
-  return { s: unread ? 'unread' : 'idle', ring: live === 'idle' };
+export function dotState(live: LiveStatus | undefined, unread: boolean, win?: WinMark): Dot {
+  const d: Dot = live === 'busy' ? { s: 'running', ring: false } : live === 'waiting' ? { s: 'waiting', ring: false } : { s: unread ? 'unread' : 'idle', ring: live === 'idle' };
+  if (live && win) { d.win = win; }
+  return d;
 }
 
 /** Dots that differ from the default (idle, solid); every other chat is idle. */
-export function buildDots(live: Map<string, LiveStatus>, unread: Set<string>): DotMap {
+export function buildDots(live: Map<string, LiveStatus>, unread: Set<string>, win?: Map<string, WinMark>): DotMap {
   const out: DotMap = {};
   for (const id of new Set([...live.keys(), ...unread])) {
-    const d = dotState(live.get(id), unread.has(id));
+    const d = dotState(live.get(id), unread.has(id), win?.get(id));
     if (d.s !== 'idle' || d.ring) { out[id] = d; }
   }
   return out;

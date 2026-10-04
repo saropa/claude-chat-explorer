@@ -1,8 +1,11 @@
 /** Webview script part: row, group and section rendering. Shares top-level scope with webviewJs. */
 export const RENDER = String.raw`
 const CHEV='<svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const TAG_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.500 2.500h5l6 6-5 5-6-6z"/><circle cx="5.500" cy="5.500" r="1"/></svg>';
 function dotHtml(id){const d=dots[id]||{s:'idle',ring:false},t=dotText(d);
-return '<span class="dot '+d.s+(d.ring?' ring':'')+'" role="img" aria-label="'+esc(t)+'" title="'+esc(t)+'"></span>';}
+return '<span class="dot '+d.s+(d.ring?' ring':'')+(d.win==='this'?' wt':d.win==='other'?' wo':'')+'" role="img" aria-label="'+esc(t)+'" data-tip="'+esc(dotTip(d))+'"></span>';}
+function stamp(r){return r.hits>0&&r.snipAt?r.snipAt:r.last;}
+function resOf(id){return lastRs.concat(pinned,sess?sess.rows.concat(sess.arch||[]):[]).find(r=>r.id===id);}
 function liveN(a){return a.filter(r=>!arch.has(r.id)).length;}
 function reEsc(t){return t.replace(/[.*+?^$\x7b\x7d()|[\]\\]/g,'\\$&');}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -12,7 +15,7 @@ function takeNote(){const n=noteIn;noteIn='';return n?'<span class="sm">'+n+'</s
 function sec(key,label,n,body,cls,note){const o=!col.has(key);
 return '<div class="'+cls+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+(note||'')+'<span class="pill">'+n+'</span></div>'+(o?body:'');}
 function ordered(rs,srt){const a=rs.slice(),k=srt||sort.value;
-if(k==='time')a.sort((x,y)=>y.last-x.last);
+if(k==='time')a.sort((x,y)=>stamp(y)-stamp(x));
 else if(k==='title')a.sort((x,y)=>x.title.toLowerCase().localeCompare(y.title.toLowerCase()));
 else if(k==='length')a.sort((x,y)=>(y.msgs||0)-(x.msgs||0));
 else if(k==='cost')a.sort((x,y)=>(y.cost||0)-(x.cost||0));
@@ -22,24 +25,20 @@ function marked(s,rg){let o='',p=0;for(const g of rg){o+=esc(s.slice(p,g[0]))+'<
 return o+esc(s.slice(p));}
 function snip(r){return marked(r.snippet,r.ranges);}
 function tagActive(t){return new RegExp('(^|\\s)tag:'+reEsc(t)+'(\\s|$)','i').test(q.value);}
-function chips(id){return (tags[id]||[]).map(t=>'<span class="chip'+(tagActive(t)?' on':'')+'" data-a="tag" data-t="'+esc(t)+'" title="Filter by tag" aria-label="Filter by tag '+esc(t)+'" role="button" tabindex="0">'+esc(t)+'<b class="cx" data-a="untag" data-t="'+esc(t)+'" title="Remove tag" aria-label="Remove tag '+esc(t)+'" role="button" tabindex="0">×</b></span>').join('');}
-function subPill(t){return '<span class="sub" title="Subagent'+(t?': '+esc(t):'')+'">Subagent'+(t?' · '+esc(t):'')+'</span>';}
-function fileChip(f){const b=f.path.split(/[\\/]/).pop()||f.path;return '<span class="fp'+(f.edited?' ed':'')+'" title="'+esc((f.edited?'Edited: ':'Read: ')+f.path)+'">'+(f.edited?'✎ ':'')+esc(b)+'</span>';}
-function subRow(r,s){const now=Date.now();
-return '<div class="rr sr" data-id="'+esc(r.id)+'" tabindex="0" role="button" aria-label="'+esc('Subagent'+(s.type?' '+s.type:'')+': '+(s.desc||'')+'. Resumes the parent chat')+'" title="'+esc('Subagent'+(s.type?' ('+s.type+')':'')+(s.desc?': '+s.desc:'')+'\nResumes the parent chat\n'+full(s.last))+'"><span class="t">'+subPill(s.type)+' '+(s.descShown?marked(s.descShown,s.descRanges):esc(s.desc||''))+'</span><span class="tm" title="'+esc(full(s.last))+'">'+shortAgo(s.last,now)+'</span>'+(s.snippet?'<div class="s">'+snip(s)+'</div>':'')+'</div>';}
-function subsHtml(r){if(!r.subs||!r.subs.length)return '';const more=(r.subTotal||r.subs.length)-r.subs.length;
-return r.subs.map(s=>subRow(r,s)).join('')+(more>0?'<div class="m sr">+'+more+' more subagent matches</div>':'');}
+function chips(id){return (tags[id]||[]).map(t=>'<span class="chip'+(tagActive(t)?' on':'')+'" data-a="tag" data-t="'+esc(t)+'" data-tip="Filter by tag" aria-label="Filter by tag '+esc(t)+'" role="button" tabindex="0">'+esc(t)+'<b class="cx" data-a="untag" data-t="'+esc(t)+'" data-tip="Remove tag" aria-label="Remove tag '+esc(t)+'" role="button" tabindex="0">×</b></span>').join('');}
+function fileChip(f){const b=f.path.split(/[\\/]/).pop()||f.path;return '<span class="fp'+(f.edited?' ed':'')+'" data-tip="'+esc((f.edited?'Edited: ':'Read: ')+f.path)+'">'+(f.edited?'✎ ':'')+esc(b)+'</span>';}
+function hdHtml(r,op){const p=pins.has(r.id),ia=arch.has(r.id),tg=tagIn&&tagIn.id===r.id;
+return '<div class="hd">'+dotHtml(r.id)+'<span class="t" data-tip="k:title">'+(r.titleShown?marked(r.titleShown,r.titleRanges):esc(r.title))+'</span>'+pillHtml(r)+gitIcon(r)
++'<button class="ic tg'+(tg?' on':'')+'" data-a="addtag" data-tip="Add tag" aria-label="Add tag">'+TAG_SVG+'</button>'
++'<button class="ic ar'+(ia?' on':'')+'" data-a="arch" data-tip="'+(ia?'Unarchive':'Archive')+'" aria-label="'+(ia?'Unarchive':'Archive')+'">'+ARCH_SVG+'</button>'
++'<button class="ic pn'+(p?' on':'')+'" data-a="pin" data-tip="'+(p?'Unpin':'Pin')+'" aria-label="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button>'
++'<button class="ic'+(op?' on':'')+'" data-a="exp" data-tip="'+(op?'Hide details':'Details')+'" aria-label="'+(op?'Hide details':'Details')+'" aria-expanded="'+op+'">'+CHEV+'</button></div>';}
 function rowHtml(r){
-const now=Date.now(),p=pins.has(r.id),op=open.has(r.id),ia=arch.has(r.id);
-const tip=[r.title,all.checked?r.project:'',hitTxt(r),full(r.last),statsText(r)].filter(Boolean).join('\n');
-return '<div class="r'+(op?' open':'')+'" data-id="'+esc(r.id)+'" data-vscode-context="'+esc(JSON.stringify({webviewSection:'chat',id:r.id,ccsArchived:ia,ccsUnread:(dots[r.id]||{}).s==='unread'}))+'" tabindex="0" title="'+esc(tip)+'"><div class="rh"><div class="hd">'+dotHtml(r.id)+'<span class="t">'+(r.titleShown?marked(r.titleShown,r.titleRanges):esc(r.title))+'</span>'+pillHtml(r)+gitIcon(r)
-+'<button class="ic'+(op?' on':'')+'" data-a="exp" title="'+(op?'Collapse':'Expand')+'" aria-expanded="'+op+'">'+CHEV+'</button>'
-+'<button class="ic ar'+(ia?' on':'')+'" data-a="arch" title="'+(ia?'Unarchive':'Archive')+'" aria-label="'+(ia?'Unarchive':'Archive')+'">'+ARCH_SVG+'</button>'
-+'<button class="ic pn'+(p?' on':'')+'" data-a="pin" title="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button>'
-+'</div>'+metaHtml(r,now)+'<span class="chips">'+(op?'':chips(r.id))+'</span>'
-+(r.self===false?'<div class="msub">matched in subagent</div>':'')+(r.snippet&&r.self!==false?'<div class="s">'+snip(r)+'</div>':'')+subsHtml(r)+'</div>'+(op?exHtml(r):'')+'</div>';}
+const now=Date.now(),op=open.has(r.id),ia=arch.has(r.id);
+return '<div class="r'+(op?' open':'')+'" data-id="'+esc(r.id)+'" data-vscode-context="'+esc(JSON.stringify({webviewSection:'chat',id:r.id,ccsArchived:ia,ccsUnread:(dots[r.id]||{}).s==='unread'}))+'" tabindex="0"><div class="rh">'
++hdHtml(r,op)+metaHtml(r,now)+'<span class="chips">'+(op?'':tagLine(r.id))+'</span>'+sxHtml(r)+'</div>'+(op?exHtml(r):'')+'</div>';}
 function groupsHtml(a){const now=Date.now(),g={};
-a.forEach(r=>{const k=dayBucket(r.last,now);(g[k]=g[k]||[]).push(r);});
+a.forEach(r=>{const k=dayBucket(stamp(r),now);(g[k]=g[k]||[]).push(r);});
 return DAY_ORDER.filter(k=>g[k]).map((k,i)=>sec('grp:'+k,k,g[k].length,g[k].map(rowHtml).join(''),'gh')).join('');}
 function resultsHtml(rs){const a=ordered(rs);if(!a.length)return '';
 if(sort.value==='time')return groupsHtml(a);
@@ -78,5 +77,5 @@ noteIn=t||hid?esc(t)+stNote(hid,!!t):'';
 patch(list,hasResults?resultsHtml(keep):sessHtml(keep));
 const used=noteIn==='';st.classList.toggle('vh',used);st.textContent=t+(hid?(t?' · ':'')+hid+' hidden by status filter':'');
 if(!used){st.innerHTML=noteIn;noteIn='';}
-$('cap').innerHTML=capHtml();renderPinned();renderArch();stSync();exSync();}
+$('cap').innerHTML=capHtml();renderPinned();renderArch();stSync();exSync();tipSync();}
 `;

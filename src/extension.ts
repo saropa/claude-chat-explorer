@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { TIMEOUT_MSG, WorkerClient } from './client';
+import { runExpand } from './expandRun';
 import { GIT_VIEW, GitTree, OPEN_CMD, RETRY_CMD } from './gitTree';
 import { IndexStatus } from './indexStatus';
 import { runExport } from './exportRun';
@@ -194,16 +195,7 @@ class Provider implements vscode.WebviewViewProvider {
   }
 
   private async expand(id: string, m: any): Promise<void> {
-    const o = opts(m), query = String(m.query ?? '');
-    try { compile(query, o); } catch { return; } // invalid regex: search shows the error
-    const offset = Math.max(0, Number(m.offset) || 0);
-    try {
-      const ex = await this.client.request({ t: 'expand', chat: id, query, o, offset, ...this.ctxMsg });
-      if (ex) { this.post({ type: 'expanded', id, offset, ...ex }); }
-    } catch (e) {
-      logErr('expand', e);
-      if ((e as Error).message === TIMEOUT_MSG) { this.post({ type: 'error', message: TIMEOUT_MSG }); }
-    }
+    await runExpand(this.client, id, m, this.ctxMsg, (x) => this.post(x), logErr);
   }
 
   /** Compile the query, or post the empty or error outcome and return undefined. */
@@ -286,7 +278,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
       { webviewOptions: { retainContextWhenHidden: true } }));
   registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), open: (id) => provider.resume(id), dots: () => provider.dotNames,
     showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { const was = provider.onIndex; provider.onIndex = () => { was?.(); fn(); }; } });
-  registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done);
+  registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info);
   provider.watcher.start();
   done = true;
   log(`activated ${String(ctx.extension?.packageJSON?.version ?? 'unknown')}`);

@@ -4,14 +4,14 @@ import { T, tier } from './webviewLayout';
 const BASE = String.raw`
 .r.open{margin:4px 4px 6px;border:1px solid var(--vscode-widget-border);border-radius:4px;background:color-mix(in srgb,var(--vscode-foreground) 4%,transparent)}
 .r.open>.rh>.hd{padding-left:9px;padding-right:7px}
-.r.open .hd .ic.ar,.r.open .hd .ic.pn,.r.open .hd .gi,.r.open .rh>.chips,.r.open .rh>.s,.r.open .rh .sr .s,.r.open .rh>.msub{display:none}
+.r.open .hd .ic.ar,.r.open .hd .ic.pn,.r.open .hd .gi,.r.open .rh>.chips{display:none}
 .ex{display:flex;flex-direction:column;gap:12px;margin:0;padding:4px 8px 10px 23px;border:0;cursor:default}
 .xca,.xcl,.xcb{display:contents}
 .xa{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
 .xb{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 6px;border:1px solid transparent;border-radius:3px;background:transparent;color:var(--vscode-foreground);font:inherit;font-size:0.92em;cursor:pointer;white-space:nowrap}
 .xb svg{width:14px;height:14px;flex:none}
 .xb:hover{background:var(--vscode-toolbar-hoverBackground)}
-.xb:focus-visible,.xin input:focus,.chip:focus-visible,.xh:focus-visible,.ex .rr:focus-visible,.gp:focus-visible,.xmore:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
+.xb:focus-visible,.xin input:focus,.chip:focus-visible,.xh:focus-visible,.ex .rr:focus-visible,.gp:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 .xb.pri{padding:0 10px;background:var(--vscode-button-background);color:var(--vscode-button-foreground);font-weight:500}
 .xb.pri:hover{background:var(--vscode-button-hoverBackground)}
 .xb.on svg{color:var(--vscode-charts-yellow)}
@@ -26,8 +26,6 @@ const BASE = String.raw`
 .rem{color:var(--vscode-charts-red)}
 .xt{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
 .xt .chip{max-width:100%;font-size:0.85em;line-height:18px;padding:0 7px;border-radius:9px;gap:4px}
-.xadd{height:20px;padding:0 6px;font-size:0.85em;color:var(--vscode-descriptionForeground);border:1px dashed var(--vscode-widget-border);border-radius:9px}
-.xadd:hover{color:var(--vscode-foreground)}
 .xin{display:inline-flex;align-items:center;gap:6px;flex:1 1 10em;min-width:0}
 .xin input{flex:1;min-width:0;max-width:16em;width:auto;height:20px;box-sizing:border-box;padding:0 6px;font:inherit;font-size:0.88em;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);border-radius:2px;outline:none}
 .xin input::placeholder{color:var(--vscode-input-placeholderForeground)}
@@ -37,14 +35,6 @@ const BASE = String.raw`
 .xh:hover{color:var(--vscode-foreground)}
 .xc{margin-left:2px;font-weight:400;opacity:.85}
 .xb2{margin-top:2px}
-.mm{padding:4px 0}
-.mm+.mm{border-top:1px solid var(--vscode-widget-border)}
-.mmh{display:flex;align-items:center;gap:6px;font-size:0.85em}
-.who{font-weight:600}
-.mmh .tm{flex:none;margin-left:auto;font-size:1em}
-.mmh .sub{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.mm .b{margin-top:1px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;line-height:1.4;color:var(--vscode-descriptionForeground)}
-.xmore{display:inline-block;margin-top:4px;padding:0;border:0;background:none;font-family:inherit;font-size:0.9em;color:var(--vscode-textLink-foreground);cursor:pointer}
 .fps{display:flex;flex-wrap:wrap;gap:4px;margin:0}
 .fp{font-size:0.82em;line-height:18px;border-radius:3px}
 .fi{font-size:0.82em;line-height:1.5}
@@ -72,7 +62,6 @@ const WIDE = `
 .xs .wide{grid-column:span 2}`;
 
 const XWIDE = `
-.r.open .rh{display:block}
 .ex{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:12px 24px;align-items:start}
 .ex>.xa{grid-column:1/-1}
 .xca,.xcl,.xcb{display:flex;flex-direction:column;gap:12px;min-width:0}

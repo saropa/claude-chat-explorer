@@ -8,18 +8,17 @@ export const T = {
 
 const COMPACT = `
 .hd .stp,.hd .gi,.mt .pj,.mt .mp.n{display:none}
-.s{display:none}
-.qa .s{display:block;white-space:nowrap;text-overflow:ellipsis}
 .ic.pn{display:inline-flex}`;
 
 const WIDE = `
-.s{-webkit-line-clamp:3}`;
+.mp.n.sq{display:inline-block}`;
 
 const XWIDE = `
-.rh{display:grid;grid-template-columns:minmax(240px,1fr) minmax(0,2fr);column-gap:8px}
+.rh{display:grid;grid-template-columns:minmax(240px,1fr) minmax(0,2fr);grid-template-rows:auto auto 1fr;column-gap:8px}
 .rh>*{grid-column:1/-1}
 .rh>.hd{grid-column:1;grid-row:1}
-.rh>.s{grid-column:2;grid-row:1;align-self:center;padding:0 10px 0 0}`;
+.rh>.mt{grid-column:1;grid-row:2;align-self:start}
+.rh>.chips{grid-column:1;grid-row:3}`;
 
 /** One tier rule set as a container query on the results region, plus a media-query fallback. */
 export function tier(cond: string, css: string): string {
@@ -43,8 +42,9 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 #sfm,#exm{min-width:min(170px,calc(100vw - 16px));max-width:calc(100vw - 16px)}
 .sl,.gh{min-width:0}
 .sl>span:not(.pill),.gh>span:not(.pill){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pill,.sub{white-space:nowrap}
-.r,.rh,.hd,.ex,.mm,.gr,.s,.mt{min-width:0}
+.pill{white-space:nowrap}
+.mp.n.sq{display:none}
+.r,.rh,.hd,.ex,.s,.mt{min-width:0}
 .mt{display:flex;align-items:center;gap:4px;padding:1px 8px 4px 24px;overflow:hidden}
 .mp{flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
 .mp.hit{background:var(--vscode-editor-findMatchHighlightBackground);color:var(--vscode-foreground)}
@@ -52,7 +52,6 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 .rh>.chips{display:flex;flex-wrap:wrap;max-width:none;overflow:visible;padding:0 8px 3px 24px}
 .rh>.chips:empty{display:none}
 .chip{max-width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere}
-.s{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .fi{overflow-wrap:anywhere}
 .gp{min-width:0}
 @media (max-width:259px){
@@ -83,12 +82,14 @@ function msgTxt(r){return r.msgs?r.msgs+(r.msgs===1?' message':' messages'):'';}
 function agoShort(ms,now){const m=Math.floor(Math.max(0,now-ms)/60000);if(m<1)return 'now';const d=Math.floor(m/1440);
 const u=m<60?[m,'min']:m<1440?[Math.floor(m/60),'hr']:d<7?[d,'day']:d<30?[Math.floor(d/7),'wk']:d<365?[Math.floor(d/30),'mo']:[Math.floor(d/365),'yr'];
 return u[0]+' '+u[1]+(u[0]===1?'':'s');}
-function timePill(ms,now){const a=agoLong(ms,now);
-return '<span class="mp tp" role="img" aria-label="active '+a+'" title="'+a+'\n'+esc(full(ms))+'">'+agoShort(ms,now)+'</span>';}
-function metaHtml(r,now){const mt=msgTxt(r),ht=r.hits?hitN(r)+' matching message'+(r.hits===1?'':'s'):'';
-return '<div class="mt">'+(all.checked&&r.project?'<span class="pj" title="Project folder">'+esc(r.project)+'</span>':'')
-+(r.hits?'<span class="mp hit" role="img" aria-label="'+ht+'" title="'+ht+'">'+hitTxt(r)+'</span>':'')
-+(mt?'<span class="mp n" role="img" aria-label="'+mt+'" title="'+mt+'">'+r.msgs+'</span>':'')+timePill(r.last,now)+'</div>';}
+function timePill(ms,now,latest){const a=agoLong(ms,now);
+return '<span class="mp tp" role="img" aria-label="'+(latest?'latest match ':'active ')+a+'" data-tip="'+(latest?'k:time':esc(a+'\n'+full(ms)))+'">'+agoShort(ms,now)+'</span>';}
+function hitsPill(r){const m=r.mc?' in '+r.mc+(r.mc===1?' matching message':' matching messages'):'';
+return '<span class="mp hit" role="img" aria-label="'+hitN(r)+(r.hits===1?' occurrence':' occurrences')+m+'" data-tip="k:hits">'+hitTxt(r)+'</span>';}
+function metaHtml(r,now){const q=r.hits>0,mt=msgTxt(r);
+return '<div class="mt">'+(all.checked&&r.project?'<span class="pj" data-tip="Project folder">'+esc(r.project)+'</span>':'')
++(q?hitsPill(r):'')+(mt?'<span class="mp n'+(q?' sq':'')+'" role="img" aria-label="'+mt+'" data-tip="k:count">'+r.msgs+'</span>':'')
++timePill(stamp(r),now,q&&!!r.snipAt)+(q&&r.snipSub!==undefined?saPill(r.snipSub,'k:snipsub'):'')+'</div>';}
 function qSync(){document.body.classList.toggle('qa',!!q.value.trim());}
 q.addEventListener('input',qSync);window.addEventListener('message',qSync);qSync();
 `;

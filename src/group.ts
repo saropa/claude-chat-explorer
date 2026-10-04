@@ -20,12 +20,14 @@ export function shortAgo(ms: number, now: number): string {
   return Math.floor(d / 365) + 'y';
 }
 
-/** Words for a dot: Running, Waiting for you, Unread (approximate), Open elsewhere or Idle. */
-export function dotText(d: { s: string; ring: boolean }): string {
-  if (d.s === 'running') { return 'Running'; }
-  if (d.s === 'waiting') { return 'Waiting for you'; }
-  if (d.s === 'unread') { return (d.ring ? 'Unread, open elsewhere' : 'Unread') + ': finished while you were away (approximate)'; }
-  return d.ring ? 'Open elsewhere' : 'Idle';
+/** Words for a dot: Running, Waiting for you, Unread (approximate), Open in this window, Open in another window, Open elsewhere (window unknown) or Idle. */
+export function dotText(d: { s: string; ring: boolean; win?: string }): string {
+  const w = d.win === 'this' ? 'Open in this window' : d.win === 'other' ? 'Open in another window' : '';
+  const x = w ? '. ' + w : '';
+  if (d.s === 'running') { return 'Running' + x; }
+  if (d.s === 'waiting') { return 'Waiting for you' + x; }
+  if (d.s === 'unread') { return (d.ring && !w ? 'Unread, open elsewhere' : 'Unread') + ': finished while you were away (approximate)' + x; }
+  return d.ring ? w || 'Open elsewhere' : 'Idle';
 }
 
 /** Day group of a last-active time: Today, Yesterday, This week, Last week or Earlier. */

@@ -52,6 +52,7 @@ export interface Result {
   cost?: number; add?: number; rem?: number; models?: string[]; prs?: number; commits?: number; // cost info and git counts
   titleShown?: string; titleRanges?: Array<[number, number]>; // title with the match kept in view
   self?: boolean; // false when only subagents matched
+  snipAt?: number; snipSub?: string; snipDesc?: string; snipRole?: string; mc?: number; // newest match: time, subagent type and description, role; mc = matching messages (own and subagents)
   subs?: SubResult[]; subTotal?: number;
 }
 
@@ -62,7 +63,7 @@ export interface Related { id: string; title: string; shared: number; last: numb
 /** dots: dot state name of chats that are not idle (Active status). archived: ids export leaves out. */
 export interface Ctx { pins: Set<string>; tags: { [id: string]: string[] }; dots?: { [id: string]: string }; archived?: Set<string>; }
 
-export interface ExpandItem { role: string; ts: number; snippet: string; ranges: Array<[number, number]>; sub?: string; }
+export interface ExpandItem { role: string; ts: number; snippet: string; ranges: Array<[number, number]>; sub?: string; desc?: string; }
 export interface Expanded {
   items: ExpandItem[]; total: number;
   files: Array<{ path: string; edited: boolean }>; commands: string[]; related: Related[];

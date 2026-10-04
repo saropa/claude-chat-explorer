@@ -2,6 +2,19 @@
 
 Release notes for Saropa Chat Search, newest first. Dates are the git dates of each release.
 
+## 0.11.0 - 2026-10-04
+- Changed: one row per chat. A search row shows only the newest match across the chat and its subagents, as a snippet of at most two lines. Before, the row showed the main thread's match first and listed subagent matches under it.
+- New: a quiet "+N more" under the snippet opens the other matches in place, newest first, 20 at a time. They load only when you open the list. Identical texts collapse into one item with a count such as x3, and "Same text as the latest match" marks copies of the row's snippet. Click an item to resume the chat. Right Arrow opens the list, Left Arrow or Escape closes it.
+- Changed: with a search, the time pill, the day groups and the Time sort use the time of the newest match. The chat's last active time is in the pill tooltip and in a new Last active stat in the open card.
+- Changed: when the newest match comes from a subagent, a purple pill with its agent type sits on the pill line.
+- Changed: the open card no longer repeats the matching messages, because they are one click away in the row.
+- Fixed: the hits pill said "matching messages" but counts occurrences. It now says occurrences, and its tooltip adds the matching message count.
+- New: one themed tooltip replaces the browser tooltips in the results and the card. It wraps, stays inside the panel, shows exact dates and the full snippet, and closes on Escape, scroll or when you move away.
+- Changed: a tag icon on each row replaces the "+ Add tag" row. Click it, type a name, press Enter. A chat with no tags shows no tag row.
+- New: the status dot shows where a live chat is open. A solid ring means this VS Code window, a dashed ring means another window. Running and waiting chats keep their solid dot and get the ring as a thin outer ring. This needs the local `ps` command (macOS and Linux); without it the ring looks as before.
+- New: Show Diagnostics also lists this extension host's process id, the live session count (this window and other windows) and the parent process ids found.
+- After installing, run "Developer: Reload Window" so VS Code loads the new version.
+
 ## 0.10.0 - 2026-10-04
 - Changed: an open chat is now a calm card with an action bar. Resume is the one filled button. Pin, Archive and Copy ID sit beside it, and Mark read appears only for an unread chat.
 - Changed: every row shows two small pills under its title: the message count and how long ago it was active (now, 3 mins, 6 hrs, 2 days, 3 wks, 4 mos). A search adds a hits pill. The time at the right of the title is gone, so each fact shows once.

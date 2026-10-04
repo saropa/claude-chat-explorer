@@ -50,24 +50,27 @@ export function eachHit(rec: Rec, re: RegExp, fn: (i: number, at: number) => voi
   }
 }
 
-export interface Hit { hits: number; weightSum: number; snippet: string; ranges: Range[]; }
+/** at: time of the newest matching message (0 when only tokens matched); role: its role (0 user, 1 assistant, -1 none); mc: distinct matching messages. */
+export interface Hit { hits: number; weightSum: number; snippet: string; ranges: Range[]; at: number; role: number; mc: number; }
 
-interface Body { counts: number[]; weightSum: number; msg: number; idx: number; }
+interface Body { counts: number[]; weightSum: number; msg: number; idx: number; mc: number; }
 
-/** Per-term counts, recency-weighted hit sum and the newest matching message (for the snippet). */
+/** Per-term counts, recency-weighted hit sum, distinct matching messages and the newest matching message (for the snippet). */
 function scanBody(rec: Rec, terms: RegExp[], now: number, win?: Win): Body {
-  const b: Body = { counts: terms.map(() => 0), weightSum: 0, msg: -1, idx: -1 };
+  const b: Body = { counts: terms.map(() => 0), weightSum: 0, msg: -1, idx: -1, mc: 0 };
+  const seen = new Set<number>();
   terms.forEach((re, k) => {
     let cur = -1, w = 0, n = 0; // per-message weight is computed once, not once per hit
     eachHit(rec, re, (i, at) => {
       n++;
-      if (i !== cur) { cur = i; w = weightAt(rec.ts[i], now); }
+      if (i !== cur) { cur = i; w = weightAt(rec.ts[i], now); seen.add(i); }
       const newer = b.msg < 0 || rec.ts[i] > rec.ts[b.msg] || (rec.ts[i] === rec.ts[b.msg] && i > b.msg);
       if (newer) { b.msg = i; b.idx = at; } else if (i === b.msg && at < b.idx) { b.idx = at; }
       b.weightSum += w;
     }, win);
     b.counts[k] += n;
   });
+  b.mc = seen.size;
   return b;
 }
 
@@ -92,7 +95,7 @@ export function matchChat(c: Chat, cmp: Compiled, ctx: Ctx, tagId: string, load:
   const win = rec ? winOf?.(rec) : undefined;
   const found = cmp.tokens.map((t, i) => (t.kind === 'cmd' ? matchedBy(c, rec, t, ctx, tagId, win) : cheap[i]));
   if (found.some((f) => !f.length)) { return null; }
-  const body = rec ? scanBody(rec, cmp.terms, now, win) : { counts: [], weightSum: 0, msg: -1, idx: -1 };
+  const body = rec ? scanBody(rec, cmp.terms, now, win) : { counts: [], weightSum: 0, msg: -1, idx: -1, mc: 0 };
   if (body.counts.some((n) => n === 0)) { return null; }
   const tokenHits = found.reduce((a, f) => a + f.length, 0);
   const snip = rec && body.msg >= 0
@@ -101,5 +104,6 @@ export function matchChat(c: Chat, cmp: Compiled, ctx: Ctx, tagId: string, load:
   return {
     hits: body.counts.reduce((a, b) => a + b, 0) + tokenHits,
     weightSum: body.weightSum + tokenHits * weightAt(c.last, now), ...snip,
+    at: rec && body.msg >= 0 ? rec.ts[body.msg] : 0, role: rec && body.msg >= 0 ? rec.roles[body.msg] : -1, mc: body.mc,
   };
 }

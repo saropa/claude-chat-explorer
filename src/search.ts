@@ -4,6 +4,7 @@ import { eachHit, Hit, matchChat, matchedBy, scoreOf } from './match';
 import { snippetOf, titleView } from './snippet';
 import { subWinOf, topWinOf, Win } from './window';
 import { mergedGit } from './gitInfo';
+import { latestFields, latestOf } from './latest';
 import { projectOf, statFields } from './stats';
 import { clampMax, DEFAULT_MAX_RESULTS, HIT_DISPLAY_CAP, newTally, Tally, tallyAdd, totalsOf } from './limits';
 import { Abort, Chat, Compiled, Ctx, Expanded, ExpandItem, Options, Rec, Result, SubResult } from './types';
@@ -94,11 +95,11 @@ export function toResult(sc: Scan, f: Found, maxSubs: number = MAX_SUBS): Result
   const { p, own, subs } = f;
   const hits = Math.min(foundHits(f), HIT_DISPLAY_CAP + 1);
   const weight = (own?.weightSum ?? 0) + subs.reduce((a, [, h]) => a + h.weightSum, 0);
-  const snip = own ?? subs[0][1];
+  const lat = latestOf(own, subs), snip = lat.hit;
   const r: Result = {
     file: sc.ix.fileOf(p), id: p.id, title: p.title, hits, last: p.last, project: projectOf(p), ...statFields(p, sc.o.subs ? sc.ix.subsOf(p) : []),
     snippet: snip.snippet, ranges: snip.ranges, score: scoreOf(p.title, sc.c.terms, weight, p.last, sc.now), self: !!own,
-    ...shown(p.title, sc.c.terms, 'title'),
+    ...shown(p.title, sc.c.terms, 'title'), ...latestFields(lat, own, subs),
   };
   if (subs.length) { r.subs = subs.slice(0, maxSubs).map(([s, h]) => subResult(sc, s, h)); r.subTotal = subs.length; }
   return r;
@@ -130,19 +131,20 @@ export async function searchIndex(
   return { results: rank(out, ctx).slice(0, max), ...totalsOf(tally, max) };
 }
 
-interface MsgHit { rec: Rec; i: number; first: number; sub?: string; }
+interface MsgHit { rec: Rec; i: number; first: number; sub?: string; desc?: string; }
 
 /** Messages of a record with a match for any term, with the earliest match offset. */
-function messageHits(rec: Rec, terms: RegExp[], win?: Win, sub?: string): MsgHit[] {
+function messageHits(rec: Rec, terms: RegExp[], win?: Win, sub?: string, desc?: string): MsgHit[] {
   const first = new Map<number, number>();
   for (const re of terms) { eachHit(rec, re, (i, at) => { if (!first.has(i) || at < first.get(i)!) { first.set(i, at); } }, win); }
-  return [...first].map(([i, at]) => ({ rec, i, first: at, sub }));
+  return [...first].map(([i, at]) => ({ rec, i, first: at, sub, desc }));
 }
 
 function itemOf(h: MsgHit, terms: RegExp[]): ExpandItem {
   const text = h.rec.text.slice(startOf(h.rec, h.i), h.rec.ends[h.i]);
   const it: ExpandItem = { role: h.rec.roles[h.i] === 0 ? 'user' : 'assistant', ts: h.rec.ts[h.i], ...snippetOf(text, h.first, terms) };
   if (h.sub !== undefined) { it.sub = h.sub; }
+  if (h.desc) { it.desc = h.desc; }
   return it;
 }
 
@@ -168,26 +170,28 @@ function gitOf(ix: Source, chat: Chat, subs: boolean): Expanded['git'] {
   };
 }
 
-/** Matching messages of a chat and its matching subagents (newest first), plus matched files and commands. */
-export function expandChat(ix: Source, chat: Chat, c: Compiled, o: Options, ctx: Ctx, offset: number): Expanded {
+const NO_GIT: Expanded['git'] = { prs: [], commits: [], moreCommits: 0 };
+
+/** Matching messages of a chat and its matching subagents (newest first), plus matched files, commands and Git. lite skips everything but the messages. */
+export function expandChat(ix: Source, chat: Chat, c: Compiled, o: Options, ctx: Ctx, offset: number, lite = false): Expanded {
   const now = Date.now(), cutoff = cutoffOf(o.when);
   const rec = ix.rec(chat);
   const files = new Map<string, boolean>(), commands = new Set<string>();
   const tw = topWinOf(c.last)?.(rec);
   let hits = c.terms.length ? messageHits(rec, c.terms, tw) : [];
-  tokenFinds(chat, rec, c, ctx, files, commands, tw);
+  if (!lite) { tokenFinds(chat, rec, c, ctx, files, commands, tw); }
   const sc: Scan = { ix, c, o, ctx, cutoff, now };
   const sw = subWinOf(c.last, () => rec);
   for (const [s] of o.subs ? subHits(sc, chat) : []) {
     const sr = ix.rec(s);
     const w = sw?.(sr);
-    if (c.terms.length) { hits = hits.concat(messageHits(sr, c.terms, w, s.agentType ?? '')); }
-    tokenFinds(s, sr, c, ctx, files, commands, w);
+    if (c.terms.length) { hits = hits.concat(messageHits(sr, c.terms, w, s.agentType ?? '', s.desc ?? s.title)); }
+    if (!lite) { tokenFinds(s, sr, c, ctx, files, commands, w); }
   }
   hits.sort((a, b) => b.rec.ts[b.i] - a.rec.ts[a.i]);
   return {
     items: hits.slice(offset, offset + EXPAND_PAGE).map((h) => itemOf(h, c.terms)), total: hits.length,
     files: [...files].slice(0, 50).map(([p, edited]) => ({ path: p, edited })),
-    commands: [...commands].slice(0, 50), related: [], git: gitOf(ix, chat, o.subs),
+    commands: [...commands].slice(0, 50), related: [], git: lite ? NO_GIT : gitOf(ix, chat, o.subs),
   };
 }
