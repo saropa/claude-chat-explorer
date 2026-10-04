@@ -1,4 +1,4 @@
-import { Chat, Compiled, Ctx, Expanded, ExpandItem, Options, OnFile, Abort, Result, Token } from './types';
+import { Chat, Compiled, Ctx, Expanded, ExpandItem, Msg, Options, OnFile, Abort, Result, Token } from './types';
 import { cutoffOf } from './query';
 import { projectOf, statFields } from './stats';
 
@@ -54,37 +54,44 @@ export function matchedBy(chat: Chat, t: Token, ctx: Ctx): string[] {
   return (ctx.tags[chat.id] ?? []).includes(t.value) ? [t.value] : [];
 }
 
+interface BodyScan { counts: number[]; weightSum: number; text: string; idx: number; }
+
+/** Per-term hit counts, recency-weighted hit sum and the newest matching message for the snippet. */
+function scanBody(chat: Chat, terms: RegExp[], now: number): BodyScan {
+  const r: BodyScan = { counts: terms.map(() => 0), weightSum: 0, text: '', idx: -1 };
+  let sTs = -1;
+  for (const m of chat.messages) {
+    const w = weightAt(m.ts, now);
+    let first = -1;
+    terms.forEach((re, i) => {
+      for (const [st] of matches(re, m.text)) {
+        r.counts[i]++; r.weightSum += w;
+        if (first < 0 || st < first) { first = st; }
+      }
+    });
+    if (first >= 0 && m.ts >= sTs) { r.text = m.text; r.idx = first; sTs = m.ts; }
+  }
+  return r;
+}
+
+/** Snippet from the first non-tag token match when no plain term matched a message. */
+function tokenSnippet(c: Compiled, found: string[][]): { snippet: string; ranges: Array<[number, number]> } {
+  const i = c.tokens.findIndex((t) => t.kind !== 'tag');
+  if (i < 0) { return { snippet: '', ranges: [] }; }
+  const s = found[i][0], at = s.toLowerCase().indexOf(c.tokens[i].value);
+  return { snippet: s, ranges: at >= 0 ? [[at, at + c.tokens[i].value.length]] : [] };
+}
+
 function scanChat(chat: Chat, c: Compiled, ctx: Ctx, now: number): Result | null {
   const found = c.tokens.map((t) => matchedBy(chat, t, ctx));
   if (found.some((f) => !f.length)) { return null; }
-  const counts = c.terms.map(() => 0);
-  let weightSum = 0, sTxt = '', sIdx = -1, sTs = -1;
-  if (c.terms.length) {
-    for (const m of chat.messages) {
-      const w = weightAt(m.ts, now);
-      let first = -1;
-      c.terms.forEach((re, i) => {
-        for (const [st] of matches(re, m.text)) {
-          counts[i]++; weightSum += w;
-          if (first < 0 || st < first) { first = st; }
-        }
-      });
-      if (first >= 0 && m.ts >= sTs) { sTxt = m.text; sIdx = first; sTs = m.ts; }
-    }
-    if (counts.some((n) => n === 0)) { return null; }
-  }
+  const body = scanBody(chat, c.terms, now);
+  if (body.counts.some((n) => n === 0)) { return null; }
   const tokenHits = found.reduce((a, f) => a + f.length, 0);
-  weightSum += tokenHits * weightAt(chat.last, now);
-  let snip = { snippet: '', ranges: [] as Array<[number, number]> };
-  if (sIdx >= 0) { snip = snippetOf(sTxt, sIdx, c.terms, 40, 120); } else {
-    const i = c.tokens.findIndex((t) => t.kind !== 'tag');
-    if (i >= 0) {
-      const s = found[i][0], at = s.toLowerCase().indexOf(c.tokens[i].value);
-      snip = { snippet: s, ranges: [[at, at + c.tokens[i].value.length]] };
-    }
-  }
+  const weightSum = body.weightSum + tokenHits * weightAt(chat.last, now);
+  const snip = body.idx >= 0 ? snippetOf(body.text, body.idx, c.terms, 40, 120) : tokenSnippet(c, found);
   return {
-    id: chat.id, title: chat.title, hits: counts.reduce((a, b) => a + b, 0) + tokenHits, last: chat.last,
+    id: chat.id, title: chat.title, hits: body.counts.reduce((a, b) => a + b, 0) + tokenHits, last: chat.last,
     project: projectOf(chat), ...statFields(chat), ...snip,
     score: scoreOf(chat.title, c.terms, weightSum, chat.last, now),
   };
@@ -115,23 +122,22 @@ export async function searchIndex(
   return out.sort((a, b) => pin(b) - pin(a) || b.score - a.score).slice(0, MAX_RESULTS);
 }
 
+/** Messages with a match for any term, newest first, with the earliest match offset. */
+function messageHits(chat: Chat, terms: RegExp[]): Array<{ m: Msg; first: number }> {
+  const hits: Array<{ m: Msg; first: number }> = [];
+  for (const m of chat.messages) {
+    let first = -1;
+    for (const re of terms) { for (const [st] of matches(re, m.text)) { if (first < 0 || st < first) { first = st; } break; } }
+    if (first >= 0) { hits.push({ m, first }); }
+  }
+  return hits.sort((a, b) => b.m.ts - a.m.ts);
+}
+
 /** Matching messages of one chat (newest first), and matched files/commands for active tokens. */
 export function expandChat(chat: Chat, c: Compiled, ctx: Ctx, offset: number): Expanded {
-  const items: ExpandItem[] = [];
-  let total = 0;
-  if (c.terms.length) {
-    const hits: Array<{ m: Chat['messages'][number]; first: number }> = [];
-    for (const m of chat.messages) {
-      let first = -1;
-      for (const re of c.terms) { for (const [st] of matches(re, m.text)) { if (first < 0 || st < first) { first = st; } break; } }
-      if (first >= 0) { hits.push({ m, first }); }
-    }
-    hits.sort((a, b) => b.m.ts - a.m.ts);
-    total = hits.length;
-    for (const h of hits.slice(offset, offset + EXPAND_PAGE)) {
-      items.push({ role: h.m.role, ts: h.m.ts, ...snippetOf(h.m.text, h.first, c.terms, 100, 200) });
-    }
-  }
+  const hits = c.terms.length ? messageHits(chat, c.terms) : [];
+  const items: ExpandItem[] = hits.slice(offset, offset + EXPAND_PAGE)
+    .map((h) => ({ role: h.m.role, ts: h.m.ts, ...snippetOf(h.m.text, h.first, c.terms, 100, 200) }));
   const files = new Map<string, boolean>();
   const commands = new Set<string>();
   for (const t of c.tokens) {
@@ -141,9 +147,8 @@ export function expandChat(chat: Chat, c: Compiled, ctx: Ctx, offset: number): E
     }
   }
   return {
-    items, total,
+    items, total: hits.length,
     files: [...files].slice(0, 50).map(([p, edited]) => ({ path: p, edited })),
     commands: [...commands].slice(0, 50), related: [],
   };
 }
-

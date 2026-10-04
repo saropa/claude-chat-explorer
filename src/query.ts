@@ -10,14 +10,17 @@ export function cutoffOf(when: string, now: number = Date.now()): number {
   return 0;
 }
 
-const TOKEN = /(^|\s)(file|edited|cmd|tag):(?:"([^"]*)"|(\S*))/gi;
+// An unclosed quote runs to the end of the query, so typing cmd:"git pu already filters.
+const TOKEN = /(^|\s)(file|edited|cmd|tag):(?:"([^"]*)"?|(\S*))/gi;
 
 /** Split a query into plain text and file:/edited:/cmd:/tag: tokens (values lowercased). */
 export function parseQuery(query: string): { plain: string; tokens: Token[] } {
   const tokens: Token[] = [];
   const plain = query.replace(TOKEN, (_m, _s, k: string, q?: string, u?: string) => {
-    const value = (q ?? u ?? '').trim().toLowerCase();
-    if (value) { tokens.push({ kind: k.toLowerCase() as TokenKind, value }); }
+    const kind = k.toLowerCase() as TokenKind;
+    let value = (q ?? u ?? '').trim().toLowerCase();
+    if (kind === 'tag') { value = value.replace(/\s+/g, '-'); } // stored tags use dashes for spaces
+    if (value) { tokens.push({ kind, value }); }
     return ' ';
   }).trim();
   return { plain, tokens };
