@@ -11,6 +11,7 @@ import { HIST_JS } from './webviewHist';
 import { ARCH_JS } from './webviewArchive';
 import { ROWS_JS } from './webviewRows';
 import { TIP_JS } from './webviewTip';
+import { CTX_JS } from './webviewCtx';
 
 const CORE = String.raw`
 const vs=acquireVsCodeApi();const $=id=>document.getElementById(id);
@@ -123,4 +124,4 @@ else if(d.type==='setQuery'){q.value=d.query||'';go();}});
 vs.postMessage({type:'ready'});
 `;
 
-export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + GIT_JS + HIST_JS + CORE + STATUS + EXPORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS;
+export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + GIT_JS + HIST_JS + CORE + STATUS + EXPORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS;

@@ -1,12 +1,10 @@
-/** Commands for "which chats touched this file": QuickPick, panel search, status bar. */
+/** Commands for "which chats touched this file": QuickPick and status bar. */
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { FileSessionsBar, SHOW_CMD } from './fileSessionsBar';
-import { panelQuery, showPick } from './fileSessionsPick';
+import { showPick } from './fileSessionsPick';
 import { FileSessionsService } from './fileSessionsService';
 
-const FIND_CMD = 'saropaChatSearch.fileSessions.find';
-const FIND_EDITED_CMD = 'saropaChatSearch.fileSessions.findEdited';
 const SLOW_MS = 500;
 
 export interface FileSessionsHost {
@@ -39,16 +37,10 @@ async function show(svc: FileSessionsService, host: FileSessionsHost, arg: unkno
   if (!uri) { void vscode.window.showInformationMessage('Open a file first.'); return; }
   try {
     const r = await slowProgress(svc.get(uri.fsPath), 'Finding Claude chats...');
-    if (r.indexing) { void vscode.window.showInformationMessage('Saropa Chat Search is still building its index. Try again in a moment.'); }
+    if (r.indexing) { void vscode.window.showInformationMessage('Saropa Chat Explorer is still building its index. Try again in a moment.'); }
     else if (!r.items.length) { void vscode.window.showInformationMessage(`No Claude chat has touched ${name} yet.`); }
     else { showPick(name, r.items, { open: host.open, findInPanel: host.showQuery, relPath: relOf(uri) }); }
   } catch (e) { host.log('file sessions', e); void vscode.window.showErrorMessage('Could not list chats for this file: ' + (e as Error).message); }
-}
-
-async function find(host: FileSessionsHost, arg: unknown, edited: boolean): Promise<void> {
-  const uri = targetUri(arg);
-  if (!uri) { void vscode.window.showInformationMessage('Open a file first.'); return; }
-  await host.showQuery(panelQuery(relOf(uri), edited));
 }
 
 /** Register the commands and the status bar item. */
@@ -58,7 +50,5 @@ export function registerFileSessions(ctx: vscode.ExtensionContext, host: FileSes
   const bar = new FileSessionsBar(svc, host.log);
   host.onIndex(() => { svc.invalidate(); bar.schedule(); });
   ctx.subscriptions.push(bar,
-    vscode.commands.registerCommand(SHOW_CMD, (arg?: unknown) => show(svc, host, arg)),
-    vscode.commands.registerCommand(FIND_CMD, (arg?: unknown) => find(host, arg, false)),
-    vscode.commands.registerCommand(FIND_EDITED_CMD, (arg?: unknown) => find(host, arg, true)));
+    vscode.commands.registerCommand(SHOW_CMD, (arg?: unknown) => show(svc, host, arg)));
 }

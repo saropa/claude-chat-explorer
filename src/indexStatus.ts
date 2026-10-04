@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-const TIP = 'Saropa Chat Search is indexing your chats. Search works on what is indexed so far.';
+const TIP = 'Saropa Chat Explorer is indexing your chats. Search works on what is indexed so far.';
 const MIN_GAP_MS = 250;
 
 /** Left status bar item shown while chats are indexed; updates are throttled. */

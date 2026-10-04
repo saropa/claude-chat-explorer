@@ -14,6 +14,7 @@ import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './que
 import { copyId, isSessionId, openChat } from './resume';
 import { ArchiveActions, registerArchiveCommands } from './archiveActions';
 import { LiveWatcher } from './liveWatcher';
+import { createWarner } from './contextWarnUi';
 import { sessionsDir, stateMap } from './liveState';
 import { Draft, Store } from './store';
 import { Compiled, Options, Result } from './types';
@@ -75,7 +76,7 @@ class Provider implements vscode.WebviewViewProvider {
     this.post({ type: 'indexed' });
     if (was?.first) {
       const n = was.total - was.subs;
-      void vscode.window.showInformationMessage(`Saropa Chat Search: indexed ${n} chats and ${was.subs} subagent files.`);
+      void vscode.window.showInformationMessage(`Saropa Chat Explorer: indexed ${n} chats and ${was.subs} subagent files.`);
     }
   }
 
@@ -263,8 +264,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
   provider.onIndex = provider.onScope = () => tree.refresh();
   const changed = () => { void provider.postMeta(); tree.redraw(); };
   provider.actions = new ArchiveActions(store, ctx.globalStorageUri.fsPath, { changed, rebuild: () => provider.watcher?.rebuild() });
+  const warner = createWarner(ctx, { request: (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), open: (id) => provider.resume(id), log });
   provider.watcher = new LiveWatcher({ dir: sessionsDir(), unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
-    onChange: () => { provider.postDots(); tree.redraw(); } });
+    onChange: () => { provider.postDots(); tree.redraw(); }, onLive: (ids) => { void warner.check(ids); } });
   ctx.subscriptions.push({ dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));
   ctx.subscriptions.push(channel, status, tree, vscode.workspace.onDidChangeWorkspaceFolders(() => provider.onScope?.()),
     vscode.commands.registerCommand('claudeChatSearch.clearHistory', () => {
@@ -278,7 +280,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
       { webviewOptions: { retainContextWhenHidden: true } }));
   registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), open: (id) => provider.resume(id), dots: () => provider.dotNames,
     showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { const was = provider.onIndex; provider.onIndex = () => { was?.(); fn(); }; } });
-  registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info);
+  registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info, () => warner.atOrAbove80);
   provider.watcher.start();
   done = true;
   log(`activated ${String(ctx.extension?.packageJSON?.version ?? 'unknown')}`);

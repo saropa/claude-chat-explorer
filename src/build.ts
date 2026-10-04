@@ -15,7 +15,7 @@ export async function buildChat(f: FileStat, before: number): Promise<{ chat: Ch
     count: p.count, files: p.files, rec: '', len: body.length, bloom,
   };
   if (f.parent) { c.parent = f.parent; c.agentType = meta.type; c.desc = meta.desc; } // a subagent never carries its own cost: the parent total already holds it
-  else if (p.cost) { c.cost = p.cost; }
+  else { if (p.cost) { c.cost = p.cost; } if (p.use) { c.use = p.use; } } // context usage is the parent's own, never a subagent's
   if (p.git) { c.git = p.git; }
   return { chat: c, body };
 }

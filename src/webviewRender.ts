@@ -19,6 +19,7 @@ if(k==='time')a.sort((x,y)=>stamp(y)-stamp(x));
 else if(k==='title')a.sort((x,y)=>x.title.toLowerCase().localeCompare(y.title.toLowerCase()));
 else if(k==='length')a.sort((x,y)=>(y.msgs||0)-(x.msgs||0));
 else if(k==='cost')a.sort((x,y)=>(y.cost||0)-(x.cost||0));
+else if(k==='context')a.sort((x,y)=>ctxKey(y)-ctxKey(x));
 else a.sort((x,y)=>y.score-x.score);
 return a.filter(r=>pins.has(r.id)).concat(a.filter(r=>!pins.has(r.id)));}
 function marked(s,rg){let o='',p=0;for(const g of rg){o+=esc(s.slice(p,g[0]))+'<mark>'+esc(s.slice(g[0],g[1]))+'</mark>';p=g[1];}

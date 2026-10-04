@@ -10,6 +10,7 @@ export interface WatchHost {
   unread(): Set<string>;
   saveUnread(s: Set<string>): void;
   onChange(): void; // the dot map changed
+  onLive?(live: Iterable<string>): void; // a poll finished: ids of live sessions
   log(msg: string): void;
 }
 
@@ -51,6 +52,7 @@ export class LiveWatcher {
       this.prev = this.live = r.live;
       if (un.size !== was.size) { this.h.saveUnread(un); }
       this.rebuild();
+      this.h.onLive?.(r.live.keys());
     } catch (e) { this.h.log('live state: ' + String(e)); }
     finally { this.running = false; }
   }

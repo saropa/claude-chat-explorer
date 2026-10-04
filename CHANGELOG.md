@@ -1,6 +1,20 @@
 # Changelog
 
-Release notes for Saropa Chat Search, newest first. Dates are the git dates of each release.
+Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
+
+## 0.12.1 - 2026-10-04
+- Renamed to Saropa Chat Explorer. The name shows in the Extensions list, the activity bar, the panel, messages, the output channel and the Command Palette. Settings, commands and your saved data keep working as before.
+- Changed: the file menu has one item, "Saropa: Chats for This File", in the Explorer, editor and tab menus. It lists the chats that touched the file, edited ones first. Use the buttons on a row to copy a hand-over note or to search the panel.
+- Removed: the menu items "Find Chats For This File" and "Find Chats That Edited This File". Search `file:<name>` or `edited:<name>` in the panel, or use the button on a row.
+
+## 0.12.0 - 2026-10-04
+- New: a context pill on the pill line shows how full a chat's context window is. It appears only from 60 percent: amber at 60 to 79, orange at 80 to 89, red at 90 and above, such as "82% full". Its tooltip shows tokens used of the window, the model, the number of compactions, and notes when the figure lags one turn or the window size is a guess.
+- New: the open card has a Context stat, such as "82% (164k of 200k, opus-4-6)". Chats with no usage data show nothing.
+- New: a Context sort (fullest first, chats with no data last) and a "Nearly full" status (80 percent or more) in the status filter. It is checked by default, like the other statuses.
+- New: a notification when a live chat reaches 80 percent ("Claude may auto-compact soon") and 90 percent ("Start a new chat or run /compact soon"), with Open chat and Dismiss. Each chat warns once per level and again after a compaction. At most one per check and 3 in 10 minutes. Old idle chats never warn. The setting `saropaChatSearch.contextWarnings` (default on) turns it off.
+- Changed: Show Diagnostics lists how many live chats are at 80 percent or more.
+- Note: the figure approximates Claude Code's own and lags one turn. Window sizes come from the model name. The first start rebuilds the search index once.
+- After installing, run "Developer: Reload Window" so VS Code loads the new version.
 
 ## 0.12.2 - 2026-10-04
 - The right-click item for the chats that touched a file now reads "Saropa: Chats That Touched This File".

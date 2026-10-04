@@ -73,7 +73,11 @@ export class Store {
   }
 
   /** Checked statuses of the status filter; all of them by default. Kept out of history entries. */
-  get statuses(): string[] { return this.read<string[]>(STATUS_KEY) ?? [...STATUS_KEYS]; }
+  get statuses(): string[] {
+    const s = this.read<string[]>(STATUS_KEY);
+    if (!s) { return [...STATUS_KEYS]; }
+    return !s.includes('nearly') && STATUS_KEYS.every((k) => k === 'nearly' || s.includes(k)) ? [...s, 'nearly'] : s; // a list saved before Nearly full existed keeps it checked
+  }
   setStatuses(checked: unknown): void {
     this.w.put(STATUS_KEY, Array.isArray(checked) ? STATUS_KEYS.filter((k) => checked.includes(k)) : [...STATUS_KEYS]);
   }

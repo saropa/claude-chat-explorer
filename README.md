@@ -1,6 +1,6 @@
-# Saropa Chat Search: Search and Resume Claude Code Chat History in VS Code
+# Saropa Chat Explorer: Search and Resume Claude Code Chat History in VS Code
 
-Saropa Chat Search lets you search your Claude Code chat history from the VS Code sidebar and resume the session you find.
+Saropa Chat Explorer lets you search your Claude Code chat history from the VS Code sidebar and resume the session you find.
 
 ## What it does
 
@@ -22,8 +22,8 @@ Saropa Chat Search lets you search your Claude Code chat history from the VS Cod
 | When filter | "chats active during": any time, last hour, 2, 4 or 8 hours, today, this week or this month. Local time: today starts at midnight, this week at 00:00 on Monday, this month at 00:00 on the 1st. |
 | Search details | The `...` button under the search box (tooltip "Toggle search details") shows or hides the When and Messages rows. They start hidden, the choice is remembered per workspace, and a count on the button shows how many of them are set. |
 | Result limit | Like VS Code Search, the panel lists at most 500 chats (setting `saropaChatSearch.maxResults`, 50 to 2000) and says so: "Showing the top 500 of 1,284 chats (21,904 matches)" with a warning to narrow the search. Every match is still counted. A chat shows "9,999+" above 9,999 hits, and totals stop at "1,000,000+". All sessions and Archived show the same notice. |
-| Sort | Score, time (grouped by day), title, length or cost. Pinned chats list first. |
-| Status filter | Include or exclude Normal, Active, Empty, Tiny, Huge, Abandoned and Pinned chats. Active means running, waiting for you or unread, as Claude Code defines it. |
+| Sort | Score, time (grouped by day), title, length, cost or context (fullest first; chats with no usage data last). Pinned chats list first. |
+| Status filter | Include or exclude Normal, Active, Empty, Tiny, Huge, Nearly full (context 80 percent or more), Abandoned and Pinned chats. Active means running, waiting for you or unread, as Claude Code defines it. |
 | Subagent search | The Subagents checkbox is on by default. Subagent matches count toward the chat. When the newest match is a subagent's, the row shows a purple pill with its agent type. |
 | Ranking | Title matches rank first. Recent matches score higher. |
 | Instant results | A background index keeps results fast. Results show while indexing is still running. |
@@ -40,6 +40,8 @@ Saropa Chat Search lets you search your Claude Code chat history from the VS Cod
 | Git Activity tree | A second activity-bar icon lists repositories, PRs, branches and commits for the same scope. Click to resume. |
 | Cost info | Dollars, lines added and removed, and models used, such as `$1.23 · +120/-30 lines · opus, sonnet`. |
 | Status dot and pill | A dot shows Claude Code's own chat state (see Status dot). A chip on the pill line shows Huge, Empty, Tiny or Abandoned. The dot already says Active, so there is no Active chip. |
+| Context pill | A pill on the pill line shows how full a chat's context window is, only from 60 percent: amber at 60 to 79, orange at 80 to 89, red at 90 and above ("82% full"). Hover it for tokens used of the window, the model, the compaction count and notes. The open card always shows a Context stat, such as "82% (164k of 200k, opus-4-6)". Chats with no usage data show nothing. The figure approximates Claude Code's own and lags one turn: it comes from the last reply, so a reply still being written is not counted. |
+| Context warnings | A live chat (running, waiting or idle with a live Claude process) that reaches 80 or 90 percent gets one notification with Open chat and Dismiss buttons. Each chat warns once per level, again after a compaction or after the chat falls 10 points below the level. At most one notification per 30 second check and 3 in 10 minutes. Old idle chats never warn, and an approximate figure (window size inferred from an unknown model) warns only from 90 percent. Turn it off with the setting `saropaChatSearch.contextWarnings`. Show Diagnostics lists how many live chats are at 80 percent or more. |
 | Open window marker | The dot's ring shows whether a live chat is open in this VS Code window (solid ring) or in another window (dashed ring). See Status dot. |
 | Archive | Archive chats to move them into a collapsed Archived section. Import Claude Code's archived list once. See Archived chats. |
 | Copy ID | The Copy ID button in the expanded row copies the chat's session id. |
@@ -54,7 +56,7 @@ Saropa Chat Search lets you search your Claude Code chat history from the VS Cod
 Command line:
 
 ```
-code --install-extension claude-chat-search-0.11.1.vsix
+code --install-extension claude-chat-search-0.12.1.vsix
 ```
 
 Extensions panel:
@@ -65,7 +67,7 @@ Extensions panel:
 
 ## Quick start
 
-1. Click the Saropa Chat Search icon in the activity bar.
+1. Click the Saropa Chat Explorer icon in the activity bar.
 2. Wait for the first index to finish. Search works on what is indexed so far.
 3. Type a word or phrase. Results appear after you stop typing. Enter searches at once.
 4. Narrow the results with Sort, the toggles and the search details (`...`) button.
@@ -119,7 +121,7 @@ An 8 px dot sits left of each chat title. It uses the same states and colors as 
 - The archive icon on an archived row (or "Unarchive Chat") moves it back.
 - The archive list is shared by all your workspaces. The expanded state is remembered per workspace.
 - Export leaves out archived chats.
-- To bring in the chats you archived in Claude Code, run "Saropa Chat Search: Import Archived Chats from Claude Code" from the Command Palette, or press Import in the Archived header. It runs only when you ask, reads the list once and shows how many chats it added.
+- To bring in the chats you archived in Claude Code, run "Saropa Chat Explorer: Import Archived Chats from Claude Code" from the Command Palette, or press Import in the Archived header. It runs only when you ask, reads the list once and shows how many chats it added.
 - Import needs the `sqlite3` command-line tool on your PATH. If it is missing, or Claude Code has stored no list, you get a message and nothing changes.
 
 ## Keyboard shortcuts
@@ -147,7 +149,7 @@ These work with the cursor in the search box.
 - Pins, tags, archived chats, unread marks, history and options are saved by VS Code in its own storage.
 - The source contains no network, HTTP or telemetry calls. Nothing leaves your machine. The only programs it starts are `ps` (the open window marker) and `sqlite3` (during Import).
 - Resuming a chat hands the session id to the Claude Code extension through a VS Code command, or a VS Code link if the command fails. Export writes only where you choose.
-- Errors go to the "Saropa Chat Search" output channel.
+- Errors go to the "Saropa Chat Explorer" output channel.
 
 ## Performance
 
@@ -160,7 +162,7 @@ These work with the cursor in the search box.
 ## FAQ
 
 **How do I search my Claude Code chat history in VS Code?**
-Open the Saropa Chat Search icon in the activity bar and type a word or phrase. Results list every matching chat.
+Open the Saropa Chat Explorer icon in the activity bar and type a word or phrase. Results list every matching chat.
 
 **How do I resume an old Claude Code session?**
 Click a result or press Enter on it. The session opens in the Claude Code panel. This needs the Claude Code extension.
@@ -169,7 +171,7 @@ Click a result or press Enter on it. The session opens in the Claude Code panel.
 Yes. Keep the Subagents checkbox on. Subagent matches nest under their parent chat with a Subagent pill.
 
 **How do I find which Claude session edited a file?**
-Right-click the file in the Explorer, the editor or its tab and choose "Show Chats That Touched This File". Or search `edited:<file name>`.
+Right-click the file in the Explorer, the editor or its tab and choose "Saropa: Chats for This File". The list shows edited chats first and has buttons to copy a hand-over note and to search the panel. Or search `edited:<file name>`.
 
 **Where does it store its cache?**
 In the extension's global storage folder in VS Code, in folders named `records-v<number>`. Old folders are removed automatically once they are 7 days untouched.

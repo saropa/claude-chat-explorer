@@ -1,3 +1,4 @@
+import { ctxInfo } from './contextWindow';
 import { cutoffOf } from './query';
 import { clampMax, DEFAULT_MAX_RESULTS } from './limits';
 import { candidates, Source } from './search';
@@ -11,9 +12,11 @@ export const rowOf = (ix: Source, c: Chat, subs: boolean): Result => ({
 });
 
 type Cmp = (a: Chat, b: Chat) => number;
+const ctxKey = (c: Chat): number => { const x = ctxInfo(c.use); return x ? x.pct * 1e9 + x.tokens : -1; }; // chats without data sort last
 const BY: { [k: string]: Cmp } = {
   title: (a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()),
   length: (a, b) => b.count - a.count,
+  context: (a, b) => ctxKey(b) - ctxKey(a),
   cost: (a, b) => (b.cost?.usd ?? 0) - (a.cost?.usd ?? 0),
 };
 

@@ -24,5 +24,5 @@ return head+'<p class="q">'+tmark(it.snippet,it.ranges)+'</p><p class="nt">Click
 function tipKind(k,el){const row=el.closest('.r'),r=row&&resOf(row.dataset.id);if(!r)return '';
 if(k==='title')return tipTitle(r);if(k==='hits')return tipHits(r);if(k==='count')return '<b>'+plur(r.msgs,'message')+'</b>';
 if(k==='time')return tipTime(r);if(k==='snipsub')return '<b>Subagent: '+esc(r.snipSub||'agent')+'</b><p class="tsm">'+esc(r.snipDesc||'')+'</p>';
-if(k==='snip')return tipSnip(r);if(k==='item')return tipItem(r,el);return '';}
+if(k==='ctx')return tipCtx(r);if(k==='snip')return tipSnip(r);if(k==='item')return tipItem(r,el);return '';}
 `;

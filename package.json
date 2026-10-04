@@ -1,6 +1,6 @@
 {
   "name": "claude-chat-search",
-  "displayName": "Saropa Chat Search",
+  "displayName": "Saropa Chat Explorer",
   "description": "Search Claude Code chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
   "version": "0.12.2",
   "icon": "images/icon.png",
@@ -30,6 +30,7 @@
     "anthropic",
     "chat history",
     "search",
+    "explorer",
     "session",
     "resume",
     "conversation",
@@ -46,7 +47,7 @@
       "activitybar": [
         {
           "id": "claudeChatSearch",
-          "title": "Saropa Chat Search",
+          "title": "Saropa Chat Explorer",
           "icon": "icon.svg"
         },
         {
@@ -61,7 +62,7 @@
         {
           "type": "webview",
           "id": "claudeChatSearch.view",
-          "name": "Saropa Chat Search",
+          "name": "Saropa Chat Explorer",
           "icon": "icon.svg"
         }
       ],
@@ -85,24 +86,16 @@
         "title": "Saropa: Chats That Touched This File"
       },
       {
-        "command": "saropaChatSearch.fileSessions.find",
-        "title": "Saropa Chat Search: Find Chats For This File in Search Panel"
-      },
-      {
-        "command": "saropaChatSearch.fileSessions.findEdited",
-        "title": "Saropa Chat Search: Find Chats That Edited This File in Search Panel"
-      },
-      {
         "command": "claudeChatSearch.clearHistory",
-        "title": "Saropa Chat Search: Clear Search History"
+        "title": "Saropa Chat Explorer: Clear Search History"
       },
       {
         "command": "saropaChatSearch.importArchived",
-        "title": "Saropa Chat Search: Import Archived Chats from Claude Code"
+        "title": "Saropa Chat Explorer: Import Archived Chats from Claude Code"
       },
       {
         "command": "saropaChatSearch.diagnostics",
-        "title": "Saropa Chat Search: Show Diagnostics"
+        "title": "Saropa Chat Explorer: Show Diagnostics"
       },
       {
         "command": "saropaChatSearch.archive",
@@ -123,16 +116,6 @@
           "command": "saropaChatSearch.fileSessions.show",
           "when": "resourceScheme == file && !explorerResourceIsFolder",
           "group": "saropaChatSearch@1"
-        },
-        {
-          "command": "saropaChatSearch.fileSessions.find",
-          "when": "resourceScheme == file && !explorerResourceIsFolder",
-          "group": "saropaChatSearch@2"
-        },
-        {
-          "command": "saropaChatSearch.fileSessions.findEdited",
-          "when": "resourceScheme == file && !explorerResourceIsFolder",
-          "group": "saropaChatSearch@3"
         }
       ],
       "editor/context": [
@@ -140,16 +123,6 @@
           "command": "saropaChatSearch.fileSessions.show",
           "when": "resourceScheme == file",
           "group": "saropaChatSearch@1"
-        },
-        {
-          "command": "saropaChatSearch.fileSessions.find",
-          "when": "resourceScheme == file",
-          "group": "saropaChatSearch@2"
-        },
-        {
-          "command": "saropaChatSearch.fileSessions.findEdited",
-          "when": "resourceScheme == file",
-          "group": "saropaChatSearch@3"
         }
       ],
       "editor/title/context": [
@@ -157,16 +130,6 @@
           "command": "saropaChatSearch.fileSessions.show",
           "when": "resourceScheme == file",
           "group": "saropaChatSearch@1"
-        },
-        {
-          "command": "saropaChatSearch.fileSessions.find",
-          "when": "resourceScheme == file",
-          "group": "saropaChatSearch@2"
-        },
-        {
-          "command": "saropaChatSearch.fileSessions.findEdited",
-          "when": "resourceScheme == file",
-          "group": "saropaChatSearch@3"
         }
       ],
       "view/title": [
@@ -208,12 +171,17 @@
       ]
     },
     "configuration": {
-      "title": "Saropa Chat Search",
+      "title": "Saropa Chat Explorer",
       "properties": {
         "saropaChatSearch.showFileSessionsStatusBar": {
           "type": "boolean",
           "default": true,
           "description": "Show a status bar count of the Claude chats that touched the active file."
+        },
+        "saropaChatSearch.contextWarnings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a notification when a live Claude chat reaches 80 and 90 percent of its context window."
         },
         "saropaChatSearch.maxResults": {
           "type": "number",

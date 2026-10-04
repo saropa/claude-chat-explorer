@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Saropa Chat Search: publish pipeline (VS Code Marketplace + Open VSX).
+"""Saropa Chat Explorer: publish pipeline (VS Code Marketplace + Open VSX).
 
 Mirrors the Saropa publish scripts (same step order, flag style, exit codes).
 SAFE BY DEFAULT: with no flags it runs preflight, build and package only.
@@ -360,7 +360,7 @@ def main() -> None:
         _color = False
     if args.publish and args.allow_dirty:
         die("PREREQUISITE", "--allow-dirty cannot be combined with --publish")
-    print(f"Saropa Chat Search publish: {'PUBLISH' if args.publish else 'DRY RUN (nothing will be published)'}")
+    print(f"Saropa Chat Explorer publish: {'PUBLISH' if args.publish else 'DRY RUN (nothing will be published)'}")
     step_prereqs(args)
     plan = step_tokens(args)
     step_tree(args)
