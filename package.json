@@ -1,7 +1,7 @@
 {
   "name": "claude-chat-search",
   "displayName": "Saropa Chat Search",
-  "description": "Full-text search of Claude Code chats from the activity bar.",
+  "description": "Search Claude Code chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
   "version": "0.8.1",
   "license": "MIT",
   "repository": {
@@ -14,6 +14,19 @@
   },
   "categories": [
     "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "anthropic",
+    "chat history",
+    "search",
+    "session",
+    "resume",
+    "conversation",
+    "transcript",
+    "subagent",
+    "ai"
   ],
   "main": "./out/extension.js",
   "activationEvents": [
