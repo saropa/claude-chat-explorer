@@ -34,10 +34,9 @@ export function html(): string {
 <div id="ah" hidden>Up and Down arrows show previous searches</div>
 ${ADV_HTML}
 <div class="sel">
-<label class="ls"><span class="lb">Sort</span> <select id="sort" aria-label="Sort"><option value="score">Score</option><option value="time">Time</option><option value="title">Title</option><option value="length">Length</option><option value="cost">Cost</option><option value="context">Context</option></select></label>
-<label class="al" title="Search every project, not only this workspace"><input type="checkbox" id="all"> All projects</label><label class="al" title="Include subagent chats"><input type="checkbox" id="subs" checked> Subagents</label>
 ${STATUS_HTML}${EXPORT_HTML}
 </div>
+<div id="exn" role="status" aria-live="polite"></div>
 <div id="err"></div>
 <div id="hint" hidden>Type at least 2 characters</div>
 <div id="bar"><i></i></div>

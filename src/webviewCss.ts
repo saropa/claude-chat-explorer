@@ -26,18 +26,12 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 #status.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #ah{margin:2px 0 0;font-size:0.85em;color:var(--vscode-descriptionForeground)}
 #ah[hidden]{display:none}
-.sel{display:flex;flex-wrap:wrap;align-items:center;gap:3px 8px;margin-top:3px}
-.sel label.al{display:inline-flex;align-items:center;gap:3px;flex:none;cursor:pointer}
-.sel label.al input{margin:0;width:13px;height:13px}
+.sel{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:8px}
 .nm{padding:4px 10px;color:var(--vscode-descriptionForeground);font-size:0.92em}
 .nm b{font-weight:600;color:var(--vscode-foreground)}
 .sm{flex:1;min-width:0;text-align:right;text-transform:none;letter-spacing:0;font-weight:400;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #res.stale{opacity:.4;pointer-events:none}
 #pin:empty+#list>.sl:first-child,#pin>.sl:first-child{margin-top:0;border-top:none}
-.sel label{display:flex;align-items:center;gap:4px;margin:0;flex:1 1 110px;min-width:0;cursor:default;font-size:0.92em}
-.sel select{flex:1;min-width:0;padding:1px 3px;color:var(--vscode-dropdown-foreground);background:var(--vscode-dropdown-background);border:1px solid var(--vscode-dropdown-border);font-family:inherit;font-size:inherit;outline:none}
-.sel select:focus{border-color:var(--vscode-focusBorder)}
-.sel select option{color:var(--vscode-dropdown-foreground);background:var(--vscode-dropdown-listBackground,var(--vscode-dropdown-background))}
 .sl,.gh{display:flex;align-items:center;gap:4px;padding:4px 8px 4px 6px;cursor:pointer;user-select:none;color:var(--vscode-descriptionForeground)}
 .sl{margin-top:6px;border-top:1px solid var(--vscode-widget-border,transparent);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .gh{font-weight:500}

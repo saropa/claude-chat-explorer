@@ -29,16 +29,7 @@ html{height:100%;overflow:hidden}
 body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto}
 #hdr{flex:none;min-width:0}
 #res{flex:1 1 auto;min-height:80px;overflow-x:hidden;overflow-y:auto;container-type:inline-size;container-name:res;overflow-wrap:anywhere}
-.sel label:not(.al){min-width:0;max-width:100%}
-.sel select{flex:1 1 0;width:0;min-width:0;max-width:100%;text-overflow:ellipsis}
-.sel .ls{order:2;flex:1 1 84px}
-.sfw{order:3}
-.exw{order:4}
-.sel .al{order:6}
-@media (min-width:521px){.sfw{order:8}.exw{order:9}}
-.sel .lb{flex:none}
-.sfw,.exw{flex:none}
-#sfm,#exm{min-width:min(170px,calc(100vw - 16px));max-width:calc(100vw - 16px)}
+#sfm,#exm{min-width:min(170px,100%);max-width:100%}
 .sl,.gh{min-width:0}
 .sl>span:not(.pill),.gh>span:not(.pill){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pill{white-space:nowrap}
@@ -54,13 +45,6 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 .chip{max-width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere}
 .fi{overflow-wrap:anywhere}
 .gp{min-width:0}
-@media (max-width:259px){
-.sel .lb{display:none}
-.sel label:not(.al){flex-basis:100%}
-.sfw,.exw{position:static}
-.sel{position:relative}
-#sfm,#exm{left:0;right:0;min-width:0}
-}
 @media (max-width:199px){
 .opts{right:1px}
 .opts .opt{width:16px}

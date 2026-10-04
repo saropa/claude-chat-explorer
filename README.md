@@ -21,11 +21,11 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 | Quoted phrases | With Match any order on, `"quoted phrases"` stay exact. |
 | Last N messages | `last:<n>` or the "messages to search" dropdown (last 10, 25, 50, 100) searches only the final N messages of each chat. |
 | When filter | "chats active during": any time, last hour, 2, 4 or 8 hours, today, this week or this month. Local time: today starts at midnight, this week at 00:00 on Monday, this month at 00:00 on the 1st. |
-| Search details | The `...` button under the search box (tooltip "Toggle search details") shows or hides the When and Messages rows. They start hidden, the choice is remembered per workspace, and a count on the button shows how many of them are set. |
+| Search details | The `...` button under the search box (tooltip "Toggle search details") shows or hides the details: chats active during, messages to search, sort results by, and search scope (the All projects and Subagents checkboxes). They start hidden, the choice is remembered per workspace, and a count on the button shows how many of them differ from the defaults; its tooltip lists them. |
 | Result limit | Like VS Code Search, the panel lists at most 500 chats (setting `saropaChatExplorer.maxResults`, 50 to 2000) and says so: "Showing the top 500 of 1,284 chats (21,904 matches)" with a warning to narrow the search. Every match is still counted. A chat shows "9,999+" above 9,999 hits, and totals stop at "1,000,000+". All sessions and Archived show the same notice. |
-| Sort | Score, time (grouped by day), title, length, cost or context (fullest first; chats with no usage data last). Pinned chats list first. |
-| Status filter | Include or exclude Normal, Active, Empty, Tiny, Huge, Nearly full (context 80 percent or more), Abandoned and Pinned chats. Active means running, waiting for you or unread, as Claude Code defines it. |
-| Subagent search | The Subagents checkbox is on by default. Subagent matches count toward the chat. When the newest match is a subagent's, the row shows a purple pill with its agent type. |
+| Sort | Set under "sort results by" in the search details. Score, time (grouped by day), title, length, cost or context (fullest first; chats with no usage data last). Pinned chats list first. |
+| Status filter | The Status button next to Export. Include or exclude Normal, Active, Empty, Tiny, Huge, Nearly full (context 80 percent or more), Abandoned and Pinned chats. Active means running, waiting for you or unread, as Claude Code defines it. |
+| Subagent search | The Subagents checkbox (under "search scope") is on by default. Subagent matches count toward the chat. When the newest match is a subagent's, the row shows a purple pill with its agent type. |
 | Ranking | Title matches rank first. Recent matches score higher. |
 | Instant results | A background index keeps results fast. Results show while indexing is still running. |
 | Search history | Up and Down in the search box step through your last 20 searches with their toggles. |
@@ -51,7 +51,7 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 | Copy ID | The Copy ID button in the expanded row copies the chat's session id. |
 | Day groups | Time-sorted results are grouped by day. |
 | Related chats | The expanded row lists up to 5 other chats that touched the same files, each with its shared file count and last active time. |
-| Export | Copy or save one line per matching line, with or without context. |
+| Export | The Export button copies or saves one line per matching line, with or without context. It is disabled until a search has results; clicking it then says to run a search first. |
 | Chats that touched this file | Commands, Explorer and editor menus, a status bar count, and a copyable hand-over note. |
 | Responsive layout | The panel fits any width, from a narrow sidebar to a wide editor tab. |
 
@@ -60,7 +60,7 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 Command line:
 
 ```
-code --install-extension claude-chat-explorer-0.14.0.vsix
+code --install-extension claude-chat-explorer-0.14.1.vsix
 ```
 
 Extensions panel:
@@ -74,9 +74,9 @@ Extensions panel:
 1. Click the Saropa Chat Explorer icon in the activity bar.
 2. Wait for the first index to finish. Search works on what is indexed so far.
 3. Type a word or phrase. Results appear after you stop typing. Enter searches at once.
-4. Narrow the results with Sort, the toggles and the search details (`...`) button.
+4. Narrow the results with the toggles and the search details (`...`) button (sort, scope, time and message limits).
 5. Click a result to resume that session, or click its chevron to read the matching messages.
-6. Tick All projects to search chats from every project, not only this workspace.
+6. Tick All projects (in the search details) to search chats from every project, not only this workspace.
 
 ## Search syntax
 

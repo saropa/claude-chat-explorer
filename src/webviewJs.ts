@@ -21,7 +21,7 @@ let timer,history=[],hasResults=false,busy=false,acc=[],prog=null,lastRs=[],last
 const ixb=$('ixb'),ixt=$('ixt');
 let pins=new Set(),tags={},pinned=[],open=new Set(),ex={},col=new Set(),arch=new Set(),dots={},archOpen=false;
 function cur(){return{query:q.value.trim(),all:all.checked,subs:subs.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),any:flags.any.classList.contains('on'),re:flags.re.classList.contains('on'),when:when.value,last:+msgSel.value,sort:sort.value};}
-function setFlag(k,v){flags[k].classList.toggle('on',!!v);flags[k].setAttribute('aria-pressed',v?'true':'false');flags.any.disabled=flags.re.classList.contains('on');}
+function setFlag(k,v){flags[k].classList.toggle('on',!!v);flags[k].setAttribute('aria-pressed',v?'true':'false');const rx=flags.re.classList.contains('on');flags.any.disabled=rx;flags.any.title=rx?'Match any order is off while regular expressions are on':'Match words in any order (Alt+O)';}
 function showErr(m){err.style.display=m?'block':'none';err.textContent=m||'';q.classList.toggle('bad',!!m);}
 function setBusy(b){busy=b;bar.classList.toggle('on',b);exSync();renderIdle();}
 function draft(){vs.postMessage(Object.assign({type:'draft'},cur()));}

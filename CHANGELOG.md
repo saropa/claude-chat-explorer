@@ -2,6 +2,14 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.14.1 - 2026-10-04
+- Changed: the search details (`...`) now hold all four settings, each with a label above it: chats active during, messages to search, sort results by, and search scope. Sort moved here from the main row. Labels have more space above and below.
+- Changed: All projects and Subagents now sit on one row under "search scope" in the details.
+- Changed: the row under the search box has two labeled buttons, Status (filter by status) and Export. They were unlabeled icons.
+- Changed: the count on the `...` button now also counts a non-default sort, All projects ticked and Subagents unticked. Its tooltip lists them, for example "Hidden settings changed: sort by time, all projects".
+- Fixed: Export looked disabled but could still be clicked and did nothing. It is now truly disabled until a search has results, with a tooltip saying so. Clicking it shows "Run a search first. Export copies the matching lines." for 4 seconds.
+- Fixed: Match any order now says in its tooltip why it is off while regular expressions are on.
+
 ## 0.14.0 - 2026-10-04
 - New: a Work in Progress view, the second view in the Git activity-bar container. It lists chats active in the last 7 days (or running now) that have something pending: files not checked in, commits not pushed, an open or linked pull request, or a running session. The view badge shows how many.
 - Each chat shows its title, branch and state (running, waiting, unread or time since last active) with a colored icon. Open it to see the folder (worktree, main checkout or folder missing), the files not checked in (first 20, with status letters), commits not pushed or behind, the pull request, and an Open chat action.
