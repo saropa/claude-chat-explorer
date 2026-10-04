@@ -1,7 +1,7 @@
 /** Chat status definitions, shared by the extension and the webview script. Change thresholds here. */
 
 // Not exported on purpose: statusesOf is stringified into the webview and must see bare names.
-const ACTIVE_DOTS = ['running', 'waiting', 'unread']; // Active: Claude's own definition (running, waiting for you or unread)
+const ACTIVE_DOTS = ['running', 'waiting', 'unread']; // Active: open chats that are running, waiting for you or unread (dots exist only for open chats)
 const ABANDONED_MS = 30 * 24 * 60 * 60 * 1000; // Abandoned: last active longer ago than this
 const TINY_MAX_MSGS = 3; // Tiny: this many messages or fewer (but not zero)
 const HUGE_MIN_MSGS = 300; // Huge: this many messages or more

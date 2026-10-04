@@ -2,6 +2,10 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.15.3 - 2026-10-04
+- Changed: dots now match the official Claude sidebar. Only chats open in Claude Code for VS Code show a dot (running, waiting for you, unread or open). Closed chats show none, and a chat that closes loses its unread mark.
+- Changed: the Active status filter counts only those open chats. Chats open in a terminal or other Claude app get no dot.
+
 ## 0.15.2 - 2026-10-04
 - Changed: every chat is one line. The time of the last message is plain text at the right edge ("now", "5m", "2h", "3d", "2w"), not a pill, and the title is cut with an ellipsis before it.
 - Changed: the message-count pill and the "Huge" pill are gone from rows. The count stays in the title tooltip and the open card. A Huge chat shows a small chart icon with the tooltip "Huge chat".

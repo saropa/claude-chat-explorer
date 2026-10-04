@@ -50,7 +50,7 @@ export class LiveWatcher {
       await this.markWindows(r.pids, r.live.size);
       const was = this.h.unread(), un = nextUnread(this.prev, r.live, was);
       this.prev = this.live = r.live;
-      if (un.size !== was.size) { this.h.saveUnread(un); }
+      if (un.size !== was.size || [...un].some((id) => !was.has(id))) { this.h.saveUnread(un); }
       this.rebuild();
       this.h.onLive?.(r.live.keys());
     } catch (e) { this.h.log('live state: ' + String(e)); }

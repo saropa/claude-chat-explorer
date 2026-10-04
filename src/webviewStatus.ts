@@ -28,7 +28,7 @@ export const STATUS_CSS = String.raw`
 const STATUS_JS = String.raw`
 const sfb=$('sfb'),sfm=$('sfm'),sfp=$('sfp');
 let stOn=new Set(STATUS_KEYS);
-sfm.innerHTML=STATUS_KEYS.map(k=>'<label class="sfi"'+(k==='active'?' title="Running, waiting for you or unread"':'')+'><input type="checkbox" data-k="'+k+'"><span class="sfn">'+STATUS_LABELS[k]+'</span><span class="pill" data-n="'+k+'">0</span></label>').join('')+'<div class="sfr"><button type="button" class="lnk" id="sfx">Reset</button></div>';
+sfm.innerHTML=STATUS_KEYS.map(k=>'<label class="sfi"'+(k==='active'?' title="Open chats that are running, waiting for you or unread"':'')+'><input type="checkbox" data-k="'+k+'"><span class="sfn">'+STATUS_LABELS[k]+'</span><span class="pill" data-n="'+k+'">0</span></label>').join('')+'<div class="sfr"><button type="button" class="lnk" id="sfx">Reset</button></div>';
 function stCounts(rs){const c={},now=Date.now();STATUS_KEYS.forEach(k=>{c[k]=0;});
 rs.forEach(r=>statusesOf(r,pins.has(r.id),now,(dots[r.id]||{}).s).forEach(k=>{c[k]++;}));return c;}
 function stKeep(rs){if(stOn.size===STATUS_KEYS.length)return rs;const now=Date.now();
