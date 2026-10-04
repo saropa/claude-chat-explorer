@@ -1,6 +1,7 @@
 import { mayHave } from './bloom';
 import { startOf } from './blob';
 import { Chat, Compiled, Ctx, Rec, Token } from './types';
+import { inWin, Win, WinOf } from './window';
 
 const DAY = 86400000;
 type Range = [number, number];
@@ -52,15 +53,15 @@ export function matchedBy(c: Chat, rec: Rec | undefined, t: Token, ctx: Ctx, tag
 
 /**
  * Visit every match of re inside one message of the record: fn(message index, offset in message).
- * Matches that straddle a message separator are ignored.
+ * Matches that straddle a message separator, or lie outside the window, are ignored.
  */
-export function eachHit(rec: Rec, re: RegExp, fn: (i: number, at: number) => void): void {
+export function eachHit(rec: Rec, re: RegExp, fn: (i: number, at: number) => void, win?: Win): void {
   let i = 0;
   for (const [s, e] of matches(re, rec.text)) {
     while (i < rec.ends.length && rec.ends[i] < s) { i++; }
     if (i >= rec.ends.length) { return; }
     const st = startOf(rec, i);
-    if (s >= st && e <= rec.ends[i]) { fn(i, s - st); }
+    if (s >= st && e <= rec.ends[i] && (!win || inWin(win, rec, i))) { fn(i, s - st); }
   }
 }
 
@@ -69,7 +70,7 @@ export interface Hit { hits: number; weightSum: number; snippet: string; ranges:
 interface Body { counts: number[]; weightSum: number; msg: number; idx: number; }
 
 /** Per-term counts, recency-weighted hit sum and the newest matching message (for the snippet). */
-function scanBody(rec: Rec, terms: RegExp[], now: number): Body {
+function scanBody(rec: Rec, terms: RegExp[], now: number, win?: Win): Body {
   const b: Body = { counts: terms.map(() => 0), weightSum: 0, msg: -1, idx: -1 };
   terms.forEach((re, k) => {
     eachHit(rec, re, (i, at) => {
@@ -77,7 +78,7 @@ function scanBody(rec: Rec, terms: RegExp[], now: number): Body {
       b.weightSum += weightAt(rec.ts[i], now);
       const newer = b.msg < 0 || rec.ts[i] > rec.ts[b.msg] || (rec.ts[i] === rec.ts[b.msg] && i > b.msg);
       if (newer) { b.msg = i; b.idx = at; } else if (i === b.msg && at < b.idx) { b.idx = at; }
-    });
+    }, win);
   });
   return b;
 }
@@ -92,9 +93,9 @@ function tokenSnippet(c: Compiled, found: string[][]): { snippet: string; ranges
 
 /**
  * Match one chat: tokens on files and tags first, then the bloom prefilter, and only then the
- * store record. tagId is whose tags apply (a subagent uses its parent's).
+ * store record. tagId is whose tags apply (a subagent uses its parent's). winOf limits matching messages.
  */
-export function matchChat(c: Chat, cmp: Compiled, ctx: Ctx, tagId: string, load: (c: Chat) => Rec, now: number): Hit | null {
+export function matchChat(c: Chat, cmp: Compiled, ctx: Ctx, tagId: string, load: (c: Chat) => Rec, now: number, winOf?: WinOf): Hit | null {
   const cheap = cmp.tokens.map((t) => (t.kind === 'cmd' ? [] : matchedBy(c, undefined, t, ctx, tagId)));
   if (cmp.tokens.some((t, i) => t.kind !== 'cmd' && !cheap[i].length)) { return null; }
   if (cmp.grams.length && !mayHave(c.bloom, cmp.grams)) { return null; }
@@ -102,7 +103,7 @@ export function matchChat(c: Chat, cmp: Compiled, ctx: Ctx, tagId: string, load:
   const rec = need ? load(c) : undefined; // file:, edited: and tag: alone never touch the store
   const found = cmp.tokens.map((t, i) => (t.kind === 'cmd' ? matchedBy(c, rec, t, ctx, tagId) : cheap[i]));
   if (found.some((f) => !f.length)) { return null; }
-  const body = rec ? scanBody(rec, cmp.terms, now) : { counts: [], weightSum: 0, msg: -1, idx: -1 };
+  const body = rec ? scanBody(rec, cmp.terms, now, winOf?.(rec)) : { counts: [], weightSum: 0, msg: -1, idx: -1 };
   if (body.counts.some((n) => n === 0)) { return null; }
   const tokenHits = found.reduce((a, f) => a + f.length, 0);
   const snip = rec && body.msg >= 0

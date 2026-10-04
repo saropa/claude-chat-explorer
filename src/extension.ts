@@ -2,21 +2,26 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { TIMEOUT_MSG, WorkerClient } from './client';
 import { IndexStatus } from './indexStatus';
-import { compile, isEmpty } from './query';
+import { deliver } from './exporter';
+import { compile, isEmpty, MIN_QUERY_CHARS, queryChars } from './query';
 import { isSessionId, openChat } from './resume';
-import { Saved, Store } from './store';
+import { Draft, Store } from './store';
+import { STATUS_KEYS } from './status';
+import { ExportOut } from './export';
 import { Compiled, Options, Result } from './types';
 import { html, NAME } from './webview';
 
 const WHENS = ['any', '1h', '2h', '4h', '8h', 'today'];
+const LASTS = [0, 10, 25, 50, 100];
 const SORTS = ['score', 'time', 'title', 'length'];
 const POST_GAP_MS = 100;
 
-type Base = Omit<Saved, 'results' | 'searched'>;
+type Base = Draft;
 
 function opts(m: any): Options {
   const when = WHENS.includes(m.when) ? String(m.when) : 'any';
-  return { all: !!m.all, cs: !!m.cs, ww: !!m.ww, re: !!m.re, when, subs: m.subs !== false };
+  const last = LASTS.includes(Number(m.last)) ? Number(m.last) : 0;
+  return { all: !!m.all, cs: !!m.cs, ww: !!m.ww, re: !!m.re, when, subs: m.subs !== false, last };
 }
 const sortOf = (m: any): string => (SORTS.includes(m.sort) ? String(m.sort) : 'score');
 
@@ -78,7 +83,8 @@ class Provider implements vscode.WebviewViewProvider {
   }
 
   private restore(): void {
-    this.post({ type: 'restore', state: this.store.state, history: this.store.history, statuses: this.store.statuses });
+    this.post({ type: 'restore', state: this.store.state, history: this.store.history, statuses: this.store.statuses,
+      export: this.store.exportPrefs });
     void this.postMeta();
     if (this.progress) { this.post({ type: 'indexing', ...this.progress }); }
   }
@@ -97,15 +103,17 @@ class Provider implements vscode.WebviewViewProvider {
     try {
       if (!m || typeof m !== 'object') { return; }
       if (m.type === 'ready') { this.restore(); }
-      else if (m.type === 'status') { await this.store.setStatuses(m.checked); }
+      else if (m.type === 'status') { this.store.setStatuses(m.checked); }
+      else if (m.type === 'exportPrefs') { this.store.setExportPrefs({ context: !!m.context, unique: !!m.unique }); }
+      else if (m.type === 'export') { await this.export(m); }
       else if (m.type === 'draft') {
-        await this.store.setState({ ...this.store.state, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
+        this.store.setDraft({ ...this.store.draft, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
       } else if (m.type === 'search') { await this.search(m); }
       else if (m.type === 'histRemove') {
-        await this.store.setHistory(this.store.history.filter((_, i) => i !== m.index));
+        this.store.setHistory(this.store.history.filter((_, i) => i !== m.index));
         this.post({ type: 'history', history: this.store.history });
       } else if (m.type === 'histClear') {
-        await this.store.setHistory([]);
+        this.store.setHistory([]);
         this.post({ type: 'history', history: [] });
       } else { await this.onChatMessage(m); }
     } catch (e) { logErr('message ' + String(m?.type), e); }
@@ -139,8 +147,13 @@ class Provider implements vscode.WebviewViewProvider {
   private async prepare(query: string, o: Options, base: Base): Promise<Compiled | undefined> {
     if (!query) {
       this.client.cancel();
-      await this.store.setState({ ...base, results: [], searched: '' });
+      this.store.setState({ ...base, results: [], searched: '' });
       this.post({ type: 'results', results: [], searched: '' });
+      return undefined;
+    }
+    if (queryChars(query, o.re) < MIN_QUERY_CHARS) {
+      this.client.cancel();
+      this.post({ type: 'short' });
       return undefined;
     }
     let compiled;
@@ -163,6 +176,21 @@ class Provider implements vscode.WebviewViewProvider {
       (why) => { if (why === 'timeout') { this.post({ type: 'error', message: TIMEOUT_MSG }); } });
   }
 
+  /** Export every matching line (not just the shown rows): a worker job with the search timeout; copy or save the text. */
+  private async export(m: any): Promise<void> {
+    const query = String(m.query ?? '').trim(), o = opts(m);
+    const x = { context: !!m.context, unique: !!m.unique, statuses: Array.isArray(m.statuses) ? STATUS_KEYS.filter((k) => m.statuses.includes(k)) : [...STATUS_KEYS] };
+    this.store.setExportPrefs(x);
+    try { if (isEmpty(compile(query, o)) || queryChars(query, o.re) < MIN_QUERY_CHARS) { throw new Error('Nothing to export'); } }
+    catch (e) { void vscode.window.showErrorMessage('Export failed: ' + (e as Error).message); return; }
+    const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+    const fail = (e: unknown) => { logErr('export', e); void vscode.window.showErrorMessage('Export failed: ' + (e as Error).message); };
+    this.client.search({ query, o, folders, x, ...this.ctxMsg }, (w) => {
+      if (w.t === 'done') { deliver(w as unknown as ExportOut, m.mode === 'save' ? 'save' : 'copy').catch(fail); }
+      else if (w.t === 'error') { fail(new Error(w.message)); }
+    }, (why) => { if (why === 'timeout') { fail(new Error(TIMEOUT_MSG)); } }, 'export');
+  }
+
   /** Forward worker batches as they come; the final message saves state and history. */
   private onSearchMsg(w: any, base: Base): void {
     if (w.t === 'batch') { this.post({ type: 'batch', results: w.results, done: w.done, total: w.total }); }
@@ -174,27 +202,32 @@ class Provider implements vscode.WebviewViewProvider {
     const searched = results.length ? '' : 'No matches';
     this.post({ type: 'done', results, searched });
     try {
-      await this.store.setState({ ...base, results, searched });
+      this.store.setState({ ...base, results, searched });
       if (results.length) {
         const { sort: _s, ...h } = base;
-        this.post({ type: 'history', history: await this.store.addHistory(h) });
+        this.post({ type: 'history', history: this.store.addHistory(h) });
       }
     } catch (e) { logErr('save search', e); }
   }
 }
 
 let client: WorkerClient | undefined;
+let store: Store | undefined;
 
 export function activate(ctx: vscode.ExtensionContext): void {
   const dir = ctx.globalStorageUri.fsPath;
   try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { logErr('create storage folder', e); } // the worker retries
   client = new WorkerClient(dir);
   const status = new IndexStatus();
-  const provider = new Provider(new Store(ctx), client, status);
+  store = new Store(ctx, (e) => logErr('save state', e));
+  const provider = new Provider(store, client, status);
   ctx.subscriptions.push(channel, status,
     vscode.window.registerWebviewViewProvider('claudeChatSearch.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
   client.start(); // indexing runs in the worker; activation never waits for it
 }
 
-export async function deactivate(): Promise<void> { await client?.dispose(); }
+export async function deactivate(): Promise<void> {
+  try { await store?.flush(); } catch (e) { logErr('save state', e); }
+  await client?.dispose();
+}

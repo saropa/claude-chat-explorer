@@ -20,13 +20,13 @@ export interface Rec {
   lines: Uint32Array; // 1-based JSONL line of each message, for a later export feature
 }
 
-export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; when: string; subs: boolean; }
+export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; when: string; subs: boolean; last: number; }
 export interface Abort { aborted: boolean; }
 
 export type TokenKind = 'file' | 'edited' | 'cmd' | 'tag';
 export interface Token { kind: TokenKind; value: string; }
-/** grams: trigram hashes every matching chat must contain (bloom prefilter); empty means no prefilter. */
-export interface Compiled { terms: RegExp[]; tokens: Token[]; grams: number[]; }
+/** grams: trigram hashes every matching chat must contain (bloom prefilter); empty means no prefilter. last: only the final N messages match (0 = all). */
+export interface Compiled { terms: RegExp[]; tokens: Token[]; grams: number[]; last: number; }
 
 /** A matching subagent, nested under its parent result. */
 export interface SubResult {

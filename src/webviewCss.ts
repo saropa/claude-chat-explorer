@@ -23,8 +23,8 @@ label.al{display:block;margin:4px 0;cursor:pointer}
 .alr{display:flex;flex-wrap:wrap;gap:0 14px}
 #status{margin:4px 0;padding:0 10px;color:var(--vscode-descriptionForeground);font-size:0.92em}
 #status:empty{display:none}
-.sel{display:flex;gap:6px;margin-top:4px}
-.sel label{display:flex;align-items:center;gap:4px;margin:0;flex:1;min-width:0;cursor:default;font-size:0.92em}
+.sel{display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:4px}
+.sel label{display:flex;align-items:center;gap:4px;margin:0;flex:1 1 110px;min-width:0;cursor:default;font-size:0.92em}
 .sel select{flex:1;min-width:0;padding:1px 3px;color:var(--vscode-dropdown-foreground);background:var(--vscode-dropdown-background);border:1px solid var(--vscode-dropdown-border);font-family:inherit;font-size:inherit;outline:none}
 .sel select:focus{border-color:var(--vscode-focusBorder)}
 .sel select option{color:var(--vscode-dropdown-foreground);background:var(--vscode-dropdown-listBackground,var(--vscode-dropdown-background))}

@@ -53,7 +53,7 @@ return sec('sec:res','Results',a.length,a.map(rowHtml).join(''),'sl');}
 function renderHist(){
 if(!idle()||!history.length){hist.innerHTML='';return;}
 hist.innerHTML=sec('sec:hist','Recent searches',history.length,history.map((h,i)=>{
-const f=(h.cs?'Aa ':'')+(h.ww?'ab ':'')+(h.re?'.*':'');
+const f=(h.cs?'Aa ':'')+(h.ww?'ab ':'')+(h.re?'.* ':'')+(h.last?'last '+h.last:'');
 return '<div class="h" data-i="'+i+'" title="'+esc(h.query)+'" role="button" tabindex="0"><span class="q">'+esc(h.query)+'</span><span class="fl">'+esc(f.trim())+'</span><button class="x" data-x="'+i+'" title="Remove" aria-label="Remove">×</button></div>';
 }).join('')+'<div class="cap"><a id="clr" role="button" tabindex="0">Clear history</a></div>','sl');}
 function renderPinned(){
@@ -74,5 +74,5 @@ old.forEach(o=>o.remove());
 if(ak&&!act.isConnected){const s3={},f=Array.from(el.children).find(c=>nkey(c,s3)===ak);if(f)refocus(f,fd);}}
 function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;
 const keep=stKeep(rs);stUi(stCounts(rs));const t=stText();st.innerHTML=esc(t)+stNote(rs.length-keep.length,!!t);
-patch(list,resultsHtml(keep));renderIdle();stSync();}
+patch(list,resultsHtml(keep));renderIdle();stSync();exSync();}
 `;

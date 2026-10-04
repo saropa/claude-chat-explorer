@@ -14,24 +14,51 @@ export function cutoffOf(when: string, now: number = Date.now()): number {
 // An unclosed quote runs to the end of the query, so typing cmd:"git pu already filters.
 const TOKEN = /(^|\s)(file|edited|cmd|tag):(?:"([^"]*)"?|(\S*))/gi;
 
-/** Split a query into plain text and file:/edited:/cmd:/tag: tokens (values lowercased). */
-export function parseQuery(query: string): { plain: string; tokens: Token[] } {
+// last:<n> limits matches to the final n messages of each chat.
+const LAST = /(^|\s)last:(\d+)(?=\s|$)/gi;
+/** A double-quoted phrase (an unclosed quote runs to the end) or a bare word. */
+const PIECE = /"([^"]*)(?:"|$)|(\S+)/g;
+export const MIN_QUERY_CHARS = 2;
+
+/** Split a query into plain text, file:/edited:/cmd:/tag: tokens (values lowercased) and the last:<n> limit (0 = none). */
+export function parseQuery(query: string): { plain: string; tokens: Token[]; last: number } {
   const tokens: Token[] = [];
-  const plain = query.replace(TOKEN, (_m, _s, k: string, q?: string, u?: string) => {
+  let last = 0;
+  const rest = query.replace(TOKEN, (_m, _s, k: string, q?: string, u?: string) => {
     const kind = k.toLowerCase() as TokenKind;
     let value = (q ?? u ?? '').trim().toLowerCase();
     if (kind === 'tag') { value = value.replace(/\s+/g, '-'); } // stored tags use dashes for spaces
     if (value) { tokens.push({ kind, value }); }
     return ' ';
-  }).trim();
-  return { plain, tokens };
+  });
+  const plain = rest.replace(LAST, (_m, _s, n: string) => { last = Number(n) || last; return ' '; }).trim();
+  return { plain, tokens, last };
 }
 
-/** Build one RegExp per required plain term. Throws SyntaxError on an invalid regex. */
+export interface Piece { text: string; phrase: boolean; }
+
+/** Plain words and quoted phrases of the plain text; a phrase keeps its inner spaces. */
+export function pieces(plain: string): Piece[] {
+  const out: Piece[] = [];
+  for (const m of plain.matchAll(PIECE)) {
+    const text = (m[1] ?? m[2] ?? '').trim();
+    if (text) { out.push({ text, phrase: m[1] !== undefined }); }
+  }
+  return out;
+}
+
+/** Characters that count toward the 2-character minimum: words, phrase text and token values (not prefixes). */
+export function queryChars(query: string, re: boolean): number {
+  const { plain, tokens } = parseQuery(query);
+  const words = re ? plain.length : pieces(plain).reduce((a, p) => a + p.text.length, 0);
+  return words + tokens.reduce((a, t) => a + t.value.length, 0);
+}
+
+/** Build one RegExp per required plain term (word or phrase). Throws SyntaxError on an invalid regex. */
 export function buildTerms(plain: string, o: Options): RegExp[] {
   const q = plain.trim();
   if (!q) { return []; }
-  const parts = o.re ? [q] : q.split(/\s+/).filter(Boolean).map(escRe);
+  const parts = o.re ? [q] : pieces(q).map((p) => escRe(p.text));
   return parts.map((p) => new RegExp(o.ww ? '\\b(?:' + p + ')\\b' : p, o.cs ? 'g' : 'gi'));
 }
 
@@ -57,15 +84,15 @@ export function regexLiterals(src: string): string[] {
 /** Trigrams every match must contain, for the bloom prefilter. */
 function gramsFor(plain: string, tokens: Token[], o: Options): number[] {
   const q = plain.trim();
-  const lits = !q ? [] : o.re ? regexLiterals(q) : q.split(/\s+/).filter(Boolean);
+  const lits = !q ? [] : o.re ? regexLiterals(q) : pieces(q).map((p) => p.text);
   for (const t of tokens) { if (t.kind === 'cmd') { lits.push(t.value); } }
   return lits.flatMap((l) => gramsOf(l.toLowerCase()));
 }
 
 /** Parse and compile a query. Throws on an invalid regex. */
 export function compile(query: string, o: Options): Compiled {
-  const { plain, tokens } = parseQuery(query);
-  return { terms: buildTerms(plain, o), tokens, grams: gramsFor(plain, tokens, o) };
+  const { plain, tokens, last } = parseQuery(query);
+  return { terms: buildTerms(plain, o), tokens, grams: gramsFor(plain, tokens, o), last: last || o.last || 0 };
 }
 
 export const isEmpty = (c: Compiled): boolean => !c.terms.length && !c.tokens.length;

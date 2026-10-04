@@ -118,12 +118,12 @@ export class WorkerClient {
     this.start();
   }
 
-  /** Start a search; any running search is canceled first. */
-  search(p: { [k: string]: any }, onMsg: Job['onMsg'], onEnd: Job['onEnd']): void {
+  /** Start a search (or an export job); any running job is canceled first. */
+  search(p: { [k: string]: any }, onMsg: Job['onMsg'], onEnd: Job['onEnd'], kind: 'search' | 'export' = 'search'): void {
     this.cancel();
     const j: Job = { id: ++this.seq, onMsg, onEnd };
     this.job = j; // the timer starts when the worker reports 'started' (after any index wait)
-    if (!this.send({ ...p, t: 'search', id: j.id })) { this.failAll('error', 'Search worker is not running'); }
+    if (!this.send({ ...p, t: kind, id: j.id })) { this.failAll('error', 'Search worker is not running'); }
   }
 
   cancel(): void {
