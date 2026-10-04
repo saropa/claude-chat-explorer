@@ -4,6 +4,7 @@ import { Chat, Options } from './types';
 
 export const MAX_BRANCH_COMMITS = 200;
 export const MAX_PR_CHATS = 100;
+const YIELD_EVERY = 200;
 const NO_BRANCH = '(unknown branch)';
 export const NO_REPO = '(unknown repository)';
 
@@ -49,9 +50,11 @@ function branchNodes(commits: Commits): BranchNode[] {
 }
 
 /** PRs by repository ('(unknown repository)' when a PR has none) and commits by branch, over the chats in scope. */
-export function gitSummary(ix: Source, all: boolean, folders: string[]): GitSummary {
+export async function gitSummary(ix: Source, all: boolean, folders: string[], idle: () => Promise<void> = async () => undefined): Promise<GitSummary> {
   const prs: Prs = new Map(), commits: Commits = new Map();
+  let n = 0;
   for (const c of candidates(ix, { ...ALL, all }, folders, 0)) {
+    if (n++ % YIELD_EVERY === 0) { await idle(); } // lets a running search or export go first and keeps its heartbeat ticking
     const g = mergedGit(c, ix.subsOf(c)), ref = refOf(c);
     for (const [n, repo] of g.prs) { slot(slot(prs, repo || NO_REPO, () => new Map()), n, () => []).push(ref); }
     for (const [sha, br] of g.commits) {

@@ -1,4 +1,4 @@
-import { shaAlike } from './gitMatch';
+import { shaAlike, validSha } from './gitMatch';
 import { Chat, Cost, Git } from './types';
 
 const B = (s: string) => Buffer.from(s);
@@ -9,7 +9,7 @@ const HEAD = 32;
 const MAX_COMMITS = 300;
 const MAX_BRANCHES = 40;
 const MAX_PRS = 100;
-const SHA = /^[0-9a-f]{4,40}$/;
+const MERGE_MAX = 2000; // cap on commits and PRs of one merged chat-plus-subagents view
 const BRANCH = /^[\p{L}\p{N}_.\/+@#-]{1,200}$/u;
 
 /** Running tally of cost and git facts while one chat file is parsed. */
@@ -30,15 +30,31 @@ function addBranch(a: GitAcc, v: unknown): string {
   return b;
 }
 
+interface PIdx { by: Map<string, string>; short: boolean; }
+const pidx = new WeakMap<Map<string, string>, PIdx>(); // per commit map: 7-char prefix -> stored key
+const P = 7;
+
 /** Add a commit to a map; a short and a full id of one commit merge into the full id, and an empty branch takes a later one. */
 export function putCommit(m: Map<string, string>, sha: string, br: string, max = Infinity): void {
-  for (const [k, b] of m) {
-    if (!shaAlike(k, sha)) { continue; }
+  let ix = pidx.get(m);
+  if (!ix) { ix = { by: new Map(), short: false }; pidx.set(m, ix); for (const k of m.keys()) { track(ix, k); } }
+  const k = sha.length >= P && !ix.short ? ix.by.get(sha.slice(0, P)) : scanKey(m, sha);
+  if (k !== undefined && m.has(k) && shaAlike(k, sha)) {
+    const key = k.length >= sha.length ? k : sha, b = m.get(k)!;
     m.delete(k);
-    m.set(k.length >= sha.length ? k : sha, b || br);
+    m.set(key, b || br);
+    ix.by.set(key.slice(0, P), key);
     return;
   }
-  if (m.size < max) { m.set(sha, br); }
+  if (m.size < max) { m.set(sha, br); track(ix, sha); }
+}
+
+const track = (ix: PIdx, k: string): void => { ix.by.set(k.slice(0, P), k); if (k.length < P) { ix.short = true; } };
+
+/** Slow path (a short id is involved): the stored key that is alike, if any. */
+function scanKey(m: Map<string, string>, sha: string): string | undefined {
+  for (const k of m.keys()) { if (shaAlike(k, sha)) { return k; } }
+  return undefined;
 }
 
 /** One PR per repository and number. */
@@ -63,7 +79,7 @@ function takeOp(op: any, a: GitAcc): void {
   const c = op.commit;
   const sha = typeof c?.sha === 'string' ? c.sha.toLowerCase() : '';
   const br = addBranch(a, c?.branch);
-  if (SHA.test(sha)) { putCommit(a.commits, sha, br, MAX_COMMITS); }
+  if (validSha(sha)) { putCommit(a.commits, sha, br, MAX_COMMITS); }
   addBranch(a, op.branch?.ref);
   addBranch(a, op.push?.branch);
 }
@@ -115,8 +131,8 @@ export function finishExtras(a: GitAcc): { cost?: Cost; git?: Git } {
 export function mergedGit(c: Chat, subs: Chat[]): Git {
   const commits = new Map<string, string>(), prs = new Map<string, [number, string]>(), branches = new Set<string>();
   for (const x of [c, ...subs]) {
-    for (const [s, b] of x.git?.commits ?? []) { putCommit(commits, s, b); }
-    for (const [n, r] of x.git?.prs ?? []) { if (!prs.has(prKey(n, r))) { prs.set(prKey(n, r), [n, r]); } }
+    for (const [s, b] of x.git?.commits ?? []) { putCommit(commits, s, b, MERGE_MAX); }
+    for (const [n, r] of x.git?.prs ?? []) { if (!prs.has(prKey(n, r)) && prs.size < MERGE_MAX) { prs.set(prKey(n, r), [n, r]); } }
     for (const b of x.git?.branches ?? []) { branches.add(b); }
   }
   return { commits: [...commits], branches: [...branches], prs: [...prs.values()] };

@@ -25,8 +25,12 @@ let b=g.prs.map(p=>gitPill('','pr','n',p.number,'#'+p.number+(p.repository?' '+p
 b+=g.commits.map(c=>gitPill(' cm','sha','s',c.sha.slice(0,7),c.sha.slice(0,7)+(c.branch?' on '+c.branch:''),'Search chats with commit '+c.sha.slice(0,7))).join('');
 if(g.moreCommits>0)b+='<div class="m">+'+g.moreCommits+' more commits</div>';
 return sec('git:'+r.id,'Git',g.prs.length+g.commits.length+g.moreCommits,b,'sl');}
-function tokRewrite(v,t){const re=new RegExp('(^|\\s)'+t.slice(0,t.indexOf(':')+1)+'(?:"[^"]*"?|\\S*)(?=\\s|$)','gi');
-return (v.replace(re,' ').trim()+' '+t).trim();}
+function tokRewrite(v,t){const k=t.slice(0,t.indexOf(':')).toLowerCase();let r='',at=0;
+const re=/(?:^|\s)(?:(file|edited|cmd|tag|sha|pr|branch):(?:"[^"]*"?|\S*)|last:\d+(?=\s|$))|"[^"]*(?:"|$)|\S+/gi;
+for(const m of v.matchAll(re)){if(!m[1]||m[1].toLowerCase()!==k)continue;
+const s=m.index+m[0].length-m[0].trimStart().length;let f=m.index+m[0].length;
+while(f<v.length&&/\s/.test(v[f]))f++;r+=v.slice(at,s);at=f;}
+r=(r+v.slice(at)).trimEnd();return r?r+' '+t:t;}
 function addTok(t){q.value=tokRewrite(q.value,t);go();}
 function gitScroll(id){const n=Array.from(document.querySelectorAll('[data-sec]')).find(x=>x.dataset.sec==='git:'+id);if(n)n.scrollIntoView({block:'nearest'});}
 function gitOpen(id){col.delete('git:'+id);gitFocus=id;

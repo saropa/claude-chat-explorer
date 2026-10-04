@@ -100,23 +100,28 @@ async function expand(m: any): Promise<unknown> {
 }
 
 /** Rows for pinned chats, newest first. */
-function pinned(ids: string[]): Result[] {
+function pinned(ids: string[], subs: boolean): Result[] {
   const want = new Set(ids);
   return (ix?.tops() ?? []).filter((c) => want.has(c.id)).sort((a, b) => b.last - a.last)
     .map((c) => ({ file: ix!.fileOf(c), id: c.id, title: c.title, hits: 0, last: c.last, snippet: '', ranges: [], score: 0,
-      project: projectOf(c), ...statFields(c, ix!.subsOf(c)) }));
+      project: projectOf(c), ...statFields(c, subs ? ix!.subsOf(c) : []) }));
+}
+
+/** Yield to the event loop; while a search or export runs, wait for it to end first. */
+async function idle(): Promise<void> {
+  do { await new Promise((res) => setTimeout(res, live.size ? 50 : 0)); } while (live.size);
 }
 
 /** Git Activity tree data for the chats in scope. */
 async function gitTree(m: any): Promise<unknown> {
   await loaded;
-  return ix ? gitSummary(ix, !!m.all, Array.isArray(m.folders) ? m.folders : []) : { repos: [], branches: [] };
+  return ix ? gitSummary(ix, !!m.all, Array.isArray(m.folders) ? m.folders : [], idle) : { repos: [], branches: [] };
 }
 
 async function request(m: any): Promise<unknown> {
   if (m.t === 'gitSummary') { return gitTree(m); }
   if (m.t === 'expand') { return expand(m); }
-  if (m.t === 'pinned') { return pinned(m.ids ?? []); }
+  if (m.t === 'pinned') { return pinned(m.ids ?? [], m.subs !== false); }
   if (m.t === 'stats') { return { chats: ix?.size ?? 0, heap: process.memoryUsage().heapUsed, rss: process.memoryUsage().rss, buf: process.memoryUsage().arrayBuffers }; }
   if (m.t === 'dispose') { await ix?.dispose(); return true; }
   return undefined;

@@ -64,17 +64,17 @@ function subHits(sc: Scan, p: Chat): Array<[Chat, Hit]> {
 
 const GIT_KINDS = ['sha', 'pr', 'branch'];
 
-/** The parent as git tokens see it: with subagents included its git data holds theirs too, so it agrees with the icon and Git section. */
-function gitView(sc: Scan, p: Chat): Chat {
+/** The parent as git tokens see it: its git data plus the subagents that did not match, so a commit held by a matched subagent counts once (on the subagent). */
+export function gitView(sc: Scan, p: Chat, matched: Chat[]): Chat {
   if (!sc.o.subs || !sc.c.tokens.some((t) => GIT_KINDS.includes(t.kind))) { return p; }
-  return { ...p, git: mergedGit(p, sc.ix.subsOf(p)) };
+  return { ...p, git: mergedGit(p, sc.ix.subsOf(p).filter((s) => !matched.includes(s))) };
 }
 
 /** Match one parent chat and its subagents; null when nothing matched. */
 export function findIn(sc: Scan, p: Chat): Found | null {
-  const own = matchChat(gitView(sc, p), sc.c, sc.ctx, p.id, (x) => sc.ix.rec(x), sc.now, topWinOf(sc.c.last));
-  const self = own && p.last >= sc.cutoff ? own : null;
   const subs = sc.o.subs ? subHits(sc, p) : [];
+  const own = matchChat(gitView(sc, p, subs.map(([s]) => s)), sc.c, sc.ctx, p.id, (x) => sc.ix.rec(x), sc.now, topWinOf(sc.c.last));
+  const self = own && p.last >= sc.cutoff ? own : null;
   return self || subs.length ? { p, own: self, subs } : null;
 }
 

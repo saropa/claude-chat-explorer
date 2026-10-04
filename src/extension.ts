@@ -83,7 +83,7 @@ class Provider implements vscode.WebviewViewProvider {
 
   private async postMeta(): Promise<void> {
     try {
-      const pinned = await this.client.request({ t: 'pinned', ids: Object.keys(this.store.pins) }, true);
+      const pinned = await this.client.request({ t: 'pinned', ids: Object.keys(this.store.pins), subs: this.store.state.subs !== false }, true);
       this.post({ type: 'meta', pins: Object.keys(this.store.pins), tags: this.store.tags, all: this.store.allTags, pinned });
     } catch (e) { logErr('meta', e); }
   }
@@ -193,6 +193,8 @@ class Provider implements vscode.WebviewViewProvider {
     const query = String(m.query ?? '').trim(), o = opts(m);
     const x = { context: !!m.context, unique: !!m.unique, statuses: Array.isArray(m.statuses) ? STATUS_KEYS.filter((k) => m.statuses.includes(k)) : [...STATUS_KEYS] };
     this.store.setExportPrefs(x);
+    const hint = gitHint(parseQuery(query).tokens);
+    if (hint) { this.post({ type: 'short', message: hint }); return; }
     try { if (isEmpty(compile(query, o)) || queryChars(query, o.re) < MIN_QUERY_CHARS) { throw new Error('Nothing to export'); } }
     catch (e) { void vscode.window.showErrorMessage('Export failed: ' + (e as Error).message); return; }
     const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);

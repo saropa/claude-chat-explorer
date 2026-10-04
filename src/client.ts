@@ -62,6 +62,15 @@ export class WorkerClient {
     this.start();
   }
 
+  /** True (and counted) when another worker start fits the 3-per-minute limit. */
+  private canRestart(): boolean {
+    const now = Date.now();
+    this.starts = this.starts.filter((t) => now - t < RETRY_WINDOW_MS);
+    if (this.starts.length >= RETRY_MAX) { return false; }
+    this.starts.push(now);
+    return true;
+  }
+
   /** End every running job (the error path shows it) and reject pending requests. */
   private failAll(why: End, message: string): void {
     for (const j of [...this.jobs.values()]) { this.finish(j, why, message); }
@@ -140,13 +149,13 @@ export class WorkerClient {
     this.finish(j, 'cancel');
   }
 
-  /** One request with its own timeout; rejects on timeout, restarting the worker unless background (an automatic refresh must not kill a search). */
+  /** One request with its own timeout; rejects on timeout, restarting the worker; a background request restarts it only while no search or export runs. */
   request(m: Msg, background = false): Promise<any> {
     const req = ++this.seq;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.reqs.delete(req);
-        if (!background) { void this.restart('error'); }
+        if (!background) { void this.restart('error'); } else if (this.jobs.size === 0 && this.canRestart()) { void this.restart('error'); }
         reject(new Error(TIMEOUT_MSG));
       }, TIMEOUT_MS * 2);
       this.reqs.set(req, { resolve, reject, timer });

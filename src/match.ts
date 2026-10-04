@@ -58,12 +58,19 @@ export function matchedBy(c: Chat, rec: Rec | undefined, t: Token, ctx: Ctx, tag
  * Matches that straddle a message separator, or lie outside the window, are ignored.
  */
 export function eachHit(rec: Rec, re: RegExp, fn: (i: number, at: number) => void, win?: Win): void {
-  let i = 0;
-  for (const [s, e] of matches(re, rec.text)) {
-    while (i < rec.ends.length && rec.ends[i] < s) { i++; }
-    if (i >= rec.ends.length) { return; }
-    const st = startOf(rec, i);
-    if (s >= st && e <= rec.ends[i] && (!win || inWin(win, rec, i))) { fn(i, s - st); }
+  const { text, ends } = rec;
+  let i = 0, st = startOf(rec, 0), m: RegExpExecArray | null;
+  re.lastIndex = 0;
+  while ((m = re.exec(text)) !== null) {
+    const s = m.index, len = m[0].length;
+    if (len === 0) { re.lastIndex++; continue; }
+    if (i < ends.length && ends[i] < s) { // advance to the message holding s
+      while (i < ends.length && ends[i] < s) { i++; }
+      if (i >= ends.length) { return; }
+      st = startOf(rec, i);
+    }
+    if (i >= ends.length) { return; }
+    if (s >= st && s + len <= ends[i] && (!win || inWin(win, rec, i))) { fn(i, s - st); }
   }
 }
 
@@ -75,12 +82,15 @@ interface Body { counts: number[]; weightSum: number; msg: number; idx: number; 
 function scanBody(rec: Rec, terms: RegExp[], now: number, win?: Win): Body {
   const b: Body = { counts: terms.map(() => 0), weightSum: 0, msg: -1, idx: -1 };
   terms.forEach((re, k) => {
+    let cur = -1, w = 0, n = 0; // per-message weight is computed once, not once per hit
     eachHit(rec, re, (i, at) => {
-      b.counts[k]++;
-      b.weightSum += weightAt(rec.ts[i], now);
+      n++;
+      if (i !== cur) { cur = i; w = weightAt(rec.ts[i], now); }
       const newer = b.msg < 0 || rec.ts[i] > rec.ts[b.msg] || (rec.ts[i] === rec.ts[b.msg] && i > b.msg);
       if (newer) { b.msg = i; b.idx = at; } else if (i === b.msg && at < b.idx) { b.idx = at; }
+      b.weightSum += w;
     }, win);
+    b.counts[k] += n;
   });
   return b;
 }

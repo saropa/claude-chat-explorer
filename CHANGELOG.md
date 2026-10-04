@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.2
+- Fixed: clicking a PR, commit or branch in the Git section no longer changes a `pr:`, `sha:` or `branch:` that sits inside a quoted phrase or a quoted `cmd:` value, and keeps the closing quote and your spacing.
+- Fixed: a long Git Activity refresh can no longer make a running search time out and restart the search worker. The refresh now waits while a search or export runs and pauses regularly so the search keeps going; commit merging is also much faster for chats with many commits.
+- Fixed: with subagents included, a commit or PR held only by a subagent is counted once, not twice (hit count, score and export lines), and an export writes each line once.
+- Fixed: a search worker that stops responding while only background requests were waiting is now restarted (at most 3 times a minute).
+- Fixed: with Include subagents off, a pinned row's git count now agrees with its Git section.
+- Fixed: exporting with a malformed `sha:` or `pr:` shows the same hint as searching instead of exporting nothing, and a `sha:` longer than 40 characters says "4 to 40 hex characters".
+- Fixed: error reports from the old-cache cleanup could go to the wrong window's log when two ran together.
+- Faster: searches with very many hits (for example "the" with subagents on) do less work per hit. Results, counts and order are unchanged.
+
 ## 0.6.1
 - Fixed: the Git Activity view refreshing during indexing could time out and restart the search worker, canceling a running search or export. It now shows an empty or retry state instead and tries again on the next index change.
 - Fixed: toggling All projects or changing workspace folders did not refresh the Git Activity view.
@@ -9,7 +19,7 @@
 - Clicking a PR or commit in the Git section replaces the earlier `pr:` or `sha:` in the query, so PR #12 then #13 finds #13.
 - With subagents included, `sha:`/`pr:`/`branch:` now match a chat when its subagents hold the commit or PR, including combined searches such as `sha:X pr:N`. With subagents off, matching, the git icon and the Git section all use only the chat's own git data.
 - PRs with the same number in different repositories are kept apart. A PR without a repository is listed under "(unknown repository)".
-- A short and a full id of one commit count once, a commit keeps the branch named by a later row, and branch names with non-English letters are kept.
+- Within one chat, a short and a full id of one commit count once (in the Git Activity view they are two commits on a branch). A commit keeps the branch named by a later row, and branch names with non-English letters are kept.
 - A failed Git Activity load shows "Could not load git activity. Retry." instead of an empty view, and is not remembered. Tree items keep their expanded state across refreshes, and the view now updates within 5 seconds even during a long index pass.
 - A damaged index file that is read from disk after falling out of the memory cache is now always detected and rebuilt. The memory used for tracking checked files no longer grows.
 - Cleanup of old index folders stops checking a folder at the first recent file, and it reports file errors it used to ignore once in the log.

@@ -10,7 +10,7 @@ export const validPr = (v: string): boolean => DIGITS.test(v);
 /** A muted hint for the first malformed sha: or pr: token, or '' when all are usable. */
 export function gitHint(tokens: Token[]): string {
   for (const t of tokens) {
-    if (t.kind === 'sha' && !validSha(t.value)) { return 'sha: needs 4 or more hex characters'; }
+    if (t.kind === 'sha' && !validSha(t.value)) { return 'sha: needs 4 to 40 hex characters'; }
     if (t.kind === 'pr' && !validPr(t.value)) { return 'pr: needs a number'; }
   }
   return '';

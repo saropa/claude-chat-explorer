@@ -1,6 +1,6 @@
 import { startOf } from './blob';
 import { matches, matchedBy } from './match';
-import { candidates, findIn, Found, pacer, rank, scanOf, Scan, Source, toResult } from './search';
+import { candidates, findIn, Found, gitView, pacer, rank, scanOf, Scan, Source, toResult } from './search';
 import { STATUS_KEYS, statusesOf } from './status';
 import { Abort, Chat, Compiled, Ctx, Options, Rec, Result } from './types';
 import { inWin, subWinOf, topWinOf, WinOf } from './window';
@@ -98,7 +98,7 @@ function tokenLines(s: Src, rec: Rec, c: Compiled, ctx: Ctx, tagId: string, L: L
 function emitFound(sc: Scan, f: Found, L: Lines): boolean {
   const { ix, c, ctx } = sc;
   const pw = subWinOf(c.last, () => ix.rec(f.p));
-  const jobs: Src[] = f.own ? [{ chat: f.p, title: f.p.title, file: ix.fileOf(f.p), win: topWinOf(c.last) }] : [];
+  const jobs: Src[] = f.own ? [{ chat: gitView(sc, f.p, f.subs.map(([s]) => s)), title: f.p.title, file: ix.fileOf(f.p), win: topWinOf(c.last) }] : [];
   for (const [s] of f.subs) { jobs.push({ chat: s, title: f.p.title, file: ix.fileOf(s), sub: s.agentType ?? '', win: pw }); }
   for (const j of jobs) {
     const rec = ix.rec(j.chat);

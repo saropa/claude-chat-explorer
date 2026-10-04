@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'async_hooks';
 import * as fs from 'fs';
 import * as path from 'path';
 import { code, DIR_PREFIX, EXT, FORMAT, isCorrupt, readHeader } from './record';
@@ -9,9 +10,9 @@ const LEGACY = /^(meta-v\d+\.bin|store-v.*\.bin|store\.lock|index-cache\.jsonl.*
 const HEADER_READS = 16;
 const OLD_DIR = new RegExp(`^${DIR_PREFIX}(\\d+)$`);
 
-/** Receives each swallowed error (the caller reports once per distinct message); set by sweepAll. */
-let report: (where: string, e: unknown) => void = () => undefined;
-const swallow = (where: string) => (e: unknown): undefined => { if (code(e) !== 'ENOENT') { report(where, e); } return undefined; };
+/** Receives each swallowed error of one sweepAll call (the caller reports once per distinct message). */
+const reporter = new AsyncLocalStorage<(where: string, e: unknown) => void>();
+const swallow = (where: string) => (e: unknown): undefined => { if (code(e) !== 'ENOENT') { reporter.getStore()?.(where, e); } return undefined; };
 
 const mtimeOf = (f: string): Promise<number> => fs.promises.stat(f).then((s) => s.mtimeMs, (e) => swallow('sweep stat')(e) ?? 0);
 const old = async (f: string, age: number): Promise<boolean> => { const t = await mtimeOf(f); return t > 0 && Date.now() - t >= age; };
@@ -68,7 +69,8 @@ async function sweepLegacy(base: string, a: SweepAges): Promise<void> {
 
 /** Run every sweep. root is the projects folder the records were built from. */
 export async function sweepAll(base: string, recDir: string, root: string, a: SweepAges, log?: (where: string, e: unknown) => void): Promise<void> {
-  report = log ?? report;
-  await sweepRecords(recDir, root, a);
-  await sweepLegacy(base, a);
+  await reporter.run(log ?? (() => undefined), async () => {
+    await sweepRecords(recDir, root, a);
+    await sweepLegacy(base, a);
+  });
 }
