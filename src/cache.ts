@@ -3,7 +3,7 @@ import * as readline from 'readline';
 import { once } from 'events';
 import { Chat } from './types';
 
-const VERSION = 1;
+const VERSION = 2;
 
 /** Write the cache as JSON lines (header, then one chat per line). Returns bytes written. */
 export async function saveCache(file: string, chats: Iterable<Chat>, pruned: boolean): Promise<number> {

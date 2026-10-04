@@ -3,7 +3,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { loadCache, saveCache } from './cache';
 import { parseChat } from './parse';
-import { Chat } from './types';
+import { buildFileMap, FileMap, relatedChats } from './related';
+import { Chat, Related } from './types';
 
 export const CACHE_LIMIT = 200 * 1024 * 1024;
 const PRUNE_DAYS = 90;
@@ -23,10 +24,17 @@ export class ChatIndex {
   private persistTimer?: NodeJS.Timeout;
   private watchTimer?: NodeJS.Timeout;
   private watcher?: fs.FSWatcher;
+  private fmap?: FileMap;
   cacheBytes = 0;
   onChange?: () => void;
 
   constructor(private readonly cacheFile: string, private readonly root: string = projectsRoot()) {}
+
+  /** Chats that share files with this one (file map is rebuilt whenever the index changes). */
+  related(chat: Chat): Related[] {
+    this.fmap ??= buildFileMap(this.list());
+    return relatedChats(chat, this.fmap);
+  }
 
   list(): Chat[] { return [...this.chats.values()]; }
   get size(): number { return this.chats.size; }
@@ -37,6 +45,7 @@ export class ChatIndex {
     this.pruned = c.pruned;
     for (const x of c.chats) { this.chats.set(x.file, x); }
     try { this.cacheBytes = (await fs.promises.stat(this.cacheFile)).size; } catch { /* none */ }
+    this.fmap = buildFileMap(this.list());
   }
 
   /** Stat every file and re-parse only new or changed ones. Calls are serialized. */
@@ -94,6 +103,7 @@ export class ChatIndex {
     await Promise.all(Array.from({ length: Math.min(4, todo.length) }, worker));
     if (todo.length || removed) {
       this.dirty = true;
+      this.fmap = buildFileMap(this.list());
       if (cold) { await this.persist(); } else { this.schedulePersist(); }
       this.onChange?.();
     }

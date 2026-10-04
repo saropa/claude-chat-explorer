@@ -1,5 +1,6 @@
 import { Chat, Compiled, Ctx, Expanded, ExpandItem, Options, OnFile, Abort, Result, Token } from './types';
 import { cutoffOf } from './query';
+import { projectOf, statFields } from './stats';
 
 /** Maximum results kept by the scanner and the webview. */
 export const MAX_RESULTS = 500;
@@ -84,7 +85,7 @@ function scanChat(chat: Chat, c: Compiled, ctx: Ctx, now: number): Result | null
   }
   return {
     id: chat.id, title: chat.title, hits: counts.reduce((a, b) => a + b, 0) + tokenHits, last: chat.last,
-    project: chat.dir.split('-').filter(Boolean).pop() ?? chat.dir, ...snip,
+    project: projectOf(chat), ...statFields(chat), ...snip,
     score: scoreOf(chat.title, c.terms, weightSum, chat.last, now),
   };
 }
@@ -142,7 +143,7 @@ export function expandChat(chat: Chat, c: Compiled, ctx: Ctx, offset: number): E
   return {
     items, total,
     files: [...files].slice(0, 50).map(([p, edited]) => ({ path: p, edited })),
-    commands: [...commands].slice(0, 50),
+    commands: [...commands].slice(0, 50), related: [],
   };
 }
 

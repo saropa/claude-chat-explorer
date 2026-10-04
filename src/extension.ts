@@ -6,10 +6,11 @@ import { compile, isEmpty } from './query';
 import { expandChat, searchIndex } from './search';
 import { Store } from './store';
 import { Abort, Ctx, Options, Result } from './types';
+import { projectOf, statFields } from './stats';
 import { html, NAME } from './webview';
 
 const WHENS = ['any', '1h', '2h', '4h', '8h', 'today'];
-const SORTS = ['score', 'time', 'title'];
+const SORTS = ['score', 'time', 'title', 'length'];
 
 function opts(m: any): Options {
   const when = WHENS.includes(m.when) ? String(m.when) : 'any';
@@ -54,7 +55,7 @@ class Provider implements vscode.WebviewViewProvider {
     const pins = this.store.pins;
     const pinned: Result[] = this.index.list().filter((c) => pins[c.id]).sort((a, b) => b.last - a.last)
       .map((c) => ({ id: c.id, title: c.title, hits: 0, last: c.last, snippet: '', ranges: [], score: 0,
-        project: c.dir.split('-').filter(Boolean).pop() ?? c.dir }));
+        project: projectOf(c), ...statFields(c) }));
     return { type: 'meta', pins: Object.keys(pins), tags: this.store.tags, all: this.store.allTags, pinned };
   }
   private postMeta(): void { this.post(this.meta()); }
@@ -102,7 +103,8 @@ class Provider implements vscode.WebviewViewProvider {
     let c;
     try { c = compile(String(m.query ?? ''), opts(m)); } catch { return; }
     const offset = Math.max(0, Number(m.offset) || 0);
-    this.post({ type: 'expanded', id, offset, ...expandChat(chat, c, this.ctx, offset) });
+    const related = offset === 0 ? this.index.related(chat) : []; // lazy: only on first expand
+    this.post({ type: 'expanded', id, offset, ...expandChat(chat, c, this.ctx, offset), related });
   }
 
   private async search(m: any): Promise<void> {

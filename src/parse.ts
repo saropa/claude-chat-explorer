@@ -34,7 +34,7 @@ function toolUse(b: any, files: Map<string, boolean>, cmds: Set<string>): void {
 export async function parseChat(
   file: string, dir: string, id: string, mtime: number, size: number, pruneBefore = 0,
 ): Promise<Chat> {
-  let custom = '', ai = '', lastPrompt = '', summary = '', firstUser = '', lastTs = 0;
+  let custom = '', ai = '', lastPrompt = '', summary = '', firstUser = '', lastTs = 0, firstTs = 0, count = 0;
   const messages: Msg[] = [];
   const files = new Map<string, boolean>();
   const cmds = new Set<string>();
@@ -67,11 +67,13 @@ export async function parseChat(
       if (row.type === 'user' && !firstUser) { firstUser = text; }
       const rts = typeof row.timestamp === 'string' ? Date.parse(row.timestamp) : NaN;
       const ts = Number.isNaN(rts) ? mtime : rts;
+      if (!firstTs || ts < firstTs) { firstTs = ts; }
+      count++;
       if (ts >= pruneBefore) { messages.push({ ts, role: row.type, text: text.slice(0, MSG_CAP) }); }
     }
   } finally { rl.close(); input.destroy(); }
   const flat = (x: string) => x.replace(/\s+/g, ' ');
   const title = flat(custom || ai || lastPrompt || summary || flat(firstUser).slice(0, 80) || '(untitled)');
   const fl: FileRef[] = Array.from(files, ([path, edited]) => ({ path, edited }));
-  return { id, dir, file, mtime, size, title, last: lastTs || mtime, messages, files: fl, commands: [...cmds] };
+  return { id, dir, file, mtime, size, title, last: lastTs || mtime, first: firstTs || lastTs || mtime, count, messages, files: fl, commands: [...cmds] };
 }
