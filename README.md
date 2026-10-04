@@ -8,7 +8,8 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 - Searches subagent transcripts too. A chat's row shows its newest match, even when a subagent wrote it.
 - Click a result to resume that Claude Code session. Resuming needs the Claude Code extension.
 - Shows which Claude session edited this file, from the Explorer, editor or tab menu.
-- Runs in the background and reads only local files. Nothing is sent over the network.
+- Shows the work in progress of your recent chats: files not checked in, unpushed commits, worktrees and open pull requests, grouped by chat.
+- Runs in the background and reads local files. The extension itself makes no network requests. The optional pull request lookup runs the local `gh` command, which contacts GitHub with your own sign-in (setting `saropaChatExplorer.lookupPullRequests`, on by default).
 
 ## Features
 
@@ -37,6 +38,9 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 | Pin and tag | Star a chat to pin it. The pin, archive and tag icons appear over the end of the title when you hover the row or tab into it, so they take no room at rest. Click the tag icon on a row (it also shows when the card is open), type a name and press Enter. Escape cancels. A chat with no tags shows no tag row. Click a tag to filter. |
 | Search tokens | `file:`, `edited:`, `cmd:`, `tag:`, `sha:`, `pr:` and `branch:`. See Search syntax. |
 | Git section | The expanded row lists the chat's PRs and commits as pills. Click one to search for it. |
+| Work in Progress view | A second view in the Git activity-bar container lists what is pending, grouped by chat. A chat row shows its title, the branch and its state (running, waiting, unread or time since last active), with a state-colored icon. Its children show the folder (worktree, main checkout or folder missing), the files not checked in (with the first 20 files and status letters), the commits not pushed or behind, the open or linked PR, and an Open chat action. Only chats with something pending are listed: files not checked in, commits not pushed, an open or linked PR or a running session. The view badge counts them. |
+| Work in Progress menu | The view title has Refresh, Copy Summary (plain text, one line per chat or worktree), Group by Chat, Group by Worktree and Show Clean Chats (lists every chat in scope; off by default). Group by Worktree lists worktrees with their files, commits, PR and chats, plus a "Branches without a worktree" group for branches ahead of their upstream or whose upstream is gone. The grouping is remembered. |
+| Work in Progress refresh | Scans when the view first shows, on Refresh, when the view shows again after more than 60 seconds, and 10 seconds after a running chat finishes. It never scans on a timer while hidden. At most 60 folders per scan (most recently active first); the view says how many were not scanned. A folder that is missing or not a git folder says so. |
 | Git Activity tree | A second activity-bar icon lists repositories, PRs, branches and commits for the same scope. Click to resume. |
 | Cost info | Dollars, lines added and removed, and models used, such as `$1.23 · +120/-30 lines · opus, sonnet`. |
 | Status dot and pill | A dot shows Claude Code's own chat state (see Status dot). A chip on the pill line shows Huge, Empty, Tiny or Abandoned. The dot already says Active, so there is no Active chip. |
@@ -56,7 +60,7 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 Command line:
 
 ```
-code --install-extension claude-chat-explorer-0.13.0.vsix
+code --install-extension claude-chat-explorer-0.14.0.vsix
 ```
 
 Extensions panel:
@@ -143,11 +147,14 @@ These work with the cursor in the search box.
 
 - Reads chat files from `~/.claude/projects` on your machine.
 - Reads Claude Code's live session files in `~/.claude/sessions` (process id, session id and status) to color the dots. It never writes there.
+- The Work in Progress view runs these local read-only commands with no shell, 4 at a time, 5 second limit each, in the working folder of chats active in the last `saropaChatExplorer.workInProgressDays` days (default 7, 1 to 60) or running now: `git rev-parse --show-toplevel --git-common-dir --abbrev-ref HEAD`, `git status --porcelain=v1 --branch -z`, `git worktree list --porcelain` and `git for-each-ref --format=<fields> refs/heads`. It never runs fetch, pull, checkout, reset, clean, stash, commit, push or anything that writes. Git is told not to take optional locks and never to prompt.
+- While `saropaChatExplorer.lookupPullRequests` is on (the default), the view runs `gh pr list --state open --limit 100 --json number,title,headRefName,isDraft,reviewDecision` once per repository (no shell, 15 second limit, answers kept 5 minutes; Refresh skips the kept answer). The `gh` command contacts GitHub using your own existing `gh` sign-in. The extension adds no network code of its own and shows no links. Turn the setting off and `gh` is never started. If `gh` is missing, signed out or offline, the view shows one muted line "Open PRs unavailable".
+- The search cache now also stores each chat's working folder path (the last `cwd` recorded in the chat file).
 - Runs the local `ps -A -o pid=,ppid=` command (no shell, 3 second limit, once per 30 second poll) to read each Claude process's parent process id for the open window marker. The output is parsed in memory and not stored. No network is used.
 - Import Archived Chats reads Claude Code's archived-chat list from its VS Code storage, only when you press Import. It works read-only on a temporary copy, using the local `sqlite3` tool, and deletes the copy afterwards.
 - Writes a search cache to the extension's global storage folder in VS Code. Message text is stored there in record files, up to 20,000 characters per message (8,000 for subagents). File paths and the first 300 characters of each command are stored too. Tool results are skipped.
 - Pins, tags, archived chats, unread marks, history and options are saved by VS Code in its own storage.
-- The source contains no network, HTTP or telemetry calls. Nothing leaves your machine. The only programs it starts are `ps` (the open window marker) and `sqlite3` (during Import).
+- The source contains no network, HTTP or telemetry calls of its own. The only programs it starts are `ps` (the open window marker), `sqlite3` (during Import), `git` (Work in Progress, read-only) and `gh` (open PR lookup, on by default; contacts GitHub through your own `gh` sign-in).
 - Resuming a chat hands the session id to the Claude Code extension through a VS Code command, or a VS Code link if the command fails. Export writes only where you choose.
 - Errors go to the "Saropa Chat Explorer" output channel.
 
@@ -189,6 +196,7 @@ Yes. Set `saropaChatExplorer.showFileSessionsStatusBar` to false.
 
 - VS Code 1.90.0 or newer.
 - The Claude Code extension, to resume chats.
+- `git`, for the Work in Progress view. Optional `gh` (signed in), for open pull requests.
 
 ## Contributing
 

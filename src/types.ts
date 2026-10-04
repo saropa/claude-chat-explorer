@@ -22,6 +22,7 @@ export interface Chat {
   files: FileRef[];
   rec: string; len: number; // record file name, and body length in bytes
   cost?: Cost; git?: Git; use?: Usage;
+  cwd?: string; // working folder of the chat: the last cwd recorded in its rows
   bloom: Uint8Array; // trigram prefilter over lowercased text and commands
 }
 

@@ -2,6 +2,17 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.14.0 - 2026-10-04
+- New: a Work in Progress view, the second view in the Git activity-bar container. It lists chats active in the last 7 days (or running now) that have something pending: files not checked in, commits not pushed, an open or linked pull request, or a running session. The view badge shows how many.
+- Each chat shows its title, branch and state (running, waiting, unread or time since last active) with a colored icon. Open it to see the folder (worktree, main checkout or folder missing), the files not checked in (first 20, with status letters), commits not pushed or behind, the pull request, and an Open chat action.
+- View menu: Refresh, Copy Summary, Group by Chat (default), Group by Worktree, and Show Clean Chats (off by default). Group by Worktree lists worktrees with their files, commits, pull request and chats, and a "Branches without a worktree" group. The grouping is remembered.
+- New: pull request lookup with the local `gh` command, on by default. Turn it off with `saropaChatExplorer.lookupPullRequests`. If `gh` is missing, signed out or offline, the view shows one muted line "Open PRs unavailable" and nothing else changes.
+- New: setting `saropaChatExplorer.workInProgressDays` (default 7, 1 to 60).
+- Privacy change: the extension now starts read-only `git` commands, and, while the PR lookup is on, `gh`, which contacts GitHub with your own `gh` sign-in. The extension adds no network code of its own and never shows links. It never fetches, pulls, checks out, resets, cleans, stashes, commits or pushes. README and SECURITY.md list the exact commands.
+- The view scans when it first shows, on Refresh, when it shows again after more than a minute, and 10 seconds after a running chat finishes. Never on a timer while hidden. At most 60 folders per scan; the view says how many were not scanned.
+- Show Diagnostics now lists the two settings, folders scanned, whether git and gh were found, and the last scan time.
+- The search index stores each chat's working folder, so the first start rebuilds the index once.
+
 ## 0.13.0 - 2026-10-04
 - Changed: the extension id is now `saropa.claude-chat-explorer` (it was `saropa.claude-chat-search`), to match the name Saropa Chat Explorer.
 - Action needed: uninstall `saropa.claude-chat-search`, then install the new version. Both cannot run side by side.

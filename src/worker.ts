@@ -5,6 +5,7 @@ import { ChatIndex } from './index';
 import { compile } from './query';
 import { fileSessionsOf, FileSessionsReply } from './fileSessions';
 import { gitSummary } from './gitSummary';
+import { wipChats } from './wipChats';
 import { clampMax, Tally, totalsOf } from './limits';
 import { expandChat, searchIndex } from './search';
 import { ctxReply } from './contextWarn';
@@ -135,7 +136,15 @@ async function fileSessions(m: any): Promise<FileSessionsReply> {
   return fileSessionsOf(ix, String(m.file ?? ''), roots, new Set<string>(m.pins ?? []), Date.now(), m.dots ?? {});
 }
 
+/** Chats in scope for the Work in Progress view. */
+async function wip(m: any): Promise<unknown> {
+  await loaded;
+  const strs = (a: unknown): string[] => (Array.isArray(a) ? a.filter((x: unknown) => typeof x === 'string') : []);
+  return ix ? wipChats(ix, Number(m.since) || 0, new Set(strs(m.live)), strs(m.folders)) : [];
+}
+
 async function request(m: any): Promise<unknown> {
+  if (m.t === 'wipChats') { return wip(m); }
   if (m.t === 'gitSummary') { return gitTree(m); }
   if (m.t === 'expand') { return expand(m); }
   if (m.t === 'sessions') { return sessions(m); }

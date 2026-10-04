@@ -20,13 +20,21 @@
 
 - Reads Claude Code chat files under `~/.claude/projects`.
 - Reads live session files under `~/.claude/sessions`.
-- Keeps a local index cache in the extension's global storage folder.
-- Makes no network requests and sends no telemetry.
+- Keeps a local index cache in the extension's global storage folder. It includes each chat's working folder path.
+- Makes no network requests of its own and sends no telemetry.
   - A search of `src/` finds no HTTP client, `fetch`, `XMLHttpRequest`, WebSocket, `net` or `dns` use.
+  - The optional open PR lookup goes through the `gh` CLI, which contacts GitHub with the user's own `gh` sign-in. It is on by default and the setting `saropaChatExplorer.lookupPullRequests` turns it off. With it off, `gh` is never started.
   - The panel's content security policy blocks all loads (`default-src 'none'`).
-- Starts local programs in two places only, both with `execFile` (no shell):
+- Starts local programs in four places only, all with `execFile` (no shell):
   - `ps -A -o pid=,ppid=` finds parent process ids, to mark which VS Code window owns a session.
   - `sqlite3 -readonly` reads Claude Code's archived-chat list. It runs only when the user runs "Import Archived Chats from Claude Code". It reads a temporary copy of VS Code's `state.vscdb`, which is deleted afterward.
+  - `git`, for the Work in Progress view, read-only, in the working folders of recent chats (5 second limit, 4 at a time, `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`). Exact command lines:
+    - `git rev-parse --show-toplevel --git-common-dir --abbrev-ref HEAD` (or the same without `--abbrev-ref HEAD` when the repository has no commits)
+    - `git status --porcelain=v1 --branch -z`
+    - `git worktree list --porcelain`
+    - `git for-each-ref --format=<name, upstream, track fields> refs/heads`
+  - `gh pr list --state open --limit 100 --json number,title,headRefName,isDraft,reviewDecision`, once per repository, 15 second limit, only while `saropaChatExplorer.lookupPullRequests` is on (the default). Results are kept 5 minutes.
+  - The code allows no other git subcommand and no other gh subcommand; any other call throws before it starts. It never runs fetch, pull, checkout, reset, clean, stash, commit, push, worktree add or remove, or gc.
 - Runs its search in a worker thread (`worker_threads`), not a separate process.
 - Opens a chat by calling the Claude Code extension, or by a `vscode://` link to it.
 

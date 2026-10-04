@@ -14,6 +14,7 @@ export function chatOf(p: Parsed, rec: string): Chat {
   if (h.cost) { c.cost = h.cost; }
   if (h.git) { c.git = h.git; }
   if (h.use) { c.use = h.use; }
+  if (h.cwd) { c.cwd = h.cwd; }
   return c;
 }
 
@@ -24,6 +25,7 @@ export function headerOf(c: Chat, src: string): RecHeader {
   if (c.cost) { h.cost = c.cost; }
   if (c.git) { h.git = c.git; }
   if (c.use) { h.use = c.use; }
+  if (c.cwd) { h.cwd = c.cwd; }
   return h;
 }
 

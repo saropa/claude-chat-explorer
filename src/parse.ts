@@ -1,6 +1,7 @@
 import { FileRef, Cost, Git, Usage } from './types';
 import { finishExtras, GitAcc, newGitAcc, takeExtra } from './gitInfo';
 import { scanLines } from './scan';
+import { takeCwd } from './cwdInfo';
 import { finishUsage, newUseAcc, takeOther, takeUsage, UseAcc } from './contextUsage';
 
 export const MSG_CAP = 20000; // chars of text kept per message of a top-level chat
@@ -23,12 +24,13 @@ export interface Parsed {
   files: FileRef[]; cmds: string[]; cmdAt: number[]; ts: number[]; roles: number[]; texts: string[];
   lines: number[]; // 1-based JSONL line of each kept message
   cost?: Cost; git?: Git; use?: Usage;
+  cwd?: string; // last non-empty cwd of the rows
 }
 
 interface Acc {
   custom: string; ai: string; lastPrompt: string; summary: string; firstUser: string;
   lastTs: number; firstTs: number; count: number; cap: number; before: number; mtime: number; line: number;
-  lines: number[]; ts: number[]; roles: number[]; texts: string[]; files: Map<string, boolean>; cmds: Map<string, number>; x: GitAcc; u: UseAcc;
+  lines: number[]; ts: number[]; roles: number[]; texts: string[]; files: Map<string, boolean>; cmds: Map<string, number>; x: GitAcc; u: UseAcc; cwd: string;
 }
 
 /** Joined text blocks of a message content value (tool results, images and thinking are skipped). */
@@ -110,6 +112,7 @@ function takeLine(b: Buffer, s: number, e: number, a: Acc): void {
     if (!Number.isNaN(t)) { a.lastTs = t; }
   }
   takeExtra(line, a.x);
+  a.cwd = takeCwd(line, a.cwd);
   if (!wanted(line)) { takeOther(line, a.u); return; }
   let row: any;
   try { row = JSON.parse(line.toString('utf8')); } catch { return; }
@@ -122,13 +125,13 @@ function takeLine(b: Buffer, s: number, e: number, a: Acc): void {
 /** Parse one chat file. Messages older than before are counted but their text is dropped. */
 export async function parseFile(file: string, mtime: number, cap: number, before = 0): Promise<Parsed> {
   const a: Acc = { custom: '', ai: '', lastPrompt: '', summary: '', firstUser: '', lastTs: 0, firstTs: 0,
-    count: 0, cap, before, mtime, line: 0, lines: [], ts: [], roles: [], texts: [], files: new Map(), cmds: new Map(), x: newGitAcc(), u: newUseAcc() };
+    count: 0, cap, before, mtime, line: 0, lines: [], ts: [], roles: [], texts: [], files: new Map(), cmds: new Map(), x: newGitAcc(), u: newUseAcc(), cwd: '' };
   await scanLines(file, (b, s, e, n) => { a.line = n; takeLine(b, s, e, a); });
   const flat = (x: string) => x.replace(/\s+/g, ' ');
   const title = flat(a.custom || a.ai || a.lastPrompt || a.summary || flat(a.firstUser).slice(0, 80) || '(untitled)');
   return {
     title, last: a.lastTs || mtime, first: a.firstTs || a.lastTs || mtime, count: a.count,
     files: Array.from(a.files, ([path, edited]) => ({ path, edited })), cmds: [...a.cmds.keys()], cmdAt: [...a.cmds.values()],
-    ts: a.ts, roles: a.roles, texts: a.texts, lines: a.lines, ...finishExtras(a.x), use: finishUsage(a.u),
+    ts: a.ts, roles: a.roles, texts: a.texts, lines: a.lines, ...finishExtras(a.x), use: finishUsage(a.u), cwd: a.cwd || undefined,
   };
 }
