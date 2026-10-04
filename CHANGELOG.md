@@ -2,6 +2,12 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.14.2 - 2026-10-04
+- Fixed: the result counts no longer repeat. "All sessions" showed "146 of 146 chats" next to a "146" badge; it now shows only the badge.
+- Changed: search results show the number of matching chats once, in the badge. The grey text beside it now says something different: the total matches (for example "89 matches"), hidden-by-status-filter chats, or search progress. It is left out when it would repeat the badge.
+- Changed: with sort by time, the single grey line above the day groups shows the total matches; each day keeps only its badge.
+- Changed: badges have a tooltip and a screen-reader label that spell out the count once, for example "146 chats".
+
 ## 0.14.1 - 2026-10-04
 - Changed: the search details (`...`) now hold all four settings, each with a label above it: chats active during, messages to search, sort results by, and search scope. Sort moved here from the main row. Labels have more space above and below.
 - Changed: All projects and Subagents now sit on one row under "search scope" in the details.

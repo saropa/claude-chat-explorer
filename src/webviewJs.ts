@@ -114,9 +114,9 @@ else if(d.type==='dots'){dots=d.map||{};rerender();}
 else if(!live)return;
 else if(d.type==='start'){acc=[];prog=null;tot=null;}
 else if(d.type==='batch'){if(!busy)return;acc=acc.concat(d.results).sort((a,b)=>b.score-a.score).slice(0,capN);if(d.totals){tot=d.totals;capN=d.totals.max;}prog={done:d.done,total:d.total};
-sessOn=false;render(acc,cnts(d.done,d.total,liveN(acc)));}
+sessOn=false;render(acc,progTxt(d.done,d.total));}
 else if(d.type==='done'){busy=false;bar.classList.remove('on');acc=d.results;tot=d.totals||null;const n=d.results.length;sessOn=!n;
-render(d.results,d.searched||(prog?cnts(prog.total,prog.total,liveN(d.results)):''));if(n)histAfter();else askSess();}
+render(d.results,d.searched||'');if(n)histAfter();else askSess();}
 else if(d.type==='error'){setBusy(false);sessOn=false;sess=null;lastMsg='';hasResults=false;lastRs=[];showErr(d.message);rerender();}
 else if(d.type==='short'){setBusy(false);hint.textContent=d.message||'Type at least 2 characters';hint.hidden=false;sessOn=true;hasResults=false;lastRs=[];lastMsg='';askSess();rerender();}
 else if(d.type==='results'){tot=null;busy=false;bar.classList.remove('on');sessOn=!d.results.length;render(d.results,d.searched);if(sessOn&&lastQ)askSess();}
