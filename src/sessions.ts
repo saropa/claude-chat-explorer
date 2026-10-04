@@ -16,12 +16,16 @@ const BY: { [k: string]: Cmp } = {
   cost: (a, b) => (b.cost?.usd ?? 0) - (a.cost?.usd ?? 0),
 };
 
-/** Chats in scope (When, All projects) as rows, pinned first, then by sort (Score means Time); at most MAX_RESULTS. total counts all in scope. */
-export function sessionRows(ix: Source, o: Options, folders: string[], sort: string, pins: Set<string>): { rows: Result[]; total: number } {
+export interface SessionRows { rows: Result[]; total: number; arch: Result[]; archTotal: number; }
+
+/** Chats in scope (When, All projects) as rows, pinned first, then by sort (Score means Time); at most MAX_RESULTS each for live and archived chats. total counts the live ones in scope. */
+export function sessionRows(ix: Source, o: Options, folders: string[], sort: string, pins: Set<string>, archived: Set<string> = new Set()): SessionRows {
   const cutoff = cutoffOf(o.when);
   const all = candidates(ix, o, folders, cutoff).filter((c) => c.last >= cutoff);
   const by = BY[sort] ?? ((a: Chat, b: Chat) => b.last - a.last);
   const pin = (c: Chat) => (pins.has(c.id) ? 1 : 0);
   all.sort((a, b) => pin(b) - pin(a) || by(a, b));
-  return { rows: all.slice(0, MAX_RESULTS).map((c) => rowOf(ix, c, o.subs)), total: all.length };
+  const live = all.filter((c) => !archived.has(c.id)), arch = all.filter((c) => archived.has(c.id));
+  const rows = (a: Chat[]) => a.slice(0, MAX_RESULTS).map((c) => rowOf(ix, c, o.subs));
+  return { rows: rows(live), total: live.length, arch: rows(arch), archTotal: arch.length };
 }

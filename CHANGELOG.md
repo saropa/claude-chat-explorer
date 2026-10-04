@@ -2,6 +2,14 @@
 
 Release notes for Saropa Chat Search, newest first. Dates are the git dates of each release.
 
+## 0.9.0 - 2026-10-04
+- New: the status dot now shows what Claude Code shows. Green is running, blue is waiting for you, orange is unread, grey is idle, and a hollow ring means the chat is open somewhere else. Hover a dot for its name.
+- Changed: "Active" now means running, waiting for you or unread. Before, it meant active in the last hour.
+- New: archive chats. They leave results, All sessions, Pinned and Git Activity, and wait in a collapsed Archived section at the bottom. Archive and Unarchive are on the row and in its right-click menu.
+- New: "Import Archived Chats from Claude Code" copies your Claude Code archive into ours, once, when you ask. It needs the `sqlite3` tool and changes nothing in Claude Code.
+- New: "Mark as Read" in the row's right-click menu. Resuming a chat marks it read.
+- Changed: export leaves out archived chats.
+
 ## 0.8.1 - 2026-10-04
 - Changed: search history works like VS Code's Search box. Up and Down in the search box step through earlier searches, with their toggles and options. Escape or Down past the newest restores your typing.
 - New: the command "Clear Search History".

@@ -108,18 +108,18 @@ function group(hits: Hit[], tops: Map<string, Chat>): Group[] {
   return [...by.values()];
 }
 
-function toSession(g: Group, ix: RecReader, pins: Set<string>, now: number): FileSession {
+function toSession(g: Group, ix: RecReader, pins: Set<string>, now: number, dots: { [id: string]: string }): FileSession {
   const c = g.top, git = mergedGit(c, g.sub ? [g.sub] : []);
-  const st = statusesOf({ msgs: c.count, last: c.last, size: c.size }, pins.has(c.id), now);
+  const st = statusesOf({ msgs: c.count, last: c.last, size: c.size }, pins.has(c.id), now, dots[c.id]);
   return { id: c.id, title: c.title, edited: g.edited, last: c.last, status: st, project: projectRoot(g.path, c.dir) ?? c.dir,
     branch: git.branches[git.branches.length - 1], viaSub: g.viaSub, onlySub: g.viaSub && !g.self, worktree: g.worktree };
 }
 
 /** Chats that touched the file, edited first, each group newest first; items capped at MAX_FILE_SESSIONS. */
-export function fileSessionsOf(ix: RecReader, file: string, roots: string[], pins: Set<string>, now = Date.now()): FileSessionsReply {
+export function fileSessionsOf(ix: RecReader, file: string, roots: string[], pins: Set<string>, now = Date.now(), dots: { [id: string]: string } = {}): FileSessionsReply {
   const { map, tops } = cacheOf(ix), at = relativeTo(file, roots);
   const hits = [...(map.get(normPath(file)) ?? []), ...(at ? siblingHits(ix, at.root, at.rel) : [])];
-  const all = group(hits, tops).map((g) => toSession(g, ix, pins, now))
+  const all = group(hits, tops).map((g) => toSession(g, ix, pins, now, dots))
     .sort((a, b) => Number(b.edited) - Number(a.edited) || b.last - a.last);
   return { indexing: false, rel: at?.rel, total: all.length, edited: all.filter((s) => s.edited).length, items: all.slice(0, MAX_FILE_SESSIONS) };
 }

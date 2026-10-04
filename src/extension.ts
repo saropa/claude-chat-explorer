@@ -3,30 +3,22 @@ import * as fs from 'fs';
 import { TIMEOUT_MSG, WorkerClient } from './client';
 import { GIT_VIEW, GitTree, OPEN_CMD, RETRY_CMD } from './gitTree';
 import { IndexStatus } from './indexStatus';
-import { deliver } from './exporter';
+import { runExport } from './exportRun';
+import { opts, sortOf } from './msgOpts';
 import { gitHint } from './gitMatch';
 import { registerFileSessions } from './fileSessionsUi';
 import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './query';
 import { isSessionId, openChat } from './resume';
+import { ArchiveActions, registerArchiveCommands } from './archiveActions';
+import { LiveWatcher } from './liveWatcher';
+import { sessionsDir, stateMap } from './liveState';
 import { Draft, Store } from './store';
-import { STATUS_KEYS } from './status';
-import { ExportOut } from './export';
 import { Compiled, Options, Result } from './types';
 import { html, NAME } from './webview';
 
-const WHENS = ['any', '1h', '2h', '4h', '8h', 'today'];
-const LASTS = [0, 10, 25, 50, 100];
-const SORTS = ['score', 'time', 'title', 'length', 'cost'];
 const POST_GAP_MS = 100;
 
 type Base = Draft;
-
-function opts(m: any): Options {
-  const when = WHENS.includes(m.when) ? String(m.when) : 'any';
-  const last = LASTS.includes(Number(m.last)) ? Number(m.last) : 0;
-  return { all: !!m.all, cs: !!m.cs, ww: !!m.ww, re: !!m.re, any: !!m.any, when, subs: m.subs !== false, last };
-}
-const sortOf = (m: any): string => (SORTS.includes(m.sort) ? String(m.sort) : 'score');
 
 const channel = vscode.window.createOutputChannel(NAME);
 const log = (msg: string): void => channel.appendLine(`[${new Date().toISOString()}] ${msg}`);
@@ -42,6 +34,8 @@ class Provider implements vscode.WebviewViewProvider {
   onScope?: () => void; // the All projects option changed
   private ready = false; // the webview script has posted 'ready'
   private pendingQuery?: string;
+  watcher?: LiveWatcher; // live state of Claude sessions
+  actions?: ArchiveActions;
 
   constructor(private readonly store: Store, private readonly client: WorkerClient,
     private readonly status: IndexStatus) {
@@ -82,18 +76,31 @@ class Provider implements vscode.WebviewViewProvider {
     }
   }
 
-  private get ctxMsg() { return { pins: Object.keys(this.store.pins), tags: this.store.tags }; }
+  private get ctxMsg() { return { pins: Object.keys(this.store.pins), tags: this.store.tags, dots: this.dotNames }; }
 
-  private async postMeta(): Promise<void> {
+  /** Dot state names of chats that are not idle, for the worker. */
+  get dotNames(): { [id: string]: string } { return stateMap(this.watcher?.dots ?? {}); }
+
+  /** Push the dot map to the panel. */
+  postDots(): void { this.post({ type: 'dots', map: this.watcher?.dots ?? {} }); }
+
+  /** Resume a chat and clear its unread flag. */
+  async resume(id: string): Promise<void> {
+    void this.actions?.markRead(id);
+    await openChat(id, log);
+  }
+
+  async postMeta(): Promise<void> {
     try {
       const pinned = await this.client.request({ t: 'pinned', ids: Object.keys(this.store.pins), subs: this.store.state.subs !== false }, true);
-      this.post({ type: 'meta', pins: Object.keys(this.store.pins), tags: this.store.tags, all: this.store.allTags, pinned });
+      this.post({ type: 'meta', pins: Object.keys(this.store.pins), tags: this.store.tags, all: this.store.allTags, pinned, arch: [...this.store.archived] });
     } catch (e) { logErr('meta', e); }
   }
 
   private restore(): void {
     this.post({ type: 'restore', state: this.store.state, history: this.store.history, statuses: this.store.statuses,
-      export: this.store.exportPrefs });
+      export: this.store.exportPrefs, archOpen: this.store.archOpen });
+    this.postDots();
     void this.postMeta();
     if (this.progress) { this.post({ type: 'indexing', ...this.progress }); }
     this.ready = true;
@@ -119,6 +126,7 @@ class Provider implements vscode.WebviewViewProvider {
     view.webview.options = { enableScripts: true, localResourceRoots: [] };
     view.webview.html = html();
     const sub = view.webview.onDidReceiveMessage((m) => { void this.onMessage(m); });
+    view.onDidChangeVisibility(() => { if (view.visible) { this.watcher?.poke(); } });
     view.onDidDispose(() => { sub.dispose(); this.ready = false; if (this.view === view) { this.view = undefined; } });
     // The script posts 'ready' once its listener is attached; restore() runs then.
   }
@@ -129,7 +137,7 @@ class Provider implements vscode.WebviewViewProvider {
       if (m.type === 'ready') { this.restore(); }
       else if (m.type === 'status') { this.store.setStatuses(m.checked); }
       else if (m.type === 'exportPrefs') { this.store.setExportPrefs({ context: !!m.context, unique: !!m.unique }); }
-      else if (m.type === 'export') { await this.export(m); }
+      else if (m.type === 'export') { await runExport(m, { client: this.client, store: this.store, post: (x) => this.post(x), logErr, ctxMsg: this.ctxMsg }); }
       else if (m.type === 'draft') {
         const prev = this.store.draft.all;
         this.store.setDraft({ ...this.store.draft, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
@@ -138,6 +146,8 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'cancel') { this.client.cancel(); }
       else if (m.type === 'sessions') { await this.sessions(m); }
       else if (m.type === 'histAdd') { this.histAdd(m); }
+      else if (m.type === 'archOpen') { this.store.setArchOpen(!!m.open); }
+      else if (m.type === 'importArchived') { await this.actions?.importArchived(); }
       else { await this.onChatMessage(m); }
     } catch (e) { logErr('message ' + String(m?.type), e); }
   }
@@ -158,8 +168,8 @@ class Provider implements vscode.WebviewViewProvider {
   /** Chats in scope as rows for the empty query and the no-match list; the reply carries the search number so stale ones are dropped. */
   private async sessions(m: any): Promise<void> {
     try {
-      const r = await this.client.request({ t: 'sessions', o: opts(m), sort: sortOf(m), folders: folderPaths(), pins: Object.keys(this.store.pins) }, true);
-      this.post({ type: 'sessions', sn: m.sn, rows: r?.rows ?? [], total: r?.total ?? 0 });
+      const r = await this.client.request({ t: 'sessions', o: opts(m), sort: sortOf(m), folders: folderPaths(), pins: Object.keys(this.store.pins), archived: [...this.store.archived], dots: this.dotNames }, true);
+      this.post({ type: 'sessions', sn: m.sn, rows: r?.rows ?? [], total: r?.total ?? 0, arch: r?.arch ?? [], archTotal: r?.archTotal ?? 0 });
     } catch (e) { logErr('sessions', e); }
   }
 
@@ -170,7 +180,8 @@ class Provider implements vscode.WebviewViewProvider {
   private async onChatMessage(m: any): Promise<void> {
     const id = m.id;
     if (!isSessionId(id)) { log(`Ignored ${String(m.type)} with invalid id`); return; }
-    if (m.type === 'open') { await openChat(id, log); }
+    if (m.type === 'open') { await this.resume(id); }
+    else if (m.type === 'archive') { await this.actions?.setArchived(id, !!m.on); }
     else if (m.type === 'expand') { await this.expand(id, m); }
     else if (m.type === 'pin') { await this.store.togglePin(id); await this.postMeta(); }
     else if (m.type === 'tagAdd') { await this.store.addTag(id, String(m.tag ?? '')); await this.postMeta(); }
@@ -225,30 +236,6 @@ class Provider implements vscode.WebviewViewProvider {
       (why) => { if (why === 'timeout') { this.post({ type: 'error', sn, message: TIMEOUT_MSG }); } });
   }
 
-  /** Export every matching line (not just the shown rows): a worker job with the search timeout; copy or save the text. */
-  private async export(m: any): Promise<void> {
-    const query = String(m.query ?? '').trim(), o = opts(m);
-    const x = { context: !!m.context, unique: !!m.unique, statuses: Array.isArray(m.statuses) ? STATUS_KEYS.filter((k) => m.statuses.includes(k)) : [...STATUS_KEYS] };
-    this.store.setExportPrefs(x);
-    const hint = gitHint(parseQuery(query).tokens);
-    if (hint) { this.post({ type: 'short', message: hint }); return; }
-    try { if (isEmpty(compile(query, o)) || queryChars(query, o) < MIN_QUERY_CHARS) { throw new Error('Nothing to export'); } }
-    catch (e) { void vscode.window.showErrorMessage('Export failed: ' + (e as Error).message); return; }
-    const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
-    const fail = (e: unknown) => {
-      const msg = (e as Error).message;
-      logErr('export', e);
-      void vscode.window.showErrorMessage(msg.startsWith('Export') ? msg : 'Export failed: ' + msg);
-    };
-    this.client.search({ query, o, folders, x, ...this.ctxMsg }, (w) => {
-      if (w.t === 'done') { deliver(w as unknown as ExportOut, m.mode === 'save' ? 'save' : 'copy').catch(fail); }
-      else if (w.t === 'error') { fail(new Error(w.message)); }
-    }, (why) => {
-      // 'error' ends already delivered one error message ('Search worker restarted' or the export's own) to the callback above
-      if (why === 'cancel') { void vscode.window.showInformationMessage('Export canceled'); }
-    }, 'export');
-  }
-
   /** Forward worker batches as they come (stamped with the search number); the final message saves state. */
   private onSearchMsg(w: any, base: Base, sn: number): void {
     if (w.t === 'batch') { this.post({ type: 'batch', sn, results: w.results, done: w.done, total: w.total }); }
@@ -273,8 +260,14 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const status = new IndexStatus();
   store = new Store(ctx, (e) => logErr('save state', e));
   const provider = new Provider(store, client, status);
-  const tree = new GitTree(client, () => ({ all: store!.draft.all, folders: folderPaths() }), logErr);
+  const live = { dots: () => provider.watcher?.dots ?? {}, archived: () => store!.archived };
+  const tree = new GitTree(client, () => ({ all: store!.draft.all, folders: folderPaths() }), logErr, live);
   provider.onIndex = provider.onScope = () => tree.refresh();
+  const changed = () => { void provider.postMeta(); tree.redraw(); };
+  provider.actions = new ArchiveActions(store, ctx.globalStorageUri.fsPath, { changed, rebuild: () => provider.watcher?.rebuild() });
+  provider.watcher = new LiveWatcher({ dir: sessionsDir(), unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
+    onChange: () => { provider.postDots(); tree.redraw(); } });
+  ctx.subscriptions.push({ dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));
   ctx.subscriptions.push(channel, status, tree, vscode.workspace.onDidChangeWorkspaceFolders(() => provider.onScope?.()),
     vscode.commands.registerCommand('claudeChatSearch.clearHistory', () => {
       provider.clearHistory();
@@ -282,11 +275,12 @@ export function activate(ctx: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand(RETRY_CMD, () => tree.refresh(true)),
     vscode.window.registerTreeDataProvider(GIT_VIEW, tree),
-    vscode.commands.registerCommand(OPEN_CMD, (id: unknown) => (isSessionId(id) ? openChat(id, log) : undefined)),
+    vscode.commands.registerCommand(OPEN_CMD, (id: unknown) => (isSessionId(id) ? provider.resume(id) : undefined)),
     vscode.window.registerWebviewViewProvider('claudeChatSearch.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
-  registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), open: (id) => openChat(id, log),
+  registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), open: (id) => provider.resume(id), dots: () => provider.dotNames,
     showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { const was = provider.onIndex; provider.onIndex = () => { was?.(); fn(); }; } });
+  provider.watcher.start();
   client.start(); // indexing runs in the worker; activation never waits for it
 }
 

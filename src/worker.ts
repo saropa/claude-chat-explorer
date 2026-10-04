@@ -19,7 +19,7 @@ const live = new Map<number, Abort>();
 
 const post = (m: unknown): void => port.postMessage(m);
 const log = (where: string, e: unknown): void => post({ t: 'log', msg: `${where}: ${e instanceof Error ? e.stack ?? e.message : String(e)}` });
-const ctxOf = (m: any): Ctx => ({ pins: new Set<string>(m.pins ?? []), tags: m.tags ?? {} });
+const ctxOf = (m: any): Ctx => ({ pins: new Set<string>(m.pins ?? []), tags: m.tags ?? {}, dots: m.dots ?? {}, archived: m.archived ? new Set<string>(m.archived) : undefined });
 
 /** Run one index pass, reporting progress, then announce completion. */
 async function refresh(): Promise<void> {
@@ -109,8 +109,8 @@ function pinned(ids: string[], subs: boolean): Result[] {
 /** Chats in scope as rows (index metadata only), for the empty query and the no-match list. */
 async function sessions(m: any): Promise<unknown> {
   await loaded;
-  if (!ix) { return { rows: [], total: 0 }; }
-  return sessionRows(ix, m.o, Array.isArray(m.folders) ? m.folders : [], String(m.sort ?? 'time'), new Set<string>(m.pins ?? []));
+  if (!ix) { return { rows: [], total: 0, arch: [], archTotal: 0 }; }
+  return sessionRows(ix, m.o, Array.isArray(m.folders) ? m.folders : [], String(m.sort ?? 'time'), new Set<string>(m.pins ?? []), new Set<string>(m.archived ?? []));
 }
 
 /** Yield to the event loop; while a search or export runs, wait for it to end first. */
@@ -129,7 +129,7 @@ async function fileSessions(m: any): Promise<FileSessionsReply> {
   await loaded;
   if (!ix || ix.building) { return { indexing: true, total: 0, edited: 0, items: [] }; }
   const roots = Array.isArray(m.roots) ? m.roots.filter((r: unknown) => typeof r === 'string') : [];
-  return fileSessionsOf(ix, String(m.file ?? ''), roots, new Set<string>(m.pins ?? []));
+  return fileSessionsOf(ix, String(m.file ?? ''), roots, new Set<string>(m.pins ?? []), Date.now(), m.dots ?? {});
 }
 
 async function request(m: any): Promise<unknown> {

@@ -15,6 +15,7 @@ export interface FileSessionsHost {
   showQuery: (query: string) => Promise<void>;
   log: (where: string, e: unknown) => void;
   pins: () => string[];
+  dots: () => { [id: string]: string };
   onIndex: (fn: () => void) => void;
 }
 
@@ -53,7 +54,7 @@ async function find(host: FileSessionsHost, arg: unknown, edited: boolean): Prom
 /** Register the commands and the status bar item. */
 export function registerFileSessions(ctx: vscode.ExtensionContext, host: FileSessionsHost): void {
   const roots = (): string[] => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
-  const svc = new FileSessionsService(host.client, roots, host.pins);
+  const svc = new FileSessionsService(host.client, roots, host.pins, host.dots);
   const bar = new FileSessionsBar(svc, host.log);
   host.onIndex(() => { svc.invalidate(); bar.schedule(); });
   ctx.subscriptions.push(bar,

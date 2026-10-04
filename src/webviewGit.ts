@@ -14,7 +14,7 @@ export const GIT_CSS = String.raw`
 export const GIT_JS = String.raw`
 const GIT_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="4" cy="3.5" r="1.6"/><circle cx="4" cy="12.5" r="1.6"/><circle cx="12" cy="6" r="1.6"/><path d="M4 5.1v5.8M12 7.6c0 2.4-3.4 2.4-8 4"/></svg>';
 let gitFocus='';
-function pillHtml(r){const ss=statusesOf(r,pins.has(r.id),Date.now()),k=pillOf(ss);if(!k)return '';
+function pillHtml(r){const ss=statusesOf(r,pins.has(r.id),Date.now(),(dots[r.id]||{}).s),k=pillOf(ss);if(!k)return '';
 return '<span class="stp '+k+'" role="img" aria-label="'+esc('Status: '+STATUS_LABELS[k])+'" title="'+esc('Status: '+ss.map(x=>STATUS_LABELS[x]).join(', '))+'">'+STATUS_LABELS[k]+'</span>';}
 function gitIcon(r){const n=(r.prs||0)+(r.commits||0);if(!n)return '';
 const t=(r.prs?r.prs+(r.prs===1?' PR':' PRs'):'')+(r.prs&&r.commits?', ':'')+(r.commits?r.commits+(r.commits===1?' commit':' commits'):'');

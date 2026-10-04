@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
+import { isSessionId } from './sessionId';
 
-/** Session ids are file basenames (UUIDs); anything else is rejected before it reaches a command or URI. */
-export const isSessionId = (id: unknown): id is string => typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id);
+export { isSessionId };
 
 /** Resume a chat in the Claude Code panel; falls back to its URI handler, which offers install when absent. */
 export async function openChat(id: string, log: (msg: string) => void): Promise<void> {

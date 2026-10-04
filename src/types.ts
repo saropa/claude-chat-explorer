@@ -59,7 +59,8 @@ export interface Result {
 export interface Related { id: string; title: string; shared: number; last: number; score: number; }
 
 /** Pins and tags, read at search time. */
-export interface Ctx { pins: Set<string>; tags: { [id: string]: string[] }; }
+/** dots: dot state name of chats that are not idle (Active status). archived: ids export leaves out. */
+export interface Ctx { pins: Set<string>; tags: { [id: string]: string[] }; dots?: { [id: string]: string }; archived?: Set<string>; }
 
 export interface ExpandItem { role: string; ts: number; snippet: string; ranges: Array<[number, number]>; sub?: string; }
 export interface Expanded {

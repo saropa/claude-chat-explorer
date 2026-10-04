@@ -11,6 +11,10 @@ const PIN_KEY = 'saropaChatSearch.pins';
 const STATUS_KEY = 'saropaChatSearch.statuses';
 const TAG_KEY = 'saropaChatSearch.tags';
 const EXPORT_KEY = 'saropaChatSearch.export';
+const ARCH_KEY = 'saropaChatSearch.archived';
+const UNREAD_KEY = 'saropaChatSearch.unread';
+const ARCH_OPEN_KEY = 'saropaChatSearch.archOpen';
+const UNREAD_MAX = 500;
 
 export type { HistItem };
 export interface Draft extends HistItem { sort: string; }
@@ -81,6 +85,34 @@ export class Store {
   get pins(): { [id: string]: number } { return this.ctx.globalState.get(PIN_KEY) ?? {}; }
   get tags(): { [id: string]: string[] } { return this.ctx.globalState.get(TAG_KEY) ?? {}; }
   get allTags(): string[] { return [...new Set(Object.values(this.tags).flat())].sort(); }
+
+  /** Archived chat ids (global, like Claude's own list). */
+  get archived(): Set<string> { return new Set(this.ctx.globalState.get<string[]>(ARCH_KEY) ?? []); }
+  async setArchived(id: string, on: boolean): Promise<void> {
+    const a = this.archived;
+    if (on) { a.add(id); } else { a.delete(id); }
+    await this.ctx.globalState.update(ARCH_KEY, [...a]);
+  }
+  /** Merge ids into the archived set; added counts new ones. */
+  async addArchived(ids: string[]): Promise<{ added: number; already: number }> {
+    const a = this.archived, before = a.size;
+    ids.forEach((id) => a.add(id));
+    await this.ctx.globalState.update(ARCH_KEY, [...a]);
+    return { added: a.size - before, already: ids.length - (a.size - before) };
+  }
+
+  /** Chats that finished while the owner was away (our approximation), newest last. */
+  get unread(): Set<string> { return new Set(this.ctx.globalState.get<string[]>(UNREAD_KEY) ?? []); }
+  setUnread(s: Set<string>): void { void this.ctx.globalState.update(UNREAD_KEY, [...s].slice(-UNREAD_MAX)); }
+  async clearUnread(id: string): Promise<void> {
+    const u = this.unread;
+    u.delete(id);
+    await this.ctx.globalState.update(UNREAD_KEY, [...u]);
+  }
+
+  /** Whether the Archived section is expanded in this workspace. */
+  get archOpen(): boolean { return this.read<boolean>(ARCH_OPEN_KEY) === true; }
+  setArchOpen(open: boolean): void { this.w.put(ARCH_OPEN_KEY, !!open); }
 
   async togglePin(id: string): Promise<void> {
     const p = { ...this.pins };

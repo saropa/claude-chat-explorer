@@ -27,17 +27,17 @@ export const STATUS_CSS = String.raw`
 const STATUS_JS = String.raw`
 const sfb=$('sfb'),sfm=$('sfm'),sfp=$('sfp');
 let stOn=new Set(STATUS_KEYS);
-sfm.innerHTML=STATUS_KEYS.map(k=>'<label class="sfi"><input type="checkbox" data-k="'+k+'"><span class="sfn">'+STATUS_LABELS[k]+'</span><span class="pill" data-n="'+k+'">0</span></label>').join('')+'<div class="sfr"><button type="button" class="lnk" id="sfx">Reset</button></div>';
+sfm.innerHTML=STATUS_KEYS.map(k=>'<label class="sfi"'+(k==='active'?' title="Running, waiting for you or unread"':'')+'><input type="checkbox" data-k="'+k+'"><span class="sfn">'+STATUS_LABELS[k]+'</span><span class="pill" data-n="'+k+'">0</span></label>').join('')+'<div class="sfr"><button type="button" class="lnk" id="sfx">Reset</button></div>';
 function stCounts(rs){const c={},now=Date.now();STATUS_KEYS.forEach(k=>{c[k]=0;});
-rs.forEach(r=>statusesOf(r,pins.has(r.id),now).forEach(k=>{c[k]++;}));return c;}
+rs.forEach(r=>statusesOf(r,pins.has(r.id),now,(dots[r.id]||{}).s).forEach(k=>{c[k]++;}));return c;}
 function stKeep(rs){if(stOn.size===STATUS_KEYS.length)return rs;const now=Date.now();
-return rs.filter(r=>statusesOf(r,pins.has(r.id),now).some(k=>stOn.has(k)));}
+return rs.filter(r=>statusesOf(r,pins.has(r.id),now,(dots[r.id]||{}).s).some(k=>stOn.has(k)));}
 function stUi(c){sfm.querySelectorAll('input').forEach(i=>{i.checked=stOn.has(i.dataset.k);});
 sfm.querySelectorAll('[data-n]').forEach(n=>{n.textContent=c[n.dataset.n];});
 const off=STATUS_KEYS.length-stOn.size;sfp.textContent=off;sfp.hidden=!off;sfb.classList.toggle('act',off>0);}
 function stNote(n,has){return n>0?(has?' · ':'')+n+' hidden by status filter <button type="button" class="lnk sfr">Reset</button>':'';}
 function stClose(){sfm.hidden=true;sfb.setAttribute('aria-expanded','false');}
-function stSync(){sfb.setAttribute('aria-disabled','false');sfb.title='Filter by status';sfb.classList.remove('dim');}
+function stSync(){sfb.setAttribute('aria-disabled','false');sfb.title='Filter by status. Active means running, waiting for you or unread.';sfb.classList.remove('dim');}
 function stSave(){vs.postMessage({type:'status',checked:Array.from(stOn)});}
 function stReset(){stOn=new Set(STATUS_KEYS);stSave();rerender();}
 function stLoad(a){if(Array.isArray(a))stOn=new Set(a.filter(k=>STATUS_KEYS.includes(k)));stSync();}

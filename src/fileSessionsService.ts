@@ -8,7 +8,8 @@ export class FileSessionsService {
   private cache = new Map<string, { at: number; reply: FileSessionsReply }>();
   private epoch = 0;
 
-  constructor(private readonly client: Requester, private readonly roots: () => string[], private readonly pins: () => string[]) {}
+  constructor(private readonly client: Requester, private readonly roots: () => string[], private readonly pins: () => string[],
+    private readonly dots: () => { [id: string]: string } = () => ({})) {}
 
   /** The index changed: drop every cached answer (and ignore answers still in flight). */
   invalidate(): void { this.epoch++; this.cache.clear(); }
@@ -18,7 +19,7 @@ export class FileSessionsService {
     const key = normPath(file), hit = this.cache.get(key);
     if (hit && now - hit.at < CACHE_MS) { return hit.reply; }
     const epoch = this.epoch;
-    const reply: FileSessionsReply = await this.client.request({ t: 'fileSessions', file, roots: this.roots(), pins: this.pins() }, true);
+    const reply: FileSessionsReply = await this.client.request({ t: 'fileSessions', file, roots: this.roots(), pins: this.pins(), dots: this.dots() }, true);
     if (!reply.indexing && epoch === this.epoch) { this.cache.set(key, { at: Date.now(), reply }); }
     return reply;
   }

@@ -2,7 +2,7 @@
   "name": "claude-chat-search",
   "displayName": "Saropa Chat Search",
   "description": "Search Claude Code chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -86,6 +86,22 @@
       {
         "command": "claudeChatSearch.clearHistory",
         "title": "Saropa Chat Search: Clear Search History"
+      },
+      {
+        "command": "saropaChatSearch.importArchived",
+        "title": "Saropa Chat Search: Import Archived Chats from Claude Code"
+      },
+      {
+        "command": "saropaChatSearch.archive",
+        "title": "Archive Chat"
+      },
+      {
+        "command": "saropaChatSearch.unarchive",
+        "title": "Unarchive Chat"
+      },
+      {
+        "command": "saropaChatSearch.markRead",
+        "title": "Mark as Read"
       }
     ],
     "menus": {
@@ -145,6 +161,37 @@
           "command": "claudeChatSearch.clearHistory",
           "when": "view == claudeChatSearch.view"
         }
+      ],
+      "webview/context": [
+        {
+          "command": "saropaChatSearch.archive",
+          "when": "webviewId == 'claudeChatSearch.view' && webviewSection == 'chat' && !ccsArchived",
+          "group": "saropaChatSearch@1"
+        },
+        {
+          "command": "saropaChatSearch.unarchive",
+          "when": "webviewId == 'claudeChatSearch.view' && webviewSection == 'chat' && ccsArchived",
+          "group": "saropaChatSearch@1"
+        },
+        {
+          "command": "saropaChatSearch.markRead",
+          "when": "webviewId == 'claudeChatSearch.view' && webviewSection == 'chat' && ccsUnread",
+          "group": "saropaChatSearch@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "saropaChatSearch.archive",
+          "when": "false"
+        },
+        {
+          "command": "saropaChatSearch.unarchive",
+          "when": "false"
+        },
+        {
+          "command": "saropaChatSearch.markRead",
+          "when": "false"
+        }
       ]
     },
     "configuration": {
@@ -156,7 +203,49 @@
           "description": "Show a status bar count of the Claude chats that touched the active file."
         }
       }
-    }
+    },
+    "colors": [
+      {
+        "id": "saropaChatSearch.dotRunning",
+        "description": "Chat dot: Claude is running.",
+        "defaults": {
+          "dark": "#89d185",
+          "light": "#89d185",
+          "highContrast": "#89d185",
+          "highContrastLight": "#89d185"
+        }
+      },
+      {
+        "id": "saropaChatSearch.dotWaiting",
+        "description": "Chat dot: Claude is waiting for you.",
+        "defaults": {
+          "dark": "#3b82f6",
+          "light": "#3b82f6",
+          "highContrast": "#3b82f6",
+          "highContrastLight": "#3b82f6"
+        }
+      },
+      {
+        "id": "saropaChatSearch.dotUnread",
+        "description": "Chat dot: finished while you were away.",
+        "defaults": {
+          "dark": "#d97757",
+          "light": "#d97757",
+          "highContrast": "#d97757",
+          "highContrastLight": "#d97757"
+        }
+      },
+      {
+        "id": "saropaChatSearch.dotIdle",
+        "description": "Chat dot: idle.",
+        "defaults": {
+          "dark": "#9d9d9d66",
+          "light": "#61616166",
+          "highContrast": "#9d9d9d66",
+          "highContrastLight": "#61616166"
+        }
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p .",

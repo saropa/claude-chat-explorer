@@ -20,11 +20,12 @@ export function shortAgo(ms: number, now: number): string {
   return Math.floor(d / 365) + 'y';
 }
 
-/** Status dot: g = active within 5 minutes, o = within 1 hour, n = older. */
-export function dotOf(ms: number, now: number): string {
-  const age = now - ms;
-  if (age <= 300000) { return 'g'; }
-  return age <= 3600000 ? 'o' : 'n';
+/** Words for a dot: Running, Waiting for you, Unread (approximate), Open elsewhere or Idle. */
+export function dotText(d: { s: string; ring: boolean }): string {
+  if (d.s === 'running') { return 'Running'; }
+  if (d.s === 'waiting') { return 'Waiting for you'; }
+  if (d.s === 'unread') { return (d.ring ? 'Unread, open elsewhere' : 'Unread') + ': finished while you were away (approximate)'; }
+  return d.ring ? 'Open elsewhere' : 'Idle';
 }
 
 /** Day group of a last-active time: Today, Yesterday, This week, Last week or Earlier. */
@@ -82,5 +83,5 @@ export function statsText(r: { msgs: number; first: number; last: number; edited
 }
 
 /** Source of the helpers above, for the webview script. */
-export const SHARED_SRC = [shortAgo, dotOf, dayBucket, durText, sizeText, costText, statsText]
+export const SHARED_SRC = [shortAgo, dotText, dayBucket, durText, sizeText, costText, statsText]
   .map((f) => f.toString()).join('\n') + '\nconst DAY_ORDER=' + JSON.stringify(DAY_ORDER) + ';\n';

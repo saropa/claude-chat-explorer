@@ -50,10 +50,12 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .r:focus-visible>.rh,.rr:focus-visible{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}
 .hd,.rr{display:flex;align-items:center;gap:6px;min-height:28px;padding:0 8px 0 10px;cursor:pointer;box-sizing:border-box}
 .rr{min-height:24px;padding-left:2px;font-size:0.95em}
-.dot{width:8px;height:8px;border-radius:50%;flex:none}
-.dot.g{background:var(--vscode-charts-green,#89d185)}
-.dot.o{background:var(--vscode-charts-orange,#d18616)}
-.dot.n{background:var(--vscode-disabledForeground,#6b6b6b)}
+.dot{--dc:var(--vscode-descriptionForeground,#9d9d9d);width:8px;height:8px;border-radius:50%;flex:none;box-sizing:border-box;background:var(--dc)}
+.dot.idle{opacity:.4}
+.dot.running{--dc:#89d185}
+.dot.waiting{--dc:#3b82f6}
+.dot.unread{--dc:#d97757}
+.dot.ring{background:transparent;border:2px solid var(--dc)}
 .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pj{flex:none;max-width:25%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85em;color:var(--vscode-descriptionForeground)}
 .tm{flex:none;min-width:28px;text-align:right;font-size:0.92em;color:var(--vscode-descriptionForeground)}

@@ -5,6 +5,7 @@ import { LAYOUT_CSS } from './webviewLayout';
 import { GIT_CSS } from './webviewGit';
 import { SCRIPT } from './webviewJs';
 import { STATUS_CSS, STATUS_HTML } from './webviewStatus';
+import { ARCH_CSS } from './webviewArchive';
 
 export const NAME = 'Saropa Chat Search';
 
@@ -13,7 +14,7 @@ export function html(): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${NAME}</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${EXPORT_CSS}${LAYOUT_CSS}</style></head><body>
+<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${EXPORT_CSS}${LAYOUT_CSS}${ARCH_CSS}</style></head><body>
 <div id="hdr"><div class="top">
 <div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div>
 <div class="box">
@@ -37,6 +38,6 @@ ${STATUS_HTML}${EXPORT_HTML}
 <div id="bar"><i></i></div>
 <datalist id="tl"></datalist>
 </div></div>
-<div id="res"><div id="status" role="status" aria-live="polite"></div><div id="pin"></div><div id="list"></div></div>
+<div id="res"><div id="status" role="status" aria-live="polite"></div><div id="pin"></div><div id="list"></div><div id="arch"></div></div>
 <script nonce="${nonce}">${SCRIPT}</script></body></html>`;
 }

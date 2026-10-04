@@ -112,7 +112,7 @@ function emitFound(sc: Scan, f: Found, L: Lines): boolean {
 function statusOk(statuses: string[], f: Found, ctx: Ctx, now: number): boolean {
   if (statuses.length >= STATUS_KEYS.length) { return true; }
   const want = new Set(statuses), p = f.p;
-  return statusesOf({ msgs: p.count, last: p.last, size: p.size }, ctx.pins.has(p.id), now).some((k) => want.has(k));
+  return statusesOf({ msgs: p.count, last: p.last, size: p.size }, ctx.pins.has(p.id), now, ctx.dots?.[p.id]).some((k) => want.has(k));
 }
 
 /** Matches of the whole search with no result cap, in display order (pinned, then score). */
@@ -121,6 +121,7 @@ async function collect(sc: Scan, folders: string[], x: ExportOpts, sig: Abort, t
   const pace = pacer();
   const rows: Array<{ f: Found; r: Result }> = [];
   for (let i = 0; i < todo.length && !sig.aborted; i++) {
+    if (sc.ctx.archived?.has(todo[i].id)) { continue; } // archived chats are not exported
     const f = findIn(sc, todo[i]);
     if (f && statusOk(x.statuses, f, sc.ctx, sc.now)) { rows.push({ f, r: toResult(sc, f, 0) }); }
     tick(i + 1, todo.length);

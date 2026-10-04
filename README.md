@@ -21,7 +21,7 @@ Saropa Chat Search lets you search your Claude Code chat history from the VS Cod
 | Last N messages | `last:<n>` or the Messages dropdown (10, 25, 50, 100) searches only the final N messages of each chat. |
 | When filter | Any time, last 1, 2, 4 or 8 hours, or today. |
 | Sort | Score, time (grouped by day), title, length or cost. Pinned chats list first. |
-| Status filter | Include or exclude Normal, Active, Empty, Tiny, Huge, Abandoned and Pinned chats. |
+| Status filter | Include or exclude Normal, Active, Empty, Tiny, Huge, Abandoned and Pinned chats. Active means running, waiting for you or unread, as Claude Code defines it. |
 | Subagent search | The Subagents checkbox is on by default. Matches nest under the parent chat with a Subagent pill. |
 | Ranking | Title matches rank first. Recent matches score higher. |
 | Instant results | A background index keeps results fast. Results show while indexing is still running. |
@@ -33,7 +33,8 @@ Saropa Chat Search lets you search your Claude Code chat history from the VS Cod
 | Git section | The expanded row lists the chat's PRs and commits. Click one to search for it. |
 | Git Activity tree | A second activity-bar icon lists repositories, PRs, branches and commits for the same scope. Click to resume. |
 | Cost info | Dollars, lines added and removed, and models used, such as `$1.23 · +120/-30 lines · opus, sonnet`. |
-| Status dot and pill | A dot shows recent activity. A pill shows Active, Huge, Empty, Tiny or Abandoned. |
+| Status dot and pill | A dot shows Claude Code's own chat state (see Status dot). A pill shows Active, Huge, Empty, Tiny or Abandoned. |
+| Archive | Archive chats to move them into a collapsed Archived section. Import Claude Code's archived list once. See Archived chats. |
 | Day groups | Time-sorted results are grouped by day. |
 | Related chats | The expanded row lists up to 5 other chats that touched the same files. |
 | Export | Copy or save one line per matching line, with or without context. |
@@ -45,7 +46,7 @@ Saropa Chat Search lets you search your Claude Code chat history from the VS Cod
 Command line:
 
 ```
-code --install-extension claude-chat-search-0.8.1.vsix
+code --install-extension claude-chat-search-0.9.0.vsix
 ```
 
 Extensions panel:
@@ -82,6 +83,34 @@ Extensions panel:
 - Tokens ignore case. A search needs at least 2 characters.
 - Quote values that contain spaces.
 
+## Status dot
+
+An 8 px dot sits left of each chat title. It uses the same states and colors as Claude Code.
+
+| Dot | Meaning |
+|---|---|
+| Green | Running: Claude is working in that chat. |
+| Blue | Waiting for you: Claude needs a permission or an answer. |
+| Orange | Unread: the chat finished while you were away. This is approximate. |
+| Grey, faded | Idle. |
+| Hollow ring | The chat has a live Claude Code process (a terminal, tab or window) but is not running or waiting. The ring takes the color of its state. |
+
+- Running and waiting chats keep a solid dot.
+- Live state comes from Claude Code's session files, checked every 30 seconds and when the panel becomes visible. Without those files every chat shows idle.
+- Unread is our guess: a chat you saw running or waiting that then went idle or closed. Resuming the chat from the panel or the Git Activity tree clears it. So does "Mark as Read" in the row's right-click menu.
+- Hover a dot for its name. The Git Activity tree uses the same dots.
+- The Active status (pill and filter) means running, waiting for you or unread.
+
+## Archived chats
+
+- The archive icon on a row (or "Archive Chat" in its right-click menu) moves the chat out of results, All sessions, Pinned and the Git Activity tree. A pinned chat stays pinned.
+- The Archived section sits at the bottom of the results. It starts collapsed with a count. Its rows are built only when you expand it. With a query, the count is the number of archived matches.
+- The archive icon on an archived row (or "Unarchive Chat") moves it back.
+- The archive list is shared by all your workspaces. The expanded state is remembered per workspace.
+- Export leaves out archived chats.
+- To bring in the chats you archived in Claude Code, run "Saropa Chat Search: Import Archived Chats from Claude Code" from the Command Palette, or press Import in the Archived header. It runs only when you ask, reads the list once and shows how many chats it added.
+- Import needs the `sqlite3` command-line tool on your PATH. If it is missing, or Claude Code has stored no list, you get a message and nothing changes.
+
 ## Keyboard shortcuts
 
 These work with the cursor in the search box.
@@ -100,9 +129,11 @@ These work with the cursor in the search box.
 ## Privacy
 
 - Reads chat files from `~/.claude/projects` on your machine.
+- Reads Claude Code's live session files in `~/.claude/sessions` (process id, session id and status) to color the dots. It never writes there.
+- Import Archived Chats reads Claude Code's archived-chat list from its VS Code storage, only when you press Import. It works read-only on a temporary copy, using the local `sqlite3` tool, and deletes the copy afterwards.
 - Writes a search cache to the extension's global storage folder in VS Code. Message text is stored there in record files, up to 20,000 characters per message (8,000 for subagents). File paths and the first 300 characters of each command are stored too. Tool results are skipped.
-- Pins, tags, history and options are saved by VS Code in its own storage.
-- The source contains no network, HTTP or telemetry calls. Nothing leaves your machine.
+- Pins, tags, archived chats, unread marks, history and options are saved by VS Code in its own storage.
+- The source contains no network, HTTP or telemetry calls. Nothing leaves your machine. The only program it starts is `sqlite3`, during Import.
 - Resuming a chat hands the session id to the Claude Code extension through a VS Code command, or a VS Code link if the command fails. Export writes only where you choose.
 - Errors go to the "Saropa Chat Search" output channel.
 

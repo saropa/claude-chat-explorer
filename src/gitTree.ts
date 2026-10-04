@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { WorkerClient } from './client';
-import { dotOf, shortAgo } from './group';
+import { dotText, shortAgo } from './group';
+import { withoutArchived } from './gitFilter';
+import { DotMap } from './liveState';
 import { BranchNode, ChatRef, CommitNode, GitSummary, PrNode, RepoNode } from './gitSummary';
 
 export const GIT_VIEW = 'claudeChatSearch.git';
@@ -8,7 +10,7 @@ export const OPEN_CMD = 'claudeChatSearch.openChat';
 const REFRESH_MS = 1000;
 const MAX_WAIT_MS = 5000;
 export const RETRY_CMD = 'claudeChatSearch.gitRetry';
-const DOT_COLORS: { [k: string]: string } = { g: 'charts.green', o: 'charts.orange', n: 'disabledForeground' };
+const DOT_COLORS: { [k: string]: string } = { running: 'saropaChatSearch.dotRunning', waiting: 'saropaChatSearch.dotWaiting', unread: 'saropaChatSearch.dotUnread', idle: 'saropaChatSearch.dotIdle' };
 
 type Node =
   | { k: 'repo'; repo: RepoNode } | { k: 'pr'; pr: PrNode; repo: string } | { k: 'branches'; list: BranchNode[] }
@@ -17,13 +19,14 @@ type Node =
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
-/** Chat leaf: title, short age, a status dot; a click resumes the chat like a search result. */
-function chatItem(ref: ChatRef): vscode.TreeItem {
+/** Chat leaf: title, short age, Claude's state dot (a ring when open elsewhere); a click resumes the chat like a search result. */
+function chatItem(ref: ChatRef, dots: DotMap): vscode.TreeItem {
+  const d = dots[ref.id] ?? { s: 'idle', ring: false };
   const it = new vscode.TreeItem(ref.title, vscode.TreeItemCollapsibleState.None);
   it.description = shortAgo(ref.last, Date.now());
-  it.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor(DOT_COLORS[dotOf(ref.last, Date.now())]));
+  it.iconPath = new vscode.ThemeIcon(d.ring ? 'circle-large-outline' : 'circle-filled', new vscode.ThemeColor(DOT_COLORS[d.s]));
   it.command = { command: OPEN_CMD, title: 'Resume chat', arguments: [ref.id] };
-  it.tooltip = new Date(ref.last).toLocaleString();
+  it.tooltip = dotText(d) + '\n' + new Date(ref.last).toLocaleString();
   return it;
 }
 
@@ -55,16 +58,16 @@ export function idOf(n: Node): string {
   }
 }
 
-function itemOf(n: Node): vscode.TreeItem {
+function itemOf(n: Node, dots: DotMap): vscode.TreeItem {
   const C = vscode.TreeItemCollapsibleState;
-  const it = baseItem(n, C);
+  const it = baseItem(n, C, dots);
   it.id = idOf(n);
   return it;
 }
 
-function baseItem(n: Node, C: typeof vscode.TreeItemCollapsibleState): vscode.TreeItem {
+function baseItem(n: Node, C: typeof vscode.TreeItemCollapsibleState, dots: DotMap): vscode.TreeItem {
   switch (n.k) {
-    case 'chat': return chatItem(n.ref);
+    case 'chat': return chatItem(n.ref, dots);
     case 'commit': return commitItem(n.c);
     case 'more': return new vscode.TreeItem(`... ${n.n} more`, C.None);
     case 'repo': return item(n.repo.name, C.Expanded, 'repo', plural(n.repo.prs.length, 'PR', 'PRs'));
@@ -97,6 +100,9 @@ export function childrenOf(s: GitSummary, n?: Node): Node[] {
   return [];
 }
 
+/** What the tree reads from the extension: dots and the archived set. */
+export interface LiveView { dots: () => DotMap; archived: () => Set<string>; }
+
 /** Git Activity tree: refreshed (debounced) when the index or the search scope changes; data loads only while the view is shown. */
 export class GitTree implements vscode.TreeDataProvider<Node> {
   private readonly changed = new vscode.EventEmitter<Node | undefined>();
@@ -106,7 +112,10 @@ export class GitTree implements vscode.TreeDataProvider<Node> {
   private first?: number; // when the pending refresh burst began
 
   constructor(private readonly client: WorkerClient, private readonly scope: () => { all: boolean; folders: string[] },
-    private readonly log: (where: string, e: unknown) => void) {}
+    private readonly log: (where: string, e: unknown) => void, private readonly live: LiveView) {}
+
+  /** Redraw from the loaded data (dots or the archived set changed); no reload. */
+  redraw(): void { this.changed.fire(undefined); }
 
   /** Reload after a 1 second pause in changes, or 5 seconds after the first change of a burst; now skips the wait. */
   refresh(now = false): void {
@@ -129,10 +138,10 @@ export class GitTree implements vscode.TreeDataProvider<Node> {
     return p;
   }
 
-  getTreeItem(n: Node): vscode.TreeItem { return itemOf(n); }
+  getTreeItem(n: Node): vscode.TreeItem { return itemOf(n, this.live.dots()); }
   async getChildren(n?: Node): Promise<Node[]> {
     const s = await this.load();
-    return s ? childrenOf(s, n) : n ? [] : [{ k: 'error' }];
+    return s ? childrenOf(withoutArchived(s, this.live.archived()), n) : n ? [] : [{ k: 'error' }];
   }
   dispose(): void { clearTimeout(this.timer); this.changed.dispose(); }
 }
