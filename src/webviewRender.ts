@@ -5,13 +5,15 @@ const DOTS={g:'Active within the last 5 minutes',o:'Active within the last hour'
 function reEsc(t){return t.replace(/[.*+?^$\x7b\x7d()|[\]\\]/g,'\\$&');}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function full(ms){return new Date(ms).toLocaleString();}
-function sec(key,label,n,body,cls){const o=!col.has(key);
-return '<div class="'+cls+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'">'+CHEV+'<span>'+esc(label)+'</span><span class="pill">'+n+'</span></div>'+(o?body:'');}
-function ordered(rs){const a=rs.slice();
-if(sort.value==='time')a.sort((x,y)=>y.last-x.last);
-else if(sort.value==='title')a.sort((x,y)=>x.title.toLowerCase().localeCompare(y.title.toLowerCase()));
-else if(sort.value==='length')a.sort((x,y)=>(y.msgs||0)-(x.msgs||0));
-else if(sort.value==='cost')a.sort((x,y)=>(y.cost||0)-(x.cost||0));
+let noteIn='';
+function takeNote(){const n=noteIn;noteIn='';return n?'<span class="sm">'+n+'</span>':'';}
+function sec(key,label,n,body,cls,note){const o=!col.has(key);
+return '<div class="'+cls+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+(note||'')+'<span class="pill">'+n+'</span></div>'+(o?body:'');}
+function ordered(rs,srt){const a=rs.slice(),k=srt||sort.value;
+if(k==='time')a.sort((x,y)=>y.last-x.last);
+else if(k==='title')a.sort((x,y)=>x.title.toLowerCase().localeCompare(y.title.toLowerCase()));
+else if(k==='length')a.sort((x,y)=>(y.msgs||0)-(x.msgs||0));
+else if(k==='cost')a.sort((x,y)=>(y.cost||0)-(x.cost||0));
 else a.sort((x,y)=>y.score-x.score);
 return a.filter(r=>pins.has(r.id)).concat(a.filter(r=>!pins.has(r.id)));}
 function marked(s,rg){let o='',p=0;for(const g of rg){o+=esc(s.slice(p,g[0]))+'<mark>'+esc(s.slice(g[0],g[1]))+'</mark>';p=g[1];}
@@ -48,21 +50,25 @@ return '<div class="r" data-id="'+esc(r.id)+'" tabindex="0" title="'+esc(tip)+'"
 +'<button class="ic pn'+(p?' on':'')+'" data-a="pin" title="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button>'
 +'<span class="tm" title="'+esc(full(r.last))+'">'+shortAgo(r.last,now)+'</span></div>'+metaHtml(r,now)+'<span class="chips">'+chips(r.id)+'</span>'
 +(r.self===false?'<div class="msub">matched in subagent</div>':'')+(r.snippet&&r.self!==false?'<div class="s">'+snip(r)+'</div>':'')+subsHtml(r)+'</div>'+(op?'<div class="ex">'+exHtml(r)+'</div>':'')+'</div>';}
-function resultsHtml(rs){const a=ordered(rs);if(!a.length)return '';
-if(sort.value==='time'){const now=Date.now(),g={};
+function groupsHtml(a,note){const now=Date.now(),g={};
 a.forEach(r=>{const k=dayBucket(r.last,now);(g[k]=g[k]||[]).push(r);});
-return DAY_ORDER.filter(k=>g[k]).map(k=>sec('grp:'+k,k,g[k].length,g[k].map(rowHtml).join(''),'gh')).join('');}
-return sec('sec:res','Results',a.length,a.map(rowHtml).join(''),'sl');}
-function renderHist(){
-if(!idle()||!history.length){hist.innerHTML='';return;}
-hist.innerHTML=sec('sec:hist','Recent searches',history.length,history.map((h,i)=>{
-const f=(h.cs?'Aa ':'')+(h.ww?'ab ':'')+(h.any?'any ':'')+(h.re?'.* ':'')+(h.last?'last '+h.last:'');
-return '<div class="h" data-i="'+i+'" title="'+esc(h.query)+'" role="button" tabindex="0"><span class="q">'+esc(h.query)+'</span><span class="fl">'+esc(f.trim())+'</span><button class="x" data-x="'+i+'" title="Remove" aria-label="Remove">×</button></div>';
-}).join('')+'<div class="cap"><a id="clr" role="button" tabindex="0">Clear history</a></div>','sl');}
+return DAY_ORDER.filter(k=>g[k]).map((k,i)=>sec('grp:'+k,k,g[k].length,g[k].map(rowHtml).join(''),'gh',i?'':note)).join('');}
+function resultsHtml(rs){const a=ordered(rs);if(!a.length)return '';
+if(sort.value==='time')return groupsHtml(a,takeNote());
+return sec('sec:res','Results',a.length,a.map(rowHtml).join(''),'sl',takeNote());}
+function sessHtml(keep){if(!sessOn||!sess)return '';
+const nm=lastMsg==='No matches'?'<div class="nm">No matches for <b>'+esc(lastQ)+'</b></div>':'';
+if(!keep.length)return nm;
+const a=ordered(keep,sort.value==='score'?'time':sort.value);
+return nm+sec('sec:all','All sessions',a.length,sort.value==='time'?groupsHtml(a,''):a.map(rowHtml).join(''),'sl',takeNote());}
+function pinShown(){return sessOn&&!lastQ&&!busy&&pinned.length>0;}
+function sessBase(){return hasResults||!sessOn||!sess?[]:(pinShown()?sess.rows.filter(r=>!pins.has(r.id)):sess.rows);}
 function renderPinned(){
-if(!idle()||q.value.trim()||!pinned.length){pinEl.innerHTML='';return;}
+if(!pinShown()){pinEl.innerHTML='';return;}
 pinEl.innerHTML=sec('sec:pin','Pinned',pinned.length,pinned.map(rowHtml).join(''),'sl');}
-function stText(){const m=lastMsg||'';return ix&&dirty?'Searching what is indexed so far ('+ix.done+' of '+ix.total+' chats)'+(m?' - '+m:''):m;}
+function cnts(d,t,n){return d+' of '+t+' chats, '+n+(n===1?' match':' matches');}
+function noteText(){if(hasResults||busy||(lastMsg&&lastMsg!=='No matches'))return lastMsg||'';
+return sessOn&&sess?sess.rows.length+' of '+sess.total+' chats':'';}
 function nkey(x,seen){const b=x.dataset.sec?'s:'+x.dataset.sec:'r:'+(x.dataset.id||x.className);seen[b]=(seen[b]||0)+1;return b+'#'+seen[b];}
 function topOf(el,x){while(x&&x.parentNode!==el)x=x.parentNode;return x;}
 function refocus(f,fd){let t=f;if(fd){t=Array.from(f.querySelectorAll(fd.tag)).find(x=>x.dataset.a===fd.a&&x.dataset.t===fd.t&&x.className===fd.c)||f;}if(t.focus)t.focus();}
@@ -76,6 +82,11 @@ const ref=prev?prev.nextSibling:el.firstChild;if(node!==ref)el.insertBefore(node
 old.forEach(o=>o.remove());
 if(ak&&!act.isConnected){const s3={},f=Array.from(el.children).find(c=>nkey(c,s3)===ak);if(f)refocus(f,fd);}}
 function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;
-const keep=stKeep(rs);stUi(stCounts(rs));const t=stText();st.innerHTML=esc(t)+stNote(rs.length-keep.length,!!t);
-patch(list,resultsHtml(keep));renderIdle();stSync();exSync();}
+const base=hasResults?rs:sessBase(),keep=stKeep(base);stUi(stCounts(base));
+const t=noteText(),hid=base.length-keep.length;
+noteIn=t||hid?esc(t)+stNote(hid,!!t):'';
+patch(list,hasResults?resultsHtml(keep):sessHtml(keep));
+const used=noteIn==='';st.classList.toggle('vh',used);st.textContent=t+(hid?(t?' · ':'')+hid+' hidden by status filter':'');
+if(!used){st.innerHTML=noteIn;noteIn='';}
+renderPinned();stSync();exSync();}
 `;

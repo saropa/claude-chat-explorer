@@ -117,14 +117,32 @@ class Provider implements vscode.WebviewViewProvider {
         this.store.setDraft({ ...this.store.draft, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
         this.scopeChanged(prev);
       } else if (m.type === 'search') { await this.search(m); }
-      else if (m.type === 'histRemove') {
-        this.store.setHistory(this.store.history.filter((_, i) => i !== m.index));
-        this.post({ type: 'history', history: this.store.history });
-      } else if (m.type === 'histClear') {
-        this.store.setHistory([]);
-        this.post({ type: 'history', history: [] });
-      } else { await this.onChatMessage(m); }
+      else if (m.type === 'cancel') { this.client.cancel(); }
+      else if (m.type === 'sessions') { await this.sessions(m); }
+      else if (m.type === 'histAdd') { this.histAdd(m); }
+      else { await this.onChatMessage(m); }
     } catch (e) { logErr('message ' + String(m?.type), e); }
+  }
+
+  /** Empty the search history (Clear Search History command) and tell the panel. */
+  clearHistory(): void {
+    this.store.setHistory([]);
+    this.post({ type: 'history', history: [] });
+  }
+
+  /** The panel decided a search is worth remembering (Enter, a click on a result, or 2 idle seconds). */
+  private histAdd(m: any): void {
+    const query = String(m.query ?? '').trim();
+    if (!query) { return; }
+    this.post({ type: 'history', history: this.store.addHistory({ ...opts(m), query }) });
+  }
+
+  /** Chats in scope as rows for the empty query and the no-match list; the reply carries the search number so stale ones are dropped. */
+  private async sessions(m: any): Promise<void> {
+    try {
+      const r = await this.client.request({ t: 'sessions', o: opts(m), sort: sortOf(m), folders: folderPaths(), pins: Object.keys(this.store.pins) }, true);
+      this.post({ type: 'sessions', sn: m.sn, rows: r?.rows ?? [], total: r?.total ?? 0 });
+    } catch (e) { logErr('sessions', e); }
   }
 
   /** The All projects option flipped: the Git Activity tree reloads for the new scope. */
@@ -155,25 +173,25 @@ class Provider implements vscode.WebviewViewProvider {
   }
 
   /** Compile the query, or post the empty or error outcome and return undefined. */
-  private async prepare(query: string, o: Options, base: Base): Promise<Compiled | undefined> {
+  private async prepare(query: string, o: Options, base: Base, sn: number): Promise<Compiled | undefined> {
     if (!query) {
       this.client.cancel();
       this.store.setState({ ...base, results: [], searched: '' });
-      this.post({ type: 'results', results: [], searched: '' });
+      this.post({ type: 'results', sn, results: [], searched: '' });
       return undefined;
     }
     const hint = gitHint(parseQuery(query).tokens);
     if (hint || queryChars(query, o) < MIN_QUERY_CHARS) {
       this.client.cancel();
-      this.post({ type: 'short', message: hint });
+      this.post({ type: 'short', sn, message: hint });
       return undefined;
     }
     let compiled;
     try { compiled = compile(query, o); } catch (e) {
-      this.post({ type: 'error', message: (e as Error).message });
+      this.post({ type: 'error', sn, message: (e as Error).message });
       return undefined;
     }
-    if (isEmpty(compiled)) { this.post({ type: 'results', results: [], searched: '' }); return undefined; }
+    if (isEmpty(compiled)) { this.post({ type: 'results', sn, results: [], searched: '' }); return undefined; }
     return compiled;
   }
 
@@ -181,11 +199,12 @@ class Provider implements vscode.WebviewViewProvider {
     const query = String(m.query ?? '').trim();
     const o = opts(m);
     const base: Base = { ...o, sort: sortOf(m), query };
-    if (!(await this.prepare(query, o, base))) { return; }
-    this.post({ type: 'start' });
+    const sn = Number(m.sn) || 0;
+    if (!(await this.prepare(query, o, base, sn))) { return; }
+    this.post({ type: 'start', sn });
     const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
-    this.client.search({ query, o, folders, ...this.ctxMsg }, (w) => this.onSearchMsg(w, base),
-      (why) => { if (why === 'timeout') { this.post({ type: 'error', message: TIMEOUT_MSG }); } });
+    this.client.search({ query, o, folders, ...this.ctxMsg }, (w) => this.onSearchMsg(w, base, sn),
+      (why) => { if (why === 'timeout') { this.post({ type: 'error', sn, message: TIMEOUT_MSG }); } });
   }
 
   /** Export every matching line (not just the shown rows): a worker job with the search timeout; copy or save the text. */
@@ -212,23 +231,17 @@ class Provider implements vscode.WebviewViewProvider {
     }, 'export');
   }
 
-  /** Forward worker batches as they come; the final message saves state and history. */
-  private onSearchMsg(w: any, base: Base): void {
-    if (w.t === 'batch') { this.post({ type: 'batch', results: w.results, done: w.done, total: w.total }); }
-    else if (w.t === 'error') { logErr('search', w.message); this.post({ type: 'results', results: [], searched: 'Search failed' }); }
-    else if (w.t === 'done') { void this.finish(w.results, base); }
+  /** Forward worker batches as they come (stamped with the search number); the final message saves state. */
+  private onSearchMsg(w: any, base: Base, sn: number): void {
+    if (w.t === 'batch') { this.post({ type: 'batch', sn, results: w.results, done: w.done, total: w.total }); }
+    else if (w.t === 'error') { logErr('search', w.message); this.post({ type: 'results', sn, results: [], searched: 'Search failed' }); }
+    else if (w.t === 'done') { void this.finish(w.results, base, sn); }
   }
 
-  private async finish(results: Result[], base: Base): Promise<void> {
+  private async finish(results: Result[], base: Base, sn: number): Promise<void> {
     const searched = results.length ? '' : 'No matches';
-    this.post({ type: 'done', results, searched });
-    try {
-      this.store.setState({ ...base, results, searched });
-      if (results.length) {
-        const { sort: _s, ...h } = base;
-        this.post({ type: 'history', history: this.store.addHistory(h) });
-      }
-    } catch (e) { logErr('save search', e); }
+    this.post({ type: 'done', sn, results, searched });
+    try { this.store.setState({ ...base, results, searched }); } catch (e) { logErr('save search', e); }
   }
 }
 
@@ -245,6 +258,10 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const tree = new GitTree(client, () => ({ all: store!.draft.all, folders: folderPaths() }), logErr);
   provider.onIndex = provider.onScope = () => tree.refresh();
   ctx.subscriptions.push(channel, status, tree, vscode.workspace.onDidChangeWorkspaceFolders(() => provider.onScope?.()),
+    vscode.commands.registerCommand('claudeChatSearch.clearHistory', () => {
+      provider.clearHistory();
+      void vscode.window.showInformationMessage('Search history cleared');
+    }),
     vscode.commands.registerCommand(RETRY_CMD, () => tree.refresh(true)),
     vscode.window.registerTreeDataProvider(GIT_VIEW, tree),
     vscode.commands.registerCommand(OPEN_CMD, (id: unknown) => (isSessionId(id) ? openChat(id, log) : undefined)),

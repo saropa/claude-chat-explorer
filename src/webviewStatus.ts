@@ -2,7 +2,7 @@ import { STATUS_SRC } from './status';
 
 /** Funnel button and its popup menu, placed after the When and Sort dropdowns. */
 export const STATUS_HTML = `<div class="sfw">
-<button type="button" class="opt sfb" id="sfb" title="Search to filter by status" aria-label="Filter by status" aria-haspopup="true" aria-expanded="false" aria-disabled="true" aria-controls="sfm"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 3h12l-4.5 5.5V13l-3-1.5V8.5z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg><span class="sfp" id="sfp" hidden>0</span></button>
+<button type="button" class="opt sfb" id="sfb" title="Filter by status" aria-label="Filter by status" aria-haspopup="true" aria-expanded="false" aria-disabled="false" aria-controls="sfm"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 3h12l-4.5 5.5V13l-3-1.5V8.5z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg><span class="sfp" id="sfp" hidden>0</span></button>
 <div id="sfm" role="group" aria-label="Status filter" hidden></div>
 </div>`;
 
@@ -35,10 +35,9 @@ return rs.filter(r=>statusesOf(r,pins.has(r.id),now).some(k=>stOn.has(k)));}
 function stUi(c){sfm.querySelectorAll('input').forEach(i=>{i.checked=stOn.has(i.dataset.k);});
 sfm.querySelectorAll('[data-n]').forEach(n=>{n.textContent=c[n.dataset.n];});
 const off=STATUS_KEYS.length-stOn.size;sfp.textContent=off;sfp.hidden=!off;sfb.classList.toggle('act',off>0);}
-function stNote(n,has){return n>0?(has?' · ':'')+n+' hidden by status filter <button type="button" class="lnk" id="sfr">Reset</button>':'';}
+function stNote(n,has){return n>0?(has?' · ':'')+n+' hidden by status filter <button type="button" class="lnk sfr">Reset</button>':'';}
 function stClose(){sfm.hidden=true;sfb.setAttribute('aria-expanded','false');}
-function stSync(){const on=!!q.value.trim();sfb.setAttribute('aria-disabled',on?'false':'true');
-sfb.title=on?'Filter by status':'Search to filter by status';sfb.classList.toggle('dim',!on);if(!on)stClose();}
+function stSync(){sfb.setAttribute('aria-disabled','false');sfb.title='Filter by status';sfb.classList.remove('dim');}
 function stSave(){vs.postMessage({type:'status',checked:Array.from(stOn)});}
 function stReset(){stOn=new Set(STATUS_KEYS);stSave();rerender();}
 function stLoad(a){if(Array.isArray(a))stOn=new Set(a.filter(k=>STATUS_KEYS.includes(k)));stSync();}
@@ -47,7 +46,7 @@ if(sfm.hidden){sfm.hidden=false;sfb.setAttribute('aria-expanded','true');}else s
 sfm.addEventListener('change',e=>{const k=e.target.dataset.k;if(!k)return;
 if(e.target.checked)stOn.add(k);else stOn.delete(k);stSave();rerender();});
 sfm.addEventListener('click',e=>{if(e.target.id==='sfx')stReset();});
-st.addEventListener('click',e=>{if(e.target.id==='sfr')stReset();});
+document.addEventListener('click',e=>{if(e.target.classList.contains('sfr'))stReset();});
 document.addEventListener('click',e=>{if(!e.target.closest('.sfw'))stClose();});
 const sfw=sfb.parentElement;
 sfw.addEventListener('keydown',e=>{if(e.key==='Escape'&&!sfm.hidden){e.stopPropagation();stClose();sfb.focus();}});

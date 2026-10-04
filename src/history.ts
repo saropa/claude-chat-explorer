@@ -3,9 +3,9 @@ export interface HistItem { query: string; all: boolean; cs: boolean; ww: boolea
 
 export const HIST_MAX = 20;
 
-/** Identity of a search: trimmed lowercased query plus the flags that change its results. */
+/** Identity of a search: trimmed query (lowercased unless Match Case) plus Match Case, Whole Word, Regex and Any order. */
 export const histKey = (h: HistItem): string =>
-  JSON.stringify([h.query.trim().toLowerCase(), !!h.cs, !!h.ww, !!h.re, !!h.any, h.when, h.last || 0, h.subs !== false]);
+  JSON.stringify([h.cs ? h.query.trim() : h.query.trim().toLowerCase(), !!h.cs, !!h.ww, !!h.re, !!h.any]);
 
 /** Keep the first of each identity (newest first) and cap the list. */
 export function dedupeHistory(list: HistItem[]): HistItem[] {
@@ -18,5 +18,5 @@ export function dedupeHistory(list: HistItem[]): HistItem[] {
   return out.slice(0, HIST_MAX);
 }
 
-/** Put a finished search at the top; an existing entry with the same identity moves instead of repeating. */
+/** Put a search at the top; an entry with the same identity moves and takes the new When, Messages and subagents values. */
 export const addToHistory = (list: HistItem[], item: HistItem): HistItem[] => dedupeHistory([item, ...list]);

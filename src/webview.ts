@@ -24,19 +24,19 @@ export function html(): string {
 <button class="opt" id="any" title="Match words in any order (Alt+O)" aria-label="Match any order" aria-pressed="false"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 4.5h2.5c3 0 4 7 7 7H13M2 11.5h2.5c1 0 1.800-1 2.500-2.200M9 6.700C9.700 5.600 10.400 4.500 11.500 4.500H13M11.500 2.800L13.200 4.500l-1.700 1.700M11.500 9.800l1.700 1.700-1.700 1.700" fill="none" stroke="currentColor" stroke-width="1.300" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 <button class="opt" id="re" title="Use Regular Expression (Alt+R)" aria-label="Use Regular Expression" aria-pressed="false">.*</button>
 </div></div>
+<div id="ah" hidden>Up and Down arrows show previous searches</div>
 <div class="sel">
-<label><span class="lb">When</span> <select id="when" aria-label="When"><option value="any">Any time</option><option value="1h">Last hour</option><option value="2h">Last 2 hours</option><option value="4h">Last 4 hours</option><option value="8h">Last 8 hours</option><option value="today">Today</option></select></label>
-<label><span class="lb">Messages</span> <select id="msgs" aria-label="Messages"><option value="0">All</option><option value="10">Last 10</option><option value="25">Last 25</option><option value="50">Last 50</option><option value="100">Last 100</option></select></label>
-<label><span class="lb">Sort</span> <select id="sort" aria-label="Sort"><option value="score">Score</option><option value="time">Time</option><option value="title">Title</option><option value="length">Length</option><option value="cost">Cost</option></select></label>
-${STATUS_HTML}
+<label class="lw"><span class="lb">When</span> <select id="when" aria-label="When"><option value="any">Any time</option><option value="1h">Last hour</option><option value="2h">Last 2 hours</option><option value="4h">Last 4 hours</option><option value="8h">Last 8 hours</option><option value="today">Today</option></select></label>
+<label class="lm"><span class="lb">Messages</span> <select id="msgs" aria-label="Messages"><option value="0">All</option><option value="10">Last 10</option><option value="25">Last 25</option><option value="50">Last 50</option><option value="100">Last 100</option></select></label>
+<label class="ls"><span class="lb">Sort</span> <select id="sort" aria-label="Sort"><option value="score">Score</option><option value="time">Time</option><option value="title">Title</option><option value="length">Length</option><option value="cost">Cost</option></select></label>
+<label class="al" title="Search every project, not only this workspace"><input type="checkbox" id="all"> All projects</label><label class="al" title="Include subagent chats"><input type="checkbox" id="subs" checked> Subagents</label>
+${STATUS_HTML}${EXPORT_HTML}
 </div>
 <div id="err"></div>
 <div id="hint" hidden>Type at least 2 characters</div>
 <div id="bar"><i></i></div>
-<div class="alr"><label class="al"><input type="checkbox" id="all"> All projects</label><label class="al"><input type="checkbox" id="subs" checked> Include subagents</label></div>
 <datalist id="tl"></datalist>
-</div>
-<div class="sth"><div id="status" role="status" aria-live="polite"></div>${EXPORT_HTML}</div></div>
-<div id="res"><div id="list"></div><div id="pin"></div><div id="hist"></div></div>
+</div></div>
+<div id="res"><div id="status" role="status" aria-live="polite"></div><div id="pin"></div><div id="list"></div></div>
 <script nonce="${nonce}">${SCRIPT}</script></body></html>`;
 }

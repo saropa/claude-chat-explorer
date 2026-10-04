@@ -5,7 +5,7 @@ import { ChatIndex } from './index';
 import { compile } from './query';
 import { gitSummary } from './gitSummary';
 import { expandChat, searchIndex } from './search';
-import { projectOf, statFields } from './stats';
+import { rowOf, sessionRows } from './sessions';
 import { Abort, Compiled, Ctx, Result } from './types';
 
 const BATCH_MS = 50;
@@ -102,9 +102,14 @@ async function expand(m: any): Promise<unknown> {
 /** Rows for pinned chats, newest first. */
 function pinned(ids: string[], subs: boolean): Result[] {
   const want = new Set(ids);
-  return (ix?.tops() ?? []).filter((c) => want.has(c.id)).sort((a, b) => b.last - a.last)
-    .map((c) => ({ file: ix!.fileOf(c), id: c.id, title: c.title, hits: 0, last: c.last, snippet: '', ranges: [], score: 0,
-      project: projectOf(c), ...statFields(c, subs ? ix!.subsOf(c) : []) }));
+  return (ix?.tops() ?? []).filter((c) => want.has(c.id)).sort((a, b) => b.last - a.last).map((c) => rowOf(ix!, c, subs));
+}
+
+/** Chats in scope as rows (index metadata only), for the empty query and the no-match list. */
+async function sessions(m: any): Promise<unknown> {
+  await loaded;
+  if (!ix) { return { rows: [], total: 0 }; }
+  return sessionRows(ix, m.o, Array.isArray(m.folders) ? m.folders : [], String(m.sort ?? 'time'), new Set<string>(m.pins ?? []));
 }
 
 /** Yield to the event loop; while a search or export runs, wait for it to end first. */
@@ -121,6 +126,7 @@ async function gitTree(m: any): Promise<unknown> {
 async function request(m: any): Promise<unknown> {
   if (m.t === 'gitSummary') { return gitTree(m); }
   if (m.t === 'expand') { return expand(m); }
+  if (m.t === 'sessions') { return sessions(m); }
   if (m.t === 'pinned') { return pinned(m.ids ?? [], m.subs !== false); }
   if (m.t === 'stats') { return { chats: ix?.size ?? 0, heap: process.memoryUsage().heapUsed, rss: process.memoryUsage().rss, buf: process.memoryUsage().arrayBuffers }; }
   if (m.t === 'dispose') { await ix?.dispose(); return true; }

@@ -11,8 +11,6 @@ export const EXPORT_HTML = `<div class="exw">
 </div>`;
 
 export const EXPORT_CSS = String.raw`
-.sth{display:flex;align-items:center;padding-right:8px}
-.sth #status{flex:1;min-width:0}
 .exw{position:relative;flex:none;display:flex;align-items:center}
 .exb{width:24px;height:22px}
 .exb.dim{opacity:.4;cursor:default}

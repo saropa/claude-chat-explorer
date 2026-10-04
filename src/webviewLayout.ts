@@ -9,7 +9,8 @@ const T = {
 const COMPACT = `
 .hd .stp,.hd .pj,.hd .gi{display:none}
 .s{display:none}
-.qa .s{display:block;white-space:nowrap;text-overflow:ellipsis}`;
+.qa .s{display:block;white-space:nowrap;text-overflow:ellipsis}
+.ic.pn{display:inline-flex}`;
 
 const WIDE = `
 .mt{display:none}
@@ -33,15 +34,21 @@ html{height:100%;overflow:hidden}
 body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto}
 #hdr{flex:none;min-width:0}
 #res{flex:1 1 auto;min-height:80px;overflow-x:hidden;overflow-y:auto;container-type:inline-size;container-name:res;overflow-wrap:anywhere}
-.sel label{flex:1 1 auto;min-width:0;max-width:100%}
-.sel select{flex:1 1 auto;width:auto;min-width:0;max-width:100%;text-overflow:ellipsis}
+.sel label:not(.al){min-width:0;max-width:100%}
+.sel select{flex:1 1 0;width:0;min-width:0;max-width:100%;text-overflow:ellipsis}
+.sel .lw{order:1;flex:1 1 112px}
+.sel .ls{order:2;flex:1 1 84px}
+.sfw{order:3}
+.exw{order:4}
+.sel .lm{order:5;flex:1 1 104px}
+.sel .al{order:6}
+@media (min-width:521px){.sfw{order:8}.exw{order:9}}
 .sel .lb{flex:none}
 .sfw,.exw{flex:none}
 #sfm,#exm{min-width:min(170px,calc(100vw - 16px));max-width:calc(100vw - 16px)}
 .sl,.gh{min-width:0}
 .sl>span:not(.pill),.gh>span:not(.pill){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pill,.sub{white-space:nowrap}
-.h .fl{flex:none;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .r,.rh,.hd,.ex,.mm,.gr,.s,.mt{min-width:0}
 .mt{padding:0 8px 2px 24px;font-size:0.9em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--vscode-descriptionForeground)}
 .mt .ms,.hp{display:none}
@@ -54,9 +61,9 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 .gp{min-width:0}
 @media (max-width:259px){
 .sel .lb{display:none}
-.sel label{flex-basis:100%}
+.sel label:not(.al){flex-basis:100%}
 .sfw,.exw{position:static}
-.sel,.sth{position:relative}
+.sel{position:relative}
 #sfm,#exm{left:0;right:0;min-width:0}
 }
 @media (max-width:199px){
@@ -79,7 +86,8 @@ if(m<1)return 'just now';
 const u=m<60?[m,'minute']:m<1440?[Math.floor(m/60),'hour']:m<43200?[Math.floor(m/1440),'day']:m<525600?[Math.floor(m/43200),'month']:[Math.floor(m/525600),'year'];
 return u[0]+' '+u[1]+(u[0]===1?'':'s')+' ago';}
 function hitTxt(r){return r.hits?r.hits+(r.hits===1?' hit':' hits'):'';}
-function metaHtml(r,now){const h=hitTxt(r);
+function msgTxt(r){return r.msgs?r.msgs+(r.msgs===1?' message':' messages'):'';}
+function metaHtml(r,now){const h=hitTxt(r)||msgTxt(r);
 return '<div class="mt" title="'+esc(full(r.last))+'">'+(h?'<span>'+h+'</span> · ':'')+'<span class="ml">'+agoLong(r.last,now)+'</span><span class="ms">'+shortAgo(r.last,now)+'</span></div>';}
 function hitPill(r){return r.hits?'<span class="hp" title="'+esc(hitTxt(r))+'">'+r.hits+'</span>':'';}
 function qSync(){document.body.classList.toggle('qa',!!q.value.trim());}
