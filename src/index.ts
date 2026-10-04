@@ -10,6 +10,7 @@ import * as path from 'path';
 import { buildChat } from './build';
 import { FileStat, listFiles, projectsRoot } from './files';
 import { chatOf, code, headerOf, readHeaders, unchanged } from './recChat';
+import { recCache } from './recCache';
 import { RecReader } from './recReader';
 import { encodeFile, EXT, isCorrupt, Parsed, quiet, readHeader, recName, writeRecord } from './record';
 import { DEFAULT_AGES, sweepAll, SweepAges } from './sweep';
@@ -27,9 +28,9 @@ const verOf = (f: { mtime: number; size: number }): string => `${f.mtime}:${f.si
 
 export class ChatIndex extends RecReader {
   private chain: Promise<void> = Promise.resolve();
-  private failed = new Map<string, string>(); // source file -> version that did not fit in memory; skipped until it changes
   private memOnly = false;
   private swept = false;
+  private sweeping?: Promise<void>; // a sweep in flight; never overlaps itself
   private closed = false;
   private pruned = false;
   private watchTimer?: NodeJS.Timeout;
@@ -87,16 +88,17 @@ export class ChatIndex extends RecReader {
 
   /** Adopt the record another window wrote for this version. error means an I/O failure: the file stays and the next refresh retries. */
   private async adopt(t: FileStat): Promise<'ok' | 'miss' | 'error'> {
-    if (this.memOnly) { return 'miss'; }
     const name = recName(this.srcOf(t.file), t.mtime, t.size);
+    if (this.memOnly || this.unreadable(name)) { return 'miss'; } // 3 failed reads: rebuild into memory
     try {
       this.chats.set(t.file, chatOf(await readHeader(path.join(this.recDir, name), name), name));
+      this.fails.delete(name);
       this.changed();
       return 'ok';
     } catch (e) {
       if (code(e) === 'ENOENT' || isCorrupt(e)) { return 'miss'; }
       this.logOnce('record ' + t.id, e);
-      return 'error';
+      return this.noteFail(name) >= 3 ? 'miss' : 'error';
     }
   }
 
@@ -128,18 +130,21 @@ export class ChatIndex extends RecReader {
     b.chat.rec = name;
     const prev = this.chats.get(t.file);
     try {
-      if (this.memOnly) { throw new Error('memory only'); }
+      if (this.memOnly || this.unreadable(name)) { throw new Error('memory only'); }
       const buf = encodeFile(headerOf(b.chat, src), b.chat.bloom, b.body);
       if (!(await writeRecord(this.recDir, name, buf, unchanged(t)))) { this.holdMem(t.file, b, prev); return; }
       this.keepMem.pend.delete(name);
+      recCache.drop(name); // same-name rewrite: forget the old bytes and verified mark
+      this.fails.delete(name);
       this.install(t.file, b.chat, prev);
-      if (prev && prev.rec !== name) { await quiet(fs.promises.unlink(path.join(this.recDir, prev.rec))); }
+      if (prev && prev.rec !== name) { recCache.drop(prev.rec); await quiet(fs.promises.unlink(path.join(this.recDir, prev.rec))); }
     } catch (e) { this.fallback(t, b, prev, e); }
   }
 
   private install(file: string, chat: Chat, prev?: Chat): void {
     if (prev && prev.rec !== chat.rec) { this.keepMem.release(prev.rec); }
     this.chats.set(file, chat);
+    this.failed.delete(file); // this version now has a home
     this.changed();
   }
 
@@ -152,27 +157,35 @@ export class ChatIndex extends RecReader {
   private fallback(t: FileStat, b: Built, prev: Chat | undefined, e: unknown): void {
     if (!this.memOnly) { this.logOnce('record write failed, keeping records in memory', e); }
     if (this.keepMem.add(b.chat.rec, b.body)) { this.install(t.file, b.chat, prev); return; }
-    this.failed.set(t.file, verOf(t));
     if (!prev) {
       this.keepMem.pend.add(b.chat.rec);
       this.install(t.file, b.chat);
     }
+    this.failed.set(t.file, verOf(t));
   }
 
   /** Retry writing records held in memory. */
   private async retryPending(): Promise<void> {
     if (this.memOnly || !this.keepMem.bodies.size) { return; }
     const byRec = new Map([...this.chats].map(([f, c]) => [c.rec, { f, c }]));
-    let freed = false;
     for (const [name, body] of [...this.keepMem.bodies]) {
       const e = byRec.get(name);
-      if (!e) { this.keepMem.release(name); freed = true; continue; }
+      if (!e) { this.keepMem.release(name); continue; }
       try {
         const buf = encodeFile(headerOf(e.c, this.srcOf(e.f)), e.c.bloom, body);
-        if (await writeRecord(this.recDir, name, buf, unchanged({ file: e.f, mtime: e.c.mtime, size: e.c.size }))) { this.keepMem.release(name); freed = true; }
+        if (await writeRecord(this.recDir, name, buf, unchanged({ file: e.f, mtime: e.c.mtime, size: e.c.size }))) {
+          recCache.drop(name); this.fails.delete(name); this.keepMem.release(name);
+        }
       } catch { /* still failing; stay in memory */ }
     }
-    if (freed) { this.failed.clear(); } // memory freed: skipped versions may fit now
+  }
+
+  /** A skipped version may have been written by another window: adopt its record and clear the skip. */
+  private async adoptFailed(all: FileStat[]): Promise<void> {
+    for (const f of all) {
+      if (this.failed.get(f.file) !== verOf(f)) { continue; }
+      if ((await this.adopt(f)) === 'ok') { this.failed.delete(f.file); }
+    }
   }
 
   private async doRefresh(cb?: IndexProgress): Promise<void> {
@@ -181,6 +194,7 @@ export class ChatIndex extends RecReader {
     const seen = new Set(all.map((f) => f.file));
     this.pruned = this.total() > CACHE_LIMIT;
     await this.retryPending();
+    await this.adoptFailed(all);
     const todo = all.filter((f) => this.needs(f));
     this.building = this.chats.size === 0 && todo.length > 0;
     for (const [k, c] of [...this.chats]) { if (!seen.has(k)) { this.chats.delete(k); this.keepMem.release(c.rec); this.changed(); } }
@@ -199,13 +213,11 @@ export class ChatIndex extends RecReader {
     this.sweepTimer.unref();
   }
 
-  /** One queued job: refresh, then sweep, so the sweep always works from fresh state. */
+  /** Runs beside the index jobs (it reads only the disk), so a search never waits for it; one at a time. */
   sweep(): Promise<void> {
-    return quiet(this.enqueue(async () => {
-      if (this.closed) { return; }
-      await this.doRefresh();
-      await sweepAll(this.dir, this.recDir, this.root, this.ages);
-    }));
+    if (this.closed) { return Promise.resolve(); }
+    this.sweeping ??= quiet(sweepAll(this.dir, this.recDir, this.root, this.ages)).finally(() => { this.sweeping = undefined; });
+    return this.sweeping;
   }
 
   /** True while a file change is waiting for its debounced refresh. */

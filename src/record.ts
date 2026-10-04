@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as zlib from 'zlib';
 import { FileRef } from './types';
 
 /** Record layout version; bump it when the file layout or the parse output changes. */
@@ -27,8 +28,13 @@ const TABLE = (() => {
   return t;
 })();
 
-/** CRC-32 (table driven; zlib.crc32 needs a newer Node than VS Code 1.90 ships). */
-export function crc32(b: Uint8Array): number {
+const nativeCrc = (zlib as { crc32?: (d: Uint8Array) => number }).crc32;
+
+/** CRC-32: native zlib.crc32 when this Node has it, else the table loop. */
+export function crc32(b: Uint8Array): number { return nativeCrc ? nativeCrc(b) >>> 0 : crc32Js(b); }
+
+/** Table-driven CRC-32 (exported so a check can compare it with the native one). */
+export function crc32Js(b: Uint8Array): number {
   let c = -1;
   for (let i = 0; i < b.length; i++) { c = TABLE[(c ^ b[i]) & 255] ^ (c >>> 8); }
   return (c ^ -1) >>> 0;
@@ -85,12 +91,15 @@ function headOf(f: Buffer, crc: number, name: string): Parsed & { J: number } {
   return { h, J, bloom: new Uint8Array(f.subarray(4 + J)), bodyLen: 0 };
 }
 
-/** Parse a whole record file; throws unless length, both CRCs and identity are correct. */
-export function parseRecord(b: Buffer, name: string): Parsed & { body: Buffer } {
+/** Parse a whole record file; throws unless length, both CRCs and identity are correct (body CRC once per name when verified is given). */
+export function parseRecord(b: Buffer, name: string, verified?: Set<string>): Parsed & { body: Buffer } {
   const { hl, bl } = prefix(b, b.length);
   const p = headOf(b.subarray(FIXED, FIXED + hl), b.readUInt32LE(12), name);
   const body = b.subarray(FIXED + hl);
-  if (crc32(body) !== b.readUInt32LE(16)) { throw bad(); }
+  if (!verified?.has(name)) {
+    if (crc32(body) !== b.readUInt32LE(16)) { throw bad(); }
+    verified?.add(name);
+  }
   return { h: p.h, bloom: p.bloom, bodyLen: bl, body };
 }
 

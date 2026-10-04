@@ -3,10 +3,12 @@ import { Worker } from 'worker_threads';
 
 export const TIMEOUT_MS = 3000;
 export const TIMEOUT_MSG = 'Search timed out: simplify the pattern';
+export const RESTART_MSG = 'Search worker restarted';
+export const EXPORT_MSG = 'Export interrupted: the search worker restarted. Try again.';
 
 type Msg = { t: string; [k: string]: any };
 type Kind = 'search' | 'export';
-interface Job { id: number; kind: Kind; onMsg: (m: Msg) => void; onEnd: (reason: 'done' | 'cancel' | 'timeout' | 'error') => void; timer?: NodeJS.Timeout; }
+interface Job { id: number; kind: Kind; onMsg: (m: Msg) => void; onEnd: (reason: 'done' | 'cancel' | 'timeout' | 'error') => void; timer?: NodeJS.Timeout; told?: boolean; }
 interface Req { resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout; }
 
 const RETRY_MAX = 3;
@@ -62,10 +64,7 @@ export class WorkerClient {
 
   /** End every running job (the error path shows it) and reject pending requests. */
   private failAll(why: End, message: string): void {
-    for (const j of [...this.jobs.values()]) {
-      try { j.onMsg({ t: 'error', id: j.id, message }); } catch (e) { this.onError?.('worker', e); }
-      this.finish(j, why);
-    }
+    for (const j of [...this.jobs.values()]) { this.finish(j, why, message); }
     for (const r of this.reqs.values()) { clearTimeout(r.timer); r.reject(new Error(message)); }
     this.reqs.clear();
     this.queue = [];
@@ -96,12 +95,18 @@ export class WorkerClient {
 
   private jobMsg(j: Job, m: Msg): void {
     this.arm(j);
+    if (m.t === 'done' || m.t === 'error') { j.told = true; }
     j.onMsg(m);
     if (m.t === 'done' || m.t === 'error') { this.finish(j, m.t); }
   }
 
-  private finish(j: Job, why: End): void {
+  /** An 'error' end always reaches the job as one error message first, unless the worker already sent one. */
+  private finish(j: Job, why: End, message = RESTART_MSG): void {
     clearTimeout(j.timer);
+    if (why === 'error' && !j.told) {
+      j.told = true;
+      try { j.onMsg({ t: 'error', id: j.id, message }); } catch (e) { this.onError?.('worker', e); }
+    }
     if (this.jobs.get(j.kind) === j) { this.jobs.delete(j.kind); }
     j.onEnd(why);
   }
@@ -113,7 +118,9 @@ export class WorkerClient {
     const running = [...this.jobs.values()];
     for (const r of this.reqs.values()) { clearTimeout(r.timer); r.reject(new Error(TIMEOUT_MSG)); }
     this.reqs.clear();
-    for (const j of running) { this.finish(j, why); }
+    for (const j of running) { // a timeout is the search's own end; a running export ends with its own message
+      if (why === 'timeout' && j.kind === 'export') { this.finish(j, 'error', EXPORT_MSG); } else { this.finish(j, why); }
+    }
     try { await old?.terminate(); } catch (e) { this.onError?.('worker terminate', e); }
     this.start();
   }

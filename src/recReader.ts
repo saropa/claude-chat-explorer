@@ -3,12 +3,14 @@ import * as path from 'path';
 import { decodeRec } from './blob';
 import { fileOf } from './files';
 import { MemKeep } from './memKeep';
+import { recCache } from './recCache';
 import { chatOf, code, emptyRec } from './recChat';
 import { DIR_PREFIX, FORMAT, isCorrupt, parseRecord, readRecordSync, recName } from './record';
 import { buildFileMap, FileMap, relatedChats } from './related';
 import { Chat, Rec, Related } from './types';
 
 const REPARSE_DELAY = 1000;
+const READ_FAILS = 3;
 
 /** The in-memory chat table and the record read path: ChatIndex adds loading, parsing, writing and sweeping. */
 export abstract class RecReader {
@@ -16,6 +18,8 @@ export abstract class RecReader {
   protected bySub?: Map<string, Chat[]>;
   protected fmap?: FileMap;
   protected keepMem = new MemKeep(); // records whose write failed
+  protected failed = new Map<string, string>(); // source file -> version that did not fit in memory; skipped until it changes
+  protected fails = new Map<string, number>(); // record name -> consecutive read failures
   protected dirty = false;
   protected reparseTimer?: NodeJS.Timeout;
   private logged = new Set<string>();
@@ -25,7 +29,16 @@ export abstract class RecReader {
 
   constructor(protected readonly dir: string, readonly root: string) {
     this.recDir = path.join(dir, DIR_PREFIX + FORMAT);
+    this.keepMem.onFree = () => this.failed.clear();
   }
+
+  /** Count a read failure of one record; at READ_FAILS it is treated as a miss. */
+  protected noteFail(name: string): number {
+    const n = (this.fails.get(name) ?? 0) + 1;
+    this.fails.set(name, n);
+    return n;
+  }
+  protected unreadable(name: string): boolean { return (this.fails.get(name) ?? 0) >= READ_FAILS; }
 
   abstract refresh(): Promise<void>;
 
@@ -78,18 +91,33 @@ export abstract class RecReader {
       const m = this.keepMem.bodies.get(c.rec);
       if (m) { return decodeRec(m); }
       if (this.keepMem.pend.has(c.rec)) { return emptyRec(); }
-      return decodeRec(parseRecord(readRecordSync(path.join(this.recDir, c.rec)), c.rec).body);
+      const r = decodeRec(this.readBody(c.rec));
+      this.fails.delete(c.rec);
+      return r;
     } catch (e) { return this.recFailed(c, e); }
+  }
+
+  /** The verified body of a record, from the raw-file cache when present. */
+  private readBody(name: string): Buffer {
+    const hit = recCache.get(name);
+    const b = hit ?? readRecordSync(path.join(this.recDir, name));
+    let body: Buffer;
+    try { body = parseRecord(b, name, recCache.verified).body; } catch (e) { recCache.drop(name); throw e; }
+    if (!hit) { recCache.put(name, b); }
+    return body;
   }
 
   private recFailed(c: Chat, e: unknown): Rec {
     if (code(e) === 'ENOENT') {
       const r = this.reresolve(c);
       if (r) { return r; }
+    } else if (isCorrupt(e)) {
+      this.logOnce('record ' + c.id, e);
+      recCache.drop(c.rec);
+      try { fs.unlinkSync(path.join(this.recDir, c.rec)); } catch { /* already gone */ }
     } else {
       this.logOnce('record ' + c.id, e);
-      if (!isCorrupt(e)) { return emptyRec(); } // EMFILE, EACCES, EBUSY, EIO: keep the file, read again next time
-      try { fs.unlinkSync(path.join(this.recDir, c.rec)); } catch { /* already gone */ }
+      if (this.noteFail(c.rec) < READ_FAILS) { return emptyRec(); } // EMFILE, EACCES, EBUSY, EIO: keep the file, read again; the 3rd failure rebuilds into memory
     }
     this.evict(c);
     return emptyRec();
@@ -111,6 +139,8 @@ export abstract class RecReader {
   /** Forget a chat and queue a refresh so it is parsed again. */
   private evict(c: Chat): void {
     const k = fileOf(this.root, c);
+    recCache.drop(c.rec);
+    this.failed.delete(k); // an evicted chat must be tried again
     if (this.chats.get(k) === c) { this.chats.delete(k); this.changed(); }
     if (this.reparseTimer) { return; }
     this.reparseTimer = setTimeout(() => { this.reparseTimer = undefined; this.refresh().catch(() => undefined); }, REPARSE_DELAY);

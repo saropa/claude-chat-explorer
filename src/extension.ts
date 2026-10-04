@@ -184,13 +184,17 @@ class Provider implements vscode.WebviewViewProvider {
     try { if (isEmpty(compile(query, o)) || queryChars(query, o.re) < MIN_QUERY_CHARS) { throw new Error('Nothing to export'); } }
     catch (e) { void vscode.window.showErrorMessage('Export failed: ' + (e as Error).message); return; }
     const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
-    const fail = (e: unknown) => { logErr('export', e); void vscode.window.showErrorMessage('Export failed: ' + (e as Error).message); };
+    const fail = (e: unknown) => {
+      const msg = (e as Error).message;
+      logErr('export', e);
+      void vscode.window.showErrorMessage(msg.startsWith('Export') ? msg : 'Export failed: ' + msg);
+    };
     this.client.search({ query, o, folders, x, ...this.ctxMsg }, (w) => {
       if (w.t === 'done') { deliver(w as unknown as ExportOut, m.mode === 'save' ? 'save' : 'copy').catch(fail); }
       else if (w.t === 'error') { fail(new Error(w.message)); }
     }, (why) => {
-      if (why === 'timeout') { fail(new Error(TIMEOUT_MSG)); }
-      else if (why === 'cancel') { void vscode.window.showInformationMessage('Export canceled'); }
+      // 'error' ends already delivered one error message ('Search worker restarted' or the export's own) to the callback above
+      if (why === 'cancel') { void vscode.window.showInformationMessage('Export canceled'); }
     }, 'export');
   }
 

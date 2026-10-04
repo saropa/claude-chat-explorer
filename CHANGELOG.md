@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.3
+- Searches are much faster after the first one: chat files are kept in memory (up to 64 MB) and checked only once, and the faster built-in checksum is used when available.
+- A search no longer waits for the background cleanup of old index files.
+- If the search worker restarts during an export, you now see "Export interrupted: the search worker restarted. Try again." instead of nothing. A restart during a search shows "Search worker restarted".
+- A search that times out no longer reports a running export as timed out.
+- Cleanup no longer removes the index folder of another window running an older version until nothing in it has changed for 7 days.
+- A chat that could not be stored is no longer hidden for the rest of the session: it is tried again when its file is removed, when another window writes it, or when memory frees up.
+- A chat file that always fails to read (for example a permission problem) is now rebuilt in memory after three tries instead of being searched as empty.
+- Cleanup of old index files reads several files at once and no longer runs a second index pass at startup.
+
 ## 0.5.2
 - A search or export that hits a temporary file error (too many open files, permission, busy disk) no longer deletes your saved chat index; it retries on the next refresh.
 - Several windows no longer delete each other's fresh index files.
