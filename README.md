@@ -179,7 +179,7 @@ Click a result or press Enter on it. The session opens in the Claude Code panel.
 Yes. Keep the Subagents checkbox on. Subagent matches nest under their parent chat with a Subagent pill.
 
 **How do I find which Claude session edited a file?**
-Right-click the file in the Explorer, the editor or its tab and choose "Saropa: Chats That Touched This File". The panel opens and searches `file:<path>`. Each chat has an edited or read pill, and with Score sort edited chats come first. Open a chat's details and press Copy hand-over note to pass a bug to it. Or search `edited:<file name>`.
+Right-click the file in the Explorer, the editor or its tab and choose "Saropa: Related Chats". The panel opens and searches `file:<path>`. Each chat has an edited or read pill, and with Score sort edited chats come first. Open a chat's details and press Copy hand-over note to pass a bug to it. Or search `edited:<file name>`.
 
 **Where does it store its cache?**
 In the extension's global storage folder in VS Code, in folders named `records-v<number>`. Old folders are removed automatically once they are 7 days untouched.
