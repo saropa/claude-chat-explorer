@@ -7,13 +7,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/saropa/claude-chat-search.git"
+    "url": "https://github.com/saropa/claude-chat-explorer.git"
   },
   "publisher": "saropa",
   "bugs": {
-    "url": "https://github.com/saropa/claude-chat-search/issues"
+    "url": "https://github.com/saropa/claude-chat-explorer/issues"
   },
-  "homepage": "https://github.com/saropa/claude-chat-search#readme",
+  "homepage": "https://github.com/saropa/claude-chat-explorer#readme",
   "galleryBanner": {
     "color": "#1e1e1e",
     "theme": "dark"

@@ -38,7 +38,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BRANCH = "main"
-ALLOWED_URL = "github.com/saropa/claude-chat-search"
+ALLOWED_URL = "github.com/saropa/claude-chat-explorer"
 REQUIRED_IN_VSIX = {
     "extension/package.json": "package.json",
     "extension/images/icon.png": "images/icon.png",
