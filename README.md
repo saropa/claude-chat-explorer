@@ -2,15 +2,15 @@
 
 Activity-bar panel that searches the full text of Claude Code chats.
 
-- Install: `code --install-extension claude-chat-search-0.5.1.vsix`
-- Indexes `~/.claude/projects/*/*.jsonl` and subagent chats (`<session>/subagents/agent-*.jsonl`) in a worker thread, so the editor never freezes. Memory holds only metadata and a per-chat trigram filter; message text sits in a compact store on disk and is read only for candidate chats. The status bar and a panel banner show progress (with the subagent file count), and search covers what is indexed so far.
+- Install: `code --install-extension claude-chat-search-0.5.2.vsix`
+- Indexes `~/.claude/projects/*/*.jsonl` and subagent chats (`<session>/subagents/agent-*.jsonl`) in a worker thread, so the editor never freezes. Memory holds only metadata and a per-chat trigram filter; message text sits in one record file per chat version in the extension's global storage (`records-v5`, shared safely by several windows) and is read only for candidate chats. The status bar and a panel banner show progress (with the subagent file count), and search covers what is indexed so far.
 - Include subagents (checkbox, on by default, saved with the options): subagent matches nest under their parent chat with a purple "Subagent" pill and agent type; a parent that matched only through a subagent is marked "matched in subagent". Clicking a nested row resumes the parent chat. Subagent hits add to the parent's hit count and score.
 - Every search runs in the worker with a 3 second stall limit; a pattern that hangs (for example `(a+)+$`) shows "Search timed out: simplify the pattern" and the worker restarts.
 - `node scripts/bench.js` (after `npm run compile`) prints build, load, memory, cache size and query timings.
 - The index is cached in the extension's global storage and refreshed incrementally (file watcher plus a stat before each search). Each message is indexed up to 20,000 characters (8,000 for subagents); tool results are skipped. Above a 200 MB cache, only the last 90 days of message text are kept.
 - Scope: current workspace folders, or all projects (checkbox). When: any time, last 1/2/4/8 hours, or today.
 - Filters like the built-in Search: Match Case (Alt+C), Match Whole Word (Alt+W), Use Regular Expression (Alt+R).
-- Messages: a dropdown next to When (All, Last 10, 25, 50, 100) limits matches to the final N messages of each chat; `last:<n>` in the query overrides it. For subagent hits, N counts the parent chat's messages and a subagent message counts when it is not older than the parent's Nth-last message. The expanded view shows only those messages.
+- Messages: a dropdown next to When (All, Last 10, 25, 50, 100) limits matches to the final N messages of each chat; `last:<n>` in the query overrides it. `cmd:` matches follow the same limit. For subagent hits, N counts the parent chat's messages and a subagent message counts when it is not older than the parent's Nth-last message. The expanded view shows only those messages.
 - Quoted phrases: `"exact phrase"` is one contiguous term, ANDed with the other terms and obeying Match Case and Whole Word; an unclosed quote runs to the end; regex mode ignores quotes.
 - A search needs at least 2 characters (words, phrase text and token values count; the `file:` prefix does not). Typing searches 300 ms after the last keystroke; Enter searches at once.
 - Recent searches hold 20 entries without repeats (same query ignoring case, flags, When, Messages and subagents); running one again moves it to the top. Saved state is written 500 ms after changes, and results only when a search completes.

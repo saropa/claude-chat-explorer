@@ -17,6 +17,7 @@ export interface Chat {
 /** One decoded store record: messages packed into one string, separated by SEP. */
 export interface Rec {
   text: string; ts: number[]; ends: number[]; roles: number[]; cmds: string[];
+  cmdAt: number[]; // message index each command belongs to (the next kept message when its row has no text)
   lines: Uint32Array; // 1-based JSONL line of each message, for a later export feature
 }
 

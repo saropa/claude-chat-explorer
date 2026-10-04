@@ -42,12 +42,12 @@ export function scoreOf(title: string, terms: RegExp[], weightSum: number, last:
 
 export const weightAt = (ts: number, now: number): number => 1 / (1 + Math.max(0, (now - ts) / DAY) / 30);
 
-/** Files, commands or tags matched by one token (case-insensitive substring; tags exact, of tagId). */
-export function matchedBy(c: Chat, rec: Rec | undefined, t: Token, ctx: Ctx, tagId: string): string[] {
+/** Files, commands or tags matched by one token (case-insensitive substring; tags exact, of tagId); commands only inside win. */
+export function matchedBy(c: Chat, rec: Rec | undefined, t: Token, ctx: Ctx, tagId: string, win?: Win): string[] {
   const has = (s: string) => s.toLowerCase().includes(t.value);
   if (t.kind === 'file') { return c.files.filter((f) => has(f.path)).map((f) => f.path); }
   if (t.kind === 'edited') { return c.files.filter((f) => f.edited && has(f.path)).map((f) => f.path); }
-  if (t.kind === 'cmd') { return (rec?.cmds ?? []).filter(has); }
+  if (t.kind === 'cmd') { return rec ? rec.cmds.filter((x, i) => has(x) && (!win || inWin(win, rec, rec.cmdAt[i]))) : []; }
   return (ctx.tags[tagId] ?? []).includes(t.value) ? [t.value] : [];
 }
 
@@ -101,9 +101,10 @@ export function matchChat(c: Chat, cmp: Compiled, ctx: Ctx, tagId: string, load:
   if (cmp.grams.length && !mayHave(c.bloom, cmp.grams)) { return null; }
   const need = cmp.terms.length > 0 || cmp.tokens.some((t) => t.kind === 'cmd');
   const rec = need ? load(c) : undefined; // file:, edited: and tag: alone never touch the store
-  const found = cmp.tokens.map((t, i) => (t.kind === 'cmd' ? matchedBy(c, rec, t, ctx, tagId) : cheap[i]));
+  const win = rec ? winOf?.(rec) : undefined;
+  const found = cmp.tokens.map((t, i) => (t.kind === 'cmd' ? matchedBy(c, rec, t, ctx, tagId, win) : cheap[i]));
   if (found.some((f) => !f.length)) { return null; }
-  const body = rec ? scanBody(rec, cmp.terms, now, winOf?.(rec)) : { counts: [], weightSum: 0, msg: -1, idx: -1 };
+  const body = rec ? scanBody(rec, cmp.terms, now, win) : { counts: [], weightSum: 0, msg: -1, idx: -1 };
   if (body.counts.some((n) => n === 0)) { return null; }
   const tokenHits = found.reduce((a, f) => a + f.length, 0);
   const snip = rec && body.msg >= 0

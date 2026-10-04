@@ -188,7 +188,10 @@ class Provider implements vscode.WebviewViewProvider {
     this.client.search({ query, o, folders, x, ...this.ctxMsg }, (w) => {
       if (w.t === 'done') { deliver(w as unknown as ExportOut, m.mode === 'save' ? 'save' : 'copy').catch(fail); }
       else if (w.t === 'error') { fail(new Error(w.message)); }
-    }, (why) => { if (why === 'timeout') { fail(new Error(TIMEOUT_MSG)); } }, 'export');
+    }, (why) => {
+      if (why === 'timeout') { fail(new Error(TIMEOUT_MSG)); }
+      else if (why === 'cancel') { void vscode.window.showInformationMessage('Export canceled'); }
+    }, 'export');
   }
 
   /** Forward worker batches as they come; the final message saves state and history. */

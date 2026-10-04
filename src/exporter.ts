@@ -1,14 +1,15 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { ExportOut, exportName, MAX_EXPORT_LINES } from './export';
+import { ExportOut, exportName, MAX_EXPORT_BYTES, MAX_EXPORT_LINES } from './export';
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 /** Toast text for a finished export. */
 export function toastText(out: ExportOut, mode: string, file = ''): string {
   const what = `${plural(out.lines, 'line')} from ${plural(out.chats, 'chat')}`;
-  const cap = out.capped ? ` (stopped at the ${MAX_EXPORT_LINES.toLocaleString('en-US')} line limit)` : '';
+  const limit = out.capBy === 'bytes' ? `${MAX_EXPORT_BYTES / 1048576} MB` : `${MAX_EXPORT_LINES.toLocaleString('en-US')} line`;
+  const cap = out.capped ? ` (stopped at the ${limit} limit)` : '';
   return (mode === 'save' ? `Saved ${what} to ${file}` : `Copied ${what}`) + cap;
 }
 

@@ -1,14 +1,17 @@
 import { startOf } from './blob';
-import { matchedBy } from './match';
+import { matches, matchedBy } from './match';
 import { candidates, findIn, Found, pacer, rank, scanOf, Scan, Source, toResult } from './search';
 import { STATUS_KEYS, statusesOf } from './status';
 import { Abort, Chat, Compiled, Ctx, Options, Rec, Result } from './types';
 import { inWin, subWinOf, topWinOf, WinOf } from './window';
 
 export const MAX_EXPORT_LINES = 50000;
+export const MAX_EXPORT_BYTES = 20 * 1024 * 1024;
+const JOIN_CHUNK = 5000;
 
 export interface ExportOpts { context: boolean; unique: boolean; statuses: string[]; }
-export interface ExportOut { text: string; lines: number; chats: number; capped: boolean; }
+export type CapBy = '' | 'lines' | 'bytes';
+export interface ExportOut { text: string; lines: number; chats: number; capped: boolean; capBy: CapBy; }
 export type OnTick = (done: number, total: number) => void;
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -24,21 +27,27 @@ export function localStamp(ms: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-/** Collects output lines: optional unique-by-text, capped at MAX_EXPORT_LINES. */
+/** Collects output lines: optional unique-by-text, capped at MAX_EXPORT_LINES lines and MAX_EXPORT_BYTES bytes. */
 export class Lines {
   readonly out: string[] = [];
-  capped = false;
+  capBy: CapBy = '';
+  private bytes = 0;
   private seen = new Set<string>();
 
   constructor(private readonly x: Pick<ExportOpts, 'context' | 'unique'>) {}
 
-  /** Add one line; false once the cap is hit. A duplicate (unique mode) is skipped and returns true. */
+  get capped(): boolean { return this.capBy !== ''; }
+
+  /** Add one line; false once a cap is hit. A duplicate (unique mode) is skipped and returns true. */
   add(prefix: string, text: string): boolean {
-    if (this.capped) { return false; }
+    if (this.capBy) { return false; }
     if (this.x.unique && this.seen.has(text)) { return true; }
-    if (this.out.length >= MAX_EXPORT_LINES) { this.capped = true; return false; }
+    const line = this.x.context ? prefix + text : text, n = Buffer.byteLength(line) + 1;
+    if (this.out.length >= MAX_EXPORT_LINES) { this.capBy = 'lines'; return false; }
+    if (this.bytes + n > MAX_EXPORT_BYTES) { this.capBy = 'bytes'; return false; }
     if (this.x.unique) { this.seen.add(text); }
-    this.out.push(this.x.context ? prefix + text : text);
+    this.bytes += n;
+    this.out.push(line);
     return true;
   }
 }
@@ -50,6 +59,17 @@ const whoOf = (rec: Rec, i: number, sub?: string): string => (sub !== undefined 
 
 interface Src { chat: Chat; title: string; file: string; sub?: string; win?: WinOf; }
 
+/** Lines of a message to export: each line holding a match, else the lines a multi-line match spans. */
+function lineTexts(text: string, terms: RegExp[]): string[] {
+  const hit = text.split('\n').filter((ln) => terms.some((re) => has(re, ln)));
+  if (hit.length) { return hit; }
+  let at: [number, number] | undefined;
+  for (const re of terms) { for (const r of matches(re, text)) { if (!at || r[0] < at[0]) { at = r; } break; } }
+  if (!at) { return []; }
+  const from = at[0] === 0 ? 0 : text.lastIndexOf('\n', at[0] - 1) + 1, to = text.indexOf('\n', Math.max(at[0], at[1] - 1));
+  return text.slice(from, to < 0 ? undefined : to).split('\n');
+}
+
 /** Emit every line of every windowed message that holds a match; false when the cap stopped it. */
 function messageLines(s: Src, rec: Rec, c: Compiled, L: Lines): boolean {
   const win = s.win?.(rec);
@@ -58,9 +78,7 @@ function messageLines(s: Src, rec: Rec, c: Compiled, L: Lines): boolean {
     const text = rec.text.slice(startOf(rec, i), rec.ends[i]);
     if (!c.terms.some((re) => has(re, text))) { continue; }
     const prefix = `${s.file}:${rec.lines[i]}: ${s.title} | ${localStamp(rec.ts[i])} | ${whoOf(rec, i, s.sub)} | `;
-    for (const ln of text.split('\n')) {
-      if (c.terms.some((re) => has(re, ln)) && !L.add(prefix, ln.replace(/\r$/, ''))) { return false; }
-    }
+    for (const ln of lineTexts(text, c.terms)) { if (!L.add(prefix, ln.replace(/\r$/, ''))) { return false; } }
   }
   return true;
 }
@@ -71,7 +89,7 @@ function tokenLines(s: Src, rec: Rec, c: Compiled, ctx: Ctx, tagId: string, L: L
   const prefix = `${s.file}:0: ${s.title} | ${localStamp(s.chat.last)} | ${who} | `;
   for (const t of c.tokens) {
     if (t.kind === 'tag') { continue; }
-    for (const m of matchedBy(s.chat, rec, t, ctx, tagId)) { if (!L.add(prefix, m)) { return false; } }
+    for (const m of matchedBy(s.chat, rec, t, ctx, tagId, s.win?.(rec))) { if (!L.add(prefix, m)) { return false; } }
   }
   return true;
 }
@@ -111,6 +129,17 @@ async function collect(sc: Scan, folders: string[], x: ExportOpts, sig: Abort, t
   return rows.sort((a, b) => order.get(a.r)! - order.get(b.r)!).map((w) => w.f);
 }
 
+/** Join lines in chunks, yielding and ticking between them so the host's stall timer keeps resetting. */
+async function joinLines(out: string[], sig: Abort, tick: OnTick): Promise<string> {
+  const parts: string[] = [], pace = pacer();
+  for (let i = 0; i < out.length && !sig.aborted; i += JOIN_CHUNK) {
+    parts.push(out.slice(i, i + JOIN_CHUNK).join('\n'));
+    tick(Math.min(i + JOIN_CHUNK, out.length), out.length);
+    await pace();
+  }
+  return parts.length ? parts.join('\n') + '\n' : '';
+}
+
 /** Re-run the search without the 500-row cap and emit one output line per matching line. */
 export async function exportIndex(
   ix: Source, c: Compiled, o: Options, folders: string[], ctx: Ctx, sig: Abort, x: ExportOpts, tick: OnTick,
@@ -127,6 +156,6 @@ export async function exportIndex(
     tick(i + 1, found.length);
     await pace();
   }
-  const text = L.out.length ? L.out.join('\n') + '\n' : '';
-  return { text, lines: L.out.length, chats, capped: L.capped };
+  const text = await joinLines(L.out, sig, tick);
+  return { text, lines: L.out.length, chats, capped: L.capped, capBy: L.capBy };
 }

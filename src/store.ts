@@ -41,7 +41,7 @@ export class Store {
 
   /** Query, options and sort as last typed. Results come from the last completed search. */
   get draft(): Draft {
-    const s = this.read<Saved>(STATE_KEY) ?? BLANK;
+    const { results: _r, searched: _s, ...s } = this.read<Saved>(STATE_KEY) ?? BLANK as Saved; // legacy states held results; drop them
     return { ...BLANK, ...s, subs: s.subs !== false, last: s.last || 0 }; // older states lack subs and last
   }
   setDraft(d: Draft): void { this.w.put(STATE_KEY, d); }

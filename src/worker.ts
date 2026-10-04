@@ -37,13 +37,8 @@ async function init(m: any): Promise<void> {
   ix = new ChatIndex(m.dir, m.root || undefined);
   ix.onError = log;
   ix.onChange = () => post({ t: 'changed' });
-  loaded = ix.load();
-  loaded.catch(() => undefined); // handled below; keeps searches from an unhandled rejection
-  try { await loaded; } catch (e) {
-    log('load cache', e);
-    post({ t: 'fatal', message: 'Could not open the search cache: ' + (e as Error).message });
-    process.exit(1); // the host restarts the worker
-  }
+  loaded = ix.load(); // never rejects: the load catches its own errors and falls back to memory
+  await loaded;
   post({ t: 'loaded', chats: ix.size });
   await refresh().catch((e) => log('initial index', e));
   ix.watch();

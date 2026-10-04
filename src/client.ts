@@ -5,7 +5,8 @@ export const TIMEOUT_MS = 3000;
 export const TIMEOUT_MSG = 'Search timed out: simplify the pattern';
 
 type Msg = { t: string; [k: string]: any };
-interface Job { id: number; onMsg: (m: Msg) => void; onEnd: (reason: 'done' | 'cancel' | 'timeout' | 'error') => void; timer?: NodeJS.Timeout; }
+type Kind = 'search' | 'export';
+interface Job { id: number; kind: Kind; onMsg: (m: Msg) => void; onEnd: (reason: 'done' | 'cancel' | 'timeout' | 'error') => void; timer?: NodeJS.Timeout; }
 interface Req { resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout; }
 
 const RETRY_MAX = 3;
@@ -15,12 +16,12 @@ type End = 'done' | 'cancel' | 'timeout' | 'error';
 /**
  * Host side of the worker: spawns out/worker.js, routes replies, enforces the search timeout
  * (a stall of TIMEOUT_MS with no message from the worker terminates and restarts it), cancels the
- * previous search when a new one starts, and restarts a worker that dies (at most 3 times a minute).
+ * previous job of the same kind when a new one starts, and restarts a worker that dies (at most 3 times a minute).
  */
 export class WorkerClient {
   private w?: Worker;
   private seq = 0;
-  private job?: Job;
+  private jobs = new Map<Kind, Job>(); // one slot per kind: a search never cancels an export
   private reqs = new Map<number, Req>();
   private queue: Msg[] = []; // posts made while no worker is up; sent by start()
   private starts: number[] = [];
@@ -59,10 +60,9 @@ export class WorkerClient {
     this.start();
   }
 
-  /** End the current search (the error path shows it) and reject pending requests. */
+  /** End every running job (the error path shows it) and reject pending requests. */
   private failAll(why: End, message: string): void {
-    const j = this.job;
-    if (j) {
+    for (const j of [...this.jobs.values()]) {
       try { j.onMsg({ t: 'error', id: j.id, message }); } catch (e) { this.onError?.('worker', e); }
       this.finish(j, why);
     }
@@ -85,7 +85,7 @@ export class WorkerClient {
       clearTimeout(r.timer);
       this.reqs.delete(m.req);
       if (m.error) { r.reject(new Error(m.error)); } else { r.resolve(m.value); }
-    } else if (m.id !== undefined && this.job && m.id === this.job.id) { this.jobMsg(this.job, m); }
+    } else if (m.id !== undefined) { const j = [...this.jobs.values()].find((x) => x.id === m.id); if (j) { this.jobMsg(j, m); } }
     else if (m.id === undefined) { this.onEvent?.(m); }
   }
 
@@ -102,7 +102,7 @@ export class WorkerClient {
 
   private finish(j: Job, why: End): void {
     clearTimeout(j.timer);
-    if (this.job === j) { this.job = undefined; }
+    if (this.jobs.get(j.kind) === j) { this.jobs.delete(j.kind); }
     j.onEnd(why);
   }
 
@@ -110,24 +110,24 @@ export class WorkerClient {
   async restart(why: End = 'error'): Promise<void> {
     const old = this.w;
     this.w = undefined; // its late messages and exit are ignored from here on
-    const j = this.job;
+    const running = [...this.jobs.values()];
     for (const r of this.reqs.values()) { clearTimeout(r.timer); r.reject(new Error(TIMEOUT_MSG)); }
     this.reqs.clear();
-    if (j) { this.finish(j, why); }
+    for (const j of running) { this.finish(j, why); }
     try { await old?.terminate(); } catch (e) { this.onError?.('worker terminate', e); }
     this.start();
   }
 
-  /** Start a search (or an export job); any running job is canceled first. */
-  search(p: { [k: string]: any }, onMsg: Job['onMsg'], onEnd: Job['onEnd'], kind: 'search' | 'export' = 'search'): void {
-    this.cancel();
-    const j: Job = { id: ++this.seq, onMsg, onEnd };
-    this.job = j; // the timer starts when the worker reports 'started' (after any index wait)
+  /** Start a search (or an export job); a running job of the same kind is canceled first. */
+  search(p: { [k: string]: any }, onMsg: Job['onMsg'], onEnd: Job['onEnd'], kind: Kind = 'search'): void {
+    this.cancel(kind);
+    const j: Job = { id: ++this.seq, kind, onMsg, onEnd };
+    this.jobs.set(kind, j); // the timer starts when the worker reports 'started' (after any index wait)
     if (!this.send({ ...p, t: kind, id: j.id })) { this.failAll('error', 'Search worker is not running'); }
   }
 
-  cancel(): void {
-    const j = this.job;
+  cancel(kind: Kind = 'search'): void {
+    const j = this.jobs.get(kind);
     if (!j) { return; }
     this.w?.postMessage({ t: 'cancel', id: j.id });
     this.finish(j, 'cancel');

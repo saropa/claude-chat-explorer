@@ -124,9 +124,9 @@ function itemOf(h: MsgHit, terms: RegExp[]): ExpandItem {
 }
 
 /** Matched files and commands of one chat for the active file:, edited: and cmd: tokens. */
-function tokenFinds(chat: Chat, rec: Rec, c: Compiled, ctx: Ctx, files: Map<string, boolean>, cmds: Set<string>): void {
+function tokenFinds(chat: Chat, rec: Rec, c: Compiled, ctx: Ctx, files: Map<string, boolean>, cmds: Set<string>, win?: Win): void {
   for (const t of c.tokens) {
-    if (t.kind === 'cmd') { matchedBy(chat, rec, t, ctx, chat.id).forEach((s) => cmds.add(s)); }
+    if (t.kind === 'cmd') { matchedBy(chat, rec, t, ctx, chat.id, win).forEach((s) => cmds.add(s)); }
     if (t.kind === 'file' || t.kind === 'edited') {
       for (const p of matchedBy(chat, rec, t, ctx, chat.id)) { files.set(p, files.get(p) || chat.files.some((f) => f.path === p && f.edited)); }
     }
@@ -138,14 +138,16 @@ export function expandChat(ix: Source, chat: Chat, c: Compiled, o: Options, ctx:
   const now = Date.now(), cutoff = cutoffOf(o.when);
   const rec = ix.rec(chat);
   const files = new Map<string, boolean>(), commands = new Set<string>();
-  let hits = c.terms.length ? messageHits(rec, c.terms, topWinOf(c.last)?.(rec)) : [];
-  tokenFinds(chat, rec, c, ctx, files, commands);
+  const tw = topWinOf(c.last)?.(rec);
+  let hits = c.terms.length ? messageHits(rec, c.terms, tw) : [];
+  tokenFinds(chat, rec, c, ctx, files, commands, tw);
   const sc: Scan = { ix, c, o, ctx, cutoff, now };
   const sw = subWinOf(c.last, () => rec);
   for (const [s] of o.subs ? subHits(sc, chat) : []) {
     const sr = ix.rec(s);
-    if (c.terms.length) { hits = hits.concat(messageHits(sr, c.terms, sw?.(sr), s.agentType ?? '')); }
-    tokenFinds(s, sr, c, ctx, files, commands);
+    const w = sw?.(sr);
+    if (c.terms.length) { hits = hits.concat(messageHits(sr, c.terms, w, s.agentType ?? '')); }
+    tokenFinds(s, sr, c, ctx, files, commands, w);
   }
   hits.sort((a, b) => b.rec.ts[b.i] - a.rec.ts[a.i]);
   return {

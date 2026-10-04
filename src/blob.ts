@@ -1,15 +1,15 @@
-import { SEP } from './parse';
+import { CMD_SEP, SEP } from './parse';
 import { Rec } from './types';
 
 /**
  * Record layout: u32 message count n, u32 text bytes, n x f64 timestamp, n x u32 message length
  * (UTF-16 units), n x u32 JSONL line number (1-based), n x u8 role, UTF-8 text (messages joined
- * by SEP), UTF-8 commands joined by SEP.
+ * by SEP), UTF-8 commands joined by SEP, each as <message index> CMD_SEP <command>.
  */
-export function encodeRec(p: { texts: string[]; ts: number[]; roles: number[]; lines: number[]; cmds: string[] }): Buffer {
-  const { texts, ts, roles, lines, cmds } = p;
+export function encodeRec(p: { texts: string[]; ts: number[]; roles: number[]; lines: number[]; cmds: string[]; cmdAt: number[] }): Buffer {
+  const { texts, ts, roles, lines, cmds, cmdAt } = p;
   const n = texts.length;
-  const text = texts.join(SEP), cmd = cmds.join(SEP);
+  const text = texts.join(SEP), cmd = cmds.map((c, i) => cmdAt[i] + CMD_SEP + c).join(SEP);
   const tb = Buffer.byteLength(text), cb = Buffer.byteLength(cmd);
   const head = 8 + n * 17;
   const out = Buffer.allocUnsafe(head + tb + cb);
@@ -45,7 +45,9 @@ export function decodeRec(b: Buffer): Rec {
   const cmd = b.toString('utf8', head + tb);
   const text = b.toString('utf8', head, head + tb);
   if (at - SEP.length > text.length) { throw new Error('corrupt record'); } // message lengths overrun the text
-  return { text, ts, ends, roles, lines, cmds: cmd ? cmd.split(SEP) : [] };
+  const cmds: string[] = [], cmdAt: number[] = [];
+  for (const e of cmd ? cmd.split(SEP) : []) { const k = e.indexOf(CMD_SEP); cmdAt.push(Number(e.slice(0, k))); cmds.push(e.slice(k + 1)); }
+  return { text, ts, ends, roles, lines, cmds, cmdAt };
 }
 
 /** Start offset of message i in a record's text. */

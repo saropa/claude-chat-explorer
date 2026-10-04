@@ -4,10 +4,10 @@ import * as path from 'path';
 import { FileRef } from './types';
 
 /** Record layout version; bump it when the file layout or the parse output changes. */
-export const FORMAT = 4;
+export const FORMAT = 5;
 export const DIR_PREFIX = 'records-v';
 export const EXT = '.ccr';
-const MAGIC = 'CCR4';
+const MAGIC = 'CCR5';
 const FIXED = 20;
 const FIRST_READ = 65536;
 const RETRIES = 3;
@@ -17,7 +17,7 @@ const RETRY_MS = 20;
 export interface RecHeader {
   v: number; src: string; mtime: number; size: number; id: string; dir: string;
   parent?: string; agentType?: string; desc?: string; title: string; last: number; first: number; count: number;
-  files: Array<[string, number]>; cut: number;
+  files: Array<[string, number]>;
 }
 export interface Parsed { h: RecHeader; bloom: Uint8Array; bodyLen: number; }
 
@@ -34,7 +34,7 @@ export function crc32(b: Uint8Array): number {
   return (c ^ -1) >>> 0;
 }
 
-/** File name of one source version: first 32 hex chars of sha1(src, mtime, size). */
+/** File name of one source version: first 32 hex chars of sha1(src, mtime, size); bodies of one name can differ by prune state and are all valid. */
 export function recName(src: string, mtime: number, size: number): string {
   return crypto.createHash('sha1').update(`${src}\0${mtime}\0${size}`).digest('hex').slice(0, 32) + EXT;
 }
@@ -56,7 +56,10 @@ export function encodeFile(h: RecHeader, bloom: Uint8Array, body: Buffer): Buffe
   return out;
 }
 
-const bad = (): Error => new Error('corrupt record');
+const bad = (): Error => Object.assign(new Error('corrupt record'), { code: 'ECORRUPT' });
+/** True for a damaged record (bad length, CRC, identity or header JSON), never for an I/O error. */
+export const isCorrupt = (e: unknown): boolean =>
+  e instanceof SyntaxError || (e as NodeJS.ErrnoException)?.code === 'ECORRUPT' || (e as Error)?.message === 'corrupt record';
 
 /** Validate the fixed prefix against the file size; returns header and body lengths. */
 function prefix(b: Buffer, size: number): { hl: number; bl: number } {
@@ -69,7 +72,7 @@ function prefix(b: Buffer, size: number): { hl: number; bl: number } {
 function validHeader(h: RecHeader): boolean {
   const s = (v: unknown) => typeof v === 'string', n = (v: unknown) => typeof v === 'number';
   return !!h && h.v === FORMAT && s(h.src) && n(h.mtime) && n(h.size) && s(h.id) && s(h.dir) && s(h.title)
-    && n(h.last) && n(h.first) && n(h.count) && n(h.cut) && Array.isArray(h.files);
+    && n(h.last) && n(h.first) && n(h.count) && Array.isArray(h.files);
 }
 
 /** Check the header block (crc, json, identity against its file name) and split off the bloom. */
@@ -116,8 +119,8 @@ export async function readHeader(file: string, name: string): Promise<Parsed> {
   } finally { await fh.close(); }
 }
 
-const code = (e: unknown): string | undefined => (e as NodeJS.ErrnoException).code;
-const quiet = (p: Promise<unknown>): Promise<void> => p.then(() => undefined, () => undefined);
+export const code = (e: unknown): string | undefined => (e as NodeJS.ErrnoException).code;
+export const quiet = (p: Promise<unknown>): Promise<void> => p.then(() => undefined, () => undefined);
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /** Rename with retries for the Windows holds; a valid same-name target counts as success. */
@@ -132,12 +135,20 @@ async function renameInto(tmp: string, dest: string, name: string): Promise<void
   }
 }
 
-/** Write via a same-folder temp file and rename; false when the source moved meanwhile. A failure removes only its temp. */
+async function writeTmp(tmp: string, data: Buffer): Promise<void> {
+  const fh = await fs.promises.open(tmp, 'w');
+  try { await fh.writeFile(data); } finally { await fh.close(); }
+}
+
+/** Write via a same-folder temp file and rename; false when the source moved meanwhile. A missing folder is recreated once. A failure removes only its temp. */
 export async function writeRecord(dir: string, name: string, data: Buffer, current: () => Promise<boolean>): Promise<boolean> {
   const tmp = path.join(dir, `${name}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`);
   try {
-    const fh = await fs.promises.open(tmp, 'w');
-    try { await fh.writeFile(data); } finally { await fh.close(); }
+    try { await writeTmp(tmp, data); } catch (e) {
+      if (code(e) !== 'ENOENT') { throw e; }
+      await fs.promises.mkdir(dir, { recursive: true });
+      await writeTmp(tmp, data);
+    }
     if (!(await current())) { await quiet(fs.promises.unlink(tmp)); return false; }
     await renameInto(tmp, path.join(dir, name), name);
     return true;

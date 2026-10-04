@@ -5,6 +5,7 @@ export const MSG_CAP = 20000; // chars of text kept per message of a top-level c
 export const SUB_CAP = 8000; // chars of text kept per message of a subagent chat
 export const CMD_CAP = 300;
 export const SEP = '\u0001'; // separates packed messages and commands in a store record
+export const CMD_SEP = '\u0002'; // separates a command from its message index inside a record
 const TITLE_LINE_MAX = 100000; // longer lines that merely mention a title key are not title rows
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const READ_TOOLS = new Set(['Read', 'Glob', 'Grep']);
@@ -17,14 +18,14 @@ const TITLE_KEYS = ['"customTitle":"', '"aiTitle":"', '"lastPrompt":"', '"summar
 /** Parsed chat file: metadata plus packed message text. */
 export interface Parsed {
   title: string; last: number; first: number; count: number;
-  files: FileRef[]; cmds: string[]; ts: number[]; roles: number[]; texts: string[];
+  files: FileRef[]; cmds: string[]; cmdAt: number[]; ts: number[]; roles: number[]; texts: string[];
   lines: number[]; // 1-based JSONL line of each kept message
 }
 
 interface Acc {
   custom: string; ai: string; lastPrompt: string; summary: string; firstUser: string;
   lastTs: number; firstTs: number; count: number; cap: number; before: number; mtime: number; line: number;
-  lines: number[]; ts: number[]; roles: number[]; texts: string[]; files: Map<string, boolean>; cmds: Set<string>;
+  lines: number[]; ts: number[]; roles: number[]; texts: string[]; files: Map<string, boolean>; cmds: Map<string, number>;
 }
 
 /** Joined text blocks of a message content value (tool results, images and thinking are skipped). */
@@ -47,7 +48,7 @@ function toolUse(b: any, a: Acc): void {
     const p = inp.file_path ?? inp.path;
     if (typeof p === 'string' && p && !a.files.has(p)) { a.files.set(p, false); }
   } else if (b.name === 'Bash' && typeof inp.command === 'string' && inp.command) {
-    a.cmds.add(inp.command.slice(0, CMD_CAP).split(SEP).join(' '));
+    a.cmds.set(inp.command.slice(0, CMD_CAP).replace(/[\u0001\u0002]/g, ' '), a.texts.length); // latest use wins
   }
 }
 
@@ -116,13 +117,13 @@ function takeLine(b: Buffer, s: number, e: number, a: Acc): void {
 /** Parse one chat file. Messages older than before are counted but their text is dropped. */
 export async function parseFile(file: string, mtime: number, cap: number, before = 0): Promise<Parsed> {
   const a: Acc = { custom: '', ai: '', lastPrompt: '', summary: '', firstUser: '', lastTs: 0, firstTs: 0,
-    count: 0, cap, before, mtime, line: 0, lines: [], ts: [], roles: [], texts: [], files: new Map(), cmds: new Set() };
+    count: 0, cap, before, mtime, line: 0, lines: [], ts: [], roles: [], texts: [], files: new Map(), cmds: new Map() };
   await scanLines(file, (b, s, e, n) => { a.line = n; takeLine(b, s, e, a); });
   const flat = (x: string) => x.replace(/\s+/g, ' ');
   const title = flat(a.custom || a.ai || a.lastPrompt || a.summary || flat(a.firstUser).slice(0, 80) || '(untitled)');
   return {
     title, last: a.lastTs || mtime, first: a.firstTs || a.lastTs || mtime, count: a.count,
-    files: Array.from(a.files, ([path, edited]) => ({ path, edited })), cmds: [...a.cmds],
+    files: Array.from(a.files, ([path, edited]) => ({ path, edited })), cmds: [...a.cmds.keys()], cmdAt: [...a.cmds.values()],
     ts: a.ts, roles: a.roles, texts: a.texts, lines: a.lines,
   };
 }

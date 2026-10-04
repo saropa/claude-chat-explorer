@@ -11,11 +11,9 @@ export function cutoffOf(when: string, now: number = Date.now()): number {
   return 0;
 }
 
-// An unclosed quote runs to the end of the query, so typing cmd:"git pu already filters.
-const TOKEN = /(^|\s)(file|edited|cmd|tag):(?:"([^"]*)"?|(\S*))/gi;
-
-// last:<n> limits matches to the final n messages of each chat.
-const LAST = /(^|\s)last:(\d+)(?=\s|$)/gi;
+// One left-to-right scan so a quoted phrase is claimed first and "see file:x" stays phrase text.
+// Groups: 1 token kind, 2 quoted token value (an unclosed quote runs to the end), 3 bare token value, 4 last:<n>.
+const SCAN = /(?:^|\s)(?:(file|edited|cmd|tag):(?:"([^"]*)"?|(\S*))|last:(\d+)(?=\s|$))|"[^"]*(?:"|$)|\S+/gi;
 /** A double-quoted phrase (an unclosed quote runs to the end) or a bare word. */
 const PIECE = /"([^"]*)(?:"|$)|(\S+)/g;
 export const MIN_QUERY_CHARS = 2;
@@ -24,14 +22,15 @@ export const MIN_QUERY_CHARS = 2;
 export function parseQuery(query: string): { plain: string; tokens: Token[]; last: number } {
   const tokens: Token[] = [];
   let last = 0;
-  const rest = query.replace(TOKEN, (_m, _s, k: string, q?: string, u?: string) => {
+  const plain = query.replace(SCAN, (m, k?: string, q?: string, u?: string, n?: string) => {
+    if (n !== undefined) { last = Number(n) || last; return ' '; }
+    if (!k) { return m; }
     const kind = k.toLowerCase() as TokenKind;
     let value = (q ?? u ?? '').trim().toLowerCase();
     if (kind === 'tag') { value = value.replace(/\s+/g, '-'); } // stored tags use dashes for spaces
     if (value) { tokens.push({ kind, value }); }
     return ' ';
-  });
-  const plain = rest.replace(LAST, (_m, _s, n: string) => { last = Number(n) || last; return ' '; }).trim();
+  }).trim();
   return { plain, tokens, last };
 }
 
