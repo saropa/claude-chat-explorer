@@ -2,7 +2,7 @@
   "name": "claude-chat-search",
   "displayName": "Saropa Chat Search",
   "description": "Full-text search of Claude Code chats from the activity bar.",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -16,7 +16,9 @@
     "Other"
   ],
   "main": "./out/extension.js",
-  "activationEvents": ["onStartupFinished"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -34,9 +36,20 @@
           "id": "claudeChatSearch.view",
           "name": "Saropa Chat Search",
           "icon": "icon.svg"
+        },
+        {
+          "id": "claudeChatSearch.git",
+          "name": "Git Activity",
+          "icon": "icon.svg"
         }
       ]
-    }
+    },
+    "viewsWelcome": [
+      {
+        "view": "claudeChatSearch.git",
+        "contents": "No git activity found in your chats yet."
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p .",

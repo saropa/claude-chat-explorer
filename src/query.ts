@@ -13,12 +13,12 @@ export function cutoffOf(when: string, now: number = Date.now()): number {
 
 // One left-to-right scan so a quoted phrase is claimed first and "see file:x" stays phrase text.
 // Groups: 1 token kind, 2 quoted token value (an unclosed quote runs to the end), 3 bare token value, 4 last:<n>.
-const SCAN = /(?:^|\s)(?:(file|edited|cmd|tag):(?:"([^"]*)"?|(\S*))|last:(\d+)(?=\s|$))|"[^"]*(?:"|$)|\S+/gi;
+const SCAN = /(?:^|\s)(?:(file|edited|cmd|tag|sha|pr|branch):(?:"([^"]*)"?|(\S*))|last:(\d+)(?=\s|$))|"[^"]*(?:"|$)|\S+/gi;
 /** A double-quoted phrase (an unclosed quote runs to the end) or a bare word. */
 const PIECE = /"([^"]*)(?:"|$)|(\S+)/g;
 export const MIN_QUERY_CHARS = 2;
 
-/** Split a query into plain text, file:/edited:/cmd:/tag: tokens (values lowercased) and the last:<n> limit (0 = none). */
+/** Split a query into plain text, file:/edited:/cmd:/tag:/sha:/pr:/branch: tokens (values lowercased) and the last:<n> limit (0 = none). */
 export function parseQuery(query: string): { plain: string; tokens: Token[]; last: number } {
   const tokens: Token[] = [];
   let last = 0;
@@ -28,6 +28,7 @@ export function parseQuery(query: string): { plain: string; tokens: Token[]; las
     const kind = k.toLowerCase() as TokenKind;
     let value = (q ?? u ?? '').trim().toLowerCase();
     if (kind === 'tag') { value = value.replace(/\s+/g, '-'); } // stored tags use dashes for spaces
+    if (kind === 'pr') { value = value.replace(/^#/, ''); } // pr:#123 and pr:123 are the same
     if (value) { tokens.push({ kind, value }); }
     return ' ';
   }).trim();

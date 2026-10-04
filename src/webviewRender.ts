@@ -11,6 +11,7 @@ function ordered(rs){const a=rs.slice();
 if(sort.value==='time')a.sort((x,y)=>y.last-x.last);
 else if(sort.value==='title')a.sort((x,y)=>x.title.toLowerCase().localeCompare(y.title.toLowerCase()));
 else if(sort.value==='length')a.sort((x,y)=>(y.msgs||0)-(x.msgs||0));
+else if(sort.value==='cost')a.sort((x,y)=>(y.cost||0)-(x.cost||0));
 else a.sort((x,y)=>y.score-x.score);
 return a.filter(r=>pins.has(r.id)).concat(a.filter(r=>!pins.has(r.id)));}
 function snip(r){let o='',p=0;for(const g of r.ranges){o+=esc(r.snippet.slice(p,g[0]))+'<mark>'+esc(r.snippet.slice(g[0],g[1]))+'</mark>';p=g[1];}
@@ -28,6 +29,7 @@ if(!e)return h+'<div class="m">Loading...</div>';
 if(e.files.length)h+='<div class="cap">Files</div><div class="fps">'+e.files.map(fileChip).join('')+'</div>';
 if(e.commands.length)h+='<div class="cap">Commands</div>'+e.commands.map(c=>'<div class="fi">'+esc(c)+'</div>').join('');
 const rel=e.related||[];
+h+=gitHtml(r,e);
 h+=sec('rel:'+r.id,'Related chats',rel.length,rel.length?rel.map(relHtml).join(''):'<div class="m">None found</div>','sl');
 h+=e.items.map(msgHtml).join('');
 if(e.items.length<e.total)h+='<a data-a="more" role="button" tabindex="0">Show more ('+(e.total-e.items.length)+')</a>';
@@ -39,8 +41,8 @@ return r.subs.map(s=>subRow(r,s)).join('')+(more>0?'<div class="m sr">+'+more+' 
 function rowHtml(r){
 const now=Date.now(),p=pins.has(r.id),op=open.has(r.id),d=dotOf(r.last,now);
 const tip=[r.title,all.checked?r.project:'',r.hits?r.hits+(r.hits===1?' hit':' hits'):'',full(r.last),statsText(r)].filter(Boolean).join('\n');
-return '<div class="r" data-id="'+esc(r.id)+'" tabindex="0" title="'+esc(tip)+'"><div class="rh"><div class="hd"><span class="dot '+d+'" title="'+DOTS[d]+'"></span><span class="t">'+esc(r.title)+'</span>'
-+(all.checked?'<span class="pj">'+esc(r.project)+'</span>':'')+'<span class="chips">'+chips(r.id)+'</span>'
+return '<div class="r" data-id="'+esc(r.id)+'" tabindex="0" title="'+esc(tip)+'"><div class="rh"><div class="hd"><span class="dot '+d+'" title="'+DOTS[d]+'"></span><span class="t">'+esc(r.title)+'</span>'+pillHtml(r)
++(all.checked?'<span class="pj">'+esc(r.project)+'</span>':'')+'<span class="chips">'+chips(r.id)+'</span>'+gitIcon(r)
 +'<button class="ic'+(op?' on':'')+'" data-a="exp" title="'+(op?'Collapse':'Expand')+'" aria-expanded="'+op+'">'+CHEV+'</button>'
 +'<button class="ic pn'+(p?' on':'')+'" data-a="pin" title="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button>'
 +'<span class="tm" title="'+esc(full(r.last))+'">'+shortAgo(r.last,now)+'</span></div>'

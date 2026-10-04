@@ -11,6 +11,8 @@ export function chatOf(p: Parsed, rec: string): Chat {
   const c: Chat = { id: h.id, dir: h.dir, mtime: h.mtime, size: h.size, title: h.title, last: h.last, first: h.first,
     count: h.count, files: filesOf(h), rec, len: p.bodyLen, bloom: p.bloom };
   if (h.parent) { c.parent = h.parent; c.agentType = h.agentType; c.desc = h.desc; }
+  if (h.cost) { c.cost = h.cost; }
+  if (h.git) { c.git = h.git; }
   return c;
 }
 
@@ -18,6 +20,8 @@ export function headerOf(c: Chat, src: string): RecHeader {
   const h: RecHeader = { v: FORMAT, src, mtime: c.mtime, size: c.size, id: c.id, dir: c.dir, title: c.title, last: c.last,
     first: c.first, count: c.count, files: c.files.map((f) => [f.path, f.edited ? 1 : 0]) };
   if (c.parent) { h.parent = c.parent; h.agentType = c.agentType; h.desc = c.desc; }
+  if (c.cost) { h.cost = c.cost; }
+  if (c.git) { h.git = c.git; }
   return h;
 }
 

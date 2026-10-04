@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0
+- Each row now shows a small status pill after its title for the chat's most important status: Active, Huge, Empty, Tiny or Abandoned. Normal chats show no pill. Hover it to see every status of the chat.
+- The expanded stats line and the row tooltip now show what a chat cost: dollars, lines added and removed, and the models used, for example `$1.23 · +120/-30 lines · opus, sonnet`. Subagents show no cost of their own.
+- New Cost option in the Sort menu: costliest chats first.
+- New search words: `sha:<start of a commit id>` (4 or more characters), `pr:<number>` (also `pr:#123`) and `branch:<part of a branch name>`. They combine with words and other filters.
+- The expanded view has a new Git section listing the chat's PRs and commits. Click one to search for it.
+- Rows with PRs or commits show a small git icon with a count. Click it to open the row at its Git section.
+- New Git Activity view below the search view: repositories with their PRs and the chats that mention them, and a Branches group with each branch's commits. Click a chat or commit to resume the chat.
+- The first start after updating rebuilds the index once.
+
 ## 0.5.3
 - Searches are much faster after the first one: chat files are kept in memory (up to 64 MB) and checked only once, and the faster built-in checksum is used when available.
 - A search no longer waits for the background cleanup of old index files.

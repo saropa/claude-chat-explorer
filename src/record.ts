@@ -2,13 +2,13 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
-import { FileRef } from './types';
+import { Cost, FileRef, Git } from './types';
 
 /** Record layout version; bump it when the file layout or the parse output changes. */
-export const FORMAT = 5;
+export const FORMAT = 6;
 export const DIR_PREFIX = 'records-v';
 export const EXT = '.ccr';
-const MAGIC = 'CCR5';
+const MAGIC = 'CCR5'; // file layout tag; FORMAT also changes when only the header or parse output does
 const FIXED = 20;
 const FIRST_READ = 65536;
 const RETRIES = 3;
@@ -19,6 +19,7 @@ export interface RecHeader {
   v: number; src: string; mtime: number; size: number; id: string; dir: string;
   parent?: string; agentType?: string; desc?: string; title: string; last: number; first: number; count: number;
   files: Array<[string, number]>;
+  cost?: Cost; git?: Git;
 }
 export interface Parsed { h: RecHeader; bloom: Uint8Array; bodyLen: number; }
 
@@ -75,10 +76,13 @@ function prefix(b: Buffer, size: number): { hl: number; bl: number } {
   return { hl, bl };
 }
 
+const extrasOk = (h: RecHeader): boolean => (!h.cost || (typeof h.cost.usd === 'number' && Array.isArray(h.cost.models)))
+  && (!h.git || (Array.isArray(h.git.commits) && Array.isArray(h.git.branches) && Array.isArray(h.git.prs)));
+
 function validHeader(h: RecHeader): boolean {
   const s = (v: unknown) => typeof v === 'string', n = (v: unknown) => typeof v === 'number';
   return !!h && h.v === FORMAT && s(h.src) && n(h.mtime) && n(h.size) && s(h.id) && s(h.dir) && s(h.title)
-    && n(h.last) && n(h.first) && n(h.count) && Array.isArray(h.files);
+    && n(h.last) && n(h.first) && n(h.count) && Array.isArray(h.files) && extrasOk(h);
 }
 
 /** Check the header block (crc, json, identity against its file name) and split off the bloom. */

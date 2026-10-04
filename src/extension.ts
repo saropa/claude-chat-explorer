@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { TIMEOUT_MSG, WorkerClient } from './client';
+import { GIT_VIEW, GitTree, OPEN_CMD } from './gitTree';
 import { IndexStatus } from './indexStatus';
 import { deliver } from './exporter';
 import { compile, isEmpty, MIN_QUERY_CHARS, queryChars } from './query';
@@ -13,7 +14,7 @@ import { html, NAME } from './webview';
 
 const WHENS = ['any', '1h', '2h', '4h', '8h', 'today'];
 const LASTS = [0, 10, 25, 50, 100];
-const SORTS = ['score', 'time', 'title', 'length'];
+const SORTS = ['score', 'time', 'title', 'length', 'cost'];
 const POST_GAP_MS = 100;
 
 type Base = Draft;
@@ -29,10 +30,14 @@ const channel = vscode.window.createOutputChannel(NAME);
 const log = (msg: string): void => channel.appendLine(`[${new Date().toISOString()}] ${msg}`);
 const logErr = (where: string, e: unknown): void => log(`${where}: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
 
+const folderPaths = (): string[] => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+
 class Provider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private progress: { done: number; total: number; subs: number; first: boolean } | null = null;
   private lastPost = 0;
+  onIndex?: () => void; // the index changed: refresh the Git Activity tree
+  onScope?: () => void; // the All projects option changed
 
   constructor(private readonly store: Store, private readonly client: WorkerClient,
     private readonly status: IndexStatus) {
@@ -48,8 +53,8 @@ class Provider implements vscode.WebviewViewProvider {
     if (m.t === 'log') { log(String(m.msg)); }
     else if (m.t === 'fatal') { log(String(m.message)); this.post({ type: 'error', message: String(m.message) }); }
     else if (m.t === 'progress') { this.indexing(m.done, m.total, m.subs, !!m.first); }
-    else if (m.t === 'indexed') { this.indexed(); }
-    else if (m.t === 'changed') { void this.postMeta(); }
+    else if (m.t === 'indexed') { this.indexed(); this.onIndex?.(); }
+    else if (m.t === 'changed') { void this.postMeta(); this.onIndex?.(); }
   }
 
   /** Index progress shown in the panel and status bar. */
@@ -228,7 +233,11 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const status = new IndexStatus();
   store = new Store(ctx, (e) => logErr('save state', e));
   const provider = new Provider(store, client, status);
-  ctx.subscriptions.push(channel, status,
+  const tree = new GitTree(client, () => ({ all: store!.draft.all, folders: folderPaths() }), logErr);
+  provider.onIndex = provider.onScope = () => tree.refresh();
+  ctx.subscriptions.push(channel, status, tree,
+    vscode.window.registerTreeDataProvider(GIT_VIEW, tree),
+    vscode.commands.registerCommand(OPEN_CMD, (id: unknown) => (isSessionId(id) ? openChat(id, log) : undefined)),
     vscode.window.registerWebviewViewProvider('claudeChatSearch.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
   client.start(); // indexing runs in the worker; activation never waits for it

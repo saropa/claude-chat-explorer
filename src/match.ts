@@ -1,5 +1,6 @@
 import { mayHave } from './bloom';
 import { startOf } from './blob';
+import { gitMatched } from './gitMatch';
 import { Chat, Compiled, Ctx, Rec, Token } from './types';
 import { inWin, Win, WinOf } from './window';
 
@@ -42,12 +43,13 @@ export function scoreOf(title: string, terms: RegExp[], weightSum: number, last:
 
 export const weightAt = (ts: number, now: number): number => 1 / (1 + Math.max(0, (now - ts) / DAY) / 30);
 
-/** Files, commands or tags matched by one token (case-insensitive substring; tags exact, of tagId); commands only inside win. */
+/** Files, commands, tags or git facts matched by one token (case-insensitive substring; tags exact, of tagId); commands only inside win. */
 export function matchedBy(c: Chat, rec: Rec | undefined, t: Token, ctx: Ctx, tagId: string, win?: Win): string[] {
   const has = (s: string) => s.toLowerCase().includes(t.value);
   if (t.kind === 'file') { return c.files.filter((f) => has(f.path)).map((f) => f.path); }
   if (t.kind === 'edited') { return c.files.filter((f) => f.edited && has(f.path)).map((f) => f.path); }
   if (t.kind === 'cmd') { return rec ? rec.cmds.filter((x, i) => has(x) && (!win || inWin(win, rec, rec.cmdAt[i]))) : []; }
+  if (t.kind === 'sha' || t.kind === 'pr' || t.kind === 'branch') { return gitMatched(c, t); }
   return (ctx.tags[tagId] ?? []).includes(t.value) ? [t.value] : [];
 }
 

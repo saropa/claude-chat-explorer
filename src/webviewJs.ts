@@ -1,4 +1,5 @@
 import { SHARED_SRC } from './group';
+import { GIT_JS } from './webviewGit';
 import { EXPORT_JS } from './webviewExport';
 import { RENDER } from './webviewRender';
 import { MAX_RESULTS } from './search';
@@ -56,6 +57,9 @@ else if(k==='pin')vs.postMessage({type:'pin',id:id});
 else if(k==='tag')toggleTag(a.dataset.t);
 else if(k==='untag')vs.postMessage({type:'tagRemove',id:id,tag:a.dataset.t});
 else if(k==='more')askExpand(id,ex[id]?ex[id].items.length:0);
+else if(k==='git')gitOpen(id);
+else if(k==='pr')addTok('pr:'+a.dataset.n);
+else if(k==='sha')addTok('sha:'+a.dataset.s);
 return;}
 if(e.target.closest('.ex'))return;
 vs.postMessage({type:'open',id:id});}
@@ -76,7 +80,7 @@ if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;s
 history=d.history||[];render(s.results||[],s.searched);}
 else if(d.type==='meta'){pins=new Set(d.pins);tags=d.tags||{};pinned=d.pinned||[];tl.innerHTML=(d.all||[]).map(t=>'<option value="'+esc(t)+'">').join('');rerender();}
 else if(d.type==='expanded'){const n=ex[d.id],more=d.offset>0&&n;
-ex[d.id]={items:more?n.items.concat(d.items):d.items,total:d.total,files:d.files,commands:d.commands,related:more?n.related:d.related};rerender();}
+ex[d.id]={items:more?n.items.concat(d.items):d.items,total:d.total,files:d.files,commands:d.commands,related:more?n.related:d.related,git:d.git};rerender();if(gitFocus===d.id){gitFocus='';gitScroll(d.id);}}
 else if(d.type==='indexing'){ix={done:d.done,total:d.total,subs:d.subs||0,first:!!d.first};showIx();if(dirty)st.textContent=stText();}
 else if(d.type==='indexed'){ix=null;showIx();if(dirty){dirty=false;go();}}
 else if(d.type==='history'){history=d.history||[];renderHist();}
@@ -90,4 +94,4 @@ else if(d.type==='results'){busy=false;bar.classList.remove('on');render(d.resul
 vs.postMessage({type:'ready'});
 `;
 
-export const SCRIPT = SHARED_SRC + RENDER + CORE + STATUS + EXPORT_JS;
+export const SCRIPT = SHARED_SRC + RENDER + GIT_JS + CORE + STATUS + EXPORT_JS;

@@ -3,6 +3,7 @@ import { parentPort } from 'worker_threads';
 import { ExportOpts, exportIndex } from './export';
 import { ChatIndex } from './index';
 import { compile } from './query';
+import { gitSummary } from './gitSummary';
 import { expandChat, searchIndex } from './search';
 import { projectOf, statFields } from './stats';
 import { Abort, Compiled, Ctx, Result } from './types';
@@ -103,10 +104,17 @@ function pinned(ids: string[]): Result[] {
   const want = new Set(ids);
   return (ix?.tops() ?? []).filter((c) => want.has(c.id)).sort((a, b) => b.last - a.last)
     .map((c) => ({ file: ix!.fileOf(c), id: c.id, title: c.title, hits: 0, last: c.last, snippet: '', ranges: [], score: 0,
-      project: projectOf(c), ...statFields(c) }));
+      project: projectOf(c), ...statFields(c, ix!.subsOf(c)) }));
+}
+
+/** Git Activity tree data for the chats in scope. */
+async function gitTree(m: any): Promise<unknown> {
+  await loaded;
+  return ix ? gitSummary(ix, !!m.all, Array.isArray(m.folders) ? m.folders : []) : { repos: [], branches: [] };
 }
 
 async function request(m: any): Promise<unknown> {
+  if (m.t === 'gitSummary') { return gitTree(m); }
   if (m.t === 'expand') { return expand(m); }
   if (m.t === 'pinned') { return pinned(m.ids ?? []); }
   if (m.t === 'stats') { return { chats: ix?.size ?? 0, heap: process.memoryUsage().heapUsed, rss: process.memoryUsage().rss, buf: process.memoryUsage().arrayBuffers }; }

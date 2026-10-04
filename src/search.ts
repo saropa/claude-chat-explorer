@@ -2,6 +2,7 @@ import { startOf } from './blob';
 import { cutoffOf } from './query';
 import { eachHit, Hit, matchChat, matchedBy, scoreOf, snippetOf } from './match';
 import { subWinOf, topWinOf, Win } from './window';
+import { mergedGit } from './gitInfo';
 import { projectOf, statFields } from './stats';
 import { Abort, Chat, Compiled, Ctx, Expanded, ExpandItem, Options, Rec, Result, SubResult } from './types';
 
@@ -76,7 +77,7 @@ export function toResult(sc: Scan, f: Found, maxSubs: number = MAX_SUBS): Result
   const weight = (own?.weightSum ?? 0) + subs.reduce((a, [, h]) => a + h.weightSum, 0);
   const snip = own ?? subs[0][1];
   const r: Result = {
-    file: sc.ix.fileOf(p), id: p.id, title: p.title, hits, last: p.last, project: projectOf(p), ...statFields(p),
+    file: sc.ix.fileOf(p), id: p.id, title: p.title, hits, last: p.last, project: projectOf(p), ...statFields(p, sc.ix.subsOf(p)),
     snippet: snip.snippet, ranges: snip.ranges, score: scoreOf(p.title, sc.c.terms, weight, p.last, sc.now), self: !!own,
   };
   if (subs.length) { r.subs = subs.slice(0, maxSubs).map(([s, h]) => subResult(sc, s, h)); r.subTotal = subs.length; }
@@ -133,6 +134,18 @@ function tokenFinds(chat: Chat, rec: Rec, c: Compiled, ctx: Ctx, files: Map<stri
   }
 }
 
+export const MAX_EXPAND_COMMITS = 100;
+
+/** PRs and commits of a chat and its subagents for the expanded Git section (commits capped). */
+function gitOf(ix: Source, chat: Chat): Expanded['git'] {
+  const g = mergedGit(chat, ix.subsOf(chat));
+  return {
+    prs: g.prs.map(([number, repository]) => ({ number, repository })),
+    commits: g.commits.slice(0, MAX_EXPAND_COMMITS).map(([sha, branch]) => ({ sha, branch })),
+    moreCommits: Math.max(0, g.commits.length - MAX_EXPAND_COMMITS),
+  };
+}
+
 /** Matching messages of a chat and its matching subagents (newest first), plus matched files and commands. */
 export function expandChat(ix: Source, chat: Chat, c: Compiled, o: Options, ctx: Ctx, offset: number): Expanded {
   const now = Date.now(), cutoff = cutoffOf(o.when);
@@ -153,6 +166,6 @@ export function expandChat(ix: Source, chat: Chat, c: Compiled, o: Options, ctx:
   return {
     items: hits.slice(offset, offset + EXPAND_PAGE).map((h) => itemOf(h, c.terms)), total: hits.length,
     files: [...files].slice(0, 50).map(([p, edited]) => ({ path: p, edited })),
-    commands: [...commands].slice(0, 50), related: [],
+    commands: [...commands].slice(0, 50), related: [], git: gitOf(ix, chat),
   };
 }

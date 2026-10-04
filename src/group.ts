@@ -1,5 +1,5 @@
 /**
- * Pure display helpers. They are self-contained (no outer references) because the webview
+ * Pure display helpers. They are self-contained (no outer references except each other) because the webview
  * embeds their source via Function.toString(); Node checks import the same functions.
  */
 
@@ -60,15 +60,27 @@ export function sizeText(bytes: number): string {
   return (bytes / 1048576).toFixed(1) + ' MB';
 }
 
-/** "42 messages · 2h 14m · 3 files edited · 120 KB". */
-export function statsText(r: { msgs: number; first: number; last: number; edited: number; size: number }): string {
+/** "$1.23 · +120/-30 lines · opus, sonnet"; only the parts the chat has, "" when none. */
+export function costText(r: { cost?: number; add?: number; rem?: number; models?: string[] }): string {
+  const p: string[] = [];
+  if (r.cost && r.cost > 0) { p.push(r.cost < 0.01 ? '<$0.01' : '$' + r.cost.toFixed(2)); }
+  if (r.add || r.rem) { p.push('+' + (r.add || 0) + '/-' + (r.rem || 0) + ' lines'); }
+  if (r.models && r.models.length) { p.push(r.models.join(', ')); }
+  return p.join(' · ');
+}
+
+/** "42 messages · 2h 14m · 3 files edited · 120 KB · $1.23 · +120/-30 lines · opus". */
+export function statsText(r: { msgs: number; first: number; last: number; edited: number; size: number;
+  cost?: number; add?: number; rem?: number; models?: string[] }): string {
   const p: string[] = [r.msgs + (r.msgs === 1 ? ' message' : ' messages')];
   if (r.last > r.first) { p.push(durText(r.first, r.last)); }
   if (r.edited > 0) { p.push(r.edited + (r.edited === 1 ? ' file edited' : ' files edited')); }
   p.push(sizeText(r.size));
+  const c = costText(r);
+  if (c) { p.push(c); }
   return p.join(' · ');
 }
 
 /** Source of the helpers above, for the webview script. */
-export const SHARED_SRC = [shortAgo, dotOf, dayBucket, durText, sizeText, statsText]
+export const SHARED_SRC = [shortAgo, dotOf, dayBucket, durText, sizeText, costText, statsText]
   .map((f) => f.toString()).join('\n') + '\nconst DAY_ORDER=' + JSON.stringify(DAY_ORDER) + ';\n';
