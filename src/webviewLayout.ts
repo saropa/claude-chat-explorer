@@ -71,10 +71,11 @@ return '<span class="mp tp" role="img" aria-label="'+(latest?'latest match ':'ac
 function hitsPill(r){const m=r.mc?' in '+r.mc+(r.mc===1?' matching message':' matching messages'):'';
 return '<span class="mp hit" role="img" aria-label="'+hitN(r)+(r.hits===1?' occurrence':' occurrences')+m+'" data-tip="k:hits">'+hitTxt(r)+'</span>';}
 function pinStar(r){return pins.has(r.id)?'<span class="pst" role="img" aria-label="Pinned" data-tip="Pinned">★</span>':'';}
-function metaHtml(r,now){const q=r.hits>0,mt=msgTxt(r);
+function metaHtml(r,now){const q=r.hits>0,mt=msgTxt(r),dc=decorated(r);
+if(!q&&!dc)return '';
 return '<div class="mt">'+pinStar(r)+(all.checked&&r.project?'<span class="pj" data-tip="Project folder">'+esc(r.project)+'</span>':'')
 +(q?hitsPill(r):'')+(mt?'<span class="mp n'+(q?' sq':'')+'" role="img" aria-label="'+mt+'" data-tip="k:count">'+r.msgs+'</span>':'')
-+timePill(stamp(r),now,q&&!!r.snipAt)+touchPill(r)+(q&&r.snipSub!==undefined?saPill(r.snipSub,'k:snipsub'):'')+pillHtml(r)+ctxPill(r)+gitIcon(r)+'</div>';}
++timePill(stamp(r),now,q&&!!r.snipAt)+touchPill(r)+(q&&r.snipSub!==undefined?saPill(r.snipSub,'k:snipsub'):'')+(dc?pillHtml(r)+ctxPill(r)+gitIcon(r):'')+'</div>';}
 function qSync(){document.body.classList.toggle('qa',!!q.value.trim());}
 q.addEventListener('input',qSync);window.addEventListener('message',qSync);qSync();
 `;

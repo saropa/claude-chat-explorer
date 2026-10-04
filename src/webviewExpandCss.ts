@@ -10,7 +10,7 @@ const BASE = String.raw`
 .r.open .hd .dot{margin-top:10px}
 .r.open .hd .ia{display:flex;position:static;transform:none;margin-top:5px}
 .r.open .hd .ic[data-a=exp]{margin-top:2px}
-.ex{display:flex;flex-direction:column;gap:12px;margin:0;padding:4px 8px 10px 23px;border:0;cursor:default}
+.ex{display:flex;flex-direction:column;gap:13px;margin:0;padding:4px 8px 10px 23px;border:0;cursor:default}
 .xca,.xcl,.xcb{display:contents}
 .xa{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
 .xb{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 6px;border:1px solid transparent;border-radius:3px;background:transparent;color:var(--vscode-foreground);font:inherit;font-size:0.92em;cursor:pointer;white-space:nowrap}
@@ -21,7 +21,7 @@ const BASE = String.raw`
 .xb.pri:hover{background:var(--vscode-button-hoverBackground)}
 .xb.on svg{color:var(--vscode-charts-yellow)}
 .xa .sp{flex:1}
-.xs{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.5em,1fr));gap:4px 12px;margin:0}
+.xs{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.5em,1fr));gap:5px 12px;margin:0}
 .xs>div{display:flex;flex-direction:column;min-width:0}
 .xs dt{font-size:0.82em;color:var(--vscode-descriptionForeground)}
 .xs dd{margin:0;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -67,9 +67,9 @@ const WIDE = `
 .xs .wide{grid-column:span 2}`;
 
 const XWIDE = `
-.ex{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:12px 24px;align-items:start}
+.ex{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:13px 24px;align-items:start}
 .ex>.xa{grid-column:1/-1}
-.xca,.xcl,.xcb{display:flex;flex-direction:column;gap:12px;min-width:0}
+.xca,.xcl,.xcb{display:flex;flex-direction:column;gap:13px;min-width:0}
 .xca{grid-column:2;grid-row:2}
 .xcl{grid-column:1;grid-row:2/span 2}
 .xcb{grid-column:2;grid-row:3}

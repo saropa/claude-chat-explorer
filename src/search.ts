@@ -45,6 +45,13 @@ export function candidates(ix: Source, o: Options, folders: string[], cutoff: nu
   return ix.tops().filter((x) => x.mtime >= cutoff && (o.all || dirs.has(x.dir))).sort((a, b) => b.mtime - a.mtime);
 }
 
+/** Chats with a dot (live or unread) first, the rest keep their order (newest first). Search order only: results are ranked afterwards. */
+export function liveFirst(list: Chat[], dots?: { [id: string]: string }): Chat[] {
+  if (!dots) { return list; }
+  const hot = list.filter((x) => dots[x.id] !== undefined);
+  return hot.length ? hot.concat(list.filter((x) => dots[x.id] === undefined)) : list;
+}
+
 /** Title text with its match kept in view, only when a term matches it. */
 function shown(text: string, terms: RegExp[], k: 'title' | 'desc'): Partial<Result & SubResult> {
   const v = titleView(text, terms);
@@ -112,13 +119,13 @@ export const rank = (rs: Result[], ctx: Ctx): Result[] => {
   return rs.sort((a, b) => pin(b) - pin(a) || b.score - a.score);
 };
 
-/** Search the index newest chat first; streams one callback per chat and yields so cancels get through. Counts every match; keeps only the top max rows. */
+/** Search the index live and unread chats first, then newest first; streams one callback per chat and yields so cancels get through. Counts every match; keeps only the top max rows. */
 export async function searchIndex(
   ix: Source, c: Compiled, o: Options, folders: string[], ctx: Ctx, sig: Abort, onResult?: OnResult, maxRows: number = DEFAULT_MAX_RESULTS,
 ): Promise<SearchOut> {
   const max = clampMax(maxRows), tally = newTally();
   const sc = scanOf(ix, c, o, ctx);
-  const todo = candidates(ix, o, folders, sc.cutoff);
+  const todo = liveFirst(candidates(ix, o, folders, sc.cutoff), ctx.dots);
   let out: Result[] = [];
   const pace = pacer();
   for (let i = 0; i < todo.length && !sig.aborted; i++) {

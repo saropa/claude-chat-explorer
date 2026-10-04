@@ -46,6 +46,9 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .rr{min-height:24px;padding-left:2px;font-size:0.95em}
 .dot{--dc:var(--vscode-descriptionForeground,#9d9d9d);width:8px;height:8px;border-radius:50%;flex:none;box-sizing:border-box;background:var(--dc)}
 .dot.idle{opacity:.4}
+.dot.none{visibility:hidden}
+.hd .mp.pl{margin-left:2px}
+.rh:hover .hd .mp.pl,.r:focus-within .hd .mp.pl{visibility:hidden}
 .dot.running{--dc:#89d185}
 .dot.waiting{--dc:#3b82f6}
 .dot.unread{--dc:#d97757}
