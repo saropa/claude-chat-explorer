@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Abort, Options, searchChats, buildTerms, Result } from './search';
+import { Abort, Options, searchChats, buildTerms, Result, MAX_RESULTS } from './search';
 
 const NAME = 'Saropa Chat Search';
 const STATE_KEY = 'saropaChatSearch.state';
@@ -261,7 +261,7 @@ if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;s
 history=d.history||[];render(s.results||[],s.searched);}
 else if(d.type==='history'){history=d.history||[];renderHist();}
 else if(d.type==='start'){acc=[];prog=null;}
-else if(d.type==='batch'){if(!busy)return;acc=acc.concat(d.results).sort((a,b)=>b.score-a.score).slice(0,50);prog={done:d.done,total:d.total};
+else if(d.type==='batch'){if(!busy)return;acc=acc.concat(d.results).sort((a,b)=>b.score-a.score).slice(0,${MAX_RESULTS});prog={done:d.done,total:d.total};
 render(acc,'Searched '+d.done+' of '+d.total+' chats, '+acc.length+' matches');}
 else if(d.type==='done'){busy=false;bar.classList.remove('on');acc=d.results;render(d.results,d.searched||(prog?'Searched '+prog.total+' of '+prog.total+' chats, '+d.results.length+' matches':''));}
 else if(d.type==='error'){setBusy(false);st.textContent='';list.innerHTML='';hasResults=false;showErr(d.message);renderHist();}

@@ -3,6 +3,9 @@ import * as os from 'os';
 import * as path from 'path';
 import * as readline from 'readline';
 
+/** Maximum results kept by the scanner and the webview. */
+export const MAX_RESULTS = 500;
+
 export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; when: string; }
 
 /** Earliest allowed last-active time (ms) for a time-filter value; 0 means any time. */
@@ -186,5 +189,5 @@ export async function searchChats(
     }
   };
   await Promise.all(Array.from({ length: Math.min(8, todo.length) }, worker));
-  return out.sort((a, b) => b.score - a.score).slice(0, 50);
+  return out.sort((a, b) => b.score - a.score).slice(0, MAX_RESULTS);
 }
