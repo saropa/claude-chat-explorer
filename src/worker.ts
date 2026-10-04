@@ -7,6 +7,7 @@ import { fileSessionsOf, FileSessionsReply } from './fileSessions';
 import { gitSummary } from './gitSummary';
 import { clampMax, Tally, totalsOf } from './limits';
 import { expandChat, searchIndex } from './search';
+import { ctxReply } from './contextWarn';
 import { rowOf, sessionRows } from './sessions';
 import { Abort, Compiled, Ctx, Result } from './types';
 
@@ -139,6 +140,7 @@ async function request(m: any): Promise<unknown> {
   if (m.t === 'expand') { return expand(m); }
   if (m.t === 'sessions') { return sessions(m); }
   if (m.t === 'fileSessions') { return fileSessions(m); }
+  if (m.t === 'ctx') { await loaded; return ctxReply((id) => ix?.find(id), Array.isArray(m.ids) ? m.ids.filter((x: unknown) => typeof x === 'string') : []); }
   if (m.t === 'pinned') { return pinned(m.ids ?? [], m.subs !== false); }
   if (m.t === 'stats') { return { chats: ix?.size ?? 0, heap: process.memoryUsage().heapUsed, rss: process.memoryUsage().rss, buf: process.memoryUsage().arrayBuffers }; }
   if (m.t === 'dispose') { await ix?.dispose(); return true; }

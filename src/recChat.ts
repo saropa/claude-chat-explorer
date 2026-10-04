@@ -13,6 +13,7 @@ export function chatOf(p: Parsed, rec: string): Chat {
   if (h.parent) { c.parent = h.parent; c.agentType = h.agentType; c.desc = h.desc; }
   if (h.cost) { c.cost = h.cost; }
   if (h.git) { c.git = h.git; }
+  if (h.use) { c.use = h.use; }
   return c;
 }
 
@@ -22,6 +23,7 @@ export function headerOf(c: Chat, src: string): RecHeader {
   if (c.parent) { h.parent = c.parent; h.agentType = c.agentType; h.desc = c.desc; }
   if (c.cost) { h.cost = c.cost; }
   if (c.git) { h.git = c.git; }
+  if (c.use) { h.use = c.use; }
   return h;
 }
 

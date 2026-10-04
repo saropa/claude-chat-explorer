@@ -23,6 +23,7 @@ if(r.hits>0)h+=statCell('Last active',esc(agoLong(r.last,Date.now())));
 if(r.last>r.first)h+=statCell('Active for',esc(durText(r.first,r.last)));
 if(r.edited>0)h+=statCell('Files edited',r.edited);
 h+=statCell('Size',sizeText(r.size));
+if(r.ctx)h+=statCell('Context',esc(ctxStat(r.ctx)));
 if(r.cost>0)h+=statCell('Cost',r.cost<0.01?'&lt;$0.01':'$'+r.cost.toFixed(2));
 if(r.add||r.rem)h+=statCell('Lines','<span class="add">+'+(r.add||0)+'</span> <span class="rem">−'+(r.rem||0)+'</span>',plur(r.add||0,'line')+' added, '+(r.rem||0)+' removed');
 if(r.models&&r.models.length)h+='<div class="wide"><dt>Models</dt><dd>'+esc(r.models.join(', '))+'</dd></div>';

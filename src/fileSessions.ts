@@ -1,4 +1,5 @@
 /** Chats that touched one file: exact path match, plus the same workspace-relative path in a sibling git worktree. */
+import { ctxInfo } from './contextWindow';
 import { mergedGit } from './gitInfo';
 import { RecReader } from './recReader';
 import { statusesOf } from './status';
@@ -110,7 +111,7 @@ function group(hits: Hit[], tops: Map<string, Chat>): Group[] {
 
 function toSession(g: Group, ix: RecReader, pins: Set<string>, now: number, dots: { [id: string]: string }): FileSession {
   const c = g.top, git = mergedGit(c, g.sub ? [g.sub] : []);
-  const st = statusesOf({ msgs: c.count, last: c.last, size: c.size }, pins.has(c.id), now, dots[c.id]);
+  const st = statusesOf({ msgs: c.count, last: c.last, size: c.size, ctx: ctxInfo(c.use) }, pins.has(c.id), now, dots[c.id]);
   return { id: c.id, title: c.title, edited: g.edited, last: c.last, status: st, project: projectRoot(g.path, c.dir) ?? c.dir,
     branch: git.branches[git.branches.length - 1], viaSub: g.viaSub, onlySub: g.viaSub && !g.self, worktree: g.worktree };
 }

@@ -2,10 +2,10 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
-import { Cost, FileRef, Git } from './types';
+import { Cost, FileRef, Git, Usage } from './types';
 
 /** Record layout version; bump it when the file layout or the parse output changes. */
-export const FORMAT = 7;
+export const FORMAT = 8;
 export const DIR_PREFIX = 'records-v';
 export const EXT = '.ccr';
 const MAGIC = 'CCR5'; // file layout tag; FORMAT also changes when only the header or parse output does
@@ -19,7 +19,7 @@ export interface RecHeader {
   v: number; src: string; mtime: number; size: number; id: string; dir: string;
   parent?: string; agentType?: string; desc?: string; title: string; last: number; first: number; count: number;
   files: Array<[string, number]>;
-  cost?: Cost; git?: Git;
+  cost?: Cost; git?: Git; use?: Usage;
 }
 export interface Parsed { h: RecHeader; bloom: Uint8Array; bodyLen: number; }
 
@@ -77,6 +77,7 @@ function prefix(b: Buffer, size: number): { hl: number; bl: number } {
 }
 
 const extrasOk = (h: RecHeader): boolean => (!h.cost || (typeof h.cost.usd === 'number' && Array.isArray(h.cost.models)))
+  && (!h.use || (typeof h.use.tokens === 'number' && typeof h.use.model === 'string'))
   && (!h.git || (Array.isArray(h.git.commits) && Array.isArray(h.git.branches) && Array.isArray(h.git.prs)));
 
 function validHeader(h: RecHeader): boolean {

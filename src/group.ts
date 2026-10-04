@@ -84,6 +84,22 @@ export function statsText(r: { msgs: number; first: number; last: number; edited
   return p.join(' · ');
 }
 
+/** Token count in words: 950, 164k, 1M, 1.2M. */
+export function tokText(n: number): string {
+  if (n >= 1000000) { return String(Math.round(n / 100000) / 10) + 'M'; }
+  return n >= 1000 ? Math.round(n / 1000) + 'k' : String(n);
+}
+
+/** Card stat: "82% (164k of 200k, opus-4-6)". */
+export function ctxStat(c: { pct: number; tokens: number; window: number; model: string }): string {
+  return c.pct + '% (' + tokText(c.tokens) + ' of ' + tokText(c.window) + ', ' + c.model + ')';
+}
+
+/** Warning level of a context percent: 0 below 60, 1 from 60, 2 from 80, 3 from 90. */
+export function ctxLevel(pct: number): number {
+  return pct >= 90 ? 3 : pct >= 80 ? 2 : pct >= 60 ? 1 : 0;
+}
+
 /** Source of the helpers above, for the webview script. */
-export const SHARED_SRC = [shortAgo, dotText, dayBucket, durText, sizeText, costText, statsText]
+export const SHARED_SRC = [shortAgo, dotText, dayBucket, durText, sizeText, costText, statsText, tokText, ctxStat, ctxLevel]
   .map((f) => f.toString()).join('\n') + '\nconst DAY_ORDER=' + JSON.stringify(DAY_ORDER) + ';\n';

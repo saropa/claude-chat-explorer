@@ -2,6 +2,15 @@
 
 Release notes for Saropa Chat Search, newest first. Dates are the git dates of each release.
 
+## 0.12.0 - 2026-10-04
+- New: a context pill on the pill line shows how full a chat's context window is. It appears only from 60 percent: amber at 60 to 79, orange at 80 to 89, red at 90 and above, such as "82% full". Its tooltip shows tokens used of the window, the model, the number of compactions, and notes when the figure lags one turn or the window size is a guess.
+- New: the open card has a Context stat, such as "82% (164k of 200k, opus-4-6)". Chats with no usage data show nothing.
+- New: a Context sort (fullest first, chats with no data last) and a "Nearly full" status (80 percent or more) in the status filter. It is checked by default, like the other statuses.
+- New: a notification when a live chat reaches 80 percent ("Claude may auto-compact soon") and 90 percent ("Start a new chat or run /compact soon"), with Open chat and Dismiss. Each chat warns once per level and again after a compaction. At most one per check and 3 in 10 minutes. Old idle chats never warn. The setting `saropaChatSearch.contextWarnings` (default on) turns it off.
+- Changed: Show Diagnostics lists how many live chats are at 80 percent or more.
+- Note: the figure approximates Claude Code's own and lags one turn. Window sizes come from the model name. The first start rebuilds the search index once.
+- After installing, run "Developer: Reload Window" so VS Code loads the new version.
+
 ## 0.11.1 - 2026-10-04
 - Changed: the chat title gets more room. The green Active chip is gone, because the status dot already shows running, waiting and unread. The status filter still has Active.
 - Changed: the Huge, Empty, Tiny and Abandoned chips and the Git count moved from the title line to the pill line, after the count and time pills. The title line now holds only the dot, the title and the chevron.

@@ -2,7 +2,7 @@
   "name": "claude-chat-search",
   "displayName": "Saropa Chat Search",
   "description": "Search Claude Code chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
@@ -214,6 +214,11 @@
           "type": "boolean",
           "default": true,
           "description": "Show a status bar count of the Claude chats that touched the active file."
+        },
+        "saropaChatSearch.contextWarnings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a notification when a live Claude chat reaches 80 and 90 percent of its context window."
         },
         "saropaChatSearch.maxResults": {
           "type": "number",

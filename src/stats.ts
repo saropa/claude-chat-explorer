@@ -1,10 +1,11 @@
+import { ctxInfo } from './contextWindow';
 import { mergedGit } from './gitInfo';
 import { Chat, Result } from './types';
 
 export const projectOf = (c: Chat): string => c.dir.split('-').filter(Boolean).pop() ?? c.dir;
 
 type StatKeys = 'msgs' | 'first' | 'edited' | 'size';
-type Extra = Partial<Pick<Result, 'cost' | 'add' | 'rem' | 'models' | 'prs' | 'commits'>>;
+type Extra = Partial<Pick<Result, 'cost' | 'add' | 'rem' | 'models' | 'prs' | 'commits' | 'ctx'>>;
 
 /** Stat fields every result row carries (message count, first time, files edited, size), plus cost and git counts when the chat has them. */
 export function statFields(c: Chat, subs: Chat[] = []): Pick<Result, StatKeys> & Extra {
@@ -13,6 +14,8 @@ export function statFields(c: Chat, subs: Chat[] = []): Pick<Result, StatKeys> &
     edited: c.files.filter((f) => f.edited).length, size: c.size,
   };
   if (c.cost) { Object.assign(out, { cost: c.cost.usd, add: c.cost.add, rem: c.cost.rem, models: c.cost.models }); }
+  const ctx = ctxInfo(c.use);
+  if (ctx) { out.ctx = ctx; }
   const g = mergedGit(c, subs);
   if (g.prs.length) { out.prs = g.prs.length; }
   if (g.commits.length) { out.commits = g.commits.length; }
