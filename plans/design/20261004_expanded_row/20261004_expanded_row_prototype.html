@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Expanded Row Prototype</title>
+<style>
+/* VS Code theme variables, approximated. Dark Modern is the default; ?t=light switches to Light Modern. */
+:root{
+--vscode-font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--vscode-font-size:13px;
+--vscode-editor-font-family:Menlo,Consolas,monospace;
+--vscode-sideBar-background:#181818;--vscode-foreground:#cccccc;--vscode-descriptionForeground:#9d9d9d;
+--vscode-badge-background:#616161;--vscode-badge-foreground:#f8f8f8;
+--vscode-button-background:#0078d4;--vscode-button-foreground:#ffffff;--vscode-button-hoverBackground:#026ec1;
+--vscode-list-hoverBackground:#2a2d2e;--vscode-list-activeSelectionBackground:#04395e;--vscode-list-activeSelectionForeground:#ffffff;
+--vscode-widget-border:#313131;--vscode-focusBorder:#0078d4;--vscode-toolbar-hoverBackground:rgba(90,93,94,.31);
+--vscode-input-background:#313131;--vscode-input-foreground:#cccccc;--vscode-input-border:#3c3c3c;--vscode-input-placeholderForeground:#989898;
+--vscode-editor-findMatchHighlightBackground:rgba(234,92,0,.33);--vscode-textLink-foreground:#4daafc;
+--vscode-charts-green:#89d185;--vscode-charts-red:#f14c4c;--vscode-charts-yellow:#cca700;--vscode-charts-purple:#b180d7;
+--vscode-editorWidget-background:#202020;
+}
+:root[data-theme=light]{
+--vscode-sideBar-background:#f8f8f8;--vscode-foreground:#3b3b3b;--vscode-descriptionForeground:#717171;
+--vscode-badge-background:#cccccc;--vscode-badge-foreground:#3b3b3b;
+--vscode-button-background:#005fb8;--vscode-button-foreground:#ffffff;--vscode-button-hoverBackground:#0258a8;
+--vscode-list-hoverBackground:#f2f2f2;--vscode-list-activeSelectionBackground:#e8e8e8;--vscode-list-activeSelectionForeground:#000000;
+--vscode-widget-border:#e5e5e5;--vscode-focusBorder:#005fb8;--vscode-toolbar-hoverBackground:rgba(184,184,184,.31);
+--vscode-input-background:#ffffff;--vscode-input-foreground:#3b3b3b;--vscode-input-border:#cecece;--vscode-input-placeholderForeground:#767676;
+--vscode-editor-findMatchHighlightBackground:rgba(234,92,0,.33);--vscode-textLink-foreground:#005fb8;
+--vscode-charts-green:#388a34;--vscode-charts-red:#e51400;--vscode-charts-yellow:#bf8803;--vscode-charts-purple:#652d90;
+--vscode-editorWidget-background:#f8f8f8;
+}
+html,body{margin:0}
+body{background:var(--vscode-sideBar-background);color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);padding:6px 0}
+#res{box-sizing:border-box;container-type:inline-size;container-name:res;overflow-wrap:anywhere}
+
+/* ---- Existing row head (unchanged, trimmed copy of webviewCss/webviewLayout) ---- */
+.r{outline:none}
+.rh:hover{background:var(--vscode-list-hoverBackground)}
+.hd,.rr{display:flex;align-items:center;gap:6px;min-height:28px;padding:0 8px 0 10px;box-sizing:border-box;cursor:pointer}
+.dot{--dc:var(--vscode-descriptionForeground);width:8px;height:8px;border-radius:50%;flex:none;background:var(--dc)}
+.dot.idle{opacity:.4}.dot.running{--dc:#89d185}.dot.waiting{--dc:#3b82f6}.dot.unread{--dc:#d97757}
+.t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tm{flex:none;min-width:28px;text-align:right;font-size:0.92em;color:var(--vscode-descriptionForeground)}
+.ic{display:inline-flex;align-items:center;justify-content:center;flex:none;width:18px;height:18px;padding:0;border:none;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer}
+.ic:hover{color:var(--vscode-foreground);background:var(--vscode-toolbar-hoverBackground)}
+.chev{width:16px;height:16px;flex:none;transition:transform .12s}
+.ic.on>.chev,.open>.chev{transform:rotate(90deg)}
+.ic.pn.on{color:var(--vscode-charts-yellow);font-size:13px}
+.mt{display:flex;gap:4px;padding:1px 8px 4px 24px;min-width:0}
+/* NEW: meta pills [count] [time] replace the meta text. Same look as the count pills. */
+.mp{flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.mp.hit{background:var(--vscode-editor-findMatchHighlightBackground);color:var(--vscode-foreground)}
+.hd>.tm,.hd .hp,.hd .pj{display:none}   /* time, hits and project live only in the meta pills */
+/* Open row: each fact once. Hide head copies of what the expanded block owns. */
+.r.open .hd .ic.ar,.r.open .hd .ic.pn,.r.open .hd .gi,.r.open .rh>.s,.r.open .rh .sr .s,.r.open .rh>.msub{display:none}
+.pj{flex:none;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:16px;color:var(--vscode-descriptionForeground)}
+.hp{display:none;flex:none;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.stp{flex:none;padding:0 6px;border-radius:9px;font-size:10.5px;line-height:15px;white-space:nowrap;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);opacity:.75}
+.rh>.chips{display:flex;flex-wrap:wrap;gap:3px;padding:0 8px 3px 24px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:0 7px;border-radius:9px;font-size:0.85em;line-height:18px;white-space:nowrap;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);cursor:pointer}
+.msub{padding:0 8px 2px 24px;font-size:0.85em;color:var(--vscode-charts-purple)}
+.sub{flex:none;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;white-space:nowrap;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.sr{padding-left:24px;align-items:flex-start;flex-wrap:wrap;min-height:22px;font-size:0.95em}
+.sr .t{padding-top:3px}.sr .tm{padding-top:3px}
+.sr .s{flex-basis:100%;margin:0 0 4px;font-size:0.9em;color:var(--vscode-descriptionForeground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+mark{background:var(--vscode-editor-findMatchHighlightBackground);color:inherit;border-radius:2px}
+
+/* ---- NEW: expanded row ---- */
+/* Open row: one quiet inset card, head included, so it never blends into neighbors. */
+.r.open{margin:4px 4px 6px;border:1px solid var(--vscode-widget-border);border-radius:4px;background:color-mix(in srgb,var(--vscode-foreground) 4%,transparent)}
+.r.open>.rh>.hd{padding-left:9px;padding-right:7px}
+.r.open .rh>.chips{display:none}            /* tags show once, in the editable Tags block */
+.ex{display:flex;flex-direction:column;gap:12px;padding:4px 8px 10px 23px;cursor:default}
+.ex>.cl,.ex>.cr{display:contents}
+/* Single-column order: actions, matches, matched files/commands, stats, tags, git, related. */
+.xa{order:0}.xm{order:1}.xf{order:2}.xs{order:3}.xt{order:4}.xg{order:5}.xr{order:6}
+
+/* Action bar: Resume is the only filled button. */
+.xa{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.xb{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 6px;border:1px solid transparent;border-radius:3px;background:transparent;color:var(--vscode-foreground);font:inherit;font-size:0.92em;cursor:pointer;white-space:nowrap}
+.xb svg{width:14px;height:14px;flex:none}
+.xb:hover{background:var(--vscode-toolbar-hoverBackground)}
+.xb:focus-visible,.xin input:focus,.chip:focus-visible,.xh:focus-visible,.rr:focus-visible,.gp:focus-visible,.xmore:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
+.xb.pri{padding:0 10px;background:var(--vscode-button-background);color:var(--vscode-button-foreground);font-weight:500}
+.xb.pri:hover{background:var(--vscode-button-hoverBackground)}
+.xb.on svg{color:var(--vscode-charts-yellow)}
+.xa .sp{flex:1}
+
+/* Stats: labeled key/value grid; label muted, value in foreground. */
+.xs{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.5em,1fr));gap:4px 12px;margin:0}
+.xs>div{display:flex;flex-direction:column;min-width:0}
+.xs dt{font-size:0.82em;color:var(--vscode-descriptionForeground)}
+.xs dd{margin:0;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xs .wide{grid-column:1/-1}
+.xs .wide dd{white-space:normal}
+.add{color:var(--vscode-charts-green)}.rem{color:var(--vscode-charts-red)}
+
+/* Tags */
+.xt{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.xt .chip{max-width:100%}
+.cx{opacity:.7;font-weight:400}.cx:hover{opacity:1}
+.xadd{height:20px;padding:0 6px;font-size:0.85em;color:var(--vscode-descriptionForeground);border:1px dashed var(--vscode-widget-border);border-radius:9px}
+.xadd:hover{color:var(--vscode-foreground)}
+.xin{display:inline-flex;align-items:center;gap:6px;flex:1 1 10em;min-width:0}
+.xin input{flex:1;min-width:0;max-width:16em;height:20px;box-sizing:border-box;padding:0 6px;font:inherit;font-size:0.88em;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border);border-radius:2px;outline:none}
+.xin input::placeholder{color:var(--vscode-input-placeholderForeground)}
+.xin .k{font-size:0.8em;color:var(--vscode-descriptionForeground);white-space:nowrap}
+
+/* Section header inside the expanded block: sentence case, plain count. */
+.xh{display:flex;align-items:center;gap:4px;min-height:22px;margin-left:-16px;cursor:pointer;user-select:none;color:var(--vscode-descriptionForeground);font-size:0.85em;font-weight:600;border-radius:3px}
+.xh .chev{width:12px;height:12px;margin-right:0}
+.xh:hover{color:var(--vscode-foreground)}
+.xc{font-weight:400;opacity:.85;margin-left:2px}
+.xb2{margin-top:2px}
+
+/* Matching messages */
+.mm{padding:4px 0}
+.mm+.mm{border-top:1px solid var(--vscode-widget-border)}
+.mmh{display:flex;align-items:center;gap:6px;font-size:0.85em}
+.who{font-weight:600}
+.mmh .tm{margin-left:auto;font-size:1em}
+.mm .b{margin-top:1px;color:var(--vscode-descriptionForeground);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;line-height:1.4}
+.xmore{display:inline-block;margin-top:4px;font-size:0.9em;color:var(--vscode-textLink-foreground);cursor:pointer;background:none;border:0;padding:0;font-family:inherit}
+
+/* Files and commands matched by file:, edited:, cmd: */
+.fps{display:flex;flex-wrap:wrap;gap:4px}
+.fp{display:inline-flex;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px;border-radius:3px;font-family:var(--vscode-editor-font-family);font-size:0.82em;line-height:18px;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border)}
+.fp.ed{color:var(--vscode-foreground)}
+.fi{font-family:var(--vscode-editor-font-family);font-size:0.82em;line-height:1.5;color:var(--vscode-descriptionForeground);overflow-wrap:anywhere}
+
+/* Git: wrapped pills, not one per line. */
+.gps{display:flex;flex-wrap:wrap;gap:4px}
+.gp{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-width:0;padding:0 7px;border-radius:9px;font-size:0.85em;line-height:18px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.gp.cm{font-family:var(--vscode-editor-font-family);font-size:0.8em;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border)}
+.gp .br{opacity:.75}
+.gmore{font-size:0.85em;color:var(--vscode-descriptionForeground);align-self:center}
+
+/* Related chats */
+.ex .rr{margin-left:-4px;padding:0 4px;min-height:24px;gap:6px;border-radius:3px;font-size:0.95em}
+.ex .rr:hover{background:var(--vscode-list-hoverBackground)}
+.sh{flex:none;font-size:0.85em;color:var(--vscode-descriptionForeground);white-space:nowrap}
+.none{font-size:0.9em;color:var(--vscode-descriptionForeground)}
+
+/* ---- Width tiers (container queries on #res, as in webviewLayout) ---- */
+@container res (max-width:259px){
+  .mt .mp.n{display:none}
+  .ex{padding-left:9px;padding-right:6px}
+  .xh{margin-left:-2px}
+  .xa .xl,.xa .sp,.xa [data-a=copyid]{display:none}   /* Copy ID stays in the right-click menu */
+  .xb:not(.pri){padding:0 4px}
+  .sh{display:none}
+  .xs{grid-template-columns:1fr}
+  .xs>div{flex-direction:row;justify-content:space-between;gap:8px}
+  .xs .wide{flex-direction:column}
+  .xin .k{display:none}
+}
+@container res (min-width:260px) and (max-width:520px){
+  .xa .xl.opt{display:none}     /* Copy ID and Mark read go icon-only at mid width */
+}
+@container res (min-width:521px){
+
+  .xs{grid-template-columns:repeat(auto-fill,minmax(9em,1fr))}
+  .xs .wide{grid-column:span 2}
+}
+@container res (min-width:901px){
+  .ex{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:12px 24px;align-items:start}
+  .ex>.xa{grid-column:1/-1}
+  .ex>.cl{grid-column:1;display:flex;flex-direction:column;gap:12px}
+  .ex>.cr{grid-column:2;display:flex;flex-direction:column;gap:12px}
+  .xs{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+.cl,.cr{min-width:0}
+
+/* Prototype frame */
+.cap{font:12px var(--vscode-font-family);color:var(--vscode-descriptionForeground);padding:2px 10px 6px}
+</style>
+</head>
+<body>
+<div class="cap" id="cap"></div>
+<div id="res"></div>
+<script>
+const P=new URLSearchParams(location.search),S=P.get('s')||'a';
+if(P.get('t')==='light')document.documentElement.dataset.theme='light';
+const CHEV='<svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const I={
+play:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z" fill="currentColor"/></svg>',
+copy:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3.5v-.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h.5"/></svg>',
+star:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M8 2l1.8 3.8 4.2.5-3.1 2.9.8 4.1L8 11.3 4.3 13.3l.8-4.1L2 6.3l4.2-.5z"/></svg>',
+starOn:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 2l1.8 3.8 4.2.5-3.1 2.9.8 4.1L8 11.3 4.3 13.3l.8-4.1L2 6.3l4.2-.5z"/></svg>',
+arch:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><rect x="2" y="3" width="12" height="3" rx=".6"/><path d="M3 6v6.5a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5V6M6.5 8.5h3"/></svg>',
+read:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3 3 7-7"/></svg>'};
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function mk(s){return esc(s).replace(/\[\[(.+?)\]\]/g,'<mark>$1</mark>');}
+function dot(s){return '<span class="dot '+s+'" role="img" aria-label="'+s+'"></span>';}
+function plural(n,w){return n+' '+w+(n===1?'':'s');}
+/* Short unit for the time pill: now, 1 min, 3 mins, 6 hrs, 2 days, 3 wks, 4 mos, 2 yrs. */
+function agoShort(m){if(m<1)return 'now';const d=Math.floor(m/1440);
+const u=m<60?[m,'min']:m<1440?[Math.floor(m/60),'hr']:d<7?[d,'day']:d<30?[Math.floor(d/7),'wk']:d<365?[Math.floor(d/30),'mo']:[Math.floor(d/365),'yr'];
+return u[0]+' '+u[1]+(u[0]===1?'':'s');}
+function agoLong(m){if(m<1)return 'just now';const d=Math.floor(m/1440);
+const u=m<60?[m,'minute']:m<1440?[Math.floor(m/60),'hour']:d<30?[d,'day']:d<365?[Math.floor(d/30),'month']:[Math.floor(d/365),'year'];
+return u[0]+' '+u[1]+(u[0]===1?'':'s')+' ago';}
+function pills(c){const at=new Date(Date.UTC(2026,9,4,8,0)-c.min*60000).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'});
+return (c.proj?'<span class="pj" title="Project folder">'+esc(c.proj)+'</span>':'')+(c.hits?'<span class="mp hit" role="img" aria-label="'+plural(c.hits,'matching message')+'" title="'+plural(c.hits,'matching message')+'">'+plural(c.hits,'hit')+'</span>':'')
++(c.noCount?'':'<span class="mp n" role="img" aria-label="'+plural(c.msgs,'message')+'" title="'+plural(c.msgs,'message')+'">'+c.msgs+'</span>')
++'<span class="mp tp" role="img" aria-label="active '+agoLong(c.min)+'" title="'+agoLong(c.min)+'\n'+at+'">'+agoShort(c.min)+'</span>';}
+
+/* Collapsed neighbor row (unchanged design). */
+function row(c){return '<div class="r" tabindex="0"><div class="rh"><div class="hd">'+dot(c.dot)+'<span class="t">'+esc(c.title)+'</span>'
++'<button class="ic" aria-expanded="false" aria-label="Expand">'+CHEV+'</button></div>'
++'<div class="mt">'+pills(c)+'</div>'+(c.tags?'<span class="chips">'+c.tags.map(t=>'<span class="chip">'+esc(t)+'</span>').join('')+'</span>':'')+'</div></div>';}
+
+function sec(label,n,body,open,k){return '<section class="'+k+'">'+'<div class="xh'+(open?' open':'')+'" role="button" tabindex="0" aria-expanded="'+open+'" aria-label="'+esc(label+(n===''?'':', '+n))+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+(n===''?'':'<span class="xc">'+n+'</span>')+'</div>'+(open?'<div class="xb2">'+body+'</div>':'')+'</section>';}
+
+function actions(c){return '<div class="xa" role="toolbar" aria-label="Chat actions">'
++'<button class="xb pri" data-a="resume">'+I.play+'<span>Resume</span></button>'
++'<button class="xb'+(c.pinned?' on':'')+'" data-a="pin" aria-pressed="'+!!c.pinned+'" aria-label="'+(c.pinned?'Unpin':'Pin')+'" title="'+(c.pinned?'Unpin':'Pin')+'">'+(c.pinned?I.starOn:I.star)+'<span class="xl">'+(c.pinned?'Pinned':'Pin')+'</span></button>'
++'<button class="xb" data-a="arch" aria-label="Archive" title="Archive">'+I.arch+'<span class="xl">Archive</span></button>'
++(c.dot==='unread'?'<button class="xb" data-a="read" aria-label="Mark as read" title="Mark as read">'+I.read+'<span class="xl opt">Mark read</span></button>':'')
++'<span class="sp"></span>'
++'<button class="xb" data-a="copyid" aria-label="Copy session ID" title="Copy session ID '+c.id+'">'+I.copy+'<span class="xl opt">Copy ID</span></button>'
++'</div>';}
+
+function stats(c){const s=[];
+if(c.dur)s.push(['Active for',c.dur]);
+if(c.edited)s.push(['Files edited',c.edited]);
+s.push(['Size',c.size]);
+if(c.cost)s.push(['Cost',c.cost]);
+if(c.add||c.rem)s.push(['Lines','<span class="add">+'+c.add+'</span> <span class="rem">−'+c.rem+'</span>',plural(c.add,'line')+' added, '+plural(c.rem,'line')+' removed']);
+let h=s.map(x=>'<div><dt>'+x[0]+'</dt><dd'+(x[2]?' aria-label="'+x[2]+'"':'')+'>'+x[1]+'</dd></div>').join('');
+if(c.models)h+='<div class="wide"><dt>Models</dt><dd>'+esc(c.models.join(', '))+'</dd></div>';
+return '<dl class="xs" aria-label="Chat stats">'+h+'</dl>';}
+
+function tags(c){return '<div class="xt" role="group" aria-label="Tags">'
++(c.tags||[]).map(t=>'<span class="chip" role="button" tabindex="0" title="Filter by tag">'+esc(t)+'<b class="cx" role="button" tabindex="0" aria-label="Remove tag '+esc(t)+'">×</b></span>').join('')
++(c.tagEdit?'<span class="xin"><input class="tin" placeholder="Tag name" aria-label="New tag. Enter adds, Escape cancels" value="'+esc(c.tagEdit)+'"><span class="k">Enter to add · Esc to cancel</span></span>'
+:'<button class="xb xadd" data-a="addtag">+ Add tag</button>')+'</div>';}
+
+function msgs(c){if(!c.items)return '';
+const b=c.items.map(m=>'<div class="mm"><div class="mmh">'+(m.sub?'<span class="sub">Subagent · '+esc(m.sub)+'</span>':'<span class="who">'+m.who+'</span>')+'<span class="tm" title="full time">'+m.tm+'</span></div><div class="b">'+mk(m.text)+'</div></div>').join('')
++(c.more?'<button class="xmore" data-a="more">Show '+c.more+' more</button>':'');
+return sec('Matching messages','',b,true,'xm');}
+
+function files(c){let h='';
+if(c.files)h+=sec('Matched files',c.files.length,'<div class="fps">'+c.files.map(f=>'<span class="fp'+(f.ed?' ed':'')+'" title="'+(f.ed?'Edited: ':'Read: ')+esc(f.p)+'">'+(f.ed?'✎ ':'')+esc(f.p.split('/').pop())+'</span>').join('')+'</div>',true,'xf');
+if(c.cmds)h+=sec('Matched commands',c.cmds.length,c.cmds.map(x=>'<div class="fi">'+esc(x)+'</div>').join(''),true,'xf');
+return h;}
+
+function git(c){if(!c.git)return '';const g=c.git;
+const b='<div class="gps">'+g.prs.map(p=>'<span class="gp" role="button" tabindex="0" title="Search chats that mention PR #'+p.n+'">#'+p.n+' '+esc(p.repo)+'</span>').join('')
++g.commits.map(x=>'<span class="gp cm" role="button" tabindex="0" title="Search chats with commit '+x.sha+'">'+x.sha+(x.br?' <span class="br">on '+esc(x.br)+'</span>':'')+'</span>').join('')
++(g.more?'<span class="gmore">+'+g.more+' more</span>':'')+'</div>';
+return sec('Git',g.prs.length+g.commits.length+(g.more||0),b,true,'xg');}
+
+function related(c){if(!c.rel)return '';
+const b=c.rel.length?c.rel.map(x=>'<div class="rr" tabindex="0" role="button" aria-label="'+esc(x.t+', '+plural(x.n,'shared file')+', active '+agoLong(x.min)+'. Resume')+'">'+dot(x.d)+'<span class="t">'+esc(x.t)+'</span><span class="sh">'+plural(x.n,'shared file')+'</span>'+pills({min:x.min,noCount:1})+'</div>').join(''):'<div class="none">No other chat touched the same files</div>';
+return sec('Related chats',c.rel.length||'',b,true,'xr');}
+
+function expanded(c){const now=c.head;
+const left=stats(c)+tags(c)+git(c);
+const right=msgs(c)+files(c)+related(c)+(c.subNote||'');
+return '<div class="r open" tabindex="0"><div class="rh"><div class="hd">'+dot(c.dot)+'<span class="t">'+mk(c.title)+'</span>'
++(c.stp?'<span class="stp">'+c.stp+'</span>':'')
+
++'<button class="ic on" aria-expanded="true" aria-label="Collapse">'+CHEV+'</button></div>'
++'<div class="mt">'+pills(c)+'</div>'+(c.headExtra||'')
++'</div><div class="ex" role="region" aria-label="Details: '+esc(c.title.replace(/\[\[|\]\]/g,''))+'">'+actions(c)
++'<div class="cl">'+left+'</div>'+(right?'<div class="cr">'+right+'</div>':'')+'</div></div>';}
+
+const prev={dot:'idle',title:'Fix voice icon tap target on grid',msgs:41,min:300};
+const next={dot:'idle',title:'Countries tab toggles to header kebabs',msgs:91,min:362};
+const base={id:'7f3c2a1e-9b4d-4e21-a8f0-2d6c1b5e9a77',dot:'unread',title:'Main grid search voice icon code',msgs:94,min:361,
+dur:'2d 2h',edited:3,size:'1.4 MB',cost:'$33.42',add:929,rem:155,models:['opus','sonnet','haiku'],tags:['voice','grid'],
+git:{prs:[{n:412,repo:'saropa/contacts'}],commits:[{sha:'6321546',br:'main'},{sha:'f42404d',br:'fix/mic-fixes'}],more:3},
+rel:[{d:'idle',t:'Home tab today section layout',n:3,min:370},{d:'running',t:'Contact view avatar gradient border',n:2,min:2},{d:'idle',t:'Home tab intelligent integration section',n:1,min:490},{d:'idle',t:'UI/UX menu standardization guidelines',n:1,min:560},{d:'idle',t:"Today's Contacts Show More logic",n:1,min:1330}]};
+const items=[
+{who:'You',tm:'2 days',text:'The [[voice icon]] in the main grid search bar is too small to tap on the iPhone. Can we make the hit area 44 px?'},
+{who:'Claude',tm:'2 days',text:'I found the [[voice icon]] in search_bar_voice_button.dart. It uses a 20 px CommonIconButton with no padding, so the tap area is 20 px. I will wrap it in a 44 px target without changing the glyph size.'},
+{who:'Claude',tm:'1 day',text:'The [[voice icon]] now keeps a 44 px hit area in both the collapsed and expanded search states.'}];
+const S_={
+a:{w:330,cap:'(a) 330 px, no query, tags, git, related',list:[prev,Object.assign({},base),next]},
+b:{w:330,cap:'(b) 330 px, active query "voice icon"',list:[prev,Object.assign({},base,{title:'Main grid search [[voice icon]] code',hits:12,items,total:12,more:9,git:null,rel:base.rel.slice(0,3)}),next]},
+c:{w:200,cap:'(c) 200 px',list:[prev,Object.assign({},base,{tagEdit:'ui'}),next]},
+d:{w:800,cap:'(d) 800 px, query, tag input open',list:[prev,Object.assign({},base,{title:'Main grid search [[voice icon]] code',hits:12,items,total:12,more:9,tagEdit:'design',stp:'Huge',pinned:true,proj:'contacts',files:[{p:'lib/components/search/search_bar_voice_button.dart',ed:true},{p:'lib/components/search/search_bar.dart'}]}),next]},
+e:{w:330,cap:'(e) minimal chat',list:[prev,{id:'a1b2',dot:'idle',title:'Quick question about ARB keys',msgs:4,min:4400,size:'18 KB'},next]},
+f:{w:330,cap:'(f) matched in a subagent',list:[prev,Object.assign({},base,{dot:'idle',title:'Refactor stopwatch widget into parts',msgs:57,hits:2,min:1500,tags:null,git:null,cost:'$4.10',add:212,rem:198,models:['sonnet'],dur:'3h 12m',edited:6,size:'640 KB',
+headExtra:'<div class="msub">matched in subagent</div><div class="rr sr"><span class="t"><span class="sub">Subagent · Explore</span> Find every <mark>stopwatch</mark> activity util</span><span class="tm">1 day</span><div class="s">…the <mark>stopwatch</mark> activity utils live in stopwatch_activity.dart and…</div></div>',
+items:[{who:'Subagent',sub:'Explore',tm:'1 day',text:'Found 4 files that reference the [[stopwatch]] activity utils: stopwatch_activity.dart, stopwatch_widget.dart and two tests.'},{who:'Subagent',sub:'Explore',tm:'1 day',text:'The [[stopwatch]] widget exceeds 250 code lines and should split into part files.'}],total:2,rel:[]}),next]},
+g:{w:1100,cap:'(g) 1100 px, two-column tier',list:[prev,Object.assign({},base,{title:'Main grid search [[voice icon]] code',hits:12,items,total:12,more:9}),next]}};
+const st=S_[S];document.getElementById('res').style.width=st.w+'px';document.getElementById('cap').textContent=st.cap+(P.get('t')==='light'?', light theme':', dark theme');
+document.getElementById('res').innerHTML=st.list.map((c,i)=>i===1?expanded(c):row(c)).join('');
+</script>
+</body>
+</html>

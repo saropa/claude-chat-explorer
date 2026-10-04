@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Result Rows Prototype</title>
+<style>
+/* VS Code theme variables, approximated. Dark Modern default; ?t=light switches to Light Modern. */
+:root{
+--vscode-font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--vscode-font-size:13px;
+--vscode-sideBar-background:#181818;--vscode-foreground:#cccccc;--vscode-descriptionForeground:#9d9d9d;
+--vscode-badge-background:#616161;--vscode-badge-foreground:#f8f8f8;
+--vscode-list-hoverBackground:#2a2d2e;--vscode-list-activeSelectionBackground:#04395e;--vscode-list-activeSelectionForeground:#ffffff;
+--vscode-widget-border:#313131;--vscode-focusBorder:#0078d4;--vscode-toolbar-hoverBackground:rgba(90,93,94,.31);
+--vscode-editor-findMatchHighlightBackground:rgba(234,92,0,.33);--vscode-textLink-foreground:#4daafc;
+--vscode-charts-green:#89d185;--vscode-charts-yellow:#cca700;--vscode-charts-purple:#b180d7;
+--vscode-editorHoverWidget-background:#202020;--vscode-editorHoverWidget-foreground:#cccccc;--vscode-editorHoverWidget-border:#454545;--vscode-widget-shadow:rgba(0,0,0,.36);
+}
+:root[data-theme=light]{
+--vscode-sideBar-background:#f8f8f8;--vscode-foreground:#3b3b3b;--vscode-descriptionForeground:#717171;
+--vscode-badge-background:#cccccc;--vscode-badge-foreground:#3b3b3b;
+--vscode-list-hoverBackground:#f2f2f2;--vscode-list-activeSelectionBackground:#e8e8e8;--vscode-list-activeSelectionForeground:#000000;
+--vscode-widget-border:#e5e5e5;--vscode-focusBorder:#005fb8;--vscode-toolbar-hoverBackground:rgba(184,184,184,.31);
+--vscode-editor-findMatchHighlightBackground:rgba(234,92,0,.33);--vscode-textLink-foreground:#005fb8;
+--vscode-charts-green:#388a34;--vscode-charts-yellow:#bf8803;--vscode-charts-purple:#652d90;
+--vscode-editorHoverWidget-background:#f8f8f8;--vscode-editorHoverWidget-foreground:#3b3b3b;--vscode-editorHoverWidget-border:#c8c8c8;--vscode-widget-shadow:rgba(0,0,0,.16);
+}
+html,body{margin:0}
+body{position:relative;overflow-x:hidden;background:var(--vscode-sideBar-background);color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);padding:4px 0}
+#res{box-sizing:border-box;container-type:inline-size;container-name:res;overflow-wrap:anywhere}
+
+/* ---- Existing pieces (copied look of webviewCss / webviewLayout / webviewGit) ---- */
+.status{padding:2px 10px 4px;font-size:0.9em;color:var(--vscode-descriptionForeground)}
+.gh{display:flex;align-items:center;gap:4px;padding:4px 8px 4px 6px;font-weight:500;color:var(--vscode-descriptionForeground)}
+.gh .sn{flex:1}
+.pill{flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;text-align:center;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.chev{width:16px;height:16px;flex:none;transition:transform .12s}
+.open>.chev,.on>.chev{transform:rotate(90deg)}
+.r{outline:none}
+.rh{padding-bottom:4px}
+.rh:hover,.rh.hov{background:var(--vscode-list-hoverBackground)}
+.hd{display:flex;align-items:center;gap:6px;min-height:28px;padding:0 8px 0 10px;box-sizing:border-box;cursor:pointer}
+.dot{--dc:var(--vscode-descriptionForeground);width:8px;height:8px;border-radius:50%;flex:none;box-sizing:border-box;background:var(--dc)}
+.dot.idle{opacity:.4}.dot.running{--dc:#89d185}.dot.unread{--dc:#d97757}
+.dot.ring{background:transparent;border:2px solid var(--dc)}
+.t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stp{flex:none;padding:0 6px;border-radius:9px;font-size:10.5px;line-height:15px;white-space:nowrap;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);opacity:.75}
+.stp.active{background:transparent;color:var(--vscode-charts-green);border:1px solid var(--vscode-charts-green);line-height:13px;opacity:1}
+.ic{display:none;align-items:center;justify-content:center;flex:none;width:18px;height:18px;padding:0;border:none;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;font-size:13px;line-height:1}
+.ic svg{width:13px;height:13px}
+/* CHANGED: chevron is last and always visible, so hover icons never move it. */
+.ic[data-a=exp],.rh:hover .ic,.rh.hov .ic,.r:focus-within .ic{display:inline-flex}
+.ic[data-a=exp] svg{width:16px;height:16px}
+.ic:hover{color:var(--vscode-foreground);background:var(--vscode-toolbar-hoverBackground)}
+.mt{display:flex;align-items:center;gap:4px;padding:1px 8px 3px 24px;min-width:0;overflow:hidden}
+.mp{flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.mp.hit{background:var(--vscode-editor-findMatchHighlightBackground);color:var(--vscode-foreground)}
+.mp.n{display:none}               /* NEW: during a search the count pill shows over 520 px only */
+mark{background:var(--vscode-editor-findMatchHighlightBackground);color:inherit;border-radius:2px}
+
+/* ---- NEW: subagent source pill (glyph + agent type) ---- */
+.sa{display:inline-flex;align-items:center;gap:3px;flex:0 1 auto;min-width:0;padding:0 6px 0 4px;border-radius:9px;font-size:11px;line-height:14px;white-space:nowrap;
+  color:var(--vscode-charts-purple);border:1px solid color-mix(in srgb,var(--vscode-charts-purple) 55%,transparent)}
+.sa svg{width:11px;height:11px;flex:none}
+.sa span{overflow:hidden;text-overflow:ellipsis}
+.who{flex:none;font-size:0.85em;font-weight:600;color:var(--vscode-foreground)}
+
+/* ---- NEW: latest-match snippet, two lines max ---- */
+.s{padding:0 10px 0 24px;font-size:0.92em;line-height:1.4;color:var(--vscode-descriptionForeground);
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word}
+.s.none{font-style:italic;-webkit-line-clamp:1}
+
+/* ---- NEW: "+N more" expander ---- */
+.mx{display:inline-flex;align-items:center;gap:2px;height:18px;margin:2px 0 0 20px;padding:0 6px 0 2px;border:none;border-radius:9px;background:transparent;
+  color:var(--vscode-descriptionForeground);font:inherit;font-size:0.85em;cursor:pointer;white-space:nowrap}
+.mx .chev{width:14px;height:14px}
+.mx:hover{color:var(--vscode-foreground);background:var(--vscode-toolbar-hoverBackground)}
+.mx:focus-visible,.r:focus-visible>.rh,.ml .lnk:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
+.mx.on{color:var(--vscode-foreground)}
+.mx .lt{display:none}
+.mx.on .lt{display:inline}.mx.on .ls{display:none}
+
+/* ---- NEW: other-matches list ---- */
+.ml{margin:2px 8px 4px 24px;padding:0 0 0 8px;border-left:1px solid var(--vscode-widget-border);list-style:none}
+.mi{padding:4px 0;cursor:pointer}
+.mi+.mi{border-top:1px solid color-mix(in srgb,var(--vscode-widget-border) 70%,transparent)}
+.mi:hover{background:var(--vscode-list-hoverBackground)}
+.mih{display:flex;align-items:center;gap:6px;min-width:0}
+.mih .d{flex:1;min-width:0;font-size:0.85em;color:var(--vscode-descriptionForeground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mih .mp{margin-left:auto}
+.mih .x{flex:none;font-size:11px;line-height:16px;padding:0 5px;border-radius:9px;border:1px solid var(--vscode-widget-border);color:var(--vscode-descriptionForeground)}
+.mib{margin-top:1px;font-size:0.9em;line-height:1.4;color:var(--vscode-descriptionForeground);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word}
+.mib.same{font-style:italic;-webkit-line-clamp:1}
+.ml .lnk{margin:4px 0 2px;padding:0;border:none;background:none;font:inherit;font-size:0.85em;color:var(--vscode-textLink-foreground);cursor:pointer}
+.ml .ld{padding:4px 0;font-size:0.85em;color:var(--vscode-descriptionForeground)}
+
+/* ---- Width tiers (container queries on #res, as the extension does) ---- */
+@container res (max-width:259px){
+  .hd .stp,.mx .w{display:none}
+  .sa span{display:none}.sa{padding:0 3px}
+  .s{-webkit-line-clamp:1}
+  .mih .d{display:none}
+  .mib{-webkit-line-clamp:1}
+  .ml{margin-left:16px;margin-right:4px;padding-left:6px}
+  .mt,.s{padding-left:16px}.mx{margin-left:12px}
+}
+@container res (max-width:520px){
+  .mih .sa span{display:none}.mih .sa{padding:0 3px}
+}
+@container res (min-width:521px){
+  .mp.n{display:inline-block}
+}
+@container res (min-width:901px){
+  .rh{display:grid;grid-template-columns:minmax(240px,1fr) minmax(0,2fr);grid-template-rows:auto 1fr;column-gap:8px}
+  .rh>.hd{grid-column:1;grid-row:1}.rh>.mt{grid-column:1;grid-row:2;align-self:start}
+  .rh>.sx{grid-column:2;grid-row:1/3;min-width:0;padding-top:6px}
+  .sx>.s{padding:0 10px 0 0}.sx>.mx{margin-left:-4px}.sx>.ml{margin-left:0}
+}
+.frame{border-right:1px dashed transparent}
+
+/* ---- NEW: shared tooltip (replaces native title tooltips) ---- */
+#tip{position:absolute;z-index:10;box-sizing:border-box;padding:5px 8px 6px;border-radius:4px;font-size:0.92em;line-height:1.4;pointer-events:none;
+  background:var(--vscode-editorHoverWidget-background);color:var(--vscode-editorHoverWidget-foreground);border:1px solid var(--vscode-editorHoverWidget-border);
+  box-shadow:0 2px 8px var(--vscode-widget-shadow);overflow-wrap:anywhere}
+#tip[hidden]{display:none}
+#tip b{display:block;font-weight:600}
+#tip p{margin:3px 0 0}
+#tip .sm,#tip .nt,#tip dt{color:var(--vscode-descriptionForeground)}
+#tip .nt{font-size:0.92em;font-style:italic}
+#tip .q{padding-top:3px;border-top:1px solid var(--vscode-editorHoverWidget-border)}
+#tip dl{display:grid;grid-template-columns:auto 1fr;gap:1px 8px;margin:3px 0 0}
+#tip dd{margin:0;min-width:0}
+</style>
+</head>
+<body>
+<div id="res"></div>
+<script>
+const P=new URLSearchParams(location.search),S=P.get('s')||'a';
+if(P.get('t')==='light')document.documentElement.dataset.theme='light';
+const MIN=60000,HR=60*MIN,DAY=24*HR,NOW=Date.now();
+const CHEV='<svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ARCH='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"><path d="M2 3h12v3H2zM3 6v7h10V6M6.5 9h3"/></svg>';
+const SUBG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5v6.5a3 3 0 0 0 3 3h5"/><path d="M10 9.5l2.5 2.5-2.5 2.5"/></svg>';
+const Q='scripts/test/run_test.py';
+/* Same chats as the owner's screenshot. latest = r.snippet/snipAt/snipSub (NEW fields); others = expand items (lazy). */
+const S_A1='…`"scripts/test/run_test.py"` matched 69 chats, and every checked message contains it as contiguous text, so the phrase search is exact.';
+const S_A2='…`"scripts/test/run_test.py"` matched 69 chats; all 664 messages checked contain it contiguously. No false positives.';
+const S_B1='…scripts/test/run_test.py test/lib/utils/contact_issues/contact_issue_types_test.dart to confirm the new audit rows.';
+const S_B2='…scripts/test/run_test.py test/lib/utils/contact_issues/contact_issue_types_test.dart after the avatar fallback fix.';
+const S_B3='…scripts/test/run_test.py test/lib/utils/contact/matching/contact_match_import_test.dart for the layout fix.';
+const S_B4='…scripts/test/run_test.py` on any existing audit test files before merging. Fixed in the worktree (`audit_rows.dart`).';
+const S_C='…scripts/test/run_test.py test/components/primitive/text/common_voice_mic_test.dart to check the stuck-mic probe.';
+const S_C2='…scripts/test/run_test.py <file>`). Output: the brief only, short bullets, file:line everywhere. Flag anything that needs the owner.';
+const CHATS={
+A:{id:'A',title:'Search within claude chats',dot:'running',status:'active',hits:20,msgs:54,last:NOW-1*MIN,
+  snippet:S_A1,snipAt:NOW-1*MIN,mc:2,subTotal:1,
+  items:[{sub:'general-purpose',desc:'Sonnet: build 0.5.0 package',ts:NOW-10*HR,snippet:S_A2}]},
+B:{id:'B',title:'Contact audit and fix screen layout',dot:'ring',status:'',hits:25,msgs:212,last:NOW-53*MIN,
+  snippet:S_B1,snipAt:NOW-53*MIN,mc:4,subTotal:3,
+  items:[{sub:'general-purpose',desc:'Opus review: avatar fallback',ts:NOW-7*HR,snippet:S_B2},
+         {sub:'general-purpose',desc:'Opus review + layout fixes',ts:NOW-1*DAY-2*HR,snippet:S_B3},
+         {sub:'general-purpose',desc:'Opus review of audit tests',ts:NOW-2*DAY-1*HR,snippet:S_B4}]},
+C:{id:'C',title:'Main grid search voice icon code',dot:'idle',status:'',hits:114,msgs:388,last:NOW-6*HR-2*MIN,
+  snippet:S_C,snipAt:NOW-6*HR-2*MIN,snipSub:'general-purpose',snipDesc:'Opus review: mic fixes',mc:5,subTotal:4,
+  items:[{sub:'general-purpose',desc:'Build mic fixes and splits',ts:NOW-6*HR-5*MIN,snippet:S_C},
+         {sub:'Plan',desc:'Opus design: mic fixes and follow-ups',ts:NOW-6*HR-9*MIN,snippet:S_C2},
+         {sub:'general-purpose',desc:'Opus review unreleased voice changes',ts:NOW-1*DAY-3*HR,snippet:S_C},
+         {role:'assistant',ts:NOW-1*DAY-5*HR,snippet:S_C}]},
+E:{id:'E',title:'Release notes for 0.9.3',dot:'idle',status:'',hits:1,msgs:31,last:NOW-26*HR,
+  snippet:'…ran python3 scripts/test/run_test.py test/release/notes_test.dart and it passed.',snipAt:NOW-27*HR,snipRole:'user',mc:1,items:[]},
+};
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function hl(s){const i=s.indexOf(Q);return i<0?esc(s):esc(s.slice(0,i))+'<mark>'+esc(Q)+'</mark>'+esc(s.slice(i+Q.length));}
+function agoShort(ms){const m=Math.floor((NOW-ms)/MIN);if(m<1)return 'now';const d=Math.floor(m/1440);
+const u=m<60?[m,'min']:m<1440?[Math.floor(m/60),'hr']:d<7?[d,'day']:[Math.floor(d/7),'wk'];return u[0]+' '+u[1]+(u[0]===1?'':'s');}
+function agoLong(ms){const m=Math.floor((NOW-ms)/MIN);if(m<1)return 'just now';
+const u=m<60?[m,'minute']:m<1440?[Math.floor(m/60),'hour']:[Math.floor(m/1440),'day'];return u[0]+' '+u[1]+(u[0]===1?'':'s')+' ago';}
+function full(ms){return new Date(ms).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});}
+function saPill(t,k){return '<span class="sa" role="img" aria-label="Subagent: '+esc(t)+'"'+(k?' data-tip="'+k+'"':'')+'>'+SUBG+'<span>'+esc(t)+'</span></span>';}
+/* Single source: during a search the time pill is the LATEST MATCH time; chat last-active lives in its tooltip. */
+function metaHtml(r){
+return '<div class="mt"><span class="mp hit" role="img" aria-label="'+r.hits+' hits in '+r.mc+' matching messages" data-tip="hits">'+r.hits+(r.hits===1?' hit':' hits')+'</span>'
++'<span class="mp n" role="img" aria-label="'+r.msgs+' messages" data-tip="count">'+r.msgs+'</span>'
++'<span class="mp tp" role="img" aria-label="latest match '+agoLong(r.snipAt)+'" data-tip="time">'+agoShort(r.snipAt)+'</span>'
++(r.snipSub?saPill(r.snipSub,'snipsub'):'')+'</div>';}
+function key(s){return s.replace(/^…/,'').replace(/\s+/g,' ').slice(0,96);}
+/* Group identical snippets (same 96-char key) at the newest member's position. */
+function groups(r){const m=new Map(),out=[];
+r.items.forEach((it,i)=>{const k=key(it.snippet);if(m.has(k)){m.get(k).n.push(it);return;}const g={i:i,it:it,n:[it],same:k===key(r.snippet)};m.set(k,g);out.push(g);});
+return out;}
+function who(it){return it.sub!==undefined?saPill(it.sub):'<span class="who">'+(it.role==='user'?'You':'Claude')+'</span>';}
+function itemHtml(g){const it=g.it,n=g.n.length;
+return '<li class="mi" data-i="'+g.i+'" data-tip="item"><div class="mih">'+who(it)+'<span class="d">'+esc(it.desc||'')+'</span>'
++(n>1?'<span class="x" role="img" aria-label="'+n+' messages with this text">×'+n+'</span>':'')
++'<span class="mp" role="img" aria-label="'+agoLong(it.ts)+'">'+agoShort(it.ts)+'</span></div>'
++(g.same?'<div class="mib same">Same text as the latest match</div>':'<div class="mib">'+hl(it.snippet)+'</div>')+'</li>';}
+function dotWord(d){return {running:'Running',ring:'Open elsewhere',idle:'Idle',unread:'Unread'}[d];}
+function rowHtml(r,o){o=o||{};const more=r.mc-1,lid='ml-'+r.id;
+return '<div class="r" tabindex="0" role="listitem" data-id="'+r.id+'" aria-label="'+esc(r.title)+'"><div class="rh'+(o.hover?' hov':'')+'">'
++'<div class="hd"><span class="dot '+r.dot+'" role="img" aria-label="'+dotWord(r.dot)+'" data-tip="dot"></span><span class="t" data-tip="title">'+esc(r.title)+'</span>'
++(r.status?'<span class="stp active" role="img" aria-label="Status: Active" data-tip="status">Active</span>':'')
++'<button class="ic ar" aria-label="Archive" data-tip="Archive">'+ARCH+'</button>'
++'<button class="ic pn" aria-label="Pin" aria-pressed="false" data-tip="Pin">☆</button>'
++'<button class="ic" data-a="exp" aria-expanded="false" aria-label="Details" data-tip="Details">'+CHEV+'</button></div>'
++metaHtml(r)
++'<div class="sx">'+(r.snippet?'<div class="s" data-tip="snip">'+hl(r.snippet)+'</div>':'')
++(more>0?'<button class="mx'+(o.open?' on':'')+'" aria-expanded="'+!!o.open+'" aria-controls="'+lid+'" aria-label="'+(o.open?'Hide':'Show')+' '+more+' more matching message'+(more===1?'':'s')+'">'+CHEV+'<span class="ls">+'+more+' more</span><span class="lt">Show less</span></button>':'')
++(o.open?'<ul class="ml" id="'+lid+'" aria-label="Other matches in '+esc(r.title)+'">'+groups(r).map(itemHtml).join('')+'</ul>':'')
++'</div></div></div>';}
+function group(label,rows){return '<div class="gh open" role="button" aria-expanded="true">'+CHEV+'<span class="sn">'+label+'</span><span class="pill">'+rows.length+'</span></div>'
++'<div role="list">'+rows.join('')+'</div>';}
+
+/* ---- NEW: tooltip module. One shared #tip element, content built lazily from row data at show time. ---- */
+const CAP=600;
+function cap(s){return s.length>CAP?s.slice(0,CAP)+'…':s;}
+function kv(rows){return '<dl>'+rows.filter(x=>x[1]!==''&&x[1]!=null).map(x=>'<dt>'+esc(x[0])+'</dt><dd>'+x[1]+'</dd>').join('')+'</dl>';}
+function tipBody(el){const k=el.dataset.tip,row=el.closest('.r'),r=row&&CHATS[row.dataset.id];
+if(!r||!/^[a-z]+$/.test(k))return '<b>'+esc(k)+'</b>';
+if(k==='dot'){const d={running:['Running','Claude is working in this chat now.'],ring:['Open elsewhere','Open in another VS Code window or terminal.'],
+  idle:['Idle','Not open anywhere.'],unread:['Unread','Finished while you were away (approximate).']}[r.dot];return '<b>'+d[0]+'</b><p>'+d[1]+'</p>';}
+if(k==='status')return '<b>Status: Active</b><p>Messages in the last 10 minutes.</p>';
+if(k==='title'){const long=r.title.length>CAP;return '<b>'+esc(cap(r.title))+'</b>'+kv([['Project','contacts'],['Active',agoLong(r.last)],['Date',full(r.last)],['Messages',r.msgs],['Active for','2d 3h'],['Files edited','14'],['Size','3.4 MB'],['Cost','$12.40'],['Models','opus, sonnet']])
+  +(long?'<p class="nt">Title cut at 600 characters.</p>':'');}
+if(k==='hits')return '<b>'+r.hits+' hits</b>'+kv([['Messages',r.mc+' matching'],['Subagents',r.subTotal?r.subTotal+' matched':'none']]);
+if(k==='count')return '<b>'+r.msgs+' messages</b>';
+if(k==='time')return '<b>Latest match '+agoLong(r.snipAt)+'</b>'+kv([['Match at',full(r.snipAt)],['Chat active',agoLong(r.last)]]);
+if(k==='snipsub')return '<b>Subagent: '+esc(r.snipSub)+'</b><p>'+esc(r.snipDesc)+'</p>';
+if(k==='snip'){const src=r.snipSub?'Subagent '+r.snipSub+' · '+r.snipDesc:(r.snipRole==='user'?'You':'Claude');
+  return '<b>'+esc(src)+'</b><p class="sm">'+agoLong(r.snipAt)+' · '+full(r.snipAt)+'</p><p class="q">'+hl(cap(r.snippet))+'</p>';}
+if(k==='item'){const g=groups(r).find(x=>x.i===+el.dataset.i),src=x=>x.sub!==undefined?'Subagent '+x.sub:(x.role==='user'?'You':'Claude');
+  const head=g.n.length>1?'<b>'+g.n.length+' messages with this text</b>'+kv(g.n.map(x=>[agoShort(x.ts),esc(src(x)+(x.desc?' · '+x.desc:''))]))
+    :'<b>'+esc(src(g.it)+(g.it.desc?' · '+g.it.desc:''))+'</b><p class="sm">'+agoLong(g.it.ts)+' · '+full(g.it.ts)+'</p>';
+  return head+'<p class="q">'+hl(cap(g.it.snippet))+'</p><p class="nt">Click to resume the chat.</p>';}
+return '';}
+const tip=document.createElement('div');tip.id='tip';tip.setAttribute('role','tooltip');tip.hidden=true;document.body.appendChild(tip);
+let tipFor=null,tipT=0,tipOff=0;
+function place(el){const pr=document.getElementById('res').getBoundingClientRect(),a=el.getBoundingClientRect(),M=4,G=6;
+tip.style.maxWidth=Math.min(280,Math.floor(pr.width*0.9))+'px';tip.style.left='0px';tip.style.top='0px';
+const w=tip.offsetWidth,h=tip.offsetHeight,vh=window.innerHeight;
+let x=a.left+a.width/2-w/2;x=Math.max(pr.left+M,Math.min(x,pr.right-M-w));
+let y=a.bottom+G;if(y+h>vh-M&&a.top-G-h>=M)y=a.top-G-h;
+tip.style.left=Math.round(x+scrollX)+'px';tip.style.top=Math.round(y+scrollY)+'px';}
+function show(el){tipFor=el;tip.innerHTML=tipBody(el);tip.hidden=false;place(el);el.setAttribute('aria-describedby','tip');}
+function hide(){clearTimeout(tipT);if(tipFor){tipOff=Date.now();}if(tipFor)tipFor.removeAttribute('aria-describedby');tipFor=null;tip.hidden=true;}
+document.addEventListener('mouseover',e=>{const el=e.target.closest('[data-tip]');if(el===tipFor)return;hide();if(el)tipT=setTimeout(()=>show(el),Date.now()-tipOff<300?0:400);});
+document.addEventListener('mouseout',e=>{const el=e.target.closest('[data-tip]');if(el&&!el.contains(e.relatedTarget))hide();});
+document.addEventListener('focusin',e=>{const el=e.target.closest('[data-tip]');hide();if(el&&e.target.matches(':focus-visible'))show(el);});
+document.addEventListener('focusout',hide);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&tipFor){e.stopPropagation();hide();}},true);
+document.addEventListener('scroll',hide,true);
+document.addEventListener('pointerdown',hide,true);
+
+/* ---- States ---- */
+const W=+(P.get('w')||330);document.body.style.width=W+'px';
+const st='<div class="status">144 of 144 chats, 71 matches</div>';
+let h='';
+if(S==='a'||S==='c'||S==='g')h=st+group('Today',[rowHtml(CHATS.A),rowHtml(CHATS.B,{hover:S==='a'||S==='g'}),rowHtml(CHATS.C)]);
+if(S==='b')h=st+group('Today',[rowHtml(CHATS.A),rowHtml(CHATS.B),rowHtml(CHATS.C,{open:true})]);
+if(S==='d')h=st+group('Today',[rowHtml(CHATS.A),rowHtml(CHATS.B,{open:true}),rowHtml(CHATS.C)]);
+if(S==='e')h=group('Yesterday',[rowHtml(CHATS.E)]);
+if(S==='f')h=group('Today',[rowHtml(CHATS.C,{hover:true})]);
+if(S[0]==='t')h=st+group('Today',[rowHtml(CHATS.A),rowHtml(CHATS.B,{open:S==='t5'}),rowHtml(CHATS.C)]);
+document.getElementById('res').innerHTML=h;
+if(S==='f'){document.querySelector('.mx').focus();}
+const TIPS={t1:['A','.dot'],t2:['C','.mp.tp'],t3:['B','.t'],t4:['C','.s'],t5:['B','.mi:nth-child(1)']};
+if(TIPS[S]){const t=TIPS[S],el=document.querySelector('.r[data-id='+t[0]+'] '+t[1]);show(el);}
+</script>
+</body>
+</html>
