@@ -5,7 +5,7 @@ const TAG_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="c
 function dotHtml(id){const d=dots[id]||{s:'idle',ring:false},t=dotText(d);
 return '<span class="dot '+d.s+(d.ring?' ring':'')+(d.win==='this'?' wt':d.win==='other'?' wo':'')+'" role="img" aria-label="'+esc(t)+'" data-tip="'+esc(dotTip(d))+'"></span>';}
 function decorated(r){const d=dots[r.id];return pins.has(r.id)||!!(d&&(d.ring||d.s!=='idle'));}
-function plainTime(r,op){return op||r.hits>0||decorated(r)?'':timePill(r.last,Date.now()).replace('class="mp tp"','class="mp tp pl"');}
+function plainTime(r,op){return op||r.hits>0||decorated(r)?'':(all.checked&&r.project?'<span class="pj" data-tip="Project folder">'+esc(r.project)+'</span>':'')+timePill(r.last,Date.now()).replace('class="mp tp"','class="mp tp pl"');}
 function stamp(r){return r.hits>0&&r.snipAt?r.snipAt:r.last;}
 function resOf(id){return lastRs.concat(pinned,sess?sess.rows.concat(sess.arch||[]):[]).find(r=>r.id===id);}
 function reEsc(t){return t.replace(/[.*+?^$\x7b\x7d()|[\]\\]/g,'\\$&');}
@@ -40,7 +40,7 @@ return '<div class="hd">'+(decorated(r)?dotHtml(r.id):'<span class="dot none" ar
 function rowHtml(r){
 const now=Date.now(),op=open.has(r.id),ia=arch.has(r.id);
 return '<div class="r'+(op?' open':'')+'" data-id="'+esc(r.id)+'" data-vscode-context="'+esc(JSON.stringify({webviewSection:'chat',id:r.id,ccsArchived:ia,ccsUnread:(dots[r.id]||{}).s==='unread'}))+'" tabindex="0"><div class="rh">'
-+hdHtml(r,op)+metaHtml(r,now)+'<span class="chips">'+(op?'':tagLine(r.id))+'</span>'+sxHtml(r)+'</div>'+(op?exHtml(r):'')+'</div>';}
++hdHtml(r,op)+metaHtml(r,now)+'<span class="chips">'+(op?'':(decorated(r)?chips(r.id):'')+tagInput(r.id))+'</span>'+sxHtml(r)+'</div>'+(op?exHtml(r):'')+'</div>';}
 function groupsHtml(a){const now=Date.now(),g={};
 a.forEach(r=>{const k=dayBucket(stamp(r),now);(g[k]=g[k]||[]).push(r);});
 return DAY_ORDER.filter(k=>g[k]).map((k,i)=>sec('grp:'+k,k,g[k].length,g[k].map(rowHtml).join(''),'gh')).join('');}

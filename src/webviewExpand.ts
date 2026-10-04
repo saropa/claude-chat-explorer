@@ -43,7 +43,7 @@ return '<div class="rr" data-id="'+esc(x.id)+'" tabindex="0" role="button" aria-
 const relSeen=new Set();
 function relBlock(r,e){const rel=e.related||[],key='rel:'+r.id;
 if(!relSeen.has(key)){relSeen.add(key);if(rel.length)col.delete(key);else col.add(key);}
-return xsec(key,'Related chats',rel.length,rel.length?rel.map(relHtml).join(''):'<div class="none">No other chat touched the same files</div>','xr',true);}
+return xsec(key,'Related chats',rel.length||'',rel.length?rel.map(relHtml).join(''):'<div class="none">No other chat touched the same files</div>','xr',true);}
 function exHtml(r){const e=ex[r.id],f=e&&e.full,t=r.title;
 const left=statsHtml(r)+tagsHtml(r)+(f?gitHtml(r,e):'');
 const mid=f?filesHtml(r,e):'<div class="m">Loading...</div>';

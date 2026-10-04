@@ -2,6 +2,10 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.15.1 - 2026-10-04
+- Fixed: plain rows no longer show tag chips or the message-count pill (only open, unread and pinned chats do). Related chats in the card now re-collapses for each new search and shows no "0" pill. Results with equal scores are now ordered newest first.
+- Changed: with All projects on, plain rows show the project folder name next to the time again, including archived rows.
+
 ## 0.15.0 - 2026-10-04
 - Changed: the chat list is calmer. Only chats that are open in Claude Code, unread or pinned show the status dot, the status chip (Huge, Empty, Tiny, Abandoned), the "% full" context pill, the Git icon and the open-window marker. Every other chat is a plain row: the title alone.
 - Changed: a plain row shows its title and the time of its last message on the right (the time pill). The message count moves to the title tooltip and the card. Day groups still show how recent a chat is.

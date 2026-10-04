@@ -74,7 +74,7 @@ function pinStar(r){return pins.has(r.id)?'<span class="pst" role="img" aria-lab
 function metaHtml(r,now){const q=r.hits>0,mt=msgTxt(r),dc=decorated(r);
 if(!q&&!dc)return '';
 return '<div class="mt">'+pinStar(r)+(all.checked&&r.project?'<span class="pj" data-tip="Project folder">'+esc(r.project)+'</span>':'')
-+(q?hitsPill(r):'')+(mt?'<span class="mp n'+(q?' sq':'')+'" role="img" aria-label="'+mt+'" data-tip="k:count">'+r.msgs+'</span>':'')
++(q?hitsPill(r):'')+(mt&&(dc||!q)?'<span class="mp n'+(q?' sq':'')+'" role="img" aria-label="'+mt+'" data-tip="k:count">'+r.msgs+'</span>':'')
 +timePill(stamp(r),now,q&&!!r.snipAt)+touchPill(r)+(q&&r.snipSub!==undefined?saPill(r.snipSub,'k:snipsub'):'')+(dc?pillHtml(r)+ctxPill(r)+gitIcon(r):'')+'</div>';}
 function qSync(){document.body.classList.toggle('qa',!!q.value.trim());}
 q.addEventListener('input',qSync);window.addEventListener('message',qSync);qSync();

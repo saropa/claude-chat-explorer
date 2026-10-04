@@ -116,7 +116,7 @@ export function toResult(sc: Scan, f: Found, maxSubs: number = MAX_SUBS): Result
 /** Pinned chats first, then score (the display order of results). */
 export const rank = (rs: Result[], ctx: Ctx): Result[] => {
   const pin = (r: Result) => (ctx.pins.has(r.id) ? 1 : 0);
-  return rs.sort((a, b) => pin(b) - pin(a) || b.score - a.score);
+  return rs.sort((a, b) => pin(b) - pin(a) || b.score - a.score || b.last - a.last);
 };
 
 /** Search the index live and unread chats first, then newest first; streams one callback per chat and yields so cancels get through. Counts every match; keeps only the top max rows. */

@@ -29,7 +29,7 @@ function draft(){vs.postMessage(Object.assign({type:'draft'},cur()));}
 function subTxt(){return ix.subs?' (including '+ix.subs+' subagent files)':'';}
 function showIx(){ixb.hidden=!ix;if(ix)ixt.textContent=ix.first?'Building the search index for the first time: '+ix.done+' of '+ix.total+subTxt()+'. Later launches are much faster.':'Indexing your chats: '+ix.done+' of '+ix.total+subTxt()+'. Results may be incomplete until this finishes.';}
 function go(){clearTimeout(timer);clearTimeout(histTimer);const c=cur();showErr('');hint.hidden=true;draft();dirty=!!ix;
-stale=false;res.classList.remove('stale');res.scrollTop=0;acc=[];prog=null;open.clear();mOpen.clear();ex={};sn++;sess=null;lastQ=c.query;sessOn=!c.query;
+stale=false;res.classList.remove('stale');res.scrollTop=0;acc=[];prog=null;open.clear();mOpen.clear();ex={};relSeen.clear();sn++;sess=null;lastQ=c.query;sessOn=!c.query;
 tot=null;stSync();hasResults=false;lastRs=[];lastMsg=c.query?'Searching...':'';setBusy(!!c.query);
 vs.postMessage(Object.assign({type:'search',sn:sn},c));if(!c.query)askSess();rerender();}
 function askSess(){vs.postMessage(Object.assign({type:'sessions',sn:sn},cur()));}
