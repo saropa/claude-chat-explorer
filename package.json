@@ -1,8 +1,8 @@
 {
-  "name": "claude-chat-search",
+  "name": "claude-chat-explorer",
   "displayName": "Saropa Chat Explorer",
   "description": "Search Claude Code chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
-  "version": "0.12.2",
+  "version": "0.13.0",
   "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
@@ -46,29 +46,29 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "claudeChatSearch",
+          "id": "claudeChatExplorer",
           "title": "Saropa Chat Explorer",
           "icon": "icon.svg"
         },
         {
-          "id": "claudeChatSearchGit",
+          "id": "claudeChatExplorerGit",
           "title": "Saropa Git Activity",
           "icon": "gitIcon.svg"
         }
       ]
     },
     "views": {
-      "claudeChatSearch": [
+      "claudeChatExplorer": [
         {
           "type": "webview",
-          "id": "claudeChatSearch.view",
+          "id": "claudeChatExplorer.view",
           "name": "Saropa Chat Explorer",
           "icon": "icon.svg"
         }
       ],
-      "claudeChatSearchGit": [
+      "claudeChatExplorerGit": [
         {
-          "id": "claudeChatSearch.git",
+          "id": "claudeChatExplorer.git",
           "name": "Git Activity",
           "icon": "icon.svg"
         }
@@ -76,96 +76,96 @@
     },
     "viewsWelcome": [
       {
-        "view": "claudeChatSearch.git",
+        "view": "claudeChatExplorer.git",
         "contents": "No git activity found in your chats yet."
       }
     ],
     "commands": [
       {
-        "command": "saropaChatSearch.fileSessions.show",
+        "command": "saropaChatExplorer.fileSessions.show",
         "title": "Saropa: Chats That Touched This File"
       },
       {
-        "command": "claudeChatSearch.clearHistory",
+        "command": "claudeChatExplorer.clearHistory",
         "title": "Saropa Chat Explorer: Clear Search History"
       },
       {
-        "command": "saropaChatSearch.importArchived",
+        "command": "saropaChatExplorer.importArchived",
         "title": "Saropa Chat Explorer: Import Archived Chats from Claude Code"
       },
       {
-        "command": "saropaChatSearch.diagnostics",
+        "command": "saropaChatExplorer.diagnostics",
         "title": "Saropa Chat Explorer: Show Diagnostics"
       },
       {
-        "command": "saropaChatSearch.archive",
+        "command": "saropaChatExplorer.archive",
         "title": "Archive Chat"
       },
       {
-        "command": "saropaChatSearch.unarchive",
+        "command": "saropaChatExplorer.unarchive",
         "title": "Unarchive Chat"
       },
       {
-        "command": "saropaChatSearch.markRead",
+        "command": "saropaChatExplorer.markRead",
         "title": "Mark as Read"
       }
     ],
     "menus": {
       "explorer/context": [
         {
-          "command": "saropaChatSearch.fileSessions.show",
+          "command": "saropaChatExplorer.fileSessions.show",
           "when": "resourceScheme == file && !explorerResourceIsFolder",
-          "group": "saropaChatSearch@1"
+          "group": "saropaChatExplorer@1"
         }
       ],
       "editor/context": [
         {
-          "command": "saropaChatSearch.fileSessions.show",
+          "command": "saropaChatExplorer.fileSessions.show",
           "when": "resourceScheme == file",
-          "group": "saropaChatSearch@1"
+          "group": "saropaChatExplorer@1"
         }
       ],
       "editor/title/context": [
         {
-          "command": "saropaChatSearch.fileSessions.show",
+          "command": "saropaChatExplorer.fileSessions.show",
           "when": "resourceScheme == file",
-          "group": "saropaChatSearch@1"
+          "group": "saropaChatExplorer@1"
         }
       ],
       "view/title": [
         {
-          "command": "claudeChatSearch.clearHistory",
-          "when": "view == claudeChatSearch.view"
+          "command": "claudeChatExplorer.clearHistory",
+          "when": "view == claudeChatExplorer.view"
         }
       ],
       "webview/context": [
         {
-          "command": "saropaChatSearch.archive",
-          "when": "webviewId == 'claudeChatSearch.view' && webviewSection == 'chat' && !ccsArchived",
-          "group": "saropaChatSearch@1"
+          "command": "saropaChatExplorer.archive",
+          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat' && !ccsArchived",
+          "group": "saropaChatExplorer@1"
         },
         {
-          "command": "saropaChatSearch.unarchive",
-          "when": "webviewId == 'claudeChatSearch.view' && webviewSection == 'chat' && ccsArchived",
-          "group": "saropaChatSearch@1"
+          "command": "saropaChatExplorer.unarchive",
+          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat' && ccsArchived",
+          "group": "saropaChatExplorer@1"
         },
         {
-          "command": "saropaChatSearch.markRead",
-          "when": "webviewId == 'claudeChatSearch.view' && webviewSection == 'chat' && ccsUnread",
-          "group": "saropaChatSearch@2"
+          "command": "saropaChatExplorer.markRead",
+          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat' && ccsUnread",
+          "group": "saropaChatExplorer@2"
         }
       ],
       "commandPalette": [
         {
-          "command": "saropaChatSearch.archive",
+          "command": "saropaChatExplorer.archive",
           "when": "false"
         },
         {
-          "command": "saropaChatSearch.unarchive",
+          "command": "saropaChatExplorer.unarchive",
           "when": "false"
         },
         {
-          "command": "saropaChatSearch.markRead",
+          "command": "saropaChatExplorer.markRead",
           "when": "false"
         }
       ]
@@ -173,17 +173,17 @@
     "configuration": {
       "title": "Saropa Chat Explorer",
       "properties": {
-        "saropaChatSearch.showFileSessionsStatusBar": {
+        "saropaChatExplorer.showFileSessionsStatusBar": {
           "type": "boolean",
           "default": true,
           "description": "Show a status bar count of the Claude chats that touched the active file."
         },
-        "saropaChatSearch.contextWarnings": {
+        "saropaChatExplorer.contextWarnings": {
           "type": "boolean",
           "default": true,
           "description": "Show a notification when a live Claude chat reaches 80 and 90 percent of its context window."
         },
-        "saropaChatSearch.maxResults": {
+        "saropaChatExplorer.maxResults": {
           "type": "number",
           "default": 500,
           "minimum": 50,
@@ -194,7 +194,7 @@
     },
     "colors": [
       {
-        "id": "saropaChatSearch.dotRunning",
+        "id": "saropaChatExplorer.dotRunning",
         "description": "Chat dot: Claude is running.",
         "defaults": {
           "dark": "#89d185",
@@ -204,7 +204,7 @@
         }
       },
       {
-        "id": "saropaChatSearch.dotWaiting",
+        "id": "saropaChatExplorer.dotWaiting",
         "description": "Chat dot: Claude is waiting for you.",
         "defaults": {
           "dark": "#3b82f6",
@@ -214,7 +214,7 @@
         }
       },
       {
-        "id": "saropaChatSearch.dotUnread",
+        "id": "saropaChatExplorer.dotUnread",
         "description": "Chat dot: finished while you were away.",
         "defaults": {
           "dark": "#d97757",
@@ -224,7 +224,7 @@
         }
       },
       {
-        "id": "saropaChatSearch.dotIdle",
+        "id": "saropaChatExplorer.dotIdle",
         "description": "Chat dot: idle.",
         "defaults": {
           "dark": "#9d9d9d66",

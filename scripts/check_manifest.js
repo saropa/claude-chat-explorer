@@ -4,6 +4,8 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const errors = [];
+if (pkg.name !== 'claude-chat-explorer') errors.push(`package.json name must be claude-chat-explorer, found "${pkg.name}"`);
+const OLD = /^(saropaChatSearch|claudeChatSearch)/;
 const c = pkg.contributes || {};
 const containers = (c.viewsContainers && c.viewsContainers.activitybar) || [];
 const containerIds = new Set();
@@ -23,6 +25,8 @@ for (const [menu, items] of Object.entries(c.menus || {})) {
 for (const f of [pkg.icon, pkg.main]) if (f && !fs.existsSync(path.join(root, f)) && f !== pkg.main) errors.push(`file missing: ${f}`);
 const srcDir = path.join(root, 'src');
 const src = fs.readdirSync(srcDir).filter((f) => f.endsWith('.ts')).map((f) => fs.readFileSync(path.join(srcDir, f), 'utf8')).join('\n');
+const ids = [...containers.map((v) => v.id), ...Object.keys(c.views || {}), ...Object.values(c.views || {}).flat().map((v) => v.id), ...(c.commands || []).map((x) => x.command), ...Object.keys((c.configuration || {}).properties || {}), ...(c.colors || []).map((x) => x.id)];
+for (const id of ids) if (OLD.test(id)) errors.push(`contributed id "${id}" still uses the old prefix`);
 if (!/registerCommand/.test(src)) errors.push('no registerCommand call found in src/');
 for (const cmd of declared) if (!src.includes(`'${cmd}'`)) errors.push(`declared command ${cmd} has no matching string in src/ (no registerCommand?)`);
 if (errors.length) { console.error('Manifest check FAILED:\n - ' + errors.join('\n - ')); process.exit(1); }

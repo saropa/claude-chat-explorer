@@ -114,7 +114,7 @@ class Provider implements vscode.WebviewViewProvider {
   /** Reveal the panel and run a query in it (queued until a new view is ready). */
   async showQuery(query: string): Promise<void> {
     this.pendingQuery = query;
-    await vscode.commands.executeCommand('claudeChatSearch.view.focus');
+    await vscode.commands.executeCommand('claudeChatExplorer.view.focus');
     if (this.ready) { this.flushQuery(); }
   }
 
@@ -269,14 +269,14 @@ export function activate(ctx: vscode.ExtensionContext): void {
     onChange: () => { provider.postDots(); tree.redraw(); }, onLive: (ids) => { void warner.check(ids); } });
   ctx.subscriptions.push({ dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));
   ctx.subscriptions.push(channel, status, tree, vscode.workspace.onDidChangeWorkspaceFolders(() => provider.onScope?.()),
-    vscode.commands.registerCommand('claudeChatSearch.clearHistory', () => {
+    vscode.commands.registerCommand('claudeChatExplorer.clearHistory', () => {
       provider.clearHistory();
       void vscode.window.showInformationMessage('Search history cleared');
     }),
     vscode.commands.registerCommand(RETRY_CMD, () => tree.refresh(true)),
     vscode.window.registerTreeDataProvider(GIT_VIEW, tree),
     vscode.commands.registerCommand(OPEN_CMD, (id: unknown) => (isSessionId(id) ? provider.resume(id) : undefined)),
-    vscode.window.registerWebviewViewProvider('claudeChatSearch.view', provider,
+    vscode.window.registerWebviewViewProvider('claudeChatExplorer.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
   registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), open: (id) => provider.resume(id), dots: () => provider.dotNames,
     showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { const was = provider.onIndex; provider.onIndex = () => { was?.(); fn(); }; } });

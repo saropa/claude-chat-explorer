@@ -44,9 +44,9 @@ export function registerArchiveCommands(a: ArchiveActions): vscode.Disposable[] 
   const on = (cmd: string, fn: (id: string) => Promise<void>) =>
     vscode.commands.registerCommand(cmd, (arg?: unknown) => { const id = idOf(arg); return id ? fn(id) : undefined; });
   return [
-    on('saropaChatSearch.archive', (id) => a.setArchived(id, true)),
-    on('saropaChatSearch.unarchive', (id) => a.setArchived(id, false)),
-    on('saropaChatSearch.markRead', (id) => a.markRead(id)),
-    vscode.commands.registerCommand('saropaChatSearch.importArchived', () => a.importArchived()),
+    on('saropaChatExplorer.archive', (id) => a.setArchived(id, true)),
+    on('saropaChatExplorer.unarchive', (id) => a.setArchived(id, false)),
+    on('saropaChatExplorer.markRead', (id) => a.markRead(id)),
+    vscode.commands.registerCommand('saropaChatExplorer.importArchived', () => a.importArchived()),
   ];
 }

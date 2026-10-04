@@ -263,7 +263,7 @@ def step_build() -> None:
 def step_package(version: str) -> Path:
     heading("Step 7: Package .vsix")
     res = run(["npm", "run", "package"])
-    vsix = ROOT / f"claude-chat-search-{version}.vsix"
+    vsix = ROOT / f"claude-chat-explorer-{version}.vsix"
     if res.returncode != 0 or not vsix.is_file():
         print(tail(res))
         die("PACKAGE_FAILED", "npm run package did not produce the .vsix")

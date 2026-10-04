@@ -2,6 +2,13 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.13.0 - 2026-10-04
+- Changed: the extension id is now `saropa.claude-chat-explorer` (it was `saropa.claude-chat-search`), to match the name Saropa Chat Explorer.
+- Action needed: uninstall `saropa.claude-chat-search`, then install the new version. Both cannot run side by side.
+- Renamed settings (set them again if you changed them): `saropaChatSearch.maxResults` is now `saropaChatExplorer.maxResults`; `saropaChatSearch.contextWarnings` is now `saropaChatExplorer.contextWarnings`; `saropaChatSearch.showFileSessionsStatusBar` is now `saropaChatExplorer.showFileSessionsStatusBar`.
+- Saved options (pins, tags, archived chats, statuses, history) and the search cache start fresh once, because VS Code keeps extension data per id. The cache rebuilds on first start.
+- Commands in the Command Palette keep their titles; only their internal ids changed (affects custom keybindings).
+
 ## 0.12.2 - 2026-10-04
 - The right-click item for the chats that touched a file now reads "Saropa: Chats That Touched This File".
 

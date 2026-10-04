@@ -21,7 +21,7 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 | Last N messages | `last:<n>` or the "messages to search" dropdown (last 10, 25, 50, 100) searches only the final N messages of each chat. |
 | When filter | "chats active during": any time, last hour, 2, 4 or 8 hours, today, this week or this month. Local time: today starts at midnight, this week at 00:00 on Monday, this month at 00:00 on the 1st. |
 | Search details | The `...` button under the search box (tooltip "Toggle search details") shows or hides the When and Messages rows. They start hidden, the choice is remembered per workspace, and a count on the button shows how many of them are set. |
-| Result limit | Like VS Code Search, the panel lists at most 500 chats (setting `saropaChatSearch.maxResults`, 50 to 2000) and says so: "Showing the top 500 of 1,284 chats (21,904 matches)" with a warning to narrow the search. Every match is still counted. A chat shows "9,999+" above 9,999 hits, and totals stop at "1,000,000+". All sessions and Archived show the same notice. |
+| Result limit | Like VS Code Search, the panel lists at most 500 chats (setting `saropaChatExplorer.maxResults`, 50 to 2000) and says so: "Showing the top 500 of 1,284 chats (21,904 matches)" with a warning to narrow the search. Every match is still counted. A chat shows "9,999+" above 9,999 hits, and totals stop at "1,000,000+". All sessions and Archived show the same notice. |
 | Sort | Score, time (grouped by day), title, length, cost or context (fullest first; chats with no usage data last). Pinned chats list first. |
 | Status filter | Include or exclude Normal, Active, Empty, Tiny, Huge, Nearly full (context 80 percent or more), Abandoned and Pinned chats. Active means running, waiting for you or unread, as Claude Code defines it. |
 | Subagent search | The Subagents checkbox is on by default. Subagent matches count toward the chat. When the newest match is a subagent's, the row shows a purple pill with its agent type. |
@@ -41,7 +41,7 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 | Cost info | Dollars, lines added and removed, and models used, such as `$1.23 · +120/-30 lines · opus, sonnet`. |
 | Status dot and pill | A dot shows Claude Code's own chat state (see Status dot). A chip on the pill line shows Huge, Empty, Tiny or Abandoned. The dot already says Active, so there is no Active chip. |
 | Context pill | A pill on the pill line shows how full a chat's context window is, only from 60 percent: amber at 60 to 79, orange at 80 to 89, red at 90 and above ("82% full"). Hover it for tokens used of the window, the model, the compaction count and notes. The open card always shows a Context stat, such as "82% (164k of 200k, opus-4-6)". Chats with no usage data show nothing. The figure approximates Claude Code's own and lags one turn: it comes from the last reply, so a reply still being written is not counted. |
-| Context warnings | A live chat (running, waiting or idle with a live Claude process) that reaches 80 or 90 percent gets one notification with Open chat and Dismiss buttons. Each chat warns once per level, again after a compaction or after the chat falls 10 points below the level. At most one notification per 30 second check and 3 in 10 minutes. Old idle chats never warn, and an approximate figure (window size inferred from an unknown model) warns only from 90 percent. Turn it off with the setting `saropaChatSearch.contextWarnings`. Show Diagnostics lists how many live chats are at 80 percent or more. |
+| Context warnings | A live chat (running, waiting or idle with a live Claude process) that reaches 80 or 90 percent gets one notification with Open chat and Dismiss buttons. Each chat warns once per level, again after a compaction or after the chat falls 10 points below the level. At most one notification per 30 second check and 3 in 10 minutes. Old idle chats never warn, and an approximate figure (window size inferred from an unknown model) warns only from 90 percent. Turn it off with the setting `saropaChatExplorer.contextWarnings`. Show Diagnostics lists how many live chats are at 80 percent or more. |
 | Open window marker | The dot's ring shows whether a live chat is open in this VS Code window (solid ring) or in another window (dashed ring). See Status dot. |
 | Archive | Archive chats to move them into a collapsed Archived section. Import Claude Code's archived list once. See Archived chats. |
 | Copy ID | The Copy ID button in the expanded row copies the chat's session id. |
@@ -56,7 +56,7 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 Command line:
 
 ```
-code --install-extension claude-chat-search-0.12.1.vsix
+code --install-extension claude-chat-explorer-0.13.0.vsix
 ```
 
 Extensions panel:
@@ -183,7 +183,7 @@ Yes. Windows share one cache with one file per chat, so they do not overwrite ea
 The first start builds the index of all your chats. Later starts read the cache. A new version may rebuild it once.
 
 **Can I turn off the status bar count?**
-Yes. Set `saropaChatSearch.showFileSessionsStatusBar` to false.
+Yes. Set `saropaChatExplorer.showFileSessionsStatusBar` to false.
 
 ## Requirements
 
@@ -199,6 +199,8 @@ Issues and pull requests are welcome on the GitHub repository.
 MIT.
 
 ## Publishing
+
+Step by step, including how to create the access tokens: see PUBLISHING.md.
 
 - Needs accounts on the VS Code Marketplace (publisher `saropa`) and Open VSX, plus the `gh` CLI logged in.
 - Tokens are read from the environment, never printed: `VSCE_PAT` (Marketplace) and `OVSX_PAT` (Open VSX).

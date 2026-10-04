@@ -5,12 +5,12 @@ import { withoutArchived } from './gitFilter';
 import { DotMap } from './liveState';
 import { BranchNode, ChatRef, CommitNode, GitSummary, PrNode, RepoNode } from './gitSummary';
 
-export const GIT_VIEW = 'claudeChatSearch.git';
-export const OPEN_CMD = 'claudeChatSearch.openChat';
+export const GIT_VIEW = 'claudeChatExplorer.git';
+export const OPEN_CMD = 'claudeChatExplorer.openChat';
 const REFRESH_MS = 1000;
 const MAX_WAIT_MS = 5000;
-export const RETRY_CMD = 'claudeChatSearch.gitRetry';
-const DOT_COLORS: { [k: string]: string } = { running: 'saropaChatSearch.dotRunning', waiting: 'saropaChatSearch.dotWaiting', unread: 'saropaChatSearch.dotUnread', idle: 'saropaChatSearch.dotIdle' };
+export const RETRY_CMD = 'claudeChatExplorer.gitRetry';
+const DOT_COLORS: { [k: string]: string } = { running: 'saropaChatExplorer.dotRunning', waiting: 'saropaChatExplorer.dotWaiting', unread: 'saropaChatExplorer.dotUnread', idle: 'saropaChatExplorer.dotIdle' };
 
 type Node =
   | { k: 'repo'; repo: RepoNode } | { k: 'pr'; pr: PrNode; repo: string } | { k: 'branches'; list: BranchNode[] }

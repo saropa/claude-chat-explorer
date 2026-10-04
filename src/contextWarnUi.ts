@@ -2,7 +2,7 @@
 import * as vscode from 'vscode';
 import { ContextWarner, warnText, WarnState } from './contextWarn';
 
-const STATE_KEY = 'saropaChatSearch.contextWarned';
+const STATE_KEY = 'saropaChatExplorer.contextWarned';
 const OPEN = 'Open chat', DISMISS = 'Dismiss';
 
 export interface WarnHost {
@@ -14,7 +14,7 @@ export interface WarnHost {
 /** The warner for this window: one non-modal toast per threshold crossing of a live session. */
 export function createWarner(ctx: vscode.ExtensionContext, h: WarnHost): ContextWarner {
   return new ContextWarner({
-    enabled: () => vscode.workspace.getConfiguration('saropaChatSearch').get<boolean>('contextWarnings', true),
+    enabled: () => vscode.workspace.getConfiguration('saropaChatExplorer').get<boolean>('contextWarnings', true),
     now: () => Date.now(),
     info: async (ids) => (await h.request({ t: 'ctx', ids }, true)) ?? {},
     load: () => structuredClone(ctx.globalState.get<WarnState>(STATE_KEY) ?? {}),
