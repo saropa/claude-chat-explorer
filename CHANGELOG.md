@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.1
+- Fixed: the Git Activity view refreshing during indexing could time out and restart the search worker, canceling a running search or export. It now shows an empty or retry state instead and tries again on the next index change.
+- Fixed: toggling All projects or changing workspace folders did not refresh the Git Activity view.
+- Fixed: a pasted full 40-character commit id (`sha:`) now finds the commit; before, only the start of the stored id matched.
+- Fixed: `pr:7` alone, and clicking a PR with one digit, no longer says "Type at least 2 characters".
+- A malformed `sha:` (fewer than 4 hex characters) or `pr:` (not a number) now shows a hint under the box instead of silently finding nothing.
+- Clicking a PR or commit in the Git section replaces the earlier `pr:` or `sha:` in the query, so PR #12 then #13 finds #13.
+- With subagents included, `sha:`/`pr:`/`branch:` now match a chat when its subagents hold the commit or PR, including combined searches such as `sha:X pr:N`. With subagents off, matching, the git icon and the Git section all use only the chat's own git data.
+- PRs with the same number in different repositories are kept apart. A PR without a repository is listed under "(unknown repository)".
+- A short and a full id of one commit count once, a commit keeps the branch named by a later row, and branch names with non-English letters are kept.
+- A failed Git Activity load shows "Could not load git activity. Retry." instead of an empty view, and is not remembered. Tree items keep their expanded state across refreshes, and the view now updates within 5 seconds even during a long index pass.
+- A damaged index file that is read from disk after falling out of the memory cache is now always detected and rebuilt. The memory used for tracking checked files no longer grows.
+- Cleanup of old index folders stops checking a folder at the first recent file, and it reports file errors it used to ignore once in the log.
+- The first start after updating rebuilds the index once.
+
 ## 0.6.0
 - Each row now shows a small status pill after its title for the chat's most important status: Active, Huge, Empty, Tiny or Abandoned. Normal chats show no pill. Hover it to see every status of the chat.
 - The expanded stats line and the row tooltip now show what a chat cost: dollars, lines added and removed, and the models used, for example `$1.23 · +120/-30 lines · opus, sonnet`. Subagents show no cost of their own.

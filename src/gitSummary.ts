@@ -1,11 +1,11 @@
 import { mergedGit } from './gitInfo';
 import { candidates, Source } from './search';
-import { projectOf } from './stats';
 import { Chat, Options } from './types';
 
 export const MAX_BRANCH_COMMITS = 200;
 export const MAX_PR_CHATS = 100;
 const NO_BRANCH = '(unknown branch)';
+export const NO_REPO = '(unknown repository)';
 
 /** A chat shown under a PR or a commit. */
 export interface ChatRef { id: string; title: string; last: number; }
@@ -48,12 +48,12 @@ function branchNodes(commits: Commits): BranchNode[] {
   return out.sort((a, b) => b.at - a.at).map((x) => x.node);
 }
 
-/** PRs by repository (the project folder name when a PR has none) and commits by branch, over the chats in scope. */
+/** PRs by repository ('(unknown repository)' when a PR has none) and commits by branch, over the chats in scope. */
 export function gitSummary(ix: Source, all: boolean, folders: string[]): GitSummary {
   const prs: Prs = new Map(), commits: Commits = new Map();
   for (const c of candidates(ix, { ...ALL, all }, folders, 0)) {
     const g = mergedGit(c, ix.subsOf(c)), ref = refOf(c);
-    for (const [n, repo] of g.prs) { slot(slot(prs, repo || projectOf(c), () => new Map()), n, () => []).push(ref); }
+    for (const [n, repo] of g.prs) { slot(slot(prs, repo || NO_REPO, () => new Map()), n, () => []).push(ref); }
     for (const [sha, br] of g.commits) {
       const by = slot(commits, br || NO_BRANCH, () => new Map<string, ChatRef>());
       const prev = by.get(sha);

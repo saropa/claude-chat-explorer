@@ -7,8 +7,8 @@ export class RecCache {
   private m = new Map<string, Buffer>();
   private bytes = 0;
   private held = 0;
-  /** Record names whose body CRC passed in this process; files are immutable by name. */
-  readonly verified = new Set<string>();
+  /** Buffers whose body CRC passed; a buffer read from disk is always verified once. */
+  readonly verified = new WeakSet<Buffer>();
 
   get size(): number { return this.bytes; }
   get(name: string): Buffer | undefined {
@@ -25,8 +25,8 @@ export class RecCache {
     this.trim();
   }
 
-  /** Forget a record (rewritten, damaged or unreadable): cached bytes and the verified mark. */
-  drop(name: string): void { this.evictOne(name); this.verified.delete(name); }
+  /** Forget a record (rewritten, damaged or unreadable): its cached bytes. */
+  drop(name: string): void { this.evictOne(name); }
 
   private evictOne(name: string): void {
     const b = this.m.get(name);

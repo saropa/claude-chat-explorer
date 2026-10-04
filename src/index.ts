@@ -134,7 +134,7 @@ export class ChatIndex extends RecReader {
       const buf = encodeFile(headerOf(b.chat, src), b.chat.bloom, b.body);
       if (!(await writeRecord(this.recDir, name, buf, unchanged(t)))) { this.holdMem(t.file, b, prev); return; }
       this.keepMem.pend.delete(name);
-      recCache.drop(name); // same-name rewrite: forget the old bytes and verified mark
+      recCache.drop(name); // same-name rewrite: forget the old bytes
       this.fails.delete(name);
       this.install(t.file, b.chat, prev);
       if (prev && prev.rec !== name) { recCache.drop(prev.rec); await quiet(fs.promises.unlink(path.join(this.recDir, prev.rec))); }
@@ -216,7 +216,7 @@ export class ChatIndex extends RecReader {
   /** Runs beside the index jobs (it reads only the disk), so a search never waits for it; one at a time. */
   sweep(): Promise<void> {
     if (this.closed) { return Promise.resolve(); }
-    this.sweeping ??= quiet(sweepAll(this.dir, this.recDir, this.root, this.ages)).finally(() => { this.sweeping = undefined; });
+    this.sweeping ??= sweepAll(this.dir, this.recDir, this.root, this.ages, (w, e) => this.logOnce(w, e)).catch((e) => this.logOnce('sweep', e)).finally(() => { this.sweeping = undefined; });
     return this.sweeping;
   }
 

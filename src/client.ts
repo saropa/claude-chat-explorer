@@ -140,11 +140,15 @@ export class WorkerClient {
     this.finish(j, 'cancel');
   }
 
-  /** One request with its own timeout; rejects on timeout after restarting the worker. */
-  request(m: Msg): Promise<any> {
+  /** One request with its own timeout; rejects on timeout, restarting the worker unless background (an automatic refresh must not kill a search). */
+  request(m: Msg, background = false): Promise<any> {
     const req = ++this.seq;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.reqs.delete(req); void this.restart('error'); reject(new Error(TIMEOUT_MSG)); }, TIMEOUT_MS * 2);
+      const timer = setTimeout(() => {
+        this.reqs.delete(req);
+        if (!background) { void this.restart('error'); }
+        reject(new Error(TIMEOUT_MSG));
+      }, TIMEOUT_MS * 2);
       this.reqs.set(req, { resolve, reject, timer });
       if (!this.send({ ...m, req })) { clearTimeout(timer); this.reqs.delete(req); reject(new Error('Search worker is not running')); }
     });

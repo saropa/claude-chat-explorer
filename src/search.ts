@@ -62,9 +62,17 @@ function subHits(sc: Scan, p: Chat): Array<[Chat, Hit]> {
   return out;
 }
 
+const GIT_KINDS = ['sha', 'pr', 'branch'];
+
+/** The parent as git tokens see it: with subagents included its git data holds theirs too, so it agrees with the icon and Git section. */
+function gitView(sc: Scan, p: Chat): Chat {
+  if (!sc.o.subs || !sc.c.tokens.some((t) => GIT_KINDS.includes(t.kind))) { return p; }
+  return { ...p, git: mergedGit(p, sc.ix.subsOf(p)) };
+}
+
 /** Match one parent chat and its subagents; null when nothing matched. */
 export function findIn(sc: Scan, p: Chat): Found | null {
-  const own = matchChat(p, sc.c, sc.ctx, p.id, (x) => sc.ix.rec(x), sc.now, topWinOf(sc.c.last));
+  const own = matchChat(gitView(sc, p), sc.c, sc.ctx, p.id, (x) => sc.ix.rec(x), sc.now, topWinOf(sc.c.last));
   const self = own && p.last >= sc.cutoff ? own : null;
   const subs = sc.o.subs ? subHits(sc, p) : [];
   return self || subs.length ? { p, own: self, subs } : null;
@@ -77,7 +85,7 @@ export function toResult(sc: Scan, f: Found, maxSubs: number = MAX_SUBS): Result
   const weight = (own?.weightSum ?? 0) + subs.reduce((a, [, h]) => a + h.weightSum, 0);
   const snip = own ?? subs[0][1];
   const r: Result = {
-    file: sc.ix.fileOf(p), id: p.id, title: p.title, hits, last: p.last, project: projectOf(p), ...statFields(p, sc.ix.subsOf(p)),
+    file: sc.ix.fileOf(p), id: p.id, title: p.title, hits, last: p.last, project: projectOf(p), ...statFields(p, sc.o.subs ? sc.ix.subsOf(p) : []),
     snippet: snip.snippet, ranges: snip.ranges, score: scoreOf(p.title, sc.c.terms, weight, p.last, sc.now), self: !!own,
   };
   if (subs.length) { r.subs = subs.slice(0, maxSubs).map(([s, h]) => subResult(sc, s, h)); r.subTotal = subs.length; }
@@ -137,8 +145,8 @@ function tokenFinds(chat: Chat, rec: Rec, c: Compiled, ctx: Ctx, files: Map<stri
 export const MAX_EXPAND_COMMITS = 100;
 
 /** PRs and commits of a chat and its subagents for the expanded Git section (commits capped). */
-function gitOf(ix: Source, chat: Chat): Expanded['git'] {
-  const g = mergedGit(chat, ix.subsOf(chat));
+function gitOf(ix: Source, chat: Chat, subs: boolean): Expanded['git'] {
+  const g = mergedGit(chat, subs ? ix.subsOf(chat) : []);
   return {
     prs: g.prs.map(([number, repository]) => ({ number, repository })),
     commits: g.commits.slice(0, MAX_EXPAND_COMMITS).map(([sha, branch]) => ({ sha, branch })),
@@ -166,6 +174,6 @@ export function expandChat(ix: Source, chat: Chat, c: Compiled, o: Options, ctx:
   return {
     items: hits.slice(offset, offset + EXPAND_PAGE).map((h) => itemOf(h, c.terms)), total: hits.length,
     files: [...files].slice(0, 50).map(([p, edited]) => ({ path: p, edited })),
-    commands: [...commands].slice(0, 50), related: [], git: gitOf(ix, chat),
+    commands: [...commands].slice(0, 50), related: [], git: gitOf(ix, chat, o.subs),
   };
 }

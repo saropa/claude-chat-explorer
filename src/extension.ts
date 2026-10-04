@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { TIMEOUT_MSG, WorkerClient } from './client';
-import { GIT_VIEW, GitTree, OPEN_CMD } from './gitTree';
+import { GIT_VIEW, GitTree, OPEN_CMD, RETRY_CMD } from './gitTree';
 import { IndexStatus } from './indexStatus';
 import { deliver } from './exporter';
-import { compile, isEmpty, MIN_QUERY_CHARS, queryChars } from './query';
+import { gitHint } from './gitMatch';
+import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './query';
 import { isSessionId, openChat } from './resume';
 import { Draft, Store } from './store';
 import { STATUS_KEYS } from './status';
@@ -82,7 +83,7 @@ class Provider implements vscode.WebviewViewProvider {
 
   private async postMeta(): Promise<void> {
     try {
-      const pinned = await this.client.request({ t: 'pinned', ids: Object.keys(this.store.pins) });
+      const pinned = await this.client.request({ t: 'pinned', ids: Object.keys(this.store.pins) }, true);
       this.post({ type: 'meta', pins: Object.keys(this.store.pins), tags: this.store.tags, all: this.store.allTags, pinned });
     } catch (e) { logErr('meta', e); }
   }
@@ -112,7 +113,9 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'exportPrefs') { this.store.setExportPrefs({ context: !!m.context, unique: !!m.unique }); }
       else if (m.type === 'export') { await this.export(m); }
       else if (m.type === 'draft') {
+        const prev = this.store.draft.all;
         this.store.setDraft({ ...this.store.draft, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
+        this.scopeChanged(prev);
       } else if (m.type === 'search') { await this.search(m); }
       else if (m.type === 'histRemove') {
         this.store.setHistory(this.store.history.filter((_, i) => i !== m.index));
@@ -123,6 +126,9 @@ class Provider implements vscode.WebviewViewProvider {
       } else { await this.onChatMessage(m); }
     } catch (e) { logErr('message ' + String(m?.type), e); }
   }
+
+  /** The All projects option flipped: the Git Activity tree reloads for the new scope. */
+  private scopeChanged(was: boolean): void { if (this.store.draft.all !== was) { this.onScope?.(); } }
 
   /** Messages that act on one chat; the id is validated before any use. */
   private async onChatMessage(m: any): Promise<void> {
@@ -156,9 +162,10 @@ class Provider implements vscode.WebviewViewProvider {
       this.post({ type: 'results', results: [], searched: '' });
       return undefined;
     }
-    if (queryChars(query, o.re) < MIN_QUERY_CHARS) {
+    const hint = gitHint(parseQuery(query).tokens);
+    if (hint || queryChars(query, o.re) < MIN_QUERY_CHARS) {
       this.client.cancel();
-      this.post({ type: 'short' });
+      this.post({ type: 'short', message: hint });
       return undefined;
     }
     let compiled;
@@ -235,7 +242,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const provider = new Provider(store, client, status);
   const tree = new GitTree(client, () => ({ all: store!.draft.all, folders: folderPaths() }), logErr);
   provider.onIndex = provider.onScope = () => tree.refresh();
-  ctx.subscriptions.push(channel, status, tree,
+  ctx.subscriptions.push(channel, status, tree, vscode.workspace.onDidChangeWorkspaceFolders(() => provider.onScope?.()),
+    vscode.commands.registerCommand(RETRY_CMD, () => tree.refresh(true)),
     vscode.window.registerTreeDataProvider(GIT_VIEW, tree),
     vscode.commands.registerCommand(OPEN_CMD, (id: unknown) => (isSessionId(id) ? openChat(id, log) : undefined)),
     vscode.window.registerWebviewViewProvider('claudeChatSearch.view', provider,

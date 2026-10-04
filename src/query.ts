@@ -1,4 +1,5 @@
 import { gramsOf } from './bloom';
+import { validPr, validSha } from './gitMatch';
 import { Compiled, Options, Token, TokenKind } from './types';
 
 const escRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -47,11 +48,15 @@ export function pieces(plain: string): Piece[] {
   return out;
 }
 
+/** A valid pr: or sha: value meets the minimum on its own (pr:7 is a complete search). */
+const tokenChars = (t: Token): number =>
+  (t.kind === 'pr' && validPr(t.value)) || (t.kind === 'sha' && validSha(t.value)) ? Math.max(t.value.length, MIN_QUERY_CHARS) : t.value.length;
+
 /** Characters that count toward the 2-character minimum: words, phrase text and token values (not prefixes). */
 export function queryChars(query: string, re: boolean): number {
   const { plain, tokens } = parseQuery(query);
   const words = re ? plain.length : pieces(plain).reduce((a, p) => a + p.text.length, 0);
-  return words + tokens.reduce((a, t) => a + t.value.length, 0);
+  return words + tokens.reduce((a, t) => a + tokenChars(t), 0);
 }
 
 /** Build one RegExp per required plain term (word or phrase). Throws SyntaxError on an invalid regex. */

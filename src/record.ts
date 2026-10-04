@@ -5,7 +5,7 @@ import * as zlib from 'zlib';
 import { Cost, FileRef, Git } from './types';
 
 /** Record layout version; bump it when the file layout or the parse output changes. */
-export const FORMAT = 6;
+export const FORMAT = 7;
 export const DIR_PREFIX = 'records-v';
 export const EXT = '.ccr';
 const MAGIC = 'CCR5'; // file layout tag; FORMAT also changes when only the header or parse output does
@@ -95,14 +95,14 @@ function headOf(f: Buffer, crc: number, name: string): Parsed & { J: number } {
   return { h, J, bloom: new Uint8Array(f.subarray(4 + J)), bodyLen: 0 };
 }
 
-/** Parse a whole record file; throws unless length, both CRCs and identity are correct (body CRC once per name when verified is given). */
-export function parseRecord(b: Buffer, name: string, verified?: Set<string>): Parsed & { body: Buffer } {
+/** Parse a whole record file; throws unless length, both CRCs and identity are correct (body CRC once per buffer when verified is given). */
+export function parseRecord(b: Buffer, name: string, verified?: WeakSet<Buffer>): Parsed & { body: Buffer } {
   const { hl, bl } = prefix(b, b.length);
   const p = headOf(b.subarray(FIXED, FIXED + hl), b.readUInt32LE(12), name);
   const body = b.subarray(FIXED + hl);
-  if (!verified?.has(name)) {
+  if (!verified?.has(b)) {
     if (crc32(body) !== b.readUInt32LE(16)) { throw bad(); }
-    verified?.add(name);
+    verified?.add(b);
   }
   return { h: p.h, bloom: p.bloom, bodyLen: bl, body };
 }

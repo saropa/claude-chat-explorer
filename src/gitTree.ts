@@ -6,11 +6,14 @@ import { BranchNode, ChatRef, CommitNode, GitSummary, PrNode, RepoNode } from '.
 export const GIT_VIEW = 'claudeChatSearch.git';
 export const OPEN_CMD = 'claudeChatSearch.openChat';
 const REFRESH_MS = 1000;
+const MAX_WAIT_MS = 5000;
+export const RETRY_CMD = 'claudeChatSearch.gitRetry';
 const DOT_COLORS: { [k: string]: string } = { g: 'charts.green', o: 'charts.orange', n: 'disabledForeground' };
 
 type Node =
-  | { k: 'repo'; repo: RepoNode } | { k: 'pr'; pr: PrNode } | { k: 'branches'; list: BranchNode[] }
-  | { k: 'branch'; br: BranchNode } | { k: 'chat'; ref: ChatRef } | { k: 'commit'; c: CommitNode } | { k: 'more'; n: number };
+  | { k: 'repo'; repo: RepoNode } | { k: 'pr'; pr: PrNode; repo: string } | { k: 'branches'; list: BranchNode[] }
+  | { k: 'branch'; br: BranchNode } | { k: 'chat'; ref: ChatRef; at: string } | { k: 'commit'; c: CommitNode; branch: string }
+  | { k: 'more'; n: number; at: string } | { k: 'error' };
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
@@ -38,8 +41,28 @@ function commitItem(c: CommitNode): vscode.TreeItem {
   return it;
 }
 
+/** Stable id (kind, repository, number or sha, branch) so expansion survives a refresh. */
+export function idOf(n: Node): string {
+  switch (n.k) {
+    case 'chat': return `chat:${n.at}:${n.ref.id}`;
+    case 'commit': return `commit:${n.branch}:${n.c.sha}`;
+    case 'more': return `more:${n.at}`;
+    case 'repo': return `repo:${n.repo.name}`;
+    case 'pr': return `pr:${n.repo}#${n.pr.number}`;
+    case 'branches': return 'branches';
+    case 'branch': return `branch:${n.br.name}`;
+    case 'error': return 'error';
+  }
+}
+
 function itemOf(n: Node): vscode.TreeItem {
   const C = vscode.TreeItemCollapsibleState;
+  const it = baseItem(n, C);
+  it.id = idOf(n);
+  return it;
+}
+
+function baseItem(n: Node, C: typeof vscode.TreeItemCollapsibleState): vscode.TreeItem {
   switch (n.k) {
     case 'chat': return chatItem(n.ref);
     case 'commit': return commitItem(n.c);
@@ -48,10 +71,18 @@ function itemOf(n: Node): vscode.TreeItem {
     case 'pr': return item('#' + n.pr.number, C.Collapsed, 'git-pull-request', plural(n.pr.chats.length + n.pr.more, 'chat', 'chats'));
     case 'branches': return item('Branches', C.Collapsed, 'git-branch', String(n.list.length));
     case 'branch': return item(n.br.name, C.Collapsed, 'git-branch', plural(n.br.commits.length + n.br.more, 'commit', 'commits'));
+    case 'error': return errorItem();
   }
 }
 
-const withMore = (nodes: Node[], more: number): Node[] => (more > 0 ? [...nodes, { k: 'more', n: more }] : nodes);
+/** Shown when the load failed; a click retries. */
+function errorItem(): vscode.TreeItem {
+  const it = item('Could not load git activity. Retry.', vscode.TreeItemCollapsibleState.None, 'warning');
+  it.command = { command: RETRY_CMD, title: 'Retry' };
+  return it;
+}
+
+const withMore = (nodes: Node[], more: number, at: string): Node[] => (more > 0 ? [...nodes, { k: 'more', n: more, at }] : nodes);
 
 /** Children of one node; the root lists repositories, then the Branches group. */
 export function childrenOf(s: GitSummary, n?: Node): Node[] {
@@ -59,10 +90,10 @@ export function childrenOf(s: GitSummary, n?: Node): Node[] {
     const repos = s.repos.map((repo): Node => ({ k: 'repo', repo }));
     return s.branches.length ? [...repos, { k: 'branches', list: s.branches }] : repos;
   }
-  if (n.k === 'repo') { return n.repo.prs.map((pr): Node => ({ k: 'pr', pr })); }
-  if (n.k === 'pr') { return withMore(n.pr.chats.map((ref): Node => ({ k: 'chat', ref })), n.pr.more); }
+  if (n.k === 'repo') { const repo = n.repo.name; return n.repo.prs.map((pr): Node => ({ k: 'pr', pr, repo })); }
+  if (n.k === 'pr') { const at = idOf(n); return withMore(n.pr.chats.map((ref): Node => ({ k: 'chat', ref, at })), n.pr.more, at); }
   if (n.k === 'branches') { return n.list.map((br): Node => ({ k: 'branch', br })); }
-  if (n.k === 'branch') { return withMore(n.br.commits.map((c): Node => ({ k: 'commit', c })), n.br.more); }
+  if (n.k === 'branch') { const branch = n.br.name; return withMore(n.br.commits.map((c): Node => ({ k: 'commit', c, branch })), n.br.more, idOf(n)); }
   return [];
 }
 
@@ -70,27 +101,38 @@ export function childrenOf(s: GitSummary, n?: Node): Node[] {
 export class GitTree implements vscode.TreeDataProvider<Node> {
   private readonly changed = new vscode.EventEmitter<Node | undefined>();
   readonly onDidChangeTreeData = this.changed.event;
-  private data?: Promise<GitSummary>;
+  private data?: Promise<GitSummary | undefined>;
   private timer?: NodeJS.Timeout;
+  private first?: number; // when the pending refresh burst began
 
   constructor(private readonly client: WorkerClient, private readonly scope: () => { all: boolean; folders: string[] },
     private readonly log: (where: string, e: unknown) => void) {}
 
-  /** Drop the loaded data after a 1 second pause in changes; the tree reloads on its next read. */
-  refresh(): void {
+  /** Reload after a 1 second pause in changes, or 5 seconds after the first change of a burst; now skips the wait. */
+  refresh(now = false): void {
+    const t = Date.now();
+    this.first ??= t;
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => { this.data = undefined; this.changed.fire(undefined); }, REFRESH_MS);
+    const wait = now ? 0 : Math.min(REFRESH_MS, Math.max(0, this.first + MAX_WAIT_MS - t));
+    this.timer = setTimeout(() => { this.first = undefined; this.data = undefined; this.changed.fire(undefined); }, wait);
   }
 
-  private load(): Promise<GitSummary> {
-    this.data ??= this.client.request({ t: 'gitSummary', ...this.scope() }).catch((e) => {
+  /** The summary, or undefined after a failure (never cached, so the next refresh retries). */
+  private load(): Promise<GitSummary | undefined> {
+    if (this.data) { return this.data; }
+    const p: Promise<GitSummary | undefined> = this.client.request({ t: 'gitSummary', ...this.scope() }, true).catch((e) => {
       this.log('git summary', e);
-      return { repos: [], branches: [] };
+      if (this.data === p) { this.data = undefined; }
+      return undefined;
     });
-    return this.data;
+    this.data = p;
+    return p;
   }
 
   getTreeItem(n: Node): vscode.TreeItem { return itemOf(n); }
-  async getChildren(n?: Node): Promise<Node[]> { return childrenOf(await this.load(), n); }
+  async getChildren(n?: Node): Promise<Node[]> {
+    const s = await this.load();
+    return s ? childrenOf(s, n) : n ? [] : [{ k: 'error' }];
+  }
   dispose(): void { clearTimeout(this.timer); this.changed.dispose(); }
 }

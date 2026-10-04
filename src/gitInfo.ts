@@ -1,3 +1,4 @@
+import { shaAlike } from './gitMatch';
 import { Chat, Cost, Git } from './types';
 
 const B = (s: string) => Buffer.from(s);
@@ -9,11 +10,11 @@ const MAX_COMMITS = 300;
 const MAX_BRANCHES = 40;
 const MAX_PRS = 100;
 const SHA = /^[0-9a-f]{4,40}$/;
-const BRANCH = /^[\w.\/+@#-]{1,200}$/;
+const BRANCH = /^[\p{L}\p{N}_.\/+@#-]{1,200}$/u;
 
 /** Running tally of cost and git facts while one chat file is parsed. */
 export interface GitAcc {
-  commits: Map<string, string>; branches: Set<string>; prs: Map<number, string>; seen: Map<string, number>; cost?: Cost;
+  commits: Map<string, string>; branches: Set<string>; prs: Map<string, [number, string]>; seen: Map<string, number>; cost?: Cost;
 }
 export const newGitAcc = (): GitAcc => ({ commits: new Map(), branches: new Set(), prs: new Map(), seen: new Map() });
 
@@ -28,6 +29,20 @@ function addBranch(a: GitAcc, v: unknown): string {
   if (b && a.branches.size < MAX_BRANCHES) { a.branches.add(b); }
   return b;
 }
+
+/** Add a commit to a map; a short and a full id of one commit merge into the full id, and an empty branch takes a later one. */
+export function putCommit(m: Map<string, string>, sha: string, br: string, max = Infinity): void {
+  for (const [k, b] of m) {
+    if (!shaAlike(k, sha)) { continue; }
+    m.delete(k);
+    m.set(k.length >= sha.length ? k : sha, b || br);
+    return;
+  }
+  if (m.size < max) { m.set(sha, br); }
+}
+
+/** One PR per repository and number. */
+const prKey = (n: number, repo: string): string => `${repo}\0${n}`;
 
 /** Short model family: opus, sonnet, haiku; else the id without the claude- prefix, date and context tag. */
 export function modelName(id: string): string {
@@ -48,16 +63,14 @@ function takeOp(op: any, a: GitAcc): void {
   const c = op.commit;
   const sha = typeof c?.sha === 'string' ? c.sha.toLowerCase() : '';
   const br = addBranch(a, c?.branch);
-  if (SHA.test(sha) && !a.commits.has(sha) && a.commits.size < MAX_COMMITS) { a.commits.set(sha, br); }
+  if (SHA.test(sha)) { putCommit(a.commits, sha, br, MAX_COMMITS); }
   addBranch(a, op.branch?.ref);
   addBranch(a, op.push?.branch);
 }
 
 function takePr(row: any, a: GitAcc): void {
-  const n = row.prNumber;
-  if (Number.isInteger(n) && n > 0 && !a.prs.has(n) && a.prs.size < MAX_PRS) {
-    a.prs.set(n, typeof row.prRepository === 'string' ? row.prRepository.slice(0, 100) : '');
-  }
+  const n = row.prNumber, repo = typeof row.prRepository === 'string' ? row.prRepository.slice(0, 100) : '';
+  if (Number.isInteger(n) && n > 0 && !a.prs.has(prKey(n, repo)) && a.prs.size < MAX_PRS) { a.prs.set(prKey(n, repo), [n, repo]); }
 }
 
 /** Count the gitBranch value of one row; the most frequent value becomes a touched branch. */
@@ -94,17 +107,17 @@ export function finishExtras(a: GitAcc): { cost?: Cost; git?: Git } {
   const c = a.cost;
   const cost = c && (c.usd || c.add || c.rem || c.models.length) ? c : undefined;
   const git = a.commits.size || a.branches.size || a.prs.size
-    ? { commits: [...a.commits], branches: [...a.branches], prs: [...a.prs] } : undefined;
+    ? { commits: [...a.commits], branches: [...a.branches], prs: [...a.prs.values()] } : undefined;
   return { cost, git };
 }
 
-/** Git facts of a chat plus its subagents (commits and PRs deduplicated; a commit keeps the first branch seen). */
+/** Git facts of a chat plus its subagents (commits merged by id prefix, PRs by repository and number; a commit keeps the first branch seen). */
 export function mergedGit(c: Chat, subs: Chat[]): Git {
-  const commits = new Map<string, string>(), prs = new Map<number, string>(), branches = new Set<string>();
+  const commits = new Map<string, string>(), prs = new Map<string, [number, string]>(), branches = new Set<string>();
   for (const x of [c, ...subs]) {
-    for (const [s, b] of x.git?.commits ?? []) { if (!commits.has(s)) { commits.set(s, b); } }
-    for (const [n, r] of x.git?.prs ?? []) { if (!prs.has(n)) { prs.set(n, r); } }
+    for (const [s, b] of x.git?.commits ?? []) { putCommit(commits, s, b); }
+    for (const [n, r] of x.git?.prs ?? []) { if (!prs.has(prKey(n, r))) { prs.set(prKey(n, r), [n, r]); } }
     for (const b of x.git?.branches ?? []) { branches.add(b); }
   }
-  return { commits: [...commits], branches: [...branches], prs: [...prs] };
+  return { commits: [...commits], branches: [...branches], prs: [...prs.values()] };
 }

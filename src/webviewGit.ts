@@ -25,8 +25,9 @@ let b=g.prs.map(p=>gitPill('','pr','n',p.number,'#'+p.number+(p.repository?' '+p
 b+=g.commits.map(c=>gitPill(' cm','sha','s',c.sha.slice(0,7),c.sha.slice(0,7)+(c.branch?' on '+c.branch:''),'Search chats with commit '+c.sha.slice(0,7))).join('');
 if(g.moreCommits>0)b+='<div class="m">+'+g.moreCommits+' more commits</div>';
 return sec('git:'+r.id,'Git',g.prs.length+g.commits.length+g.moreCommits,b,'sl');}
-function addTok(t){const re=new RegExp('(^|\\s)'+reEsc(t)+'(?=\\s|$)','i');
-if(!re.test(q.value))q.value=(q.value.trim()+' '+t).trim();go();}
+function tokRewrite(v,t){const re=new RegExp('(^|\\s)'+t.slice(0,t.indexOf(':')+1)+'(?:"[^"]*"?|\\S*)(?=\\s|$)','gi');
+return (v.replace(re,' ').trim()+' '+t).trim();}
+function addTok(t){q.value=tokRewrite(q.value,t);go();}
 function gitScroll(id){const n=Array.from(document.querySelectorAll('[data-sec]')).find(x=>x.dataset.sec==='git:'+id);if(n)n.scrollIntoView({block:'nearest'});}
 function gitOpen(id){col.delete('git:'+id);gitFocus=id;
 if(!open.has(id)){open.add(id);delete ex[id];askExpand(id,0);}rerender();if(ex[id]){gitFocus='';gitScroll(id);}}
