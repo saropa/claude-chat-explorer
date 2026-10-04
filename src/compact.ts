@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import { BlobStore, decodeRec, encodeRec, startOf } from './blob';
 import { Chat } from './types';
 
@@ -11,19 +12,42 @@ function pruneRec(b: Buffer, cut: number): Buffer {
   });
 }
 
-/** Copy every live record into a new store file and repoint the chats; returns the new store. */
-export function compactStore(old: BlobStore, file: string, chats: Iterable<Chat>, cut: number): BlobStore {
-  const next = new BlobStore(file);
-  next.open();
-  const moved: Array<[Chat, number, number]> = [];
+const YIELD_MS = 8;
+
+/** Result of a compaction: the new store, and chats whose record could not be read (dropped). */
+export interface Compacted { store: BlobStore; bad: Chat[]; }
+
+/** Copy one record; false when it is unreadable. */
+function copyOne(old: BlobStore, next: BlobStore, c: Chat, cut: number, moved: Array<[Chat, number, number]>): boolean {
   try {
-    for (const c of chats) {
-      let b = old.read(c.off, c.len);
-      if (cut > 0) { b = pruneRec(b, cut); }
-      moved.push([c, next.append(b), b.length]);
+    let b = old.read(c.off, c.len);
+    if (cut > 0) { b = pruneRec(b, cut); } else { decodeRec(b); } // validate before copying
+    moved.push([c, next.append(b), b.length]);
+    return true;
+  } catch { return false; }
+}
+
+/**
+ * Copy every live record into a new store file, yielding between chunks so searches keep running,
+ * then repoint the chats (sync). On failure the new file is deleted and the error rethrown.
+ */
+export async function compactStore(old: BlobStore, file: string, chats: Iterable<Chat>, cut: number): Promise<Compacted> {
+  const next = new BlobStore(file);
+  const moved: Array<[Chat, number, number]> = [], bad: Chat[] = [];
+  try {
+    next.open();
+    let lastYield = Date.now();
+    for (const c of [...chats]) {
+      if (!copyOne(old, next, c, cut, moved)) { bad.push(c); }
+      if (Date.now() - lastYield > YIELD_MS) { await new Promise((r) => setImmediate(r)); lastYield = Date.now(); }
     }
-  } catch (e) { next.close(); throw e; } // chats still point at the old store
+    next.sync();
+  } catch (e) {
+    next.close();
+    try { fs.rmSync(file, { force: true }); } catch { /* leftover is cleaned at next load */ }
+    throw e;
+  }
   for (const [c, off, len] of moved) { c.off = off; c.len = len; }
   old.close();
-  return next;
+  return { store: next, bad };
 }

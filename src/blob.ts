@@ -29,7 +29,9 @@ export function encodeRec(p: { texts: string[]; ts: number[]; roles: number[]; l
 
 /** Decode a record; message i spans [ends[i] - length, ends[i]) of text. */
 export function decodeRec(b: Buffer): Rec {
+  if (b.length < 8) { throw new Error('corrupt record'); }
   const n = b.readUInt32LE(0), tb = b.readUInt32LE(4), head = 8 + n * 17;
+  if (head + tb > b.length) { throw new Error('corrupt record'); } // checked before allocating n slots
   const ts = new Array<number>(n), ends = new Array<number>(n), roles = new Array<number>(n);
   const lines = new Uint32Array(n);
   let at = 0;
@@ -42,7 +44,9 @@ export function decodeRec(b: Buffer): Rec {
     roles[i] = b[8 + n * 16 + i];
   }
   const cmd = b.toString('utf8', head + tb);
-  return { text: b.toString('utf8', head, head + tb), ts, ends, roles, lines, cmds: cmd ? cmd.split(SEP) : [] };
+  const text = b.toString('utf8', head, head + tb);
+  if (at - SEP.length > text.length) { throw new Error('corrupt record'); } // message lengths overrun the text
+  return { text, ts, ends, roles, lines, cmds: cmd ? cmd.split(SEP) : [] };
 }
 
 /** Start offset of message i in a record's text. */
@@ -65,10 +69,18 @@ export class BlobStore {
   /** Append a record; returns its offset. */
   append(b: Buffer): number {
     const off = this.size;
-    fs.writeSync(this.wfd, b, 0, b.length, null);
+    try {
+      for (let done = 0; done < b.length;) { done += fs.writeSync(this.wfd, b, done, b.length - done, null); }
+    } catch (e) {
+      try { fs.ftruncateSync(this.wfd, off); } catch { /* keep the original error */ } // drop a partial record
+      throw e;
+    }
     this.size += b.length;
     return off;
   }
+
+  /** Flush appended data to disk. */
+  sync(): void { if (this.wfd >= 0) { fs.fsyncSync(this.wfd); } }
 
   read(off: number, len: number): Buffer {
     const b = Buffer.allocUnsafe(len);

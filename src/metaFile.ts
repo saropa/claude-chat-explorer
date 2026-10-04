@@ -4,7 +4,7 @@ import { Chat } from './types';
 export const VERSION = 3;
 const MAGIC = 'CCS3';
 
-export interface MetaHeader { v: number; store: string; pruned: boolean; garbage: number; }
+export interface MetaHeader { v: number; store: string; pruned: boolean; }
 
 type Row = [string, string, string, string, string, number, number, string, number, number, number,
   Array<[string, number]>, number, number];
@@ -35,7 +35,8 @@ export async function saveMeta(file: string, head: MetaHeader, chats: Iterable<C
   }
   const tmp = file + '.tmp';
   try {
-    await fs.promises.writeFile(tmp, Buffer.concat(parts));
+    const fh = await fs.promises.open(tmp, 'w');
+    try { await fh.writeFile(Buffer.concat(parts)); await fh.sync(); } finally { await fh.close(); }
     await fs.promises.rename(tmp, file);
   } catch (e) {
     await fs.promises.rm(tmp, { force: true }).catch(() => undefined);
@@ -43,7 +44,7 @@ export async function saveMeta(file: string, head: MetaHeader, chats: Iterable<C
   }
 }
 
-/** Read the metadata file; undefined when missing, corrupt or from another version. Blooms are views. */
+/** Read the metadata file; undefined when missing, corrupt or from another version. Blooms are copies. */
 export async function loadMeta(file: string): Promise<{ head: MetaHeader; chats: Chat[] } | undefined> {
   let b: Buffer;
   try { b = await fs.promises.readFile(file); } catch { return undefined; }
@@ -62,7 +63,7 @@ export async function loadMeta(file: string): Promise<{ head: MetaHeader; chats:
     if (!head || head.v !== VERSION || typeof head.store !== 'string') { return undefined; }
     const chats: Chat[] = [];
     for (let row = next(), bl = next(); row && bl; row = next(), bl = next()) {
-      const c = fromRow(JSON.parse(row.toString('utf8')), new Uint8Array(bl.buffer, bl.byteOffset, bl.byteLength));
+      const c = fromRow(JSON.parse(row.toString('utf8')), new Uint8Array(bl)); // copy, so the file buffer can be freed
       if (c) { chats.push(c); }
     }
     return { head, chats };

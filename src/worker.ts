@@ -36,8 +36,13 @@ async function init(m: any): Promise<void> {
   ix = new ChatIndex(m.dir, m.root || undefined);
   ix.onError = log;
   ix.onChange = () => post({ t: 'changed' });
-  loaded = ix.load().catch((e) => log('load cache', e));
-  await loaded;
+  loaded = ix.load();
+  loaded.catch(() => undefined); // handled below; keeps searches from an unhandled rejection
+  try { await loaded; } catch (e) {
+    log('load cache', e);
+    post({ t: 'fatal', message: 'Could not open the search cache: ' + (e as Error).message });
+    process.exit(1); // the host restarts the worker
+  }
   post({ t: 'loaded', chats: ix.size });
   await refresh().catch((e) => log('initial index', e));
   ix.watch();
@@ -90,6 +95,8 @@ async function request(m: any): Promise<unknown> {
   if (m.t === 'dispose') { await ix?.dispose(); return true; }
   return undefined;
 }
+
+process.on('exit', () => ix?.shutdown()); // release the cache lock however the worker ends
 
 port.on('message', (m: any) => {
   if (m.t === 'init') { void init(m); }

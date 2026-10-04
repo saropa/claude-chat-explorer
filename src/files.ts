@@ -23,10 +23,11 @@ async function statInto(f: Omit<FileStat, 'mtime' | 'size'>, out: FileStat[]): P
   } catch { /* deleted between readdir and stat */ }
 }
 
-/** Subagent files of one session folder; none when it has no subagents folder. */
+/** Subagent files of one session folder; none without a subagents folder or a parent .jsonl beside it. */
 async function subagentsOf(root: string, dir: string, parent: string, out: FileStat[]): Promise<void> {
   const sub = path.join(root, dir, parent, 'subagents');
   let names: string[];
+  try { await fs.promises.access(path.join(root, dir, parent + '.jsonl')); } catch { return; } // orphan: no parent chat file
   try { names = await fs.promises.readdir(sub); } catch { return; }
   await Promise.all(names.map((n) => {
     const m = AGENT_FILE.exec(n);

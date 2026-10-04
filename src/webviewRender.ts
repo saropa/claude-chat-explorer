@@ -17,7 +17,7 @@ function snip(r){let o='',p=0;for(const g of r.ranges){o+=esc(r.snippet.slice(p,
 return o+esc(r.snippet.slice(p));}
 function tagActive(t){return new RegExp('(^|\\s)tag:'+reEsc(t)+'(\\s|$)','i').test(q.value);}
 function chips(id){return (tags[id]||[]).map(t=>'<span class="chip'+(tagActive(t)?' on':'')+'" data-a="tag" data-t="'+esc(t)+'" title="Filter by tag" role="button" tabindex="0">'+esc(t)+'<b class="cx" data-a="untag" data-t="'+esc(t)+'" title="Remove tag" aria-label="Remove tag '+esc(t)+'" role="button" tabindex="0">×</b></span>').join('');}
-function subPill(t,tm){return '<span class="sub" title="Subagent'+(t?': '+esc(t):'')+'">Subagent'+(t?' · '+esc(t):'')+'</span>';}
+function subPill(t){return '<span class="sub" title="Subagent'+(t?': '+esc(t):'')+'">Subagent'+(t?' · '+esc(t):'')+'</span>';}
 function msgHtml(i){return '<div class="mm"><span class="who">'+(i.role==='user'?'You':'Claude')+'</span> '+(i.sub!==undefined?subPill(i.sub)+' ':'')+'<span class="m" title="'+esc(full(i.ts))+'">'+shortAgo(i.ts,Date.now())+'</span><div class="b">'+snip(i)+'</div></div>';}
 function fileChip(f){const b=f.path.split(/[\\/]/).pop()||f.path;return '<span class="fp'+(f.edited?' ed':'')+'" title="'+esc((f.edited?'Edited: ':'Read: ')+f.path)+'">'+(f.edited?'✎ ':'')+esc(b)+'</span>';}
 function relHtml(x){const d=dotOf(x.last,Date.now());
@@ -33,7 +33,7 @@ h+=e.items.map(msgHtml).join('');
 if(e.items.length<e.total)h+='<a data-a="more" role="button" tabindex="0">Show more ('+(e.total-e.items.length)+')</a>';
 return h;}
 function subRow(r,s){const now=Date.now();
-return '<div class="rr sr" data-id="'+esc(r.id)+'" tabindex="0" title="'+esc('Subagent'+(s.type?' ('+s.type+')':'')+(s.desc?': '+s.desc:'')+'\nResumes the parent chat\n'+full(s.last))+'"><span class="t">'+subPill(s.type)+' '+esc(s.desc||'')+'</span><span class="tm" title="'+esc(full(s.last))+'">'+shortAgo(s.last,now)+'</span>'+(s.snippet?'<div class="s">'+snip(s)+'</div>':'')+'</div>';}
+return '<div class="rr sr" data-id="'+esc(r.id)+'" tabindex="0" role="button" aria-label="'+esc('Subagent'+(s.type?' '+s.type:'')+': '+(s.desc||'')+'. Resumes the parent chat')+'" title="'+esc('Subagent'+(s.type?' ('+s.type+')':'')+(s.desc?': '+s.desc:'')+'\nResumes the parent chat\n'+full(s.last))+'"><span class="t">'+subPill(s.type)+' '+esc(s.desc||'')+'</span><span class="tm" title="'+esc(full(s.last))+'">'+shortAgo(s.last,now)+'</span>'+(s.snippet?'<div class="s">'+snip(s)+'</div>':'')+'</div>';}
 function subsHtml(r){if(!r.subs||!r.subs.length)return '';const more=(r.subTotal||r.subs.length)-r.subs.length;
 return r.subs.map(s=>subRow(r,s)).join('')+(more>0?'<div class="m sr">+'+more+' more subagent matches</div>':'');}
 function rowHtml(r){
@@ -61,15 +61,17 @@ if(!idle()||q.value.trim()||!pinned.length){pinEl.innerHTML='';return;}
 pinEl.innerHTML=sec('sec:pin','Pinned',pinned.length,pinned.map(rowHtml).join(''),'sl');}
 function stText(){const m=lastMsg||'';return ix&&dirty?'Searching what is indexed so far ('+ix.done+' of '+ix.total+' chats)'+(m?' - '+m:''):m;}
 function nkey(x,seen){const b=x.dataset.sec?'s:'+x.dataset.sec:'r:'+(x.dataset.id||x.className);seen[b]=(seen[b]||0)+1;return b+'#'+seen[b];}
+function topOf(el,x){while(x&&x.parentNode!==el)x=x.parentNode;return x;}
+function refocus(f,fd){let t=f;if(fd){t=Array.from(f.querySelectorAll(fd.tag)).find(x=>x.dataset.a===fd.a&&x.dataset.t===fd.t&&x.className===fd.c)||f;}if(t.focus)t.focus();}
 function patch(el,html){const t=document.createElement('template');t.innerHTML=html;const nw=Array.from(t.content.children);
-const act=document.activeElement,ak=act&&act.parentNode===el?nkey(act,{}):null;
+const act=document.activeElement,top=act&&act!==el&&el.contains(act)?topOf(el,act):null,ak=top?nkey(top,{}):null,fd=top&&act!==top?{tag:act.tagName,a:act.dataset.a,t:act.dataset.t,c:act.className}:null;
 const old=new Map(),s1={};Array.from(el.children).forEach(c=>old.set(nkey(c,s1),c));
 const s2={};let prev=null;
 for(const n of nw){const k=nkey(n,s2),o=old.get(k);let node=n;
 if(o){old.delete(k);if(o.outerHTML===n.outerHTML)node=o;else el.replaceChild(n,o);}
 const ref=prev?prev.nextSibling:el.firstChild;if(node!==ref)el.insertBefore(node,ref);prev=node;}
 old.forEach(o=>o.remove());
-if(ak&&act&&!act.isConnected){const s3={},f=Array.from(el.children).find(c=>nkey(c,s3)===ak);if(f&&f.focus)f.focus();}}
+if(ak&&!act.isConnected){const s3={},f=Array.from(el.children).find(c=>nkey(c,s3)===ak);if(f)refocus(f,fd);}}
 function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;
 const keep=stKeep(rs);stUi(stCounts(rs));const t=stText();st.innerHTML=esc(t)+stNote(rs.length-keep.length,!!t);
 patch(list,resultsHtml(keep));renderIdle();stSync();}

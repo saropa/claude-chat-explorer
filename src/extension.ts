@@ -41,6 +41,7 @@ class Provider implements vscode.WebviewViewProvider {
 
   private onWorker(m: any): void {
     if (m.t === 'log') { log(String(m.msg)); }
+    else if (m.t === 'fatal') { log(String(m.message)); this.post({ type: 'error', message: String(m.message) }); }
     else if (m.t === 'progress') { this.indexing(m.done, m.total, m.subs, !!m.first); }
     else if (m.t === 'indexed') { this.indexed(); }
     else if (m.t === 'changed') { void this.postMeta(); }

@@ -8,16 +8,23 @@ type Msg = { t: string; [k: string]: any };
 interface Job { id: number; onMsg: (m: Msg) => void; onEnd: (reason: 'done' | 'cancel' | 'timeout' | 'error') => void; timer?: NodeJS.Timeout; }
 interface Req { resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout; }
 
+const RETRY_MAX = 3;
+const RETRY_WINDOW_MS = 60000;
+type End = 'done' | 'cancel' | 'timeout' | 'error';
+
 /**
  * Host side of the worker: spawns out/worker.js, routes replies, enforces the search timeout
- * (a stall of TIMEOUT_MS with no message from the worker terminates and restarts it) and
- * cancels the previous search when a new one starts.
+ * (a stall of TIMEOUT_MS with no message from the worker terminates and restarts it), cancels the
+ * previous search when a new one starts, and restarts a worker that dies (at most 3 times a minute).
  */
 export class WorkerClient {
   private w?: Worker;
   private seq = 0;
   private job?: Job;
   private reqs = new Map<number, Req>();
+  private queue: Msg[] = []; // posts made while no worker is up; sent by start()
+  private starts: number[] = [];
+  private dead = false; // gave up restarting
   private disposed = false;
   onEvent?: (m: Msg) => void;
   onError?: (where: string, e: unknown) => void;
@@ -28,10 +35,47 @@ export class WorkerClient {
     if (this.disposed) { return; }
     const w = new Worker(path.join(__dirname, 'worker.js'));
     this.w = w;
-    w.on('message', (m: Msg) => this.route(m));
-    w.on('error', (e) => this.onError?.('worker', e));
-    w.on('exit', () => { if (this.w === w) { this.w = undefined; } });
+    w.on('message', (m: Msg) => { if (this.w === w) { this.route(m); } }); // ignore a replaced worker
+    w.on('error', (e) => { if (this.w === w) { this.onError?.('worker', e); } });
+    w.on('exit', () => { if (this.w === w) { this.w = undefined; this.crashed(); } });
     w.postMessage({ t: 'init', dir: this.dir, root: this.root });
+    for (const m of this.queue.splice(0)) { w.postMessage(m); }
+  }
+
+  /** The worker died on its own: end the search, fail requests, and start a new one within the retry limit. */
+  private crashed(): void {
+    if (this.disposed) { return; }
+    this.failAll('error', 'Search worker stopped');
+    const now = Date.now();
+    this.starts = this.starts.filter((t) => now - t < RETRY_WINDOW_MS);
+    if (this.starts.length >= RETRY_MAX) {
+      this.dead = true;
+      const message = 'The search worker keeps stopping. Reload the window to try again.';
+      this.onError?.('worker', new Error(message));
+      this.onEvent?.({ t: 'fatal', message });
+      return;
+    }
+    this.starts.push(now);
+    this.start();
+  }
+
+  /** End the current search (the error path shows it) and reject pending requests. */
+  private failAll(why: End, message: string): void {
+    const j = this.job;
+    if (j) {
+      try { j.onMsg({ t: 'error', id: j.id, message }); } catch (e) { this.onError?.('worker', e); }
+      this.finish(j, why);
+    }
+    for (const r of this.reqs.values()) { clearTimeout(r.timer); r.reject(new Error(message)); }
+    this.reqs.clear();
+    this.queue = [];
+  }
+
+  /** Post now, or queue until the worker is up; false when the worker is gone for good. */
+  private send(m: Msg): boolean {
+    if (this.dead || this.disposed) { return false; }
+    if (this.w) { this.w.postMessage(m); } else { this.queue.push(m); }
+    return true;
   }
 
   private route(m: Msg): void {
@@ -47,7 +91,7 @@ export class WorkerClient {
 
   private arm(j: Job): void {
     clearTimeout(j.timer);
-    j.timer = setTimeout(() => this.timedOut(), TIMEOUT_MS);
+    j.timer = setTimeout(() => void this.restart('timeout'), TIMEOUT_MS);
   }
 
   private jobMsg(j: Job, m: Msg): void {
@@ -56,34 +100,30 @@ export class WorkerClient {
     if (m.t === 'done' || m.t === 'error') { this.finish(j, m.t); }
   }
 
-  private finish(j: Job, why: 'done' | 'cancel' | 'timeout' | 'error'): void {
+  private finish(j: Job, why: End): void {
     clearTimeout(j.timer);
     if (this.job === j) { this.job = undefined; }
     j.onEnd(why);
   }
 
-  /** Kill the worker and start a fresh one; pending requests fail. */
-  restart(): void {
+  /** Kill the worker (awaited) and start a fresh one; the current search ends with why and pending requests fail. */
+  async restart(why: End = 'error'): Promise<void> {
     const old = this.w;
-    this.w = undefined;
+    this.w = undefined; // its late messages and exit are ignored from here on
+    const j = this.job;
     for (const r of this.reqs.values()) { clearTimeout(r.timer); r.reject(new Error(TIMEOUT_MSG)); }
     this.reqs.clear();
-    void old?.terminate();
+    if (j) { this.finish(j, why); }
+    try { await old?.terminate(); } catch (e) { this.onError?.('worker terminate', e); }
     this.start();
   }
 
-  private timedOut(): void {
-    const j = this.job;
-    this.restart();
-    if (j) { this.finish(j, 'timeout'); }
-  }
-
-  /** Start a search; any running search is canceled first. Returns its id. */
+  /** Start a search; any running search is canceled first. */
   search(p: { [k: string]: any }, onMsg: Job['onMsg'], onEnd: Job['onEnd']): void {
     this.cancel();
     const j: Job = { id: ++this.seq, onMsg, onEnd };
     this.job = j; // the timer starts when the worker reports 'started' (after any index wait)
-    this.w?.postMessage({ ...p, t: 'search', id: j.id });
+    if (!this.send({ ...p, t: 'search', id: j.id })) { this.failAll('error', 'Search worker is not running'); }
   }
 
   cancel(): void {
@@ -97,15 +137,17 @@ export class WorkerClient {
   request(m: Msg): Promise<any> {
     const req = ++this.seq;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.reqs.delete(req); this.restart(); reject(new Error(TIMEOUT_MSG)); }, TIMEOUT_MS * 2);
+      const timer = setTimeout(() => { this.reqs.delete(req); void this.restart('error'); reject(new Error(TIMEOUT_MSG)); }, TIMEOUT_MS * 2);
       this.reqs.set(req, { resolve, reject, timer });
-      this.w?.postMessage({ ...m, req });
+      if (!this.send({ ...m, req })) { clearTimeout(timer); this.reqs.delete(req); reject(new Error('Search worker is not running')); }
     });
   }
 
   async dispose(): Promise<void> {
-    this.disposed = true;
     try { await Promise.race([this.request({ t: 'dispose' }), new Promise((r) => setTimeout(r, 4000))]); } catch { /* worker gone */ }
-    await this.w?.terminate();
+    this.disposed = true;
+    const w = this.w;
+    this.w = undefined;
+    await w?.terminate();
   }
 }

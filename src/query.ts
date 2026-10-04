@@ -45,7 +45,8 @@ export function regexLiterals(src: string): string[] {
     const ch = src[i];
     if (ch === '\\') {
       const nx = src[++i] ?? '';
-      if (/[A-Za-z0-9]/.test(nx)) { end(); } else { run += nx; } // \s \w \d \b are classes; \. is a literal
+      if (/[xucpPk0-9]/.test(nx)) { return []; } // \x41, \u00e9, \cJ, \k, \p and octal are not plain text
+      if (/[A-Za-z]/.test(nx)) { end(); } else { run += nx; } // \s \w \d \b are classes; \. is a literal
     } else if (ch === '*' || ch === '?') { run = run.slice(0, -1); end(); } // the previous char is optional
     else if (ch === '+') { end(); } else if (ch === '.' || ch === '^' || ch === '$') { end(); } else { run += ch; }
   }

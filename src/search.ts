@@ -11,7 +11,7 @@ export const MAX_SUBS = 10; // nested subagent rows sent per parent
 const YIELD_MS = 8;
 
 /** What search needs from the index. */
-export interface Source { tops(): Chat[]; subsOf(id: string): Chat[]; rec(c: Chat): Rec; fileOf(c: Chat): string; }
+export interface Source { tops(): Chat[]; subsOf(p: Chat): Chat[]; rec(c: Chat): Rec; fileOf(c: Chat): string; }
 export type OnResult = (r: Result | null, done: number, total: number) => void;
 
 const encode = (p: string) => p.replace(/[^a-zA-Z0-9]/g, '-');
@@ -27,7 +27,7 @@ function subResult(ix: Source, s: Chat, h: Hit, c: Compiled, now: number): SubRe
 /** Matching subagents of a parent (newest first), within the time filter. */
 function subHits(ix: Source, p: Chat, c: Compiled, ctx: Ctx, cutoff: number, now: number): Array<[Chat, Hit]> {
   const out: Array<[Chat, Hit]> = [];
-  for (const s of ix.subsOf(p.id)) {
+  for (const s of ix.subsOf(p)) {
     if (s.mtime < cutoff || s.last < cutoff) { continue; }
     const h = matchChat(s, c, ctx, p.id, (x) => ix.rec(x), now);
     if (h) { out.push([s, h]); }

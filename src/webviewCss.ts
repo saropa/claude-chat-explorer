@@ -83,7 +83,7 @@ mark{background:var(--vscode-editor-findMatchHighlightBackground);color:inherit}
 .x:hover{color:var(--vscode-foreground)}
 .cap{margin:4px 10px;color:var(--vscode-descriptionForeground);font-size:0.9em}
 a{color:var(--vscode-textLink-foreground);cursor:pointer}
-.sub{flex:none;margin-left:0;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;white-space:nowrap;background:var(--vscode-charts-purple);color:var(--vscode-editor-background)}
+.sub{flex:none;margin-left:0;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;white-space:nowrap;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
 .sr{padding-left:22px;align-items:flex-start;flex-wrap:wrap}
 .sr .t{flex:1;min-width:0}
 .sr .s{flex-basis:100%;margin-left:0}
