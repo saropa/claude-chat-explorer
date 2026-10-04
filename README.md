@@ -207,3 +207,5 @@ Step by step, including how to create the access tokens: see PUBLISHING.md.
 - Dry run (default; builds and packages, publishes nothing): `python3 scripts/publish.py`
 - Publish, tag and release: `python3 scripts/publish.py --publish` (skip with `--skip-marketplace`, `--skip-openvsx`, `--skip-tag`, `--skip-release`).
 - Checks: clean tree on main in sync with origin, package.json version equals the top CHANGELOG heading, tag not taken, manifest check, compile, store metadata, and the .vsix contents (no plans, scripts or src).
+
+Security: see SECURITY.md.
