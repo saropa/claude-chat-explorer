@@ -1,6 +1,7 @@
 import { startOf } from './blob';
 import { cutoffOf } from './query';
-import { eachHit, Hit, matchChat, matchedBy, scoreOf, snippetOf } from './match';
+import { eachHit, Hit, matchChat, matchedBy, scoreOf } from './match';
+import { snippetOf, titleView } from './snippet';
 import { subWinOf, topWinOf, Win } from './window';
 import { mergedGit } from './gitInfo';
 import { projectOf, statFields } from './stats';
@@ -42,11 +43,18 @@ export function candidates(ix: Source, o: Options, folders: string[], cutoff: nu
   return ix.tops().filter((x) => x.mtime >= cutoff && (o.all || dirs.has(x.dir))).sort((a, b) => b.mtime - a.mtime);
 }
 
+/** Title text with its match kept in view, only when a term matches it. */
+function shown(text: string, terms: RegExp[], k: 'title' | 'desc'): Partial<Result & SubResult> {
+  const v = titleView(text, terms);
+  if (!v.ranges.length) { return {}; }
+  return k === 'title' ? { titleShown: v.text, titleRanges: v.ranges } : { descShown: v.text, descRanges: v.ranges };
+}
+
 function subResult(sc: Scan, s: Chat, h: Hit): SubResult {
   return {
     id: s.id, file: sc.ix.fileOf(s), type: s.agentType ?? '', desc: s.desc ?? s.title, hits: h.hits, last: s.last,
     snippet: h.snippet, ranges: h.ranges, score: scoreOf(s.desc ?? s.title, sc.c.terms, h.weightSum, s.last, sc.now),
-    ...statFields(s),
+    ...statFields(s), ...shown(s.desc ?? s.title, sc.c.terms, 'desc'),
   };
 }
 
@@ -87,6 +95,7 @@ export function toResult(sc: Scan, f: Found, maxSubs: number = MAX_SUBS): Result
   const r: Result = {
     file: sc.ix.fileOf(p), id: p.id, title: p.title, hits, last: p.last, project: projectOf(p), ...statFields(p, sc.o.subs ? sc.ix.subsOf(p) : []),
     snippet: snip.snippet, ranges: snip.ranges, score: scoreOf(p.title, sc.c.terms, weight, p.last, sc.now), self: !!own,
+    ...shown(p.title, sc.c.terms, 'title'),
   };
   if (subs.length) { r.subs = subs.slice(0, maxSubs).map(([s, h]) => subResult(sc, s, h)); r.subTotal = subs.length; }
   return r;
@@ -127,7 +136,7 @@ function messageHits(rec: Rec, terms: RegExp[], win?: Win, sub?: string): MsgHit
 
 function itemOf(h: MsgHit, terms: RegExp[]): ExpandItem {
   const text = h.rec.text.slice(startOf(h.rec, h.i), h.rec.ends[h.i]);
-  const it: ExpandItem = { role: h.rec.roles[h.i] === 0 ? 'user' : 'assistant', ts: h.rec.ts[h.i], ...snippetOf(text, h.first, terms, 100, 200) };
+  const it: ExpandItem = { role: h.rec.roles[h.i] === 0 ? 'user' : 'assistant', ts: h.rec.ts[h.i], ...snippetOf(text, h.first, terms) };
   if (h.sub !== undefined) { it.sub = h.sub; }
   return it;
 }

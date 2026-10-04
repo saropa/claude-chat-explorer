@@ -23,7 +23,7 @@ type Base = Draft;
 function opts(m: any): Options {
   const when = WHENS.includes(m.when) ? String(m.when) : 'any';
   const last = LASTS.includes(Number(m.last)) ? Number(m.last) : 0;
-  return { all: !!m.all, cs: !!m.cs, ww: !!m.ww, re: !!m.re, when, subs: m.subs !== false, last };
+  return { all: !!m.all, cs: !!m.cs, ww: !!m.ww, re: !!m.re, any: !!m.any, when, subs: m.subs !== false, last };
 }
 const sortOf = (m: any): string => (SORTS.includes(m.sort) ? String(m.sort) : 'score');
 
@@ -163,7 +163,7 @@ class Provider implements vscode.WebviewViewProvider {
       return undefined;
     }
     const hint = gitHint(parseQuery(query).tokens);
-    if (hint || queryChars(query, o.re) < MIN_QUERY_CHARS) {
+    if (hint || queryChars(query, o) < MIN_QUERY_CHARS) {
       this.client.cancel();
       this.post({ type: 'short', message: hint });
       return undefined;
@@ -195,7 +195,7 @@ class Provider implements vscode.WebviewViewProvider {
     this.store.setExportPrefs(x);
     const hint = gitHint(parseQuery(query).tokens);
     if (hint) { this.post({ type: 'short', message: hint }); return; }
-    try { if (isEmpty(compile(query, o)) || queryChars(query, o.re) < MIN_QUERY_CHARS) { throw new Error('Nothing to export'); } }
+    try { if (isEmpty(compile(query, o)) || queryChars(query, o) < MIN_QUERY_CHARS) { throw new Error('Nothing to export'); } }
     catch (e) { void vscode.window.showErrorMessage('Export failed: ' + (e as Error).message); return; }
     const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
     const fail = (e: unknown) => {

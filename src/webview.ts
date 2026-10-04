@@ -21,6 +21,7 @@ export function html(): string {
 <div class="opts">
 <button class="opt" id="cs" title="Match Case (Alt+C)" aria-label="Match Case" aria-pressed="false">Aa</button>
 <button class="opt" id="ww" title="Match Whole Word (Alt+W)" aria-label="Match Whole Word" aria-pressed="false"><u>ab</u></button>
+<button class="opt" id="any" title="Match words in any order (Alt+O)" aria-label="Match any order" aria-pressed="false"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 4.5h2.5c3 0 4 7 7 7H13M2 11.5h2.5c1 0 1.800-1 2.500-2.200M9 6.700C9.700 5.600 10.400 4.500 11.500 4.500H13M11.500 2.800L13.200 4.500l-1.700 1.700M11.500 9.800l1.700 1.700-1.700 1.700" fill="none" stroke="currentColor" stroke-width="1.300" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 <button class="opt" id="re" title="Use Regular Expression (Alt+R)" aria-label="Use Regular Expression" aria-pressed="false">.*</button>
 </div></div>
 <div class="sel">

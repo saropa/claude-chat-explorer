@@ -2,34 +2,10 @@ import { mayHave } from './bloom';
 import { startOf } from './blob';
 import { gitMatched } from './gitMatch';
 import { Chat, Compiled, Ctx, Rec, Token } from './types';
+import { matches, Range, snippetOf } from './snippet';
 import { inWin, Win, WinOf } from './window';
 
 const DAY = 86400000;
-type Range = [number, number];
-
-export function* matches(re: RegExp, text: string): Generator<Range> {
-  re.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    if (m[0].length === 0) { re.lastIndex++; continue; }
-    yield [m.index, m.index + m[0].length];
-  }
-}
-
-/** Window of text around idx (whitespace flattened 1:1) plus merged match ranges for all terms. */
-export function snippetOf(text: string, idx: number, terms: RegExp[], before: number, after: number) {
-  const s = Math.max(0, idx - before);
-  const snippet = text.slice(s, idx + after).replace(/\s/g, ' ');
-  const raw: Range[] = [];
-  for (const re of terms) { for (const r of matches(re, snippet)) { raw.push(r); } }
-  raw.sort((a, b) => a[0] - b[0]);
-  const ranges: Range[] = [];
-  for (const r of raw) {
-    const p = ranges[ranges.length - 1];
-    if (p && r[0] <= p[1]) { p[1] = Math.max(p[1], r[1]); } else { ranges.push([r[0], r[1]]); }
-  }
-  return { snippet, ranges };
-}
 
 /** Title matches (x1000, +5000 if all terms hit, weighted by last-active) plus capped recency-weighted body. */
 export function scoreOf(title: string, terms: RegExp[], weightSum: number, last: number, now: number): number {
@@ -120,7 +96,7 @@ export function matchChat(c: Chat, cmp: Compiled, ctx: Ctx, tagId: string, load:
   if (body.counts.some((n) => n === 0)) { return null; }
   const tokenHits = found.reduce((a, f) => a + f.length, 0);
   const snip = rec && body.msg >= 0
-    ? snippetOf(rec.text.slice(startOf(rec, body.msg), rec.ends[body.msg]), body.idx, cmp.terms, 40, 120)
+    ? snippetOf(rec.text.slice(startOf(rec, body.msg), rec.ends[body.msg]), body.idx, cmp.terms)
     : tokenSnippet(cmp, found);
   return {
     hits: body.counts.reduce((a, b) => a + b, 0) + tokenHits,

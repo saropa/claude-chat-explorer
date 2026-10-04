@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0
+- Changed: the whole search text is now one phrase by default. `my family` finds chats where "my family" appears together in one message, not chats that merely contain both words. Spaces, tabs and line breaks inside the phrase all match, and Match Case and Match Whole Word apply to the whole phrase. Double quotes are no longer needed (and are ignored).
+- New: a "Match any order" toggle (shuffle icon, Alt+O) next to Match Case, Whole Word and Regex. When it is on, the old behavior returns: every word must appear somewhere in the chat, and quoted phrases stay exact. It is off by default, remembered with your other options, and part of the recent-searches list (older entries load with it off). It is dimmed while Use Regular Expression is on.
+- Search results, Last N messages, export, the expanded message list and ranking all follow the phrase: a chat whose title contains the phrase ranks first, and an export lists only lines with the phrase.
+- Fixed: the highlighted match is always visible. Snippets now start just before the first match instead of showing it at the far end of a clipped line, in result rows and in the expanded list. A matching chat title is highlighted too, and is shortened at the front when the match would be cut off. Expanding a row scrolls the first highlighted match into view.
+
 ## 0.6.3
 - Fixed: results and controls now fit the panel at any width, from a very narrow sidebar to a wide editor tab. Dropdowns no longer clip their text, the row meta line no longer wraps, and there is never a horizontal scrollbar.
 - The search box and filters stay in view while only the results scroll.

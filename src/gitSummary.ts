@@ -17,7 +17,7 @@ export interface BranchNode { name: string; commits: CommitNode[]; more: number;
 /** Tree data of the Git Activity view: repositories with PRs, and branches with commits. */
 export interface GitSummary { repos: RepoNode[]; branches: BranchNode[]; }
 
-const ALL: Options = { all: true, cs: false, ww: false, re: false, when: 'any', subs: true, last: 0 };
+const ALL: Options = { all: true, cs: false, ww: false, re: false, any: false, when: 'any', subs: true, last: 0 };
 const refOf = (c: Chat): ChatRef => ({ id: c.id, title: c.title, last: c.last });
 const newest = (a: ChatRef[]): number => a.reduce((m, r) => Math.max(m, r.last), 0);
 const slot = <K, V>(m: Map<K, V>, k: K, make: () => V): V => m.get(k) ?? m.set(k, make()).get(k)!;

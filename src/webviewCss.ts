@@ -2,7 +2,7 @@ export const CSS = String.raw`
 body{padding:6px 0;color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
 .top{padding:0 8px}
 .box{position:relative}
-input[type=text]{width:100%;box-sizing:border-box;padding:3px 74px 3px 6px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);outline:none;font-family:inherit;font-size:inherit}
+input[type=text]{width:100%;box-sizing:border-box;padding:3px 98px 3px 6px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);outline:none;font-family:inherit;font-size:inherit}
 input[type=text]:focus{border-color:var(--vscode-focusBorder)}
 input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .opts{position:absolute;right:2px;top:2px;display:flex;gap:1px}
@@ -10,6 +10,8 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .opt:hover{background:var(--vscode-toolbar-hoverBackground)}
 .opt.on{background:var(--vscode-inputOption-activeBackground);border-color:var(--vscode-inputOption-activeBorder,transparent);color:var(--vscode-inputOption-activeForeground)}
 .opt u{text-decoration:underline}
+.opt:disabled{opacity:.4;cursor:default}
+.opt:disabled:hover{background:transparent}
 #err{display:none;margin-top:-1px;padding:3px 6px;font-size:0.9em;background:var(--vscode-inputValidation-errorBackground);border:1px solid var(--vscode-inputValidation-errorBorder);color:var(--vscode-inputValidation-errorForeground,var(--vscode-foreground))}
 #ixb{margin:0 0 6px;font-size:0.9em;color:var(--vscode-descriptionForeground)}
 #ixb[hidden]{display:none}

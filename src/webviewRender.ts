@@ -14,8 +14,9 @@ else if(sort.value==='length')a.sort((x,y)=>(y.msgs||0)-(x.msgs||0));
 else if(sort.value==='cost')a.sort((x,y)=>(y.cost||0)-(x.cost||0));
 else a.sort((x,y)=>y.score-x.score);
 return a.filter(r=>pins.has(r.id)).concat(a.filter(r=>!pins.has(r.id)));}
-function snip(r){let o='',p=0;for(const g of r.ranges){o+=esc(r.snippet.slice(p,g[0]))+'<mark>'+esc(r.snippet.slice(g[0],g[1]))+'</mark>';p=g[1];}
-return o+esc(r.snippet.slice(p));}
+function marked(s,rg){let o='',p=0;for(const g of rg){o+=esc(s.slice(p,g[0]))+'<mark>'+esc(s.slice(g[0],g[1]))+'</mark>';p=g[1];}
+return o+esc(s.slice(p));}
+function snip(r){return marked(r.snippet,r.ranges);}
 function tagActive(t){return new RegExp('(^|\\s)tag:'+reEsc(t)+'(\\s|$)','i').test(q.value);}
 function chips(id){return (tags[id]||[]).map(t=>'<span class="chip'+(tagActive(t)?' on':'')+'" data-a="tag" data-t="'+esc(t)+'" title="Filter by tag" role="button" tabindex="0">'+esc(t)+'<b class="cx" data-a="untag" data-t="'+esc(t)+'" title="Remove tag" aria-label="Remove tag '+esc(t)+'" role="button" tabindex="0">×</b></span>').join('');}
 function subPill(t){return '<span class="sub" title="Subagent'+(t?': '+esc(t):'')+'">Subagent'+(t?' · '+esc(t):'')+'</span>';}
@@ -35,13 +36,13 @@ h+=e.items.map(msgHtml).join('');
 if(e.items.length<e.total)h+='<a data-a="more" role="button" tabindex="0">Show more ('+(e.total-e.items.length)+')</a>';
 return h;}
 function subRow(r,s){const now=Date.now();
-return '<div class="rr sr" data-id="'+esc(r.id)+'" tabindex="0" role="button" aria-label="'+esc('Subagent'+(s.type?' '+s.type:'')+': '+(s.desc||'')+'. Resumes the parent chat')+'" title="'+esc('Subagent'+(s.type?' ('+s.type+')':'')+(s.desc?': '+s.desc:'')+'\nResumes the parent chat\n'+full(s.last))+'"><span class="t">'+subPill(s.type)+' '+esc(s.desc||'')+'</span><span class="tm" title="'+esc(full(s.last))+'">'+shortAgo(s.last,now)+'</span>'+(s.snippet?'<div class="s">'+snip(s)+'</div>':'')+'</div>';}
+return '<div class="rr sr" data-id="'+esc(r.id)+'" tabindex="0" role="button" aria-label="'+esc('Subagent'+(s.type?' '+s.type:'')+': '+(s.desc||'')+'. Resumes the parent chat')+'" title="'+esc('Subagent'+(s.type?' ('+s.type+')':'')+(s.desc?': '+s.desc:'')+'\nResumes the parent chat\n'+full(s.last))+'"><span class="t">'+subPill(s.type)+' '+(s.descShown?marked(s.descShown,s.descRanges):esc(s.desc||''))+'</span><span class="tm" title="'+esc(full(s.last))+'">'+shortAgo(s.last,now)+'</span>'+(s.snippet?'<div class="s">'+snip(s)+'</div>':'')+'</div>';}
 function subsHtml(r){if(!r.subs||!r.subs.length)return '';const more=(r.subTotal||r.subs.length)-r.subs.length;
 return r.subs.map(s=>subRow(r,s)).join('')+(more>0?'<div class="m sr">+'+more+' more subagent matches</div>':'');}
 function rowHtml(r){
 const now=Date.now(),p=pins.has(r.id),op=open.has(r.id),d=dotOf(r.last,now);
 const tip=[r.title,all.checked?r.project:'',r.hits?r.hits+(r.hits===1?' hit':' hits'):'',full(r.last),statsText(r)].filter(Boolean).join('\n');
-return '<div class="r" data-id="'+esc(r.id)+'" tabindex="0" title="'+esc(tip)+'"><div class="rh"><div class="hd"><span class="dot '+d+'" title="'+DOTS[d]+'"></span><span class="t">'+esc(r.title)+'</span>'+pillHtml(r)+hitPill(r)
+return '<div class="r" data-id="'+esc(r.id)+'" tabindex="0" title="'+esc(tip)+'"><div class="rh"><div class="hd"><span class="dot '+d+'" title="'+DOTS[d]+'"></span><span class="t">'+(r.titleShown?marked(r.titleShown,r.titleRanges):esc(r.title))+'</span>'+pillHtml(r)+hitPill(r)
 +(all.checked?'<span class="pj">'+esc(r.project)+'</span>':'')+gitIcon(r)
 +'<button class="ic'+(op?' on':'')+'" data-a="exp" title="'+(op?'Collapse':'Expand')+'" aria-expanded="'+op+'">'+CHEV+'</button>'
 +'<button class="ic pn'+(p?' on':'')+'" data-a="pin" title="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button>'
@@ -55,7 +56,7 @@ return sec('sec:res','Results',a.length,a.map(rowHtml).join(''),'sl');}
 function renderHist(){
 if(!idle()||!history.length){hist.innerHTML='';return;}
 hist.innerHTML=sec('sec:hist','Recent searches',history.length,history.map((h,i)=>{
-const f=(h.cs?'Aa ':'')+(h.ww?'ab ':'')+(h.re?'.* ':'')+(h.last?'last '+h.last:'');
+const f=(h.cs?'Aa ':'')+(h.ww?'ab ':'')+(h.any?'any ':'')+(h.re?'.* ':'')+(h.last?'last '+h.last:'');
 return '<div class="h" data-i="'+i+'" title="'+esc(h.query)+'" role="button" tabindex="0"><span class="q">'+esc(h.query)+'</span><span class="fl">'+esc(f.trim())+'</span><button class="x" data-x="'+i+'" title="Remove" aria-label="Remove">×</button></div>';
 }).join('')+'<div class="cap"><a id="clr" role="button" tabindex="0">Clear history</a></div>','sl');}
 function renderPinned(){

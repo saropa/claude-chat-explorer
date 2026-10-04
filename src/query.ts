@@ -53,17 +53,20 @@ const tokenChars = (t: Token): number =>
   (t.kind === 'pr' && validPr(t.value)) || (t.kind === 'sha' && validSha(t.value)) ? Math.max(t.value.length, MIN_QUERY_CHARS) : t.value.length;
 
 /** Characters that count toward the 2-character minimum: words, phrase text and token values (not prefixes). */
-export function queryChars(query: string, re: boolean): number {
+export function queryChars(query: string, o: Pick<Options, 're' | 'any'>): number {
   const { plain, tokens } = parseQuery(query);
-  const words = re ? plain.length : pieces(plain).reduce((a, p) => a + p.text.length, 0);
+  const words = o.re ? plain.length : o.any ? pieces(plain).reduce((a, p) => a + p.text.length, 0) : phraseOf(plain).length;
   return words + tokens.reduce((a, t) => a + tokenChars(t), 0);
 }
 
-/** Build one RegExp per required plain term (word or phrase). Throws SyntaxError on an invalid regex. */
+/** The whole plain text as one phrase: quotes dropped, whitespace runs collapsed. */
+export const phraseOf = (plain: string): string => plain.replace(/"/g, '').trim().replace(/\s+/g, ' ');
+
+/** Build one RegExp per required plain term: the whole phrase, or (any order) each word or quoted phrase. Throws SyntaxError on an invalid regex. */
 export function buildTerms(plain: string, o: Options): RegExp[] {
   const q = plain.trim();
-  if (!q) { return []; }
-  const parts = o.re ? [q] : pieces(q).map((p) => escRe(p.text));
+  if (!q || (!o.re && !phraseOf(q))) { return []; }
+  const parts = o.re ? [q] : o.any ? pieces(q).map((p) => escRe(p.text)) : [phraseOf(q).split(' ').map(escRe).join('\\s+')];
   return parts.map((p) => new RegExp(o.ww ? '\\b(?:' + p + ')\\b' : p, o.cs ? 'g' : 'gi'));
 }
 
@@ -89,7 +92,7 @@ export function regexLiterals(src: string): string[] {
 /** Trigrams every match must contain, for the bloom prefilter. */
 function gramsFor(plain: string, tokens: Token[], o: Options): number[] {
   const q = plain.trim();
-  const lits = !q ? [] : o.re ? regexLiterals(q) : pieces(q).map((p) => p.text);
+  const lits = !q ? [] : o.re ? regexLiterals(q) : o.any ? pieces(q).map((p) => p.text) : phraseOf(q).split(' '); // phrase: whitespace is flexible, so grams per word
   for (const t of tokens) { if (t.kind === 'cmd') { lits.push(t.value); } }
   return lits.flatMap((l) => gramsOf(l.toLowerCase()));
 }

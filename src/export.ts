@@ -1,5 +1,6 @@
 import { startOf } from './blob';
-import { matches, matchedBy } from './match';
+import { matchedBy } from './match';
+import { matches } from './snippet';
 import { candidates, findIn, Found, gitView, pacer, rank, scanOf, Scan, Source, toResult } from './search';
 import { STATUS_KEYS, statusesOf } from './status';
 import { Abort, Chat, Compiled, Ctx, Options, Rec, Result } from './types';

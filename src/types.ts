@@ -27,7 +27,7 @@ export interface Rec {
   lines: Uint32Array; // 1-based JSONL line of each message, for a later export feature
 }
 
-export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; when: string; subs: boolean; last: number; }
+export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; any?: boolean; when: string; subs: boolean; last: number; }
 export interface Abort { aborted: boolean; }
 
 export type TokenKind = 'file' | 'edited' | 'cmd' | 'tag' | 'sha' | 'pr' | 'branch';
@@ -41,6 +41,7 @@ export interface SubResult {
   type: string; desc: string; hits: number; last: number;
   snippet: string; ranges: Array<[number, number]>; score: number;
   msgs: number; first: number; edited: number; size: number;
+  descShown?: string; descRanges?: Array<[number, number]>; // desc with the match kept in view
 }
 
 export interface Result {
@@ -49,6 +50,7 @@ export interface Result {
   snippet: string; ranges: Array<[number, number]>; score: number;
   msgs: number; first: number; edited: number; size: number;
   cost?: number; add?: number; rem?: number; models?: string[]; prs?: number; commits?: number; // cost info and git counts
+  titleShown?: string; titleRanges?: Array<[number, number]>; // title with the match kept in view
   self?: boolean; // false when only subagents matched
   subs?: SubResult[]; subTotal?: number;
 }

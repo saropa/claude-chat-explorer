@@ -62,7 +62,7 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 @media (max-width:199px){
 .opts{right:1px}
 .opts .opt{width:16px}
-input[type=text]{padding-right:52px}
+input[type=text]{padding-right:72px}
 }
 `;
 
