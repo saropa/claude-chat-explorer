@@ -1,6 +1,7 @@
 import { SHARED_SRC } from './group';
 import { GIT_JS } from './webviewGit';
 import { SORT_JS } from './webviewSort';
+import { TIPS_JS } from './webviewTips';
 import { RENDER } from './webviewRender';
 import { CAP_JS } from './webviewCap';
 import { ADV_JS } from './webviewAdv';
@@ -17,12 +18,12 @@ import { SUM_JS } from './webviewSum';
 
 const CORE = String.raw`
 const vs=acquireVsCodeApi();const $=id=>document.getElementById(id);
-const q=$('q'),all=$('all'),subs=$('subs'),when=$('when'),sort={value:'score'},msgSel=$('msgs'),hint=$('hint'),st=$('status'),list=$('list'),pinEl=$('pin'),res=$('res'),bar=$('bar'),err=$('err'),tl=$('tl');
+const q=$('q'),all=$('all'),subs=$('subs'),when=$('when'),sort={value:'score'},msgSel=$('msgs'),frm=$('frm'),hint=$('hint'),st=$('status'),list=$('list'),pinEl=$('pin'),res=$('res'),bar=$('bar'),err=$('err'),tl=$('tl');
 const flags={cs:$('cs'),ww:$('ww'),any:$('any'),re:$('re')};
 let timer,history=[],hasResults=false,busy=false,acc=[],prog=null,lastRs=[],lastMsg='',ix=null,dirty=false,sn=0,stale=false,lastQ='',sessOn=false,sess=null,sessTimer;
 const ixb=$('ixb'),ixt=$('ixt');
 let pins=new Set(),tags={},pinned=[],open=new Set(),ex={},col=new Set(),arch=new Set(),dots={},archOpen=false;
-function cur(){return{query:q.value.trim(),all:all.checked,subs:subs.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),any:flags.any.classList.contains('on'),re:flags.re.classList.contains('on'),when:when.value,last:+msgSel.value,sort:sort.value};}
+function cur(){return{query:q.value.trim(),all:all.checked,subs:subs.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),any:flags.any.classList.contains('on'),re:flags.re.classList.contains('on'),when:when.value,last:+msgSel.value,from:frm.value,sort:sort.value};}
 function setFlag(k,v){flags[k].classList.toggle('on',!!v);flags[k].setAttribute('aria-pressed',v?'true':'false');const rx=flags.re.classList.contains('on');flags.any.disabled=rx;flags.any.title=rx?'Match any order is off while regular expressions are on':'Match words in any order (Alt+O)';}
 function showErr(m){err.style.display=m?'block':'none';err.textContent=m||'';q.classList.toggle('bad',!!m);}
 function setBusy(b){busy=b;bar.classList.toggle('on',b);renderIdle();}
@@ -58,6 +59,7 @@ all.addEventListener('change',go);
 subs.addEventListener('change',go);
 when.addEventListener('change',go);
 msgSel.addEventListener('change',go);
+frm.addEventListener('change',go);
 function askExpand(id,offset,lite){vs.postMessage(Object.assign({type:'expand',id:id,offset:offset,lite:!!lite},cur()));}
 function openCard(id){open.add(id);lzReset(id);if(ex[id]){ex[id].full=false;ex[id].failed=false;}askExpand(id,0,false);}
 function exMerge(d){const n=ex[d.id]||{};
@@ -109,7 +111,7 @@ if(e.key==='ArrowDown'){e.preventDefault();step(t,1);}
 else if(e.key==='ArrowUp'){e.preventDefault();step(t,-1);}
 else if(e.key==='Enter'||e.key===' '){e.preventDefault();if(isSec)toggleSec(t.dataset.sec);else openId(t.dataset.id);}});
 window.addEventListener('message',e=>{const d=e.data;const live=d.sn===undefined||(d.sn===sn&&!stale);
-if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;subs.checked=s.subs!==false;setFlag('cs',s.cs);setFlag('ww',s.ww);setFlag('any',s.any);setFlag('re',s.re);setOpts(s.when,s.last);sortSet(s.sort||'score');stLoad(d.statuses);archOpen=!!d.archOpen;advSet(!!d.advOpen,false);
+if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;subs.checked=s.subs!==false;setFlag('cs',s.cs);setFlag('ww',s.ww);setFlag('any',s.any);setFlag('re',s.re);setOpts(s.when,s.last,s.from);sortSet(s.sort||'score');stLoad(d.statuses);archOpen=!!d.archOpen;advSet(!!d.advOpen,false);
 capN=d.max||500;tot=s.totals||null;history=d.history||[];lastQ=s.query||'';sessOn=!(s.results&&s.results.length);render(s.results||[],s.searched);if(sessOn)askSess();ahSync();}
 else if(d.type==='meta'){pins=new Set(d.pins);tags=d.tags||{};pinned=d.pinned||[];arch=new Set(d.arch||[]);tl.innerHTML=(d.all||[]).map(t=>'<option value="'+esc(t)+'">').join('');rerender();if(sessOn&&!hasResults)askSessSoon();}
 else if(d.type==='expanded'){ex[d.id]=exMerge(d);rerender();}
@@ -135,4 +137,4 @@ else if(d.type==='setQuery'){q.value=d.query||'';go();}});
 vs.postMessage({type:'ready'});
 `;
 
-export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + GIT_JS + HIST_JS + CORE + STATUS + SORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS + TOUCH_JS + SUM_JS;
+export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + GIT_JS + HIST_JS + CORE + STATUS + SORT_JS + TIPS_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS + TOUCH_JS + SUM_JS;

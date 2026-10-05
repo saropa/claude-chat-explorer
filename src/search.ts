@@ -2,7 +2,7 @@ import { startOf } from './blob';
 import { cutoffOf } from './query';
 import { eachHit, Hit, matchChat, matchedBy, scoreOf } from './match';
 import { snippetOf, titleView } from './snippet';
-import { subWinOf, topWinOf, Win } from './window';
+import { noSubs, subWinOf, topWinOf, Win } from './window';
 import { mergedGit } from './gitInfo';
 import { latestFields, latestOf } from './latest';
 import { projectOf, statFields } from './stats';
@@ -70,6 +70,7 @@ function subResult(sc: Scan, s: Chat, h: Hit): SubResult {
 /** Matching subagents of a parent (newest first), within the time filter. */
 function subHits(sc: Scan, p: Chat): Array<[Chat, Hit]> {
   const out: Array<[Chat, Hit]> = [];
+  if (noSubs(sc.c.from)) { return out; } // subagent messages count as Claude's
   const win = subWinOf(sc.c.last, () => sc.ix.rec(p));
   for (const s of sc.ix.subsOf(p)) {
     if (s.mtime < sc.cutoff || s.last < sc.cutoff) { continue; }
@@ -90,7 +91,7 @@ export function gitView(sc: Scan, p: Chat, matched: Chat[]): Chat {
 /** Match one parent chat and its subagents; null when nothing matched. */
 export function findIn(sc: Scan, p: Chat): Found | null {
   const subs = sc.o.subs ? subHits(sc, p) : [];
-  const own = matchChat(gitView(sc, p, subs.map(([s]) => s)), sc.c, sc.ctx, p.id, (x) => sc.ix.rec(x), sc.now, topWinOf(sc.c.last));
+  const own = matchChat(gitView(sc, p, subs.map(([s]) => s)), sc.c, sc.ctx, p.id, (x) => sc.ix.rec(x), sc.now, topWinOf(sc.c.last, sc.c.from));
   const self = own && p.last >= sc.cutoff ? own : null;
   return self || subs.length ? { p, own: self, subs } : null;
 }
@@ -185,7 +186,7 @@ export function expandChat(ix: Source, chat: Chat, c: Compiled, o: Options, ctx:
   const now = Date.now(), cutoff = cutoffOf(o.when);
   const rec = ix.rec(chat);
   const files = new Map<string, boolean>(), commands = new Set<string>();
-  const tw = topWinOf(c.last)?.(rec);
+  const tw = topWinOf(c.last, c.from)?.(rec);
   let hits = c.terms.length ? messageHits(rec, c.terms, tw) : [];
   if (!lite) { tokenFinds(chat, rec, c, ctx, files, commands, tw); }
   const sc: Scan = { ix, c, o, ctx, cutoff, now };

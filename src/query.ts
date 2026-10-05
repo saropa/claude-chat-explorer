@@ -1,6 +1,6 @@
 import { gramsOf } from './bloom';
 import { validPr, validSha } from './gitMatch';
-import { Compiled, Options, Token, TokenKind } from './types';
+import { Compiled, From, Options, Token, TokenKind } from './types';
 
 const escRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -17,18 +17,19 @@ export function cutoffOf(when: string, now: number = Date.now()): number {
 }
 
 // One left-to-right scan so a quoted phrase is claimed first and "see file:x" stays phrase text.
-// Groups: 1 token kind, 2 quoted token value (an unclosed quote runs to the end), 3 bare token value, 4 last:<n>.
-const SCAN = /(?:^|\s)(?:(file|edited|cmd|tag|sha|pr|branch):(?:"([^"]*)"?|(\S*))|last:(\d+)(?=\s|$))|"[^"]*(?:"|$)|\S+/gi;
+// Groups: 1 token kind, 2 quoted token value (an unclosed quote runs to the end), 3 bare token value, 4 last:<n>, 5 from:<who>.
+const SCAN = /(?:^|\s)(?:(file|edited|cmd|tag|sha|pr|branch):(?:"([^"]*)"?|(\S*))|last:(\d+)(?=\s|$)|from:(you|claude|both)(?=\s|$))|"[^"]*(?:"|$)|\S+/gi;
 /** A double-quoted phrase (an unclosed quote runs to the end) or a bare word. */
 const PIECE = /"([^"]*)(?:"|$)|(\S+)/g;
 export const MIN_QUERY_CHARS = 2;
 
-/** Split a query into plain text, file:/edited:/cmd:/tag:/sha:/pr:/branch: tokens (values lowercased) and the last:<n> limit (0 = none). */
-export function parseQuery(query: string): { plain: string; tokens: Token[]; last: number } {
+/** Split a query into plain text, file:/edited:/cmd:/tag:/sha:/pr:/branch: tokens (values lowercased), the last:<n> limit (0 = none) and the from:you|claude|both choice (undefined = not given). */
+export function parseQuery(query: string): { plain: string; tokens: Token[]; last: number; from?: From } {
   const tokens: Token[] = [];
-  let last = 0;
-  const plain = query.replace(SCAN, (m, k?: string, q?: string, u?: string, n?: string) => {
+  let last = 0, from: From | undefined;
+  const plain = query.replace(SCAN, (m, k?: string, q?: string, u?: string, n?: string, f?: string) => {
     if (n !== undefined) { last = Number(n) || last; return ' '; }
+    if (f !== undefined) { from = f.toLowerCase() as From; return ' '; }
     if (!k) { return m; }
     const kind = k.toLowerCase() as TokenKind;
     let value = (q ?? u ?? '').trim().toLowerCase();
@@ -37,7 +38,7 @@ export function parseQuery(query: string): { plain: string; tokens: Token[]; las
     if (value) { tokens.push({ kind, value }); }
     return ' ';
   }).trim();
-  return { plain, tokens, last };
+  return { plain, tokens, last, from };
 }
 
 export interface Piece { text: string; phrase: boolean; }
@@ -103,8 +104,8 @@ function gramsFor(plain: string, tokens: Token[], o: Options): number[] {
 
 /** Parse and compile a query. Throws on an invalid regex. */
 export function compile(query: string, o: Options): Compiled {
-  const { plain, tokens, last } = parseQuery(query);
-  return { terms: buildTerms(plain, o), tokens, grams: gramsFor(plain, tokens, o), last: last || o.last || 0 };
+  const { plain, tokens, last, from } = parseQuery(query);
+  return { terms: buildTerms(plain, o), tokens, grams: gramsFor(plain, tokens, o), last: last || o.last || 0, from: from ?? o.from ?? 'both' };
 }
 
 export const isEmpty = (c: Compiled): boolean => !c.terms.length && !c.tokens.length;

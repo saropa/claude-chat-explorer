@@ -26,19 +26,18 @@ html{height:100%;overflow:hidden}
 body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto}
 #hdr{flex:none;min-width:0}
 #res{flex:1 1 auto;min-height:80px;overflow-x:hidden;overflow-y:auto;container-type:inline-size;container-name:res;overflow-wrap:anywhere}
-#sfm,#exm{min-width:min(170px,100%);max-width:100%}
 .sl,.gh{min-width:0}
 .sl>span:not(.pill),.gh>span:not(.pill){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pill{white-space:nowrap}
 .r,.rh,.hd,.ex,.s,.mt{min-width:0}
 .mt{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;padding:1px 8px 4px 24px;overflow:hidden}
-.pst{flex:none;font-size:12px;line-height:16px;color:var(--vscode-charts-yellow,var(--vscode-foreground))}
-.mp{flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;font-size:11px;line-height:16px;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.pst{flex:none;line-height:16px;color:var(--vscode-charts-yellow,var(--vscode-foreground))}
+.mp{flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;line-height:16px;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
 .rc{display:flex;align-items:center;flex:none;gap:6px;max-width:60%}
 .hg{display:inline-flex;flex:none;color:var(--vscode-descriptionForeground)}
 .hg svg{width:12px;height:12px}
 .mp.hit{background:var(--vscode-editor-findMatchHighlightBackground);color:var(--vscode-foreground)}
-.mt .pj{flex:0 1 auto;min-width:0;max-width:40%;font-size:11px;line-height:16px}
+.mt .pj{flex:0 1 auto;min-width:0;max-width:40%;line-height:16px}
 .rh>.chips{display:flex;flex-wrap:wrap;max-width:none;overflow:visible;padding:0 8px 3px 24px}
 .rh>.chips:empty{display:none}
 .chip{max-width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere}

@@ -1,6 +1,6 @@
 /** Webview script part: the Archived section (rows built only when expanded) and the archive action. Shares top-level scope with webviewJs. */
 export const ARCH_CSS = String.raw`
-.arh .imp{margin-left:auto;padding:0 4px;font-size:11px;font-weight:400;letter-spacing:0;text-transform:none}
+.arh .imp{margin-left:auto;padding:0 4px;font-weight:400;letter-spacing:0;text-transform:none}
 .arh .imp+.pill{margin-left:6px}
 .ic.ar.on{color:var(--vscode-foreground)}
 .ic.ar svg{width:13px;height:13px}

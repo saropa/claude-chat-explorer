@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto';
 import { CSS } from './webviewCss';
 import { SORT_CSS, SORT_HTML } from './webviewSort';
+import { TIPS_CSS, TIPS_HTML } from './webviewTips';
 import { LAYOUT_CSS } from './webviewLayout';
 import { GIT_CSS } from './webviewGit';
 import { SCRIPT } from './webviewJs';
@@ -22,18 +23,18 @@ export function html(): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${NAME}</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${SORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}${ROWS_CSS}${TIP_CSS}${CTX_CSS}${TOUCH_CSS}${SUM_CSS}</style></head><body>
+<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${SORT_CSS}${TIPS_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}${ROWS_CSS}${TIP_CSS}${CTX_CSS}${TOUCH_CSS}${SUM_CSS}</style></head><body>
 <div id="hdr"><div class="top">
 <div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div>
 <div class="srow"><div class="box">
-<input type="text" id="q" placeholder="Search chats  (file: edited: cmd: tag: sha: pr: branch:)" aria-label="Search chats" autofocus>
+<input type="text" id="q" placeholder="Search chats" aria-label="Search chats" autofocus>
 <div class="opts">
 <button class="opt" id="cs" title="Match Case (Alt+C)" aria-label="Match Case" aria-pressed="false">Aa</button>
 <button class="opt" id="ww" title="Match Whole Word (Alt+W)" aria-label="Match Whole Word" aria-pressed="false"><u>ab</u></button>
 <button class="opt" id="any" title="Match words in any order (Alt+O)" aria-label="Match any order" aria-pressed="false"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 4.5h2.5c3 0 4 7 7 7H13M2 11.5h2.5c1 0 1.800-1 2.500-2.200M9 6.700C9.700 5.600 10.400 4.500 11.500 4.500H13M11.500 2.800L13.200 4.500l-1.700 1.700M11.500 9.800l1.700 1.700-1.700 1.700" fill="none" stroke="currentColor" stroke-width="1.300" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 <button class="opt" id="re" title="Use Regular Expression (Alt+R)" aria-label="Use Regular Expression" aria-pressed="false">.*</button>
 </div></div>
-<div class="hbs">${SORT_HTML}${STATUS_HTML}</div></div>
+<div class="hbs">${TIPS_HTML}${SORT_HTML}${STATUS_HTML}</div></div>
 <div id="ah" hidden>Up and Down arrows show previous searches</div>
 ${ADV_HTML}
 <div id="err"></div>

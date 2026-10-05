@@ -38,7 +38,7 @@ function mkEl(id) {
 }
 const els = new Map(ids.map((i) => [i, mkEl(i)]));
 for (const t of page.matchAll(/<[^>]*\sid="([^"]+)"[^>]*>/g)) { if (/\shidden(\s|>|=)/.test(t[0])) { els.get(t[1]).hidden = true; } } // honor hidden in the markup
-['srb', 'srm', 'sfb', 'sfm'].forEach((i) => { els.get(i).inPw = true; }); // these sit inside a .pw popover wrapper
+['srb', 'srm', 'sfb', 'sfm', 'tpb', 'tpm'].forEach((i) => { els.get(i).inPw = true; }); // these sit inside a .pw popover wrapper
 const document = {
   body: mkEl('body'), documentElement: mkEl('html'), activeElement: null,
   getElementById: (i) => els.get(i) || null, querySelector: () => null, querySelectorAll: () => [], createElement: (t) => Object.assign(mkEl(''), t === 'template' ? { content: { children: [] } } : {}),
@@ -215,6 +215,54 @@ function drive() {
   check('Export button is gone', !/id="exb"/.test(page) && !/>Export</.test(page));
   check('status Normal is renamed Mid-size', run('STATUS_LABELS.normal', 'label') === 'Mid-size' && !/Normal/.test(run('JSON.stringify(STATUS_LABELS)', 'labels')));
 
+  // Search tips popover: opens from the info icon, lists only prefixes the parser knows, and an example fills the search box.
+  const tipsPage = els.get('tpm').innerHTML;
+  const KNOWN = ['file:', 'edited:', 'cmd:', 'tag:', 'sha:', 'pr:', 'branch:', 'last:', 'from:'];
+  step('tips popover opens', () => fire('tpb', 'click'));
+  check('tips popover opens beside sort and status, aria-expanded set', !hid('tpm') && exp('tpb') === 'true' && hid('srm') && hid('sfm'));
+  check('tips list every parser prefix with an example', KNOWN.every((k) => new RegExp('data-ex="' + k).test(tipsPage)) && (tipsPage.match(/data-ex=/g) || []).length === KNOWN.length);
+  check('placeholder is the short text and the long hint is gone', /placeholder="Search chats"/.test(page) && !/placeholder="[^"]*file:/.test(page));
+  step('click an example', () => {
+    const ex = Object.assign(mkEl(''), { closest: (sel) => (sel === '[data-ex]' ? { dataset: { ex: 'file:extension.ts' } } : sel === '.pw' ? {} : null) });
+    fire('tpm', 'click', { target: ex });
+  });
+  check('tip example fills the search box and runs it', els.get('q').value === 'file:extension.ts' && hid('tpm') && posted.some((p) => p.type === 'search' && p.query === 'file:extension.ts'));
+  step('clear tip query', () => { els.get('q').value = ''; run('qSync();', 'qSync'); });
+  // Popovers stay inside the panel at narrow, medium and wide widths (the wrapper that used to clip them is gone).
+  for (const W of [220, 330, 600]) {
+    for (const [b, mid] of [['srb', 'srm'], ['sfb', 'sfm'], ['tpb', 'tpm']]) {
+      const m = els.get(mid);
+      window.innerWidth = W; m.offsetWidth = 400; // wider than the panel on purpose
+      els.get(b).getBoundingClientRect = () => ({ top: 8, left: W - 34, right: W - 8, bottom: 34, width: 26, height: 26 });
+      step('place ' + mid + ' at ' + W, () => { fire(b, 'click'); });
+      const left = parseFloat(m.style.left), w = Math.min(400, W - 16);
+      check(mid + ' sits inside a ' + W + 'px panel with an 8px margin', left >= 8 && left + w <= W - 8 && /px$/.test(m.style.top));
+      step('close ' + mid, () => fire(document, 'keydown', { key: 'Escape', target: els.get(b) }));
+    }
+  }
+  step('scrolling closes a popover', () => { fire('srb', 'click'); fire(document, 'scroll', { target: document }); });
+  check('scrolling the panel closes the open popover', hid('srm'));
+  check('popover css is fixed, wraps, and has no 100% clamp to the icon wrapper', /\.pop\{position:fixed/.test(page) && /overflow-wrap:anywhere/.test(page) && !/#sfm,#exm/.test(page));
+  check('sort options use a 2-column left-aligned grid', /\.pg\{display:grid;grid-template-columns:1fr 1fr;justify-items:start/.test(page));
+  // Messages from: the control, its plumbing into every request, the summary note and the query prefix.
+  step('pick messages from you', () => { els.get('frm').value = 'you'; fire('frm', 'change'); });
+  check('author choice is sent with the search and saved in the draft', posted.some((p) => p.type === 'draft' && p.from === 'you') && run('cur().from', 'cur') === 'you');
+  check('summary notes a non-default author', run("fromNote()", 'note') === ' · from you only');
+  step('query prefix wins over the drop-down', () => { els.get('q').value = 'x from:claude'; });
+  check('from:claude shows in the note', run('fromNote()', 'note2') === ' · from Claude only');
+  step('restore author', () => { els.get('q').value = ''; deliver({ type: 'restore', max: 500, state: { query: '', results: [], searched: '', subs: true, when: 'any', sort: 'time', from: 'claude' }, history: [], archOpen: false, advOpen: false }); });
+  check('restore sets the author drop-down', els.get('frm').value === 'claude');
+  step('back to both', () => { els.get('frm').value = 'both'; fire('frm', 'change'); });
+  check('both shows no note', run('fromNote()', 'note3') === '');
+  roleChecks(check);
+  // No font family or size in the generated CSS other than the VS Code variables (code/paths use the editor font).
+  const css = [...page.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((x) => x[1]).join('\n');
+  const fams = [...css.matchAll(/font-family:([^;}]*)/g)].map((x) => x[1].trim());
+  check('every font-family is a VS Code variable or inherit (' + fams.filter((f) => !/^(var\(--vscode-(editor-)?font-family\)|inherit)$/.test(f)).join('|') + ')', fams.length > 0 && fams.every((f) => /^(var\(--vscode-(editor-)?font-family\)|inherit)$/.test(f)));
+  const sizes = [...css.matchAll(/font-size:([^;}]*)/g)].map((x) => x[1].trim());
+  check('every font-size is a VS Code variable or inherit (' + sizes.filter((f) => !/^(var\(--vscode-(editor-)?font-size\)|inherit)$/.test(f)).join('|') + ')', sizes.every((f) => /^(var\(--vscode-(editor-)?font-size\)|inherit)$/.test(f)));
+  check('no font shorthand other than inherit', [...css.matchAll(/[;{\s]font:([^;}]*)/g)].every((x) => x[1].trim() === 'inherit'));
+
   // Item 2: Up and Down in the search box walk the history (the list is only reached from the newest end).
   step('history walk', () => {
     deliver({ type: 'history', history: ['beta', 'alpha'].map((query) => ({ query, cs: false, ww: false, any: false, re: false, all: false, subs: true, when: 'any', last: 0 })) });
@@ -235,6 +283,24 @@ function drive() {
   step('list step does not take the search box arrows', () => fire(document, 'keydown', { key: 'ArrowUp', target: els.get('q') }));
   check('document handler leaves the search box alone', els.get('q').value === '');
   step('final rerender', () => run('rerender();', 'rerender'));
+}
+
+// Message-author filter on the real compiled modules: parser, options, windows, matching and expand.
+function roleChecks(check) {
+  const q = require(path.join(OUT, 'query.js')), w = require(path.join(OUT, 'window.js')), mo = require(path.join(OUT, 'msgOpts.js')), mt = require(path.join(OUT, 'match.js')), pr = require(path.join(OUT, 'parse.js'));
+  const o = (x) => Object.assign({ all: false, cs: false, ww: false, re: false, when: 'any', subs: true, last: 0 }, x);
+  check('parser reads from:you and from:claude and removes them from the text', q.parseQuery('from:you hello').from === 'you' && q.parseQuery('hello from:Claude').plain === 'hello' && q.parseQuery('from:bob x').from === undefined);
+  check('compile takes the prefix first, then the option, then both', q.compile('a from:claude', o({ from: 'you' })).from === 'claude' && q.compile('a', o({ from: 'you' })).from === 'you' && q.compile('a', o()).from === 'both');
+  check('options validate the author value', mo.opts({ from: 'you' }).from === 'you' && mo.opts({ from: 'x' }).from === 'both' && mo.opts({}).from === 'both');
+  const texts = ['hello from me', 'hello from bot', 'hello again bot'], roles = [0, 1, 1];
+  const rec = { text: texts.join(pr.SEP), ts: [1, 2, 3], ends: [], roles, cmds: [], cmdAt: [], lines: new Uint32Array(3) };
+  let p = 0; texts.forEach((t, i) => { rec.ends.push(p + t.length); p += t.length + pr.SEP.length; });
+  const cmp = (from) => Object.assign(q.compile('hello', o({ from })), { grams: [] });
+  const run1 = (from) => mt.matchChat({ files: [], bloom: new Uint8Array(0), last: 3 }, cmp(from), { pins: new Set(), tags: {} }, 'x', () => rec, 10, w.topWinOf(0, from));
+  check('both counts every message, you only user messages, Claude only assistant messages', run1('both').hits === 3 && run1('you').hits === 1 && run1('claude').hits === 2 && run1('you').role === 0 && run1('claude').role === 1);
+  check('hit counts and matching messages follow the author', run1('both').mc === 3 && run1('you').mc === 1 && run1('claude').mc === 2);
+  check('author filter combines with last:N (last 1 message is Claude)', (() => { const h = mt.matchChat({ files: [], bloom: new Uint8Array(0), last: 3 }, cmp('you'), { pins: new Set(), tags: {} }, 'x', () => rec, 10, w.topWinOf(1, 'you')); return h === null; })());
+  check('subagents are skipped for you only and kept for Claude', w.noSubs('you') && !w.noSubs('claude') && !w.noSubs('both') && !w.noSubs(undefined));
 }
 
 function report() {

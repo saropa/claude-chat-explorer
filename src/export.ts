@@ -100,7 +100,7 @@ function tokenLines(s: Src, rec: Rec, c: Compiled, ctx: Ctx, tagId: string, L: L
 function emitFound(sc: Scan, f: Found, L: Lines): boolean {
   const { ix, c, ctx } = sc;
   const pw = subWinOf(c.last, () => ix.rec(f.p));
-  const jobs: Src[] = f.own ? [{ chat: gitView(sc, f.p, f.subs.map(([s]) => s)), title: f.p.title, file: ix.fileOf(f.p), win: topWinOf(c.last) }] : [];
+  const jobs: Src[] = f.own ? [{ chat: gitView(sc, f.p, f.subs.map(([s]) => s)), title: f.p.title, file: ix.fileOf(f.p), win: topWinOf(c.last, c.from) }] : [];
   for (const [s] of f.subs) { jobs.push({ chat: s, title: f.p.title, file: ix.fileOf(s), sub: s.agentType ?? '', win: pw }); }
   for (const j of jobs) {
     const rec = ix.rec(j.chat);

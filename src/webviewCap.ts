@@ -2,7 +2,7 @@
 export const CAP_CSS = String.raw`
 #cap{position:sticky;top:0;z-index:2;background:var(--vscode-sideBar-background,var(--vscode-editor-background))}
 #cap:empty{display:none}
-.cn{padding:2px 10px 3px;font-size:0.9em;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-widget-border,transparent)}
+.cn{padding:2px 10px 3px;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-widget-border,transparent)}
 .cn.in{border-bottom:none;padding-left:24px}
 .cl{overflow-wrap:anywhere}
 .cw{display:flex;align-items:flex-start;gap:4px;overflow-wrap:anywhere}

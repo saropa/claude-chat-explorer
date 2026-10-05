@@ -33,13 +33,15 @@ export interface Rec {
   lines: Uint32Array; // 1-based JSONL line of each message, for a later export feature
 }
 
-export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; any?: boolean; when: string; subs: boolean; last: number; }
+/** Whose messages are searched: both, only the user's (you), or only Claude's (assistant and subagent messages). */
+export type From = 'both' | 'you' | 'claude';
+export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; any?: boolean; when: string; subs: boolean; last: number; from?: From; }
 export interface Abort { aborted: boolean; }
 
 export type TokenKind = 'file' | 'edited' | 'cmd' | 'tag' | 'sha' | 'pr' | 'branch';
 export interface Token { kind: TokenKind; value: string; }
-/** grams: trigram hashes every matching chat must contain (bloom prefilter); empty means no prefilter. last: only the final N messages match (0 = all). */
-export interface Compiled { terms: RegExp[]; tokens: Token[]; grams: number[]; last: number; }
+/** grams: trigram hashes every matching chat must contain (bloom prefilter); empty means no prefilter. last: only the final N messages match (0 = all). from: whose messages match. */
+export interface Compiled { terms: RegExp[]; tokens: Token[]; grams: number[]; last: number; from: From; }
 
 /** A matching subagent, nested under its parent result. */
 export interface SubResult {

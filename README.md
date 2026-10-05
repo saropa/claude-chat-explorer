@@ -19,9 +19,11 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 | Exact phrase by default | The whole query is one exact phrase. "my family" must appear together in one message. |
 | Match options | Match any order (Alt+O), Match Case (Alt+C), Whole Word (Alt+W), regular expression (Alt+R). |
 | Quoted phrases | With Match any order on, `"quoted phrases"` stay exact. |
+| Messages from | The "messages from" dropdown (Both, You, Claude) or `from:you` / `from:claude` limits the search to your messages or to Claude's (subagent messages count as Claude). It changes hits, snippets and Open in editor, and the summary line says "from you only" or "from Claude only" when it is not Both. |
+| Search tips | The info icon beside the sort and filter icons lists the prefixes with an example each; clicking one fills the search box. |
 | Last N messages | `last:<n>` or the "messages to search" dropdown (last 10, 25, 50, 100) searches only the final N messages of each chat. |
 | When filter | "chats active during": any time, last hour, 2, 4 or 8 hours, today, this week or this month. Local time: today starts at midnight, this week at 00:00 on Monday, this month at 00:00 on the 1st. |
-| Search details | The `...` button under the search box (tooltip "Toggle search details") shows or hides the details, each as a label on the left and its control on the right: chats active during, messages to search, and search scope (the All projects and Subagents checkboxes). They start hidden, the choice is remembered per workspace, and a count on the button shows how many of them differ from the defaults; its tooltip lists them. Sort and status are not here: they are the two icon buttons beside the search box. |
+| Search details | The `...` button under the search box (tooltip "Toggle search details") shows or hides the details, each as a label on the left and its control on the right: chats active during, messages to search, messages from, and search scope (the All projects and Subagents checkboxes). They start hidden, the choice is remembered per workspace, and a count on the button shows how many of them differ from the defaults; its tooltip lists them. Sort and status are not here: they are the two icon buttons beside the search box. |
 | Open in editor | The summary line under the search box ("2,040 results in 265 chats - Open in editor") opens all matches in a read-only "Search: query" editor tab: a header per chat (Cmd/Ctrl+click resumes it), matching lines with one line of context and real JSONL line numbers, highlighted matches. Also in the Command Palette as "Saropa Chat Explorer: Open Results in Editor". |
 | Result limit | Like VS Code Search, the panel lists at most 500 chats (setting `saropaChatExplorer.maxResults`, 50 to 2000) and says so: "Showing the top 500 of 1,284 chats (21,904 matches)" with a warning to narrow the search. Every match is still counted. A chat shows "9,999+" above 9,999 hits, and totals stop at "1,000,000+". All sessions and Archived show the same notice. |
 | Sort | The sort icon beside the search box opens a small menu: Score, Time (grouped by day), Title, Length, Cost or Context (fullest first; chats with no usage data last). Pinned chats list first. It applies to search results and to All sessions. A dot on the icon shows a sort other than Score. Escape or a click outside closes the menu. |
@@ -84,6 +86,7 @@ Extensions panel:
 | plain text | `my family` | The exact phrase in one message. |
 | `"..."` | `"regen l10n"` | An exact phrase (with Match any order on). |
 | `last:<n>` | `deploy last:20` | Matches in the final 20 messages. |
+| `from:you` or `from:claude` | `deploy from:you` | Only your messages, or only Claude's (and subagents'). `from:both` is the default. Does not change file, tag or git filters. |
 | `file:<text>` | `file:search.ts` | Chats that touched a file path. |
 | `edited:<text>` | `edited:search.ts` | Chats that edited a file path. |
 | `cmd:<text>` | `cmd:"npm run"` | Chats where Claude ran a matching command. |

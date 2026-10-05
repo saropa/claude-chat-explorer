@@ -13,7 +13,7 @@ const BASE = String.raw`
 .ex{display:flex;flex-direction:column;gap:13px;margin:0;padding:4px 8px 10px 23px;border:0;cursor:default}
 .xca,.xcl,.xcb{display:contents}
 .xa{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
-.xb{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 6px;border:1px solid transparent;border-radius:3px;background:transparent;color:var(--vscode-foreground);font:inherit;font-size:0.92em;cursor:pointer;white-space:nowrap}
+.xb{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 6px;border:1px solid transparent;border-radius:3px;background:transparent;color:var(--vscode-foreground);font:inherit;cursor:pointer;white-space:nowrap}
 .xb svg{width:14px;height:14px;flex:none}
 .xb:hover{background:var(--vscode-toolbar-hoverBackground)}
 .xb:focus-visible,.xin input:focus,.chip:focus-visible,.xh:focus-visible,.ex .rr:focus-visible,.gp:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
@@ -23,30 +23,30 @@ const BASE = String.raw`
 .xa .sp{flex:1}
 .xs{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.5em,1fr));gap:5px 12px;margin:0}
 .xs>div{display:flex;flex-direction:column;min-width:0}
-.xs dt{font-size:0.82em;color:var(--vscode-descriptionForeground)}
+.xs dt{color:var(--vscode-descriptionForeground)}
 .xs dd{margin:0;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .xs .wide{grid-column:1/-1}
 .xs .wide dd{white-space:normal}
 .add{color:var(--vscode-charts-green)}
 .rem{color:var(--vscode-charts-red)}
 .xt{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
-.xt .chip{max-width:100%;font-size:0.85em;line-height:18px;padding:0 7px;border-radius:9px;gap:4px}
+.xt .chip{max-width:100%;line-height:18px;padding:0 7px;border-radius:9px;gap:4px}
 .xin{display:inline-flex;align-items:center;gap:6px;flex:1 1 10em;min-width:0}
-.xin input{flex:1;min-width:0;max-width:16em;width:auto;height:20px;box-sizing:border-box;padding:0 6px;font:inherit;font-size:0.88em;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);border-radius:2px;outline:none}
+.xin input{flex:1;min-width:0;max-width:16em;width:auto;height:20px;box-sizing:border-box;padding:0 6px;font:inherit;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);border-radius:2px;outline:none}
 .xin input::placeholder{color:var(--vscode-input-placeholderForeground)}
-.xin .k{font-size:0.8em;color:var(--vscode-descriptionForeground);white-space:nowrap}
-.xh{display:flex;align-items:center;gap:4px;min-height:22px;margin-left:-16px;cursor:pointer;user-select:none;color:var(--vscode-descriptionForeground);font-size:0.85em;font-weight:600;border-radius:3px}
+.xin .k{color:var(--vscode-descriptionForeground);white-space:nowrap}
+.xh{display:flex;align-items:center;gap:4px;min-height:22px;margin-left:-16px;cursor:pointer;user-select:none;color:var(--vscode-descriptionForeground);font-weight:600;border-radius:3px}
 .xh .chev{width:12px;height:12px}
 .xh:hover{color:var(--vscode-foreground)}
 .xc{margin-left:2px;font-weight:400;opacity:.85}
 .xb2{margin-top:2px}
 .fps{display:flex;flex-wrap:wrap;gap:4px;margin:0}
-.fp{font-size:0.82em;line-height:18px;border-radius:3px}
-.fi{font-size:0.82em;line-height:1.5}
+.fp{line-height:18px;border-radius:3px}
+.fi{line-height:normal}
 .ex .rr{margin-left:-4px;padding:0 4px;min-height:24px;gap:6px;border-radius:3px}
 .ex .rr:hover,.ex .rr:focus-visible{background:var(--vscode-list-hoverBackground);color:inherit}
-.sh{flex:none;font-size:0.85em;color:var(--vscode-descriptionForeground);white-space:nowrap}
-.none{font-size:0.9em;color:var(--vscode-descriptionForeground)}
+.sh{flex:none;color:var(--vscode-descriptionForeground);white-space:nowrap}
+.none{color:var(--vscode-descriptionForeground)}
 `;
 
 const COMPACT = String.raw`

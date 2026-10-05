@@ -2,6 +2,15 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.20.0 - 2026-10-05
+- Added: an info icon beside the sort and filter icons opens "Search tips". It lists every prefix the search understands (file:, edited:, cmd:, tag:, sha:, pr:, branch:, last: and from:) with one example each. Click an example to put it in the search box and run it.
+- Added: search by who wrote the message. The new "messages from" drop-down in the search details has Both (default), You and Claude. You means only your own messages; Claude means Claude's replies and everything a subagent said. It changes hit counts, snippets, the nested subagent rows and Open in editor. The summary line adds "from you only" or "from Claude only" when it is not Both, the choice is remembered with your other search settings, and the "..." count includes it. You can also type from:you or from:claude in the search box. File, tag and git filters are not affected by it.
+- Changed: the search box hint is now just "Search chats". It used to be cut off by the four option buttons; the prefixes now live in Search tips.
+- Fixed: the sort and status menus opened off-screen or squeezed to one letter wide. They now open inside the panel under their icon, never wider than the panel (8 px margin), wrap long text, and close when you scroll the panel. Checked at 220, 330 and 600 px wide.
+- Fixed: the sort menu shows its options in two neat left-aligned columns.
+- Changed: all panel text now uses the same font, size, weight and line height as VS Code's own Search view (13 px by default, following your VS Code settings). Code and file paths use the editor font. No size or font is hard-coded any more.
+- Changed: the build check now covers the tips menu, menu placement at three widths, the author filter and a scan that no fixed font is left in the page styles.
+
 ## 0.19.1 - 2026-10-05
 - Fixed: a chat whose branch has the same name as a tag (for example both called main) showed no upstream and no unpushed commits.
 - Fixed: a chat in detached HEAD now shows "detached at <short id>", and Unpushed commits says "Detached HEAD: no branch to push" instead of "no upstream branch".

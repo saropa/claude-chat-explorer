@@ -1,26 +1,26 @@
 /** Webview script part: status chip, git icon, Git section and query shortcuts. Shares top-level scope with webviewJs. */
 export const GIT_CSS = String.raw`
-.gi{display:inline-flex;align-items:center;gap:2px;flex:none;padding:0 3px;border:none;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;font-size:10.5px;line-height:16px;opacity:.75}
+.gi{display:inline-flex;align-items:center;gap:2px;flex:none;padding:0 3px;border:none;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;line-height:16px;opacity:.75}
 .gi:hover,.gi:focus-visible{opacity:1;color:var(--vscode-foreground);background:var(--vscode-toolbar-hoverBackground)}
 .gi svg{width:12px;height:12px}
 .gps{display:flex;flex-wrap:wrap;gap:4px}
-.gp{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-width:0;padding:0 7px;border-radius:9px;font-size:0.85em;line-height:18px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
-.gp.cm{font-family:var(--vscode-editor-font-family);font-size:0.8em;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border,transparent)}
+.gp{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-width:0;padding:0 7px;border-radius:9px;line-height:18px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.gp.cm{font-family:var(--vscode-editor-font-family);border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border,transparent)}
 .gp .br{opacity:.75}
-.gr{display:flex;gap:8px;align-items:baseline;margin:2px 0;font-size:0.9em}
+.gr{display:flex;gap:8px;align-items:baseline;margin:2px 0;}
 .gk{flex:none;width:84px;color:var(--vscode-descriptionForeground)}
 .gv{min-width:0;overflow-wrap:anywhere}
-.gm,.up,.dn,.gn{font-size:0.9em}
+.gm,.up,.dn,.gn{}
 .up,.dn{font-weight:600}
 .gn{color:var(--vscode-editorWarning-foreground)}
 .gfs{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 4px 92px}
-.gf{display:inline-flex;gap:4px;padding:0 6px;border-radius:3px;font-size:0.85em;line-height:18px;cursor:pointer;border:1px solid var(--vscode-widget-border,transparent);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gf{display:inline-flex;gap:4px;padding:0 6px;border-radius:3px;line-height:18px;cursor:pointer;border:1px solid var(--vscode-widget-border,transparent);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gf:hover,.gf:focus-visible{outline:1px solid var(--vscode-focusBorder)}
-.gp2{font-family:var(--vscode-editor-font-family);font-size:0.9em}
+.gp2{font-family:var(--vscode-editor-font-family);}
 .gw{margin:1px 0}
 .gw.here{font-weight:600}
 .gp.pr{white-space:normal}
-.gmore{align-self:center;font-size:0.85em;color:var(--vscode-descriptionForeground)}
+.gmore{align-self:center;color:var(--vscode-descriptionForeground)}
 .gp:hover,.gp:focus-visible{outline:1px solid var(--vscode-focusBorder)}
 `;
 

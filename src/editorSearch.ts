@@ -83,7 +83,7 @@ function fileHits(s: Src, rec: Rec, c: Compiled, ctx: Ctx, tagId: string, room: 
 function chatOf(sc: Scan, f: Found, room: number): { chat: EdChat; count: number } {
   const { ix, c, ctx } = sc;
   const pw = subWinOf(c.last, () => ix.rec(f.p));
-  const jobs: Src[] = f.own ? [{ chat: gitView(sc, f.p, f.subs.map(([s]) => s)), win: topWinOf(c.last) }] : [];
+  const jobs: Src[] = f.own ? [{ chat: gitView(sc, f.p, f.subs.map(([s]) => s)), win: topWinOf(c.last, c.from) }] : [];
   for (const [s] of f.subs) { jobs.push({ chat: s, sub: s.agentType ?? '', win: pw }); }
   const chat: EdChat = { id: f.p.id, title: f.p.title, project: '', last: f.p.last, hits: [] };
   let count = 0;

@@ -2,13 +2,13 @@ import { T, tier } from './webviewLayout';
 
 /** Webview CSS: the newest-match snippet, the "+N more" expander, the other-matches list and the subagent pill. */
 const BASE = String.raw`
-.sa{display:inline-flex;align-items:center;gap:3px;flex:0 1 auto;min-width:0;padding:0 6px 0 4px;border-radius:9px;font-size:11px;line-height:14px;white-space:nowrap;color:var(--vscode-charts-purple);border:1px solid color-mix(in srgb,var(--vscode-charts-purple) 55%,transparent)}
+.sa{display:inline-flex;align-items:center;gap:3px;flex:0 1 auto;min-width:0;padding:0 6px 0 4px;border-radius:9px;line-height:14px;white-space:nowrap;color:var(--vscode-charts-purple);border:1px solid color-mix(in srgb,var(--vscode-charts-purple) 55%,transparent)}
 .sa svg{width:11px;height:11px;flex:none}
 .sa span{overflow:hidden;text-overflow:ellipsis}
-.who{flex:none;font-size:0.85em;font-weight:600}
+.who{flex:none;font-weight:600}
 .sx{min-width:0;padding-bottom:2px}
-.s{padding:0 10px 0 24px;font-size:0.92em;line-height:1.4;color:var(--vscode-descriptionForeground);word-break:break-word}
-.mx{display:inline-flex;align-items:center;gap:2px;height:18px;margin:2px 0 0 20px;padding:0 6px 0 2px;border:none;border-radius:9px;background:transparent;color:var(--vscode-descriptionForeground);font:inherit;font-size:0.85em;cursor:pointer;white-space:nowrap}
+.s{padding:0 10px 0 24px;color:var(--vscode-descriptionForeground);word-break:break-word}
+.mx{display:inline-flex;align-items:center;gap:2px;height:18px;margin:2px 0 0 20px;padding:0 6px 0 2px;border:none;border-radius:9px;background:transparent;color:var(--vscode-descriptionForeground);font:inherit;cursor:pointer;white-space:nowrap}
 .mx .chev{width:14px;height:14px}
 .mx:hover,.mx.on{color:var(--vscode-foreground)}
 .mx:hover{background:var(--vscode-toolbar-hoverBackground)}
@@ -20,13 +20,13 @@ const BASE = String.raw`
 .mi+.mi{border-top:1px solid color-mix(in srgb,var(--vscode-widget-border) 70%,transparent)}
 .mi:hover{background:var(--vscode-list-hoverBackground)}
 .mih{display:flex;align-items:center;gap:6px;min-width:0}
-.mih .d{flex:1;min-width:0;font-size:0.85em;color:var(--vscode-descriptionForeground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mih .d{flex:1;min-width:0;color:var(--vscode-descriptionForeground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mih .mp{margin-left:auto}
-.mih .xn{flex:none;font-size:11px;line-height:16px;padding:0 5px;border-radius:9px;border:1px solid var(--vscode-widget-border);color:var(--vscode-descriptionForeground)}
-.mib{margin-top:1px;font-size:0.9em;line-height:1.4;color:var(--vscode-descriptionForeground);word-break:break-word}
+.mih .xn{flex:none;line-height:16px;padding:0 5px;border-radius:9px;border:1px solid var(--vscode-widget-border);color:var(--vscode-descriptionForeground)}
+.mib{margin-top:1px;color:var(--vscode-descriptionForeground);word-break:break-word}
 .mib.same{font-style:italic}
-.ml .lnk{margin:4px 0 2px;font-size:0.85em}
-.ml .ld{padding:4px 0;font-size:0.85em;color:var(--vscode-descriptionForeground)}
+.ml .lnk{margin:4px 0 2px;}
+.ml .ld{padding:4px 0;color:var(--vscode-descriptionForeground)}
 .s,.mib{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .mib.same{-webkit-line-clamp:1}
 `;

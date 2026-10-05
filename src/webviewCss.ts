@@ -1,5 +1,6 @@
 export const CSS = String.raw`
-body{padding:6px 0;color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
+button,input,select{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);font-weight:normal;line-height:normal}
+body{padding:6px 0;line-height:normal;font-weight:normal;color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
 .top{padding:0 8px}
 .box{position:relative}
 input[type=text]{width:100%;height:26px;box-sizing:border-box;padding:4px 98px 4px 6px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);border-radius:2px;outline:none;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
@@ -7,14 +8,14 @@ input[type=text]::placeholder{color:var(--vscode-input-placeholderForeground)}
 input[type=text]:focus{border-color:var(--vscode-focusBorder);outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .opts{position:absolute;right:2px;top:2px;display:flex;gap:1px}
-.opt{width:22px;height:20px;padding:0;box-sizing:border-box;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent;color:var(--vscode-foreground);border:1px solid transparent;border-radius:5px;font-size:12px;font-family:var(--vscode-editor-font-family)}
+.opt{width:22px;height:20px;padding:0;box-sizing:border-box;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent;color:var(--vscode-foreground);border:1px solid transparent;border-radius:5px;font-family:var(--vscode-font-family)}
 .opt:hover{background:var(--vscode-inputOption-hoverBackground,var(--vscode-toolbar-hoverBackground))}
 .opt.on{background:var(--vscode-inputOption-activeBackground);border-color:var(--vscode-inputOption-activeBorder,transparent);color:var(--vscode-inputOption-activeForeground)}
 .opt u{text-decoration:underline}
 .opt:disabled{opacity:.4;cursor:default}
 .opt:disabled:hover{background:transparent}
-#err{display:none;margin-top:-1px;padding:3px 6px;font-size:0.9em;background:var(--vscode-inputValidation-errorBackground);border:1px solid var(--vscode-inputValidation-errorBorder);color:var(--vscode-inputValidation-errorForeground,var(--vscode-foreground))}
-#ixb{margin:0 0 6px;font-size:0.9em;color:var(--vscode-descriptionForeground)}
+#err{display:none;margin-top:-1px;padding:3px 6px;background:var(--vscode-inputValidation-errorBackground);border:1px solid var(--vscode-inputValidation-errorBorder);color:var(--vscode-inputValidation-errorForeground,var(--vscode-foreground))}
+#ixb{margin:0 0 6px;color:var(--vscode-descriptionForeground)}
 #ixb[hidden]{display:none}
 .ixp{position:relative;height:2px;margin-top:3px;overflow:hidden;background:var(--vscode-widget-border,transparent)}
 .ixp i{position:absolute;top:0;bottom:0;width:30%;background:var(--vscode-progressBar-background);animation:slide 1.2s linear infinite}
@@ -22,29 +23,29 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 #bar.on{visibility:visible}
 #bar i{position:absolute;top:0;bottom:0;width:30%;background:var(--vscode-progressBar-background);animation:slide 1.2s linear infinite}
 @keyframes slide{0%{left:-30%}100%{left:100%}}
-#status{margin:2px 0;padding:0 10px;color:var(--vscode-descriptionForeground);font-size:0.92em}
+#status{margin:2px 0;padding:0 10px;color:var(--vscode-descriptionForeground);}
 #status:empty{display:none}
 #status.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-#ah{margin:2px 0 0;font-size:0.85em;color:var(--vscode-descriptionForeground)}
+#ah{margin:2px 0 0;color:var(--vscode-descriptionForeground)}
 #ah[hidden]{display:none}
 .osep{height:0;margin:3px 10px;border-top:1px solid var(--vscode-widget-border,var(--vscode-descriptionForeground));opacity:.35}
-.nm{padding:4px 10px;color:var(--vscode-descriptionForeground);font-size:0.92em}
+.nm{padding:4px 10px;color:var(--vscode-descriptionForeground);}
 .nm b{font-weight:600;color:var(--vscode-foreground)}
-.sm{flex:1;min-width:0;text-align:right;text-transform:none;letter-spacing:0;font-weight:400;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sm{flex:1;min-width:0;text-align:right;text-transform:none;letter-spacing:0;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #res.stale{opacity:.4;pointer-events:none}
 #pin:empty+#list>.sl:first-child,#pin>.sl:first-child{margin-top:0;border-top:none}
 .sl,.gh{display:flex;align-items:center;gap:4px;padding:4px 8px 4px 6px;cursor:pointer;user-select:none;color:var(--vscode-descriptionForeground)}
-.sl{margin-top:6px;border-top:1px solid var(--vscode-widget-border,transparent);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
-.gh{font-weight:500}
+.sl{margin-top:6px;border-top:1px solid var(--vscode-widget-border,transparent);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.gh{font-weight:normal}
 .sl:hover,.gh:hover,.sl:focus-visible,.gh:focus-visible{color:var(--vscode-foreground);outline:none}
 .chev{width:16px;height:16px;flex:none;transition:transform .12s}
 .open>.chev,.on>.chev{transform:rotate(90deg)}
-.pill{margin-left:auto;flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;font-size:11px;font-weight:400;line-height:16px;letter-spacing:0;text-align:center;text-transform:none;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.pill{margin-left:auto;flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;font-weight:400;line-height:16px;letter-spacing:0;text-align:center;text-transform:none;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
 .r{outline:none}
 .rh:hover{background:var(--vscode-list-hoverBackground)}
 .r:focus-visible>.rh,.rr:focus-visible{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}
 .hd,.rr{display:flex;align-items:center;gap:6px;min-height:28px;padding:0 8px 0 10px;cursor:pointer;box-sizing:border-box}
-.rr{min-height:24px;padding-left:2px;font-size:0.95em}
+.rr{min-height:24px;padding-left:2px;}
 .dot{--dc:var(--vscode-descriptionForeground,#9d9d9d);width:8px;height:8px;border-radius:50%;flex:none;box-sizing:border-box;background:var(--dc)}
 .dot.idle{opacity:.4}
 .dot.none{visibility:hidden}
@@ -53,14 +54,14 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .dot.waiting{--dc:#3b82f6}
 .dot.unread{--dc:#d97757}
 .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pj{flex:none;max-width:25%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85em;color:var(--vscode-descriptionForeground)}
-.tm{flex:none;min-width:22px;text-align:right;font-size:0.92em;color:var(--vscode-descriptionForeground)}
+.pj{flex:none;max-width:25%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--vscode-descriptionForeground)}
+.tm{flex:none;min-width:22px;text-align:right;color:var(--vscode-descriptionForeground)}
 .r:focus-visible>.rh .tm,.r:focus-visible>.rh .s,.r:focus-visible>.rh .pj,.rr:focus-visible .tm{color:inherit;opacity:.85}
 .hd{--cw:16px;position:relative;padding-right:4px}
 .ia{display:none;position:absolute;right:calc(var(--cw) + 6px);top:50%;transform:translateY(-50%);align-items:center;gap:2px}
 .rh:hover .ia,.r:focus-within .ia{display:flex}
 .rh:hover .hd .t,.r:focus-within .hd .t{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 78px),transparent calc(100% - 60px));mask-image:linear-gradient(to right,#000 calc(100% - 78px),transparent calc(100% - 60px))}
-.ic{display:inline-flex;align-items:center;justify-content:center;flex:none;width:18px;height:18px;padding:0;border:none;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;font-size:13px;line-height:1}
+.ic{display:inline-flex;align-items:center;justify-content:center;flex:none;width:18px;height:18px;padding:0;border:none;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;line-height:1}
 .ic[data-a=exp]{width:var(--cw);height:24px;position:absolute;right:4px;top:50%;transform:translateY(-50%);opacity:0}
 .rh:hover .ic[data-a=exp],.r:focus-within .ic[data-a=exp],.ic[data-a=exp]:focus-visible{opacity:1}
 .ic:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
@@ -69,15 +70,15 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .ic.pn.on{color:var(--vscode-charts-yellow,var(--vscode-foreground))}
 .chips{display:flex;gap:3px;flex:none;max-width:45%;overflow:hidden}
 .chips:empty{display:none}
-.chip,.fp{display:inline-flex;align-items:center;gap:3px;padding:0 6px;border-radius:8px;font-size:0.82em;line-height:15px;white-space:nowrap;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.chip,.fp{display:inline-flex;align-items:center;gap:3px;padding:0 6px;border-radius:8px;line-height:15px;white-space:nowrap;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
 .chip{cursor:pointer}
 .chip.on{outline:1px solid var(--vscode-focusBorder)}
 .cx{font-weight:normal;opacity:.7;cursor:pointer}
 .cx:hover{opacity:1}
 .fp{max-width:100%;overflow:hidden;text-overflow:ellipsis;font-family:var(--vscode-editor-font-family);background:var(--vscode-editorWidget-background,var(--vscode-badge-background));color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border,transparent)}
 .fp.ed{color:var(--vscode-foreground)}
-.m{color:var(--vscode-descriptionForeground);font-size:0.9em}
-.fi{font-family:var(--vscode-editor-font-family);font-size:0.85em;word-break:break-all;color:var(--vscode-descriptionForeground)}
+.m{color:var(--vscode-descriptionForeground);}
+.fi{font-family:var(--vscode-editor-font-family);word-break:break-all;color:var(--vscode-descriptionForeground)}
 mark{background:var(--vscode-editor-findMatchHighlightBackground);color:inherit}
 a{color:var(--vscode-textLink-foreground);cursor:pointer}
 `;

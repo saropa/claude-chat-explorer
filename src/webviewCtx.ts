@@ -1,6 +1,6 @@
 /** Webview: the context pill on the pill line, its tooltip, and the Context sort key. Shares top-level scope with webviewJs. */
 export const CTX_CSS = String.raw`
-.cp{flex:none;box-sizing:border-box;padding:0 6px;border-radius:9px;font-size:11px;line-height:14px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--c);border:1px solid color-mix(in srgb,var(--c) 60%,transparent);background:color-mix(in srgb,var(--c) 14%,transparent)}
+.cp{flex:none;box-sizing:border-box;padding:0 6px;border-radius:9px;line-height:14px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--c);border:1px solid color-mix(in srgb,var(--c) 60%,transparent);background:color-mix(in srgb,var(--c) 14%,transparent)}
 .cp.l1{--c:var(--vscode-charts-yellow,#cca700)}
 .cp.l2{--c:var(--vscode-charts-orange,#d18616)}
 .cp.l3{--c:var(--vscode-charts-red,#f14c4c);font-weight:600}

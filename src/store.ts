@@ -24,7 +24,7 @@ export interface Saved extends Draft { results: Result[]; searched: string; tota
 export const normTag = (raw: string): string =>
   raw.trim().toLowerCase().replace(/^tag:/, '').replace(/\s+/g, '-').slice(0, 40);
 
-const BLANK: Draft = { query: '', all: false, cs: false, ww: false, re: false, any: false, when: 'any', subs: true, last: 0, sort: 'score' };
+const BLANK: Draft = { query: '', all: false, cs: false, ww: false, re: false, any: false, when: 'any', subs: true, last: 0, from: 'both', sort: 'score' };
 
 /** Workspace state (last search, history) and global state (pins, tags). Workspace writes are debounced. */
 export class Store {

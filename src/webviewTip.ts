@@ -2,12 +2,12 @@ import { TIP_KINDS_JS } from './webviewTipKinds';
 
 /** Webview CSS: the one shared tooltip popover. */
 export const TIP_CSS = String.raw`
-#tip{position:fixed;z-index:30;box-sizing:border-box;padding:5px 8px 6px;border-radius:4px;font-size:0.92em;line-height:1.4;pointer-events:none;background:var(--vscode-editorHoverWidget-background);color:var(--vscode-editorHoverWidget-foreground);border:1px solid var(--vscode-editorHoverWidget-border);box-shadow:0 2px 8px var(--vscode-widget-shadow);overflow-wrap:anywhere}
+#tip{position:fixed;z-index:30;box-sizing:border-box;padding:5px 8px 6px;border-radius:4px;pointer-events:none;background:var(--vscode-editorHoverWidget-background);color:var(--vscode-editorHoverWidget-foreground);border:1px solid var(--vscode-editorHoverWidget-border);box-shadow:0 2px 8px var(--vscode-widget-shadow);overflow-wrap:anywhere}
 #tip[hidden]{display:none}
 #tip b{display:block;font-weight:600}
 #tip p{margin:3px 0 0}
 #tip .tsm,#tip .nt,#tip dt{color:var(--vscode-descriptionForeground)}
-#tip .nt{font-size:0.92em;font-style:italic}
+#tip .nt{font-style:italic}
 #tip .q{padding-top:3px;border-top:1px solid var(--vscode-editorHoverWidget-border)}
 #tip dl{display:grid;grid-template-columns:auto 1fr;gap:1px 8px;margin:3px 0 0}
 #tip dd{margin:0;min-width:0}
