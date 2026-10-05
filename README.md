@@ -204,7 +204,15 @@ Issues and pull requests are welcome on the GitHub repository.
 
 ## License
 
-MIT.
+MIT. See [LICENSE](LICENSE).
+
+---
+
+Built by [Saropa](https://saropa.com). Questions? Ideas? [Open an issue](https://github.com/saropa/claude-chat-explorer/issues). Contact: dev@saropa.com.
+
+Part of the Saropa Suite. See [ABOUT_SAROPA.md](ABOUT_SAROPA.md).
+
+[GitHub](https://github.com/saropa/claude-chat-explorer) | [Issues](https://github.com/saropa/claude-chat-explorer/issues) | [Saropa](https://saropa.com)
 
 ## Publishing
 

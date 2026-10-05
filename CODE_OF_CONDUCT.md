@@ -25,6 +25,6 @@ This applies to issues, pull requests and any other space run for this project.
 
 ## Reporting
 
-- Report a problem through a private channel: email security@saropa.com.
+- Report a problem through a private channel: email dev@saropa.com.
 - Do not post it in a public issue.
 - Reports are handled in confidence.
