@@ -6,7 +6,7 @@ body{margin:0;padding:12px 16px 24px;line-height:normal;font-weight:normal;color
 button,select,input{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);font-weight:normal;line-height:normal}
 h1{margin:0;font-size:calc(var(--vscode-font-size) + 5px);font-weight:600}
 h2{margin:0;font-size:inherit;font-weight:600}
-#wrap{--acts:340px;max-width:1400px;margin:0 auto}
+#wrap{--acts:400px;max-width:1400px;margin:0 auto}
 .hr{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .hr .sp{flex:1 1 auto}
 .ab,.chip,.gb{padding:2px 8px;cursor:pointer;color:var(--vscode-button-secondaryForeground);background:var(--vscode-button-secondaryBackground);border:1px solid var(--vscode-contrastBorder,transparent);border-radius:2px}
@@ -56,15 +56,32 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .wide .th{display:flex;align-items:center;gap:0 8px}
 .wide .th span,.wide .meta>span{min-width:0}
 .wide .main{flex-wrap:nowrap}
-.wide .rb{flex:1 1 auto;grid-template-columns:14px minmax(0,3fr) minmax(0,1.5fr) 7ch 14ch 7ch;column-gap:8px}
+.wide .rb{flex:1 1 auto;grid-template-columns:14px minmax(0,3fr) minmax(0,1.5fr) minmax(0,1.2fr) 11ch 10ch 7ch 16ch 7ch;column-gap:8px}
 .wide .meta{display:contents}
 .wide .acts{flex:none;width:var(--acts);padding:0 4px}
-.wide .th .a{flex:1 1 auto;display:grid;grid-template-columns:14px minmax(0,3fr) minmax(0,1.5fr) 7ch 14ch 7ch;column-gap:8px;padding:0 4px}
+.wide .th .a{flex:1 1 auto;display:grid;grid-template-columns:14px minmax(0,3fr) minmax(0,1.5fr) minmax(0,1.2fr) 11ch 10ch 7ch 16ch 7ch;column-gap:8px;padding:0 4px}
 .wide .th .b{flex:none;width:var(--acts);padding:0 4px}
 .meta>span:empty{display:none}
 .wide .meta>span:empty{display:block}
 .pj{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pn,.st,.cx,.tm,.pj{white-space:nowrap}
+.pn,.st,.cx,.tm,.pj,.br,.fl,.ah{white-space:nowrap}
+.wide .meta>span{overflow:hidden;text-overflow:ellipsis}
+.br{color:var(--vscode-descriptionForeground);overflow:hidden;text-overflow:ellipsis}
+.ah{font-weight:600}
+.q{opacity:.6}
+.spin{display:inline-block;width:10px;height:10px;vertical-align:-1px;border:2px solid var(--vscode-widget-border,var(--vscode-descriptionForeground));border-top-color:var(--vscode-progressBar-background,var(--vscode-focusBorder));border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none;border-radius:0;border-width:0;width:auto;height:auto}.spin::after{content:'\2026'}}
+#prog{padding-bottom:4px;background-image:linear-gradient(var(--vscode-progressBar-background),var(--vscode-progressBar-background));background-repeat:no-repeat;background-size:var(--pct,0%) 2px;background-position:left bottom}
+.ex .xh{margin:8px 0 2px;color:var(--vscode-descriptionForeground)}
+.gfs{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0}
+.gf{display:inline-flex;gap:4px;max-width:100%;padding:0 6px;line-height:18px;cursor:pointer;color:inherit;background:transparent;border:1px solid var(--vscode-widget-border,var(--vscode-contrastBorder,transparent));border-radius:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gf:hover{background:var(--vscode-list-hoverBackground)}
+.gf:focus-visible{outline:1px solid var(--vscode-focusBorder)}
+.gw{margin:1px 0;overflow-wrap:anywhere}
+.gw.here{font-weight:600}
+.gw code{font-family:var(--vscode-editor-font-family)}
+.gmore{color:var(--vscode-descriptionForeground)}
 #grm{padding:4px 0;min-width:min(200px,calc(100vw - 16px))}
 #grm .pt{padding:2px 10px 4px;color:var(--vscode-descriptionForeground)}
 .pi{display:flex;align-items:center;gap:6px;min-height:24px;padding:0 10px;cursor:pointer}

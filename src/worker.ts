@@ -139,7 +139,7 @@ async function openWork(m: any): Promise<unknown> {
   if (!ix) { return { indexing: true, rows: [], total: 0 }; }
   const ids = (a: unknown): Set<string> => new Set<string>(Array.isArray(a) ? a.filter((x: unknown) => typeof x === 'string') : []);
   const days = Math.min(90, Math.max(1, Math.floor(Number(m.days)) || 14));
-  return { indexing: ix.building || (!passed && ix.size === 0), ...openWorkRows(ix, { days, now: Date.now(), live: ids(m.live), archived: ids(m.archived), pins: ids(m.pins) }) };
+  return { indexing: ix.building || (!passed && ix.size === 0), ...openWorkRows(ix, { days, now: Date.now(), live: ids(m.live), archived: ids(m.archived), pins: ids(m.pins), folders: Array.isArray(m.folders) ? m.folders.filter((x: unknown) => typeof x === 'string') : [] }) };
 }
 
 /** Facts for one chat's hand-over note; null when the chat is not indexed. */

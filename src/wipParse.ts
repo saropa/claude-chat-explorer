@@ -50,8 +50,12 @@ export function parseWorktrees(out: string): WorktreeInfo[] {
     const p = lines.find((l) => l.startsWith('worktree '));
     if (!p) { continue; }
     const b = lines.find((l) => l.startsWith('branch '));
+    const lk = lines.find((l) => l === 'locked' || l.startsWith('locked '));
+    const h = lines.find((l) => l.startsWith('HEAD '));
     list.push({ path: p.slice(9), branch: b ? b.slice(7).replace(/^refs\/heads\//, '') : '', detached: lines.includes('detached'),
-      main: list.length === 0, missing: false });
+      main: list.length === 0, missing: false, head: h ? h.slice(5).trim() : '', locked: !!lk,
+      lockReason: lk && lk.length > 7 ? lk.slice(7).replace(/[\u0000-\u001f]/g, ' ').slice(0, 120) : undefined,
+      prunable: lines.some((l) => l === 'prunable' || l.startsWith('prunable ')) });
   }
   return list;
 }

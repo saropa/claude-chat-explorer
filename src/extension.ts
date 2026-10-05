@@ -26,6 +26,9 @@ import { html, NAME } from './webview';
 import { OPEN_EDITOR_CMD, registerEditorView } from './editorView';
 import { Hub } from './hub';
 import { OpenWork, registerOpenWork } from './openWork';
+import { Limiter } from './execLimit';
+import { realExec } from './wipExec';
+import { WorkScan } from './workScan';
 
 const POST_GAP_MS = 100;
 const REVEAL_CMD = 'workbench.view.extension.claudeChatExplorer'; // opens the Saropa Chat Explorer container and its view
@@ -36,6 +39,10 @@ const channel = vscode.window.createOutputChannel(NAME);
 const log = (msg: string): void => channel.appendLine(`[${new Date().toISOString()}] ${msg}`);
 const logErr = (where: string, e: unknown): void => log(`${where}: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
 
+/** One global limit on git processes: 4 at a time, the Open Work page at most 3 of them, the sidebar first. */
+const limiter = new Limiter(4, 3);
+const uiExec = limiter.wrap(realExec, 'ui');
+
 const folderPaths = (): string[] => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
 
 class Provider implements vscode.WebviewViewProvider {
@@ -45,11 +52,11 @@ class Provider implements vscode.WebviewViewProvider {
   private readonly queue = new QueryQueue((m) => this.post(m), () => vscode.commands.executeCommand(REVEAL_CMD), logErr);
   watcher?: LiveWatcher; // live state of Claude sessions
   actions?: ArchiveActions;
-  private readonly gitLive = new GitLiveService();
+  private readonly gitLive = new GitLiveService(uiExec);
   private readonly counts = new CardCounts({
     request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), folders: folderPaths, log: logErr,
     prsOn: () => vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false, post: (m) => this.post(m),
-  }, this.gitLive);
+  }, this.gitLive, uiExec);
   private readonly gitTargets = new Map<string, GitTargets>(); // per chat: what a click in its Git section resolves against
 
   constructor(private readonly store: Store, private readonly client: WorkerClient,
@@ -342,7 +349,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
     showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { ctx.subscriptions.push(hub.on('indexed', fn), hub.on('changed', fn)); } });
   registerOpenWork(ctx, new OpenWork(ctx, hub, { softRequest: (m) => client!.request(m as Parameters<WorkerClient['request']>[0], true, true), pins: () => Object.keys(store!.pins),
     archived: () => [...store!.archived], dots: () => provider.watcher?.dots ?? {}, resume: (id) => provider.resume(id), copyNote: (id, state) => provider.copyNote(id, state),
-    setArchived: (id, on) => provider.actions!.setArchived(id, on), find: (q) => provider.showQuery(q), poke: () => provider.watcher?.poke(), log: logErr }));
+    setArchived: (id, on) => provider.actions!.setArchived(id, on), find: (q) => provider.showQuery(q), poke: () => provider.watcher?.poke(), log: logErr,
+    scan: new WorkScan({ exec: realExec, limiter, workspace: folderPaths, log: logErr }), workspace: folderPaths }));
   registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info, () => provider.watcher, () => warner.atOrAbove80);
   provider.watcher.start();
   done = true;

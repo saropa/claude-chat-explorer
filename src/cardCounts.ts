@@ -1,5 +1,5 @@
 import { git, Ctx } from './wipGit';
-import { OVERFLOW, realExec } from './wipExec';
+import { Exec, OVERFLOW, realExec } from './wipExec';
 import { GIT_DEADLINE_MS, GitLiveService, withDeadline } from './gitLive';
 
 const GIT_MS = 5000;
@@ -37,7 +37,7 @@ export class CardCounts {
   private readonly busy = new Map<string, Promise<number | null>>();
   private readonly done = new Map<string, { at: number; n: number }>();
 
-  constructor(private readonly d: CountDeps, private readonly live: GitLiveService) {}
+  constructor(private readonly d: CountDeps, private readonly live: GitLiveService, private readonly exec: Exec = realExec) {}
 
   /** Post each count as it arrives (a number, or null for none); rq is echoed so the panel can drop a stale answer. */
   async run(id: string, rq: number): Promise<void> {
@@ -74,7 +74,7 @@ export class CardCounts {
   }
 
   private async count(cwd: string, part: 'unc' | 'unp' | 'wt'): Promise<number | null> {
-    const ctx: Ctx = { exec: realExec, gitMs: GIT_MS, ghMs: GIT_MS, flags: { gitMissing: false } };
+    const ctx: Ctx = { exec: this.exec, gitMs: GIT_MS, ghMs: GIT_MS, flags: { gitMissing: false } };
     if (part === 'unc') {
       const r = await git(ctx, cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=normal']);
       return r.code === 0 || (r.code === OVERFLOW && r.stdout) ? countStatus(r.stdout) : null;

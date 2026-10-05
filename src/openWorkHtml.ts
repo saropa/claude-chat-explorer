@@ -19,13 +19,15 @@ export function openWorkHtml(): string {
 <div class="pw"><button type="button" class="gb" id="grb" data-tip="Group chats by" aria-label="Group chats by: By attention" aria-haspopup="true" aria-expanded="false" aria-controls="grm"><span id="grt">By attention</span></button>
 <div id="grm" class="pop" role="group" aria-label="Group chats by" hidden></div></div>
 <button type="button" class="chip" id="idl" data-a="idle" aria-pressed="true" data-tip="Show or hide chats with nothing open">Show idle</button>
+<button type="button" class="chip" id="dnb" data-a="showdone" aria-pressed="false" data-tip="Show or hide chats you marked done" hidden>Show done</button>
+<button type="button" class="chip" id="wsb" data-a="ws" aria-pressed="false" data-tip="Only chats in this workspace's repositories, including their other worktrees" hidden>This workspace only</button>
 <button type="button" class="ab" id="rf" data-a="refresh" data-tip="Read the chat list again" aria-label="Refresh">Refresh</button>
 </div>
 <div id="cnt" role="group" aria-label="Chats by band"></div>
 <div id="ixs" role="status" hidden><span>Indexing...</span><span>Index still building: list may be incomplete.</span><span class="ixp"><i></i></span><button type="button" class="ab" data-a="retry" aria-label="Retry reading the chat list">Retry</button></div>
-<div id="prog" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="" hidden></div>
+<div id="prog" class="sub" role="progressbar" aria-label="Git progress" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="" hidden></div>
 <div id="upd" class="sub"></div>
-<div id="note" class="sub">Git and pull request state are not shown yet. Chats are placed from their chat state only.</div>
+<div id="note" class="sub"></div>
 </header>
 <main id="body" aria-busy="true"></main>
 </div>

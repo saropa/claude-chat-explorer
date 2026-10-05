@@ -53,20 +53,47 @@ export async function fetchPrs(c: Ctx, cwd: string): Promise<PrResult> {
   return m ? { byBranch: m } : { byBranch: new Map(), error: 'unreadable gh answer' };
 }
 
-/** Per repository cache of PR lookups (answers (a failure or timeout is never kept)) for five minutes; a forced refresh skips it; one gh call per repository is shared while running. */
+interface Shared { p: Promise<PrResult>; ac: AbortController; waiters: number; }
+
+/** Per repository cache of PR lookups (an answer is kept for five minutes; a failure or timeout never is); a forced refresh skips it.
+ *  One gh call per repository is shared while it runs. The cache owns that call's abort controller: a caller whose own signal
+ *  aborts stops waiting, and the call is killed only when no caller is left (or at its own timeout). */
 export class PrCache {
   private m = new Map<string, { at: number; r: PrResult }>();
-  private running = new Map<string, Promise<PrResult>>();
+  private running = new Map<string, Shared>();
+
   async get(c: Ctx, key: string, cwd: string, force: boolean, now: number): Promise<PrResult> {
     const hit = this.m.get(key);
     if (hit && !force && now - hit.at < PR_CACHE_MS) { return hit.r; }
-    const live = this.running.get(key);
-    if (live) { return live; }
-    const p = fetchPrs(c, cwd).then((r) => {
+    const e = this.running.get(key) ?? this.start(c, key, cwd, now);
+    return this.wait(e, key, c.signal);
+  }
+
+  private start(c: Ctx, key: string, cwd: string, now: number): Shared {
+    const ac = new AbortController();
+    const p = fetchPrs({ ...c, signal: ac.signal }, cwd).catch((): PrResult => ({ byBranch: new Map(), error: 'gh failed' })).then((r) => {
       if (!r.error || r.missing) { this.m.set(key, { at: now, r }); }
       return r;
-    }).finally(() => this.running.delete(key));
-    this.running.set(key, p);
-    return p;
+    }).finally(() => { if (this.running.get(key) === e) { this.running.delete(key); } });
+    const e: Shared = { p, ac, waiters: 0 };
+    this.running.set(key, e);
+    return e;
+  }
+
+  /** One caller's wait: ends with the shared answer, or as canceled when this caller's signal aborts first. */
+  private wait(e: Shared, key: string, signal?: AbortSignal): Promise<PrResult> {
+    e.waiters++;
+    return new Promise<PrResult>((resolve) => {
+      let left = false;
+      const leave = (): boolean => { if (left) { return false; } left = true; signal?.removeEventListener('abort', onAbort); e.waiters--; return true; };
+      const onAbort = (): void => {
+        if (!leave()) { return; }
+        resolve({ byBranch: new Map(), error: 'canceled' });
+        if (e.waiters <= 0) { if (this.running.get(key) === e) { this.running.delete(key); } e.ac.abort(); }
+      };
+      if (signal?.aborted) { onAbort(); return; }
+      signal?.addEventListener('abort', onAbort, { once: true });
+      void e.p.then((r) => { if (leave()) { resolve(r); } });
+    });
   }
 }

@@ -10,7 +10,10 @@ export interface FolderFacts {
   staged: number; modified: number; untracked: number; files: FileChange[]; fileTotal: number;
   ahead: number; behind: number; upstream?: string; gone?: boolean;
 }
-export interface WorktreeInfo { path: string; branch: string; detached: boolean; main: boolean; missing: boolean; }
+export interface WorktreeInfo {
+  path: string; branch: string; detached: boolean; main: boolean; missing: boolean;
+  head: string; locked: boolean; lockReason?: string; prunable: boolean; // head is the full commit id; locked and prunable come from `worktree list --porcelain`
+}
 export interface BranchAhead { name: string; ahead: number; gone: boolean; }
 export interface RepoFacts { common: string; name: string; main: string; worktrees: WorktreeInfo[]; branches: BranchAhead[]; }
 export interface PrInfo { number: number; title: string; draft: boolean; review: string; url?: string; }

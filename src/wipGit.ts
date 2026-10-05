@@ -5,7 +5,8 @@ import { MAX_COMMITS, parseCommits, parseStatus, parseTrack, parseWorktrees, REF
 import { emptyFolder, FolderFacts, RepoFacts } from './wipTypes';
 
 /** Everything a scan needs: the runner, cancellation, timeouts and flags raised on the way. */
-export interface Ctx { exec: Exec; signal?: AbortSignal; gitMs: number; ghMs: number; flags: { gitMissing: boolean }; }
+/** ghExec runs gh when set (gh has its own limit, not the git slots); otherwise exec runs it. */
+export interface Ctx { exec: Exec; ghExec?: Exec; signal?: AbortSignal; gitMs: number; ghMs: number; flags: { gitMissing: boolean }; }
 
 const GIT_OK = new Set(['rev-parse', 'symbolic-ref', 'status', 'worktree', 'for-each-ref', 'rev-list']);
 const GH_OK = ['pr', 'list'];
@@ -21,7 +22,7 @@ export async function git(c: Ctx, cwd: string, args: string[]): Promise<ExecResu
 /** Run the one allowed gh command (pr list). */
 export function gh(c: Ctx, cwd: string, args: string[]): Promise<ExecResult> {
   if (args[0] !== GH_OK[0] || args[1] !== GH_OK[1]) { throw new Error('gh command not allowed: ' + args[0]); }
-  return c.exec('gh', args, { cwd, timeout: c.ghMs, signal: c.signal });
+  return (c.ghExec ?? c.exec)('gh', args, { cwd, timeout: c.ghMs, signal: c.signal });
 }
 
 /** Short reason for a failed command, never raw output. */
@@ -78,4 +79,30 @@ export async function trackOf(c: Ctx, top: string, branch: string): Promise<Retu
 export async function unpushedOf(c: Ctx, top: string): Promise<Array<{ sha: string; subject: string }> | string> {
   const r = await git(c, top, ['rev-list', '--max-count=' + MAX_COMMITS, '--format=%h%x09%s', '@{u}..HEAD']);
   return r.code === 0 ? parseCommits(r.stdout) : whyFailed(r);
+}
+
+const REF_SAFE = /^[A-Za-z0-9._][A-Za-z0-9._/-]*$/;
+const SHA_SAFE = /^[0-9a-f]{7,64}$/;
+
+/** The remote's default branch as `origin/main`; undefined (default branch unknown) when git has none or the name is unusual. */
+export async function defaultBranchOf(c: Ctx, cwd: string): Promise<string | undefined> {
+  const r = await git(c, cwd, ['rev-parse', '--abbrev-ref', 'origin/HEAD']);
+  const v = r.stdout.trim();
+  return r.code === 0 && v !== 'origin/HEAD' && REF_SAFE.test(v) ? v : undefined;
+}
+
+export const MAX_MERGED = 500;
+
+/** Local branches already merged into def (one for-each-ref call); a failed call returns its reason. */
+export async function mergedOf(c: Ctx, cwd: string, def: string): Promise<string[] | string> {
+  if (!REF_SAFE.test(def)) { return 'default branch unknown'; }
+  const r = await git(c, cwd, ['for-each-ref', '--merged=' + def, '--format=%(refname:short)', 'refs/heads']);
+  return r.code === 0 ? r.stdout.split(/\r?\n/).filter(Boolean).slice(0, MAX_MERGED) : whyFailed(r);
+}
+
+/** True when the commit is already inside def (`rev-list --count def..sha` is 0); undefined when it cannot be told. */
+export async function commitMergedOf(c: Ctx, cwd: string, def: string, sha: string): Promise<boolean | undefined> {
+  if (!REF_SAFE.test(def) || !SHA_SAFE.test(sha)) { return undefined; }
+  const r = await git(c, cwd, ['rev-list', '--count', `${def}..${sha}`]);
+  return r.code === 0 ? r.stdout.trim() === '0' : undefined;
 }
