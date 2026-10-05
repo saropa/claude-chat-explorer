@@ -1,13 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Exec, ExecResult, OVERFLOW } from './wipExec';
-import { MAX_COMMITS, parseCommits, parseRefs, parseStatus, parseTrack, parseWorktrees, REF_FORMAT, StatusParts } from './wipParse';
+import { MAX_COMMITS, parseCommits, parseStatus, parseTrack, parseWorktrees, REF_FORMAT, StatusParts } from './wipParse';
 import { emptyFolder, FolderFacts, RepoFacts } from './wipTypes';
 
 /** Everything a scan needs: the runner, cancellation, timeouts and flags raised on the way. */
 export interface Ctx { exec: Exec; signal?: AbortSignal; gitMs: number; ghMs: number; flags: { gitMissing: boolean }; }
 
-const GIT_OK = new Set(['rev-parse', 'status', 'worktree', 'for-each-ref', 'rev-list']);
+const GIT_OK = new Set(['rev-parse', 'symbolic-ref', 'status', 'worktree', 'for-each-ref', 'rev-list']);
 const GH_OK = ['pr', 'list'];
 
 /** Run one read-only git command; a command outside the allowed list throws before anything starts. */
@@ -33,13 +33,22 @@ const isDir = async (p: string): Promise<boolean> => { try { return (await fs.pr
 /** Folder check plus `git rev-parse`: missing, not a git folder, unavailable, or ok with top and common dir. */
 export async function probe(c: Ctx, cwd: string): Promise<FolderFacts> {
   if (!(await isDir(cwd))) { return emptyFolder(cwd, 'missing'); }
-  let r = await git(c, cwd, ['rev-parse', '--show-toplevel', '--git-common-dir', '--abbrev-ref', 'HEAD']);
+  let r = await git(c, cwd, ['rev-parse', '--show-toplevel', '--git-common-dir', '--symbolic-full-name', 'HEAD']);
   if (r.code !== 0 && /not a git repository/i.test(r.stderr)) { return emptyFolder(cwd, 'notgit'); }
-  if (r.code !== 0 && !r.timedOut && !r.aborted && r.code !== 'ENOENT') { r = await git(c, cwd, ['rev-parse', '--show-toplevel', '--git-common-dir']); } // a repository with no commits has no HEAD
+  let noCommits = false;
+  if (r.code !== 0 && !r.timedOut && !r.aborted && r.code !== 'ENOENT') { r = await git(c, cwd, ['rev-parse', '--show-toplevel', '--git-common-dir']); noCommits = r.code === 0; } // a repository with no commits has no HEAD
   const [top, common, head] = r.stdout.split(/\r?\n/);
   if (r.code !== 0 || !top || !common) { return emptyFolder(cwd, /not a git repository/i.test(r.stderr) ? 'notgit' : 'unavailable', whyFailed(r)); }
-  return { ...emptyFolder(cwd, 'ok'), top: await real(top), common: await real(path.resolve(cwd, common)),
-    branch: head && head !== 'HEAD' ? head : undefined, detached: head === 'HEAD' ? true : undefined };
+  const f: FolderFacts = { ...emptyFolder(cwd, 'ok'), top: await real(top), common: await real(path.resolve(cwd, common)) };
+  if (noCommits) {
+    const n = await git(c, cwd, ['symbolic-ref', '--short', 'HEAD']);
+    return { ...f, noCommits: true, branch: n.code === 0 ? n.stdout.trim() || undefined : undefined };
+  }
+  if (head === 'HEAD') {
+    const s = await git(c, cwd, ['rev-parse', '--short', 'HEAD']);
+    return { ...f, detached: true, sha: s.code === 0 ? s.stdout.trim() || undefined : undefined };
+  }
+  return { ...f, branch: head?.startsWith('refs/heads/') ? head.slice('refs/heads/'.length) : undefined };
 }
 
 /** `git status` of one worktree top; undefined with the reason when it failed. */
@@ -48,15 +57,15 @@ export async function statusOf(c: Ctx, top: string): Promise<StatusParts | strin
   return r.code === 0 || (r.code === OVERFLOW && r.stdout) ? parseStatus(r.stdout) : whyFailed(r);
 }
 
-/** Worktrees and the branches ahead of (or orphaned from) their upstream, for one repository. */
-export async function repoOf(c: Ctx, common: string, cwd: string): Promise<RepoFacts> {
+/** Worktrees for one repository; a failed `worktree list` returns its reason so the caller can show an error and Retry. */
+export async function repoOf(c: Ctx, common: string, cwd: string): Promise<RepoFacts | string> {
   const wt = await git(c, cwd, ['worktree', 'list', '--porcelain']);
-  const worktrees = wt.code === 0 ? parseWorktrees(wt.stdout) : [];
+  if (wt.code !== 0) { return whyFailed(wt); }
+  const worktrees = parseWorktrees(wt.stdout);
   for (const w of worktrees) { w.missing = !(await isDir(w.path)); }
-  const refs = await git(c, cwd, ['for-each-ref', '--format=' + REF_FORMAT, 'refs/heads']);
   const main = worktrees[0]?.path ?? path.dirname(common);
   const base = path.basename(common) === '.git' ? path.basename(path.dirname(common)) : path.basename(common).replace(/\.git$/, '');
-  return { common, name: base || path.basename(main), main, worktrees, branches: refs.code === 0 ? parseRefs(refs.stdout) : [] };
+  return { common, name: base || path.basename(main), main, worktrees, branches: [] };
 }
 
 /** Upstream, ahead and behind of one branch (one cheap for-each-ref call; no working tree scan). */

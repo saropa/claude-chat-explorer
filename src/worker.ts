@@ -1,7 +1,6 @@
 /** Worker thread entry: owns the index and runs every search, so the extension host never blocks. */
 import { parentPort } from 'worker_threads';
 import { editorIndex } from './editorSearch';
-import { ExportOpts, exportIndex } from './export';
 import { ChatIndex } from './index';
 import { compile } from './query';
 import { fileSessionsOf, FileSessionsReply } from './fileSessions';
@@ -50,7 +49,7 @@ async function init(m: any): Promise<void> {
   ix.watch();
 }
 
-/** Run one cancelable job (search or export): wait for the index, compile, announce 'started', post 'done' with the outcome. */
+/** Run one cancelable job (search or editor): wait for the index, compile, announce 'started', post 'done' with the outcome. */
 async function job(m: any, run: (c: Compiled, sig: Abort) => Promise<object>): Promise<void> {
   const sig: Abort = { aborted: false };
   live.set(m.id, sig);
@@ -76,20 +75,6 @@ function search(m: any): Promise<void> {
       if (r) { pending.push(r); }
       if ((pending.length && !sent) || Date.now() - last >= BATCH_MS) { sent = sent || pending.length > 0; flush(done, total, tally); }
     }, max);
-  });
-}
-
-/** Export every matching line (no result cap); ticks keep the host's stall timer alive. */
-function exportLines(m: any): Promise<void> {
-  const x: ExportOpts = { context: !!m.x?.context, unique: !!m.x?.unique, statuses: m.x?.statuses ?? [] };
-  return job(m, async (c, sig) => {
-    let last = 0;
-    const tick = (done: number, total: number) => {
-      if (Date.now() - last < BATCH_MS) { return; }
-      last = Date.now();
-      post({ t: 'tick', id: m.id, done, total });
-    };
-    return exportIndex(ix!, c, m.o, m.folders ?? [], ctxOf(m), sig, x, tick);
   });
 }
 
@@ -179,7 +164,6 @@ process.on('exit', () => ix?.shutdown());
 port.on('message', (m: any) => {
   if (m.t === 'init') { void init(m); }
   else if (m.t === 'search') { void search(m); }
-  else if (m.t === 'export') { void exportLines(m); }
   else if (m.t === 'editor') { void editorLines(m); }
   else if (m.t === 'cancel') { const s = live.get(m.id); if (s) { s.aborted = true; } }
   else {

@@ -32,7 +32,7 @@ if(el)tipT=setTimeout(()=>tipShow(el),Date.now()-tipOff<300?0:400);});
 document.addEventListener('mouseout',e=>{const el=e.target.closest('[data-tip]');if(el&&!el.contains(e.relatedTarget))tipHide();});
 document.addEventListener('focusin',e=>{const t=e.target,el=t.closest('[data-tip]')||(t.classList.contains('r')?t.querySelector('.t[data-tip]'):null);tipHide();if(el&&t.matches(':focus-visible'))tipShow(el);});
 document.addEventListener('focusout',tipHide);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&tipFor){e.stopPropagation();tipHide();}},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&tipFor)tipHide();},true);
 document.addEventListener('scroll',tipHide,true);
 document.addEventListener('pointerdown',tipHide,true);
 window.addEventListener('blur',tipHide);

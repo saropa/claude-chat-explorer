@@ -73,6 +73,6 @@ export interface Ctx { pins: Set<string>; tags: { [id: string]: string[] }; dots
 export interface ExpandItem { role: string; ts: number; snippet: string; ranges: Array<[number, number]>; sub?: string; desc?: string; }
 export interface Expanded {
   items: ExpandItem[]; total: number;
-  files: Array<{ path: string; edited: boolean }>; commands: string[]; related: Related[];
+  files: Array<{ path: string; edited: boolean }>; commands: string[];
   git: { prs: Array<{ number: number; repository: string }>; commits: Array<{ sha: string; branch: string }>; moreCommits: number };
 }

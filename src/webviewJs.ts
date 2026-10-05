@@ -73,7 +73,7 @@ if(e.target.closest('[data-a=import]')){vs.postMessage({type:'importArchived'});
 const rr=e.target.closest('.rr');if(rr){openId(rr.dataset.id);return;}
 const row=e.target.closest('.r');if(!row)return;const id=row.dataset.id;const a=e.target.closest('[data-a]');
 if(a){const k=a.dataset.a;e.stopPropagation();
-if(k==='exp'){if(open.has(id))open.delete(id);else openCard(id);rerender();}
+if(k==='exp'){if(open.has(id)){open.delete(id);vs.postMessage({type:'cardClosed',id:id});}else openCard(id);rerender();}
 	else if(k==='mx')mxToggle(id);
 else if(k==='pin')vs.postMessage({type:'pin',id:id});
 else if(k==='resume')openId(id);

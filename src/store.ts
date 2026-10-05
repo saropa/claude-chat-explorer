@@ -11,7 +11,6 @@ const HIST_KEY = 'saropaChatExplorer.history';
 const PIN_KEY = 'saropaChatExplorer.pins';
 const STATUS_KEY = 'saropaChatExplorer.statuses';
 const TAG_KEY = 'saropaChatExplorer.tags';
-const EXPORT_KEY = 'saropaChatExplorer.export';
 const ARCH_KEY = 'saropaChatExplorer.archived';
 const UNREAD_KEY = 'saropaChatExplorer.unread';
 const ARCH_OPEN_KEY = 'saropaChatExplorer.archOpen';
@@ -21,7 +20,6 @@ const UNREAD_MAX = 500;
 export type { HistItem };
 export interface Draft extends HistItem { sort: string; }
 export interface Saved extends Draft { results: Result[]; searched: string; totals?: Totals; }
-export interface ExportPrefs { context: boolean; unique: boolean; }
 
 export const normTag = (raw: string): string =>
   raw.trim().toLowerCase().replace(/^tag:/, '').replace(/\s+/g, '-').slice(0, 40);
@@ -81,12 +79,6 @@ export class Store {
   setStatuses(checked: unknown): void {
     this.w.put(STATUS_KEY, Array.isArray(checked) ? STATUS_KEYS.filter((k) => checked.includes(k)) : [...STATUS_KEYS]);
   }
-
-  get exportPrefs(): ExportPrefs {
-    const p = this.read<Partial<ExportPrefs>>(EXPORT_KEY);
-    return { context: !!p?.context, unique: !!p?.unique };
-  }
-  setExportPrefs(p: ExportPrefs): void { this.w.put(EXPORT_KEY, { context: !!p.context, unique: !!p.unique }); }
 
   get pins(): { [id: string]: number } { return this.ctx.globalState.get(PIN_KEY) ?? {}; }
   get tags(): { [id: string]: string[] } { return this.ctx.globalState.get(TAG_KEY) ?? {}; }

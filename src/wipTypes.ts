@@ -6,7 +6,7 @@ export interface FileChange { s: string; p: string; }
 /** What git said about one working folder. */
 export interface FolderFacts {
   cwd: string; state: FolderState; reason?: string;
-  top?: string; common?: string; branch?: string; detached?: boolean;
+  top?: string; common?: string; branch?: string; detached?: boolean; sha?: string; noCommits?: boolean;
   staged: number; modified: number; untracked: number; files: FileChange[]; fileTotal: number;
   ahead: number; behind: number; upstream?: string; gone?: boolean;
 }

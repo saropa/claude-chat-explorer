@@ -11,10 +11,10 @@ const NEARLY_PCT = 80; // Nearly full: context window this full or more
 export const STATUS_KEYS = ['normal', 'active', 'empty', 'tiny', 'huge', 'nearly', 'abandoned', 'pinned'];
 /** Filter list tooltips; Mid-size is the plain-words name of the key 'normal' (kept so saved filters still load). */
 export const STATUS_TIPS: { [k: string]: string } = {
-  normal: `Mid-size: ${TINY_MAX_MSGS + 1} to ${HUGE_MIN_MSGS - 1} messages, under ${HUGE_BYTES / 1048576} MB, active in the last ${ABANDONED_MS / 86400000} days, context under ${NEARLY_PCT}% full, not pinned, and not running, waiting or unread`,
+  normal: `Mid-size: ${TINY_MAX_MSGS + 1} to ${HUGE_MIN_MSGS - 1} messages, ${HUGE_BYTES / 1048576} MB or less, active in the last ${ABANDONED_MS / 86400000} days, context under ${NEARLY_PCT}% full, not pinned, and not running, waiting or unread`,
   active: 'Open chats that are running, waiting for you or unread',
   empty: 'No messages',
-  tiny: `${TINY_MAX_MSGS} messages or fewer`,
+  tiny: `1 to ${TINY_MAX_MSGS} messages`,
   huge: `${HUGE_MIN_MSGS} messages or more, or a transcript over ${HUGE_BYTES / 1048576} MB`,
   nearly: `Context window ${NEARLY_PCT}% full or more`,
   abandoned: `Last active more than ${ABANDONED_MS / 86400000} days ago`,

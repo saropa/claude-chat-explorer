@@ -26,7 +26,6 @@ export const GIT_CSS = String.raw`
 
 export const GIT_JS = String.raw`
 const GIT_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="4" cy="3.5" r="1.6"/><circle cx="4" cy="12.5" r="1.6"/><circle cx="12" cy="6" r="1.6"/><path d="M4 5.1v5.8M12 7.6c0 2.4-3.4 2.4-8 4"/></svg>';
-let gitFocus='';
 function pillHtml(r){const ss=statusesOf(r,pins.has(r.id),Date.now(),(dots[r.id]||{}).s),k=pillOf(ss);if(!k||k==='huge')return '';
 return '<span class="mp st '+k+'" role="img" aria-label="'+esc('Status: '+STATUS_LABELS[k])+'" data-tip="'+esc('Status: '+ss.map(x=>STATUS_LABELS[x]).join(', '))+'">'+STATUS_LABELS[k]+'</span>';}
 function gitIcon(r){const n=(r.prs||0)+(r.commits||0);if(!n)return '';
@@ -52,7 +51,7 @@ return fn(d);}
 function lzSec(key,label,n,fn){return xsec(key,label,n,xo.has(key)?lzBody(key,fn):'','x'+key.slice(0,key.indexOf(':')),true,xo.has(key));}
 function glRow(l,v,tip){return '<div class="gr" data-tip="'+esc(tip)+'"><span class="gk">'+esc(l)+'</span><span class="gv">'+v+'</span></div>';}
 function gitBody(d,e){let h='';const g=(e&&e.full&&e.git)||{prs:[],commits:[],moreCommits:0};
-const b=d.detached?'detached HEAD':(d.branch||'unknown');
+const b=d.detached?'detached at '+(d.sha||'HEAD'):(d.branch||'unknown')+(d.noCommits?' (No commits yet)':'');
 const ab=(d.ahead?' <span class="up" data-tip="'+esc(plur(d.ahead,'commit')+' not pushed to '+(d.upstream||'the upstream branch'))+'">↑'+d.ahead+'</span>':'')+(d.behind?' <span class="dn" data-tip="'+esc(plur(d.behind,'commit')+' on '+(d.upstream||'the upstream branch')+' not in this branch')+'">↓'+d.behind+'</span>':'')+(d.gone?' <span class="gn" data-tip="The upstream branch no longer exists">upstream gone</span>':'');
 h+=glRow('Branch','<span data-tip="'+esc('Branch checked out in the chat\'s folder'+(d.upstream?'\nUpstream: '+d.upstream:''))+'">'+esc(b)+'</span>'+ab,'Branch checked out in the chat\'s working folder');
 h+=glRow('Folder','<span class="gp2" data-tip="'+esc('Worktree path used by this chat\n'+d.top)+'">'+esc(d.top)+'</span>','Worktree path used by this chat');
@@ -67,8 +66,8 @@ return h;}
 function uncBody(d){if(!d.fileTotal)return '<div class="none">No uncommitted files</div>';
 const t=[d.modified?d.modified+' modified':'',d.staged?d.staged+' staged':'',d.untracked?d.untracked+' new':''].filter(Boolean).join(', ');
 return glRow('Files',plur(d.fileTotal,'file')+' <span class="gm">('+esc(t)+')</span>',plur(d.fileTotal,'file')+' not committed: '+t)
-+'<div class="gfs gf0">'+d.files.map((f,i)=>'<span class="gf" data-a="gfile" data-i="'+i+'" role="button" tabindex="0" aria-label="'+esc('Open '+f.p)+'" data-tip="'+esc('Open '+f.p+' ('+({'M':'modified','A':'added','D':'deleted','R':'renamed','?':'new'}[f.s]||'changed')+')')+'"><b>'+esc(f.s)+'</b> '+esc(f.p.split(/[\\/]/).pop())+'</span>').join('')+(d.fileTotal>d.files.length?'<span class="gmore">+'+(d.fileTotal-d.files.length)+' more</span>':'')+'</div>';}
-function unpBody(d){if(!d.ahead)return '<div class="none">'+(d.gone?'The upstream branch no longer exists':d.upstream?'Nothing to push':'This branch has no upstream branch')+'</div>';
++'<div class="gfs">'+d.files.map((f,i)=>'<span class="gf" data-a="gfile" data-i="'+i+'" role="button" tabindex="0" aria-label="'+esc('Open '+f.p)+'" data-tip="'+esc('Open '+f.p+' ('+({'M':'modified','A':'added','D':'deleted','R':'renamed','?':'new'}[f.s]||'changed')+')')+'"><b>'+esc(f.s)+'</b> '+esc(f.p.split(/[\\/]/).pop())+'</span>').join('')+(d.fileTotal>d.files.length?'<span class="gmore">+'+(d.fileTotal-d.files.length)+' more</span>':'')+'</div>';}
+function unpBody(d){if(!d.ahead)return '<div class="none">'+(d.detached?'Detached HEAD: no branch to push':d.noCommits?'No commits yet':d.gone?'The upstream branch no longer exists':d.upstream?'Nothing to push':'This branch has no upstream branch')+'</div>';
 return d.commits.map(c=>'<div class="gw" data-tip="'+esc(c.sha+' '+c.subject)+'"><span class="gp2">'+esc(c.sha)+'</span> '+esc(c.subject)+'</div>').join('')+(d.ahead>d.commits.length?'<div class="gmore">+'+(d.ahead-d.commits.length)+' more</div>':'');}
 function wtBody(d){return d.worktrees.length?'<div class="gws">'+d.worktrees.map(w=>'<div class="gw'+(w.here?' here':'')+'" data-tip="'+esc(w.path+(w.main?'\nMain checkout':'\nLinked worktree')+(w.missing?'\nFolder is missing':'')+(w.here?'\nUsed by this chat':''))+'">'+esc(w.path.split(/[\\/]/).pop()||w.path)+' <span class="br">'+esc(w.detached?'detached':w.branch)+(w.here?' · this chat':'')+(w.missing?' · missing':'')+'</span></div>').join('')+'</div>':'<div class="none">No worktrees found</div>';}
 function okN(key,fn){const d=lzData(key);return d&&(!d.state||d.state==='ok')?fn(d):'';}

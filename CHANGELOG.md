@@ -2,10 +2,21 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.19.1 - 2026-10-05
+- Fixed: a chat whose branch has the same name as a tag (for example both called main) showed no upstream and no unpushed commits.
+- Fixed: a chat in detached HEAD now shows "detached at <short id>", and Unpushed commits says "Detached HEAD: no branch to push" instead of "no upstream branch".
+- Fixed: a folder with no commits now shows its branch name and "No commits yet" instead of "unknown".
+- Fixed: when git could not list worktrees (for example it timed out), the Worktrees section said "No worktrees found". It now shows the error with a Retry link.
+- Fixed: Escape closed only the tooltip when one was showing, so the sort and status menus needed two presses. One press now closes both.
+- Fixed: open chats now list first only in All sessions when you are not searching. They no longer reorder a "No matches" list, and pinned chats that are not open stay in their usual place.
+- Fixed: the Tiny tooltip now says "1 to 3 messages" (no messages is Empty). Mid-size now reads "10 MB or less" everywhere, matching Huge ("over 10 MB").
+- Fixed: a Git file or pull request link from a card you closed could still be resolved later. The list is now cleared when a card closes or reopens.
+- Changed: removed code that nothing used (the old export job, saved export options, a leftover related-chats field and two style leftovers).
+
 ## 0.19.0 - 2026-10-04
-- Changed: in a chat card, Git, Uncommitted files, Unpushed commits, Worktrees and Related chats are now five separate sections side by side. All five start collapsed. Nothing is fetched until you open a section, so opening a card is much lighter. Each section shows "Loading..." while it loads and a count when it arrives, and a failed or slow one shows a Retry link. Unpushed commits now lists the commits (short id and subject).
+- Changed: in a chat card, Git, Uncommitted files, Unpushed commits, Worktrees and Related chats are now five separate sections stacked one under the other. All five start collapsed. Nothing is fetched until you open a section, so opening a card is much lighter. Each section shows "Loading..." while it loads and a count when it arrives, and a failed or slow one shows a Retry link. Unpushed commits now lists the commits (short id and subject).
 - Changed: sort and status moved out of the search details into two icon buttons beside the search box. Each opens a small menu (sort choices; a checkable status list) and shows a dot when it is not at its default. Escape or a click outside closes it. Both apply to search results and to All sessions.
-- Changed: the status "Normal" is now called "Mid-size" (a chat with none of the other statuses: 4 to 299 messages, under 10 MB, active in the last 30 days, context under 80 percent, not pinned, not running, waiting or unread). Each status in the list has a tooltip with its exact rule. Your saved status choices still load.
+- Changed: the status "Normal" is now called "Mid-size" (a chat with none of the other statuses: 4 to 299 messages, 10 MB or less, active in the last 30 days, context under 80 percent, not pinned, not running, waiting or unread). Each status in the list has a tooltip with its exact rule. Your saved status choices still load.
 - Changed: in All sessions, chats that are open (with a dot) now list above chats that are not open, even when the others were active more recently, with a thin divider between the two blocks. Pinned chats are unchanged.
 - Changed: the search details are more compact: each drop-down sits beside its label, drop-downs are the same height and corners as the search box and use its colors, and the gap under the "..." button is smaller.
 - Fixed: Up and Down in the search box now only walk the search history. Down in an empty box shows the newest earlier search. Down at the newest end of a non-empty box moves to the first chat in the list.

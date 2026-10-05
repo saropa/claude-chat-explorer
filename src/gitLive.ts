@@ -20,7 +20,7 @@ export interface CommitLive { sha: string; subject: string; }
 /** What one part of a chat card shows (sent to the panel); only the fields of the requested part are filled. */
 export interface GitLive {
   state: 'ok' | 'none' | 'error' | 'timeout'; prPending?: boolean; reason?: string;
-  top?: string; branch?: string; detached?: boolean; upstream?: string; gone?: boolean; ahead: number; behind: number;
+  top?: string; branch?: string; detached?: boolean; sha?: string; noCommits?: boolean; upstream?: string; gone?: boolean; ahead: number; behind: number;
   staged: number; modified: number; untracked: number; fileTotal: number; files: FileChange[];
   worktrees: WtLive[]; prs: PrLive[]; prNote?: string; commits: CommitLive[];
 }
@@ -90,7 +90,7 @@ export class GitLiveService {
     }
   }
 
-  private base(f: FolderFacts): GitLive { return { ...blank('ok'), top: f.top, branch: f.branch, detached: f.detached }; }
+  private base(f: FolderFacts): GitLive { return { ...blank('ok'), top: f.top, branch: f.branch, detached: f.detached, sha: f.sha, noCommits: f.noCommits }; }
 
   private async uncommitted(ctx: Ctx, f: FolderFacts): Promise<Loaded> {
     const s = await statusOf(ctx, f.top!);
@@ -100,7 +100,7 @@ export class GitLiveService {
   }
 
   private async unpushed(ctx: Ctx, f: FolderFacts): Promise<Loaded> {
-    if (!f.branch) { return { live: this.base(f) }; }
+    if (!f.branch || f.noCommits) { return { live: this.base(f) }; }
     const t = await trackOf(ctx, f.top!, f.branch);
     if (typeof t === 'string') { return fail(t); }
     if (!t.upstream || t.gone || !t.ahead) { return { live: { ...this.base(f), upstream: t.upstream, gone: t.gone } }; }
@@ -111,6 +111,7 @@ export class GitLiveService {
 
   private async worktrees(ctx: Ctx, f: FolderFacts): Promise<Loaded> {
     const repo = await repoOf(ctx, f.common ?? f.top!, f.top!);
+    if (typeof repo === 'string') { return fail(repo); }
     return { live: { ...this.base(f), worktrees: repo.worktrees.map((w) => ({ ...w, here: samePath(w.path, f.top!) })) } };
   }
 

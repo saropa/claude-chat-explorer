@@ -5,10 +5,9 @@ export const TIMEOUT_MS = 3000;
 export const TIMEOUT_MSG = 'Search timed out: simplify the pattern';
 export const RESTART_MSG = 'Search worker restarted';
 export const EDITOR_MSG = 'Open in editor interrupted: the search worker restarted. Try again.';
-export const EXPORT_MSG = 'Export interrupted: the search worker restarted. Try again.';
 
 type Msg = { t: string; [k: string]: any };
-type Kind = 'search' | 'export' | 'editor';
+type Kind = 'search' | 'editor';
 interface Job { id: number; kind: Kind; onMsg: (m: Msg) => void; onEnd: (reason: 'done' | 'cancel' | 'timeout' | 'error') => void; timer?: NodeJS.Timeout; told?: boolean; }
 interface Req { resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout; }
 
@@ -24,7 +23,7 @@ type End = 'done' | 'cancel' | 'timeout' | 'error';
 export class WorkerClient {
   private w?: Worker;
   private seq = 0;
-  private jobs = new Map<Kind, Job>(); // one slot per kind: a search never cancels an export
+  private jobs = new Map<Kind, Job>(); // one slot per kind: a search never cancels an editor job
   private reqs = new Map<number, Req>();
   private queue: Msg[] = []; // posts made while no worker is up; sent by start()
   private starts: number[] = [];
@@ -128,14 +127,14 @@ export class WorkerClient {
     const running = [...this.jobs.values()];
     for (const r of this.reqs.values()) { clearTimeout(r.timer); r.reject(new Error(TIMEOUT_MSG)); }
     this.reqs.clear();
-    for (const j of running) { // a timeout is the search's own end; a running export ends with its own message
-      if (why === 'timeout' && j.kind !== 'search') { this.finish(j, 'error', j.kind === 'export' ? EXPORT_MSG : EDITOR_MSG); } else { this.finish(j, why); }
+    for (const j of running) { // a timeout is the search's own end; a running editor job ends with its own message
+      if (why === 'timeout' && j.kind !== 'search') { this.finish(j, 'error', EDITOR_MSG); } else { this.finish(j, why); }
     }
     try { await old?.terminate(); } catch (e) { this.onError?.('worker terminate', e); }
     this.start();
   }
 
-  /** Start a search (or an export job); a running job of the same kind is canceled first. */
+  /** Start a search (or an editor job); a running job of the same kind is canceled first. */
   search(p: { [k: string]: any }, onMsg: Job['onMsg'], onEnd: Job['onEnd'], kind: Kind = 'search'): void {
     this.cancel(kind);
     const j: Job = { id: ++this.seq, kind, onMsg, onEnd };
@@ -150,7 +149,7 @@ export class WorkerClient {
     this.finish(j, 'cancel');
   }
 
-  /** One request with its own timeout; rejects on timeout, restarting the worker; a background request restarts it only while no search or export runs; a soft request never restarts it. */
+  /** One request with its own timeout; rejects on timeout, restarting the worker; a background request restarts it only while no job runs; a soft request never restarts it. */
   request(m: Msg, background = false, soft = false): Promise<any> {
     const req = ++this.seq;
     return new Promise((resolve, reject) => {

@@ -181,7 +181,8 @@ class Provider implements vscode.WebviewViewProvider {
     else if (m.type === 'copyId') { await copyId(id, log); }
     else if (m.type === 'handover') { await this.handover(id, String(m.query ?? '')); }
     else if (m.type === 'archive') { await this.actions?.setArchived(id, !!m.on); }
-    else if (m.type === 'expand') { await this.expand(id, m); }
+    else if (m.type === 'cardClosed') { this.gitTargets.delete(id); } // a closed card keeps no click targets
+    else if (m.type === 'expand') { this.gitTargets.delete(id); await this.expand(id, m); } // a reopened card starts clean
     else if (m.type === 'gitLive' && GIT_PARTS.includes(m.part)) { await this.loadGit(id, m.part as GitPart); }
     else if (m.type === 'related') { await this.loadRelated(id); }
     else if (m.type === 'gitFile') { await this.openGitFile(id, Number(m.i)); }
@@ -271,6 +272,7 @@ class Provider implements vscode.WebviewViewProvider {
   }
 
   private async search(m: any): Promise<void> {
+    this.gitTargets.clear(); // a new list: old cards' click targets are stale
     const query = String(m.query ?? '').trim();
     const o = opts(m);
     const base: Base = { ...o, sort: sortOf(m), query };

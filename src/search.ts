@@ -200,6 +200,6 @@ export function expandChat(ix: Source, chat: Chat, c: Compiled, o: Options, ctx:
   return {
     items: hits.slice(offset, offset + EXPAND_PAGE).map((h) => itemOf(h, c.terms)), total: hits.length,
     files: [...files].slice(0, 50).map(([p, edited]) => ({ path: p, edited })),
-    commands: [...commands].slice(0, 50), related: [], git: lite ? NO_GIT : gitOf(ix, chat, o.subs),
+    commands: [...commands].slice(0, 50), git: lite ? NO_GIT : gitOf(ix, chat, o.subs),
   };
 }

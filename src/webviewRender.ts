@@ -49,7 +49,8 @@ function resultsHtml(rs){const a=ordered(rs);if(!a.length)return '';
 if(sort.value==='time')return groupsHtml(a);
 if(!pinShown())return a.map(rowHtml).join('');
 return sec('sec:res','Results',a.length,a.map(rowHtml).join(''),'sl',takeNote());}
-function openFirst(a){const t=[],r=[];a.forEach(x=>{if(pins.has(x.id)||dots[x.id])t.push(x);else r.push(x);});return{top:t,rest:r};}
+function openFirst(a){const t=[],r=[],on=!lastQ&&lastMsg!=='No matches'; /* open chats first: All sessions list only, never while searching */
+a.forEach(x=>{if(on&&dots[x.id])t.push(x);else r.push(x);});return{top:t,rest:r};}
 function sessBody(a){return sort.value==='time'?groupsHtml(a):a.map(rowHtml).join('');}
 function sessRows(a){const g=openFirst(a);if(!g.top.length||!g.rest.length)return sessBody(a);
 return g.top.map(rowHtml).join('')+'<div class="osep" role="separator"></div>'+sessBody(g.rest);}
