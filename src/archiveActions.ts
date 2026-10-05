@@ -5,7 +5,7 @@ import { readHidden, stateDbOf } from './stateDb';
 import { Store } from './store';
 
 export interface ActionHooks {
-  changed: () => void; // archived set changed: refresh the panel and the Git Activity tree
+  changed: () => void; // archived set changed: refresh the panel
   rebuild: () => void; // unread set changed: recompute dots
 }
 

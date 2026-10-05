@@ -202,7 +202,7 @@ class Provider implements vscode.WebviewViewProvider {
       this.post({ type: 'gitLive', id, data: r.live });
     } catch (e) {
       logErr('git section', e);
-      this.post({ type: 'gitLive', id, data: { state: 'error', reason: 'Could not read git state', ahead: 0, behind: 0, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], worktrees: [], prs: [], prsOff: false } });
+      this.post({ type: 'gitLive', id, data: { state: 'error', reason: 'Could not read git state', ahead: 0, behind: 0, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], worktrees: [], prs: [] } });
     }
   }
 

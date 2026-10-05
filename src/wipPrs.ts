@@ -53,14 +53,20 @@ export async function fetchPrs(c: Ctx, cwd: string): Promise<PrResult> {
   return m ? { byBranch: m } : { byBranch: new Map(), error: 'unreadable gh answer' };
 }
 
-/** Per repository cache of PR lookups (answers and failures alike) for five minutes; a forced refresh skips it. */
+/** Per repository cache of PR lookups (answers and failures alike) for five minutes; a forced refresh skips it; one gh call per repository is shared while running. */
 export class PrCache {
   private m = new Map<string, { at: number; r: PrResult }>();
+  private running = new Map<string, Promise<PrResult>>();
   async get(c: Ctx, key: string, cwd: string, force: boolean, now: number): Promise<PrResult> {
     const hit = this.m.get(key);
     if (hit && !force && now - hit.at < PR_CACHE_MS) { return hit.r; }
-    const r = await fetchPrs(c, cwd);
-    if (!r.error || r.error !== 'canceled') { this.m.set(key, { at: now, r }); }
-    return r;
+    const live = this.running.get(key);
+    if (live) { return live; }
+    const p = fetchPrs(c, cwd).then((r) => {
+      if (!r.error || r.error !== 'canceled') { this.m.set(key, { at: now, r }); }
+      return r;
+    }).finally(() => this.running.delete(key));
+    this.running.set(key, p);
+    return p;
   }
 }

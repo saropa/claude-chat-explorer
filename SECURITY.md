@@ -28,12 +28,12 @@
 - Starts local programs in four places only, all with `execFile` (no shell):
   - `ps -A -o pid=,ppid=` finds parent process ids, to mark which VS Code window owns a session.
   - `sqlite3 -readonly` reads Claude Code's archived-chat list. It runs only when the user runs "Import Archived Chats from Claude Code". It reads a temporary copy of VS Code's `state.vscdb`, which is deleted afterward.
-  - `git`, for the Work in Progress view, read-only, in the working folders of recent chats (5 second limit, 4 at a time, `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`). Exact command lines:
+  - `git`, read-only, in the single working folder of a chat, only when the Git section of that chat's card opens (5 second limit, `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`). Exact command lines:
     - `git rev-parse --show-toplevel --git-common-dir --abbrev-ref HEAD` (or the same without `--abbrev-ref HEAD` when the repository has no commits)
     - `git status --porcelain=v1 --branch -z`
     - `git worktree list --porcelain`
     - `git for-each-ref --format=<name, upstream, track fields> refs/heads`
-  - `gh pr list --state open --limit 100 --json number,title,headRefName,isDraft,reviewDecision`, once per repository, 15 second limit, only while `saropaChatExplorer.lookupPullRequests` is on (the default). Results are kept 5 minutes.
+  - `gh pr list --state open --limit 100 --json number,title,headRefName,isDraft,reviewDecision,url`, once per repository, 15 second limit, only while `saropaChatExplorer.lookupPullRequests` is on (the default). Results are kept 5 minutes. Clicking a PR in the card opens its https address in the browser.
   - The code allows no other git subcommand and no other gh subcommand; any other call throws before it starts. It never runs fetch, pull, checkout, reset, clean, stash, commit, push, worktree add or remove, or gc.
 - Runs its search in a worker thread (`worker_threads`), not a separate process.
 - Opens a chat by calling the Claude Code extension, or by a `vscode://` link to it.

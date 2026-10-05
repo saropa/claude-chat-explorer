@@ -2,6 +2,10 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.17.1 - 2026-10-04
+- Fixed: the 0.17.0 package shipped old compiled files, so the Git section did not work. Packaging now deletes and rebuilds everything first.
+- Changed: the Worktrees row appears only when the repository has more than one worktree, and the worktree the chat uses is marked even when the folder is reached through a link.
+
 ## 0.17.0 - 2026-10-04
 - Changed: git information now lives in the chat card. Expand a chat and open its Git section to see the branch (with commits ahead and behind), files not committed (click a file name to open it), commits not pushed, the worktrees of the chat's repository, the open pull request (click to open it in your browser) and the PRs and commits the chat mentions. The section has a count pill like Related chats, opens by itself when the chat has git state and loads only when the card opens.
 - Removed: the second activity-bar icon "Saropa Git Activity", with its Git Activity tree and Work in Progress view. Their Refresh, Copy Summary, Group by Chat, Group by Worktree and Show Clean Chats commands are gone too.

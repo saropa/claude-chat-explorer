@@ -4,3 +4,11 @@ node_modules/**
 *.vsix
 scripts/**
 plans/**
+.pytest_cache/**
+.git/**
+.github/**
+.vscode/**
+.gitignore
+out/**/*.map
+**/__pycache__/**
+PUBLISHING.md
