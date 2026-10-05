@@ -110,7 +110,7 @@ function emitFound(sc: Scan, f: Found, L: Lines): boolean {
 }
 
 /** True when the parent passes the status filter (all statuses checked passes everything). */
-function statusOk(statuses: string[], f: Found, ctx: Ctx, now: number): boolean {
+export function statusOk(statuses: string[], f: Found, ctx: Ctx, now: number): boolean {
   if (statuses.length >= STATUS_KEYS.length) { return true; }
   const want = new Set(statuses), p = f.p;
   return statusesOf({ msgs: p.count, last: p.last, size: p.size, ctx: ctxInfo(p.use) }, ctx.pins.has(p.id), now, ctx.dots?.[p.id]).some((k) => want.has(k));

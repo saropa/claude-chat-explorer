@@ -5,7 +5,7 @@ export const GIT_CSS = String.raw`
 .gi svg{width:12px;height:12px}
 .gps{display:flex;flex-wrap:wrap;gap:4px}
 .gp{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-width:0;padding:0 7px;border-radius:9px;font-size:0.85em;line-height:18px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
-.gp.cm{font-family:var(--vscode-editor-font-family,monospace);font-size:0.8em;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border,transparent)}
+.gp.cm{font-family:var(--vscode-editor-font-family);font-size:0.8em;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border,transparent)}
 .gp .br{opacity:.75}
 .gr{display:flex;gap:8px;align-items:baseline;margin:2px 0;font-size:0.9em}
 .gk{flex:none;width:84px;color:var(--vscode-descriptionForeground)}
@@ -16,7 +16,7 @@ export const GIT_CSS = String.raw`
 .gfs{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 4px 92px}
 .gf{display:inline-flex;gap:4px;padding:0 6px;border-radius:3px;font-size:0.85em;line-height:18px;cursor:pointer;border:1px solid var(--vscode-widget-border,transparent);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gf:hover,.gf:focus-visible{outline:1px solid var(--vscode-focusBorder)}
-.gp2{font-family:var(--vscode-editor-font-family,monospace);font-size:0.9em}
+.gp2{font-family:var(--vscode-editor-font-family);font-size:0.9em}
 .gw{margin:1px 0}
 .gw.here{font-weight:600}
 .gp.pr{white-space:normal}

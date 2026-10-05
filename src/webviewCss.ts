@@ -2,12 +2,13 @@ export const CSS = String.raw`
 body{padding:6px 0;color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
 .top{padding:0 8px}
 .box{position:relative}
-input[type=text]{width:100%;box-sizing:border-box;padding:3px 98px 3px 6px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);outline:none;font-family:inherit;font-size:inherit}
-input[type=text]:focus{border-color:var(--vscode-focusBorder)}
+input[type=text]{width:100%;height:26px;box-sizing:border-box;padding:4px 98px 4px 6px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);border-radius:2px;outline:none;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
+input[type=text]::placeholder{color:var(--vscode-input-placeholderForeground)}
+input[type=text]:focus{border-color:var(--vscode-focusBorder);outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .opts{position:absolute;right:2px;top:2px;display:flex;gap:1px}
-.opt{width:22px;height:18px;padding:0;box-sizing:border-box;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent;color:var(--vscode-foreground);border:1px solid transparent;border-radius:3px;font-size:12px;font-family:var(--vscode-editor-font-family,monospace)}
-.opt:hover{background:var(--vscode-toolbar-hoverBackground)}
+.opt{width:22px;height:20px;padding:0;box-sizing:border-box;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent;color:var(--vscode-foreground);border:1px solid transparent;border-radius:5px;font-size:12px;font-family:var(--vscode-editor-font-family)}
+.opt:hover{background:var(--vscode-inputOption-hoverBackground,var(--vscode-toolbar-hoverBackground))}
 .opt.on{background:var(--vscode-inputOption-activeBackground);border-color:var(--vscode-inputOption-activeBorder,transparent);color:var(--vscode-inputOption-activeForeground)}
 .opt u{text-decoration:underline}
 .opt:disabled{opacity:.4;cursor:default}
@@ -73,10 +74,10 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .chip.on{outline:1px solid var(--vscode-focusBorder)}
 .cx{font-weight:normal;opacity:.7;cursor:pointer}
 .cx:hover{opacity:1}
-.fp{max-width:100%;overflow:hidden;text-overflow:ellipsis;font-family:var(--vscode-editor-font-family,monospace);background:var(--vscode-editorWidget-background,var(--vscode-badge-background));color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border,transparent)}
+.fp{max-width:100%;overflow:hidden;text-overflow:ellipsis;font-family:var(--vscode-editor-font-family);background:var(--vscode-editorWidget-background,var(--vscode-badge-background));color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border,transparent)}
 .fp.ed{color:var(--vscode-foreground)}
 .m{color:var(--vscode-descriptionForeground);font-size:0.9em}
-.fi{font-family:var(--vscode-editor-font-family,monospace);font-size:0.85em;word-break:break-all;color:var(--vscode-descriptionForeground)}
+.fi{font-family:var(--vscode-editor-font-family);font-size:0.85em;word-break:break-all;color:var(--vscode-descriptionForeground)}
 mark{background:var(--vscode-editor-findMatchHighlightBackground);color:inherit}
 a{color:var(--vscode-textLink-foreground);cursor:pointer}
 `;

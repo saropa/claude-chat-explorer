@@ -1,5 +1,6 @@
 /** Worker thread entry: owns the index and runs every search, so the extension host never blocks. */
 import { parentPort } from 'worker_threads';
+import { editorIndex } from './editorSearch';
 import { ExportOpts, exportIndex } from './export';
 import { ChatIndex } from './index';
 import { compile } from './query';
@@ -92,6 +93,20 @@ function exportLines(m: any): Promise<void> {
   });
 }
 
+/** Every matching line with context for the results editor; ticks keep the host's stall timer alive. */
+function editorLines(m: any): Promise<void> {
+  const x = { statuses: m.x?.statuses ?? [], sort: String(m.x?.sort ?? 'score'), max: clampMax(m.max) };
+  return job(m, async (c, sig) => {
+    let last = 0;
+    const tick = (done: number, total: number) => {
+      if (Date.now() - last < BATCH_MS) { return; }
+      last = Date.now();
+      post({ t: 'tick', id: m.id, done, total });
+    };
+    return editorIndex(ix!, c, m.o, m.folders ?? [], ctxOf(m), sig, x, tick);
+  });
+}
+
 /** Expanded view of one chat; null when the chat is not indexed. */
 async function expand(m: any): Promise<unknown> {
   await loaded;
@@ -158,6 +173,7 @@ port.on('message', (m: any) => {
   if (m.t === 'init') { void init(m); }
   else if (m.t === 'search') { void search(m); }
   else if (m.t === 'export') { void exportLines(m); }
+  else if (m.t === 'editor') { void editorLines(m); }
   else if (m.t === 'cancel') { const s = live.get(m.id); if (s) { s.aborted = true; } }
   else {
     request(m).then((value) => post({ t: 'reply', req: m.req, value }),

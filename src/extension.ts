@@ -23,6 +23,7 @@ import { sessionsDir, stateMap } from './liveState';
 import { Draft, Store } from './store';
 import { Compiled, Options, Result } from './types';
 import { html, NAME } from './webview';
+import { OPEN_EDITOR_CMD, registerEditorView } from './editorView';
 
 const POST_GAP_MS = 100;
 const REVEAL_CMD = 'workbench.view.extension.claudeChatExplorer'; // opens the Saropa Chat Explorer container and its view
@@ -85,6 +86,9 @@ class Provider implements vscode.WebviewViewProvider {
     }
   }
 
+  /** Pins, tags and dots the worker needs for a search. */
+  get searchCtx(): object { return this.ctxMsg; }
+
   private get ctxMsg() { return { pins: Object.keys(this.store.pins), tags: this.store.tags, dots: this.dotNames }; }
 
   /** Dot state names of chats that are not idle, for the worker. */
@@ -139,6 +143,7 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'draft') {
         this.store.setDraft({ ...this.store.draft, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
       } else if (m.type === 'search') { await this.search(m); }
+      else if (m.type === 'openEditor') { await vscode.commands.executeCommand(OPEN_EDITOR_CMD, m); }
       else if (m.type === 'cancel') { this.client.cancel(); }
       else if (m.type === 'sessions') { await this.sessions(m); }
       else if (m.type === 'histAdd') { this.histAdd(m); }
@@ -299,6 +304,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
     }),
     vscode.window.registerWebviewViewProvider('claudeChatExplorer.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
+  registerEditorView(ctx, { client, ctxMsg: () => provider.searchCtx, archived: () => [...store!.archived], log: logErr, resume: (id) => provider.resume(id) },
+    () => ({ ...store!.draft, statuses: store!.statuses }));
   registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
     showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { const was = provider.onIndex; provider.onIndex = () => { was?.(); fn(); }; } });
   registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info, () => provider.watcher, () => warner.atOrAbove80);

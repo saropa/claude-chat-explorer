@@ -2,6 +2,11 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.18.0 - 2026-10-04
+- Added: one summary line under the search box, like VS Code Search: "2,040 results in 265 chats - Open in editor". While a search runs it shows the progress instead, and it is hidden when the search box is empty. It replaces the chat count and match count that used to repeat in the Results header.
+- Added: Open in editor (also the command "Saropa Chat Explorer: Open Results in Editor") opens every match in a read-only editor tab titled "Search: your query". The top says how many results and chats, then each chat has a header line (title, project, date) followed by its matching lines with one line of context above and below. Line numbers are the real line numbers in the chat's JSONL file. Matches are highlighted. Ctrl+click (Cmd+click on Mac) a chat header to resume that chat in the Claude panel. It uses your current query, filters, sort and the Match Case, Whole Word, Any Order and Regex toggles, and says in its header when the result limit cut the list.
+- Changed: the search box and its Aa, ab, shuffle and .* toggles now match VS Code's own input boxes (a little taller, 2px corners, theme placeholder and focus colors). All panel text uses the VS Code font family and the editor font size variables.
+
 ## 0.17.1 - 2026-10-04
 - Fixed: the 0.17.0 package shipped old compiled files, so the Git section did not work. Packaging now deletes and rebuilds everything first.
 - Changed: the Worktrees row appears only when the repository has more than one worktree, and the worktree the chat uses is marked even when the folder is reached through a link.

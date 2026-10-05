@@ -4,10 +4,11 @@ import { Worker } from 'worker_threads';
 export const TIMEOUT_MS = 3000;
 export const TIMEOUT_MSG = 'Search timed out: simplify the pattern';
 export const RESTART_MSG = 'Search worker restarted';
+export const EDITOR_MSG = 'Open in editor interrupted: the search worker restarted. Try again.';
 export const EXPORT_MSG = 'Export interrupted: the search worker restarted. Try again.';
 
 type Msg = { t: string; [k: string]: any };
-type Kind = 'search' | 'export';
+type Kind = 'search' | 'export' | 'editor';
 interface Job { id: number; kind: Kind; onMsg: (m: Msg) => void; onEnd: (reason: 'done' | 'cancel' | 'timeout' | 'error') => void; timer?: NodeJS.Timeout; told?: boolean; }
 interface Req { resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout; }
 
@@ -128,7 +129,7 @@ export class WorkerClient {
     for (const r of this.reqs.values()) { clearTimeout(r.timer); r.reject(new Error(TIMEOUT_MSG)); }
     this.reqs.clear();
     for (const j of running) { // a timeout is the search's own end; a running export ends with its own message
-      if (why === 'timeout' && j.kind === 'export') { this.finish(j, 'error', EXPORT_MSG); } else { this.finish(j, why); }
+      if (why === 'timeout' && j.kind !== 'search') { this.finish(j, 'error', j.kind === 'export' ? EXPORT_MSG : EDITOR_MSG); } else { this.finish(j, why); }
     }
     try { await old?.terminate(); } catch (e) { this.onError?.('worker terminate', e); }
     this.start();

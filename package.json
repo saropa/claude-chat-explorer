@@ -2,7 +2,7 @@
   "name": "claude-chat-explorer",
   "displayName": "Saropa Chat Explorer",
   "description": "Search Claude Code chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
-  "version": "0.17.1",
+  "version": "0.18.0",
   "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
@@ -70,6 +70,10 @@
       {
         "command": "claudeChatExplorer.clearHistory",
         "title": "Saropa Chat Explorer: Clear Search History"
+      },
+      {
+        "command": "saropaChatExplorer.openResultsInEditor",
+        "title": "Saropa Chat Explorer: Open Results in Editor"
       },
       {
         "command": "saropaChatExplorer.importArchived",

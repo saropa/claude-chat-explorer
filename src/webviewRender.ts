@@ -14,7 +14,7 @@ let noteIn='';
 function takeNote(){const n=noteIn;noteIn='';return n?'<span class="sm">'+n+'</span>':'';}
 function chatsN(n){return n+(n===1?' chat':' chats');}
 function sec(key,label,n,body,cls,note){const o=!col.has(key);
-return '<div class="'+cls+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+(note||'')+'<span class="pill" role="img" aria-label="'+chatsN(n)+'" data-tip="'+chatsN(n)+'">'+n+'</span></div>'+(o?body:'');}
+return '<div class="'+cls+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+(note||'')+(key==='sec:res'?'':'<span class="pill" role="img" aria-label="'+chatsN(n)+'" data-tip="'+chatsN(n)+'">'+n+'</span>')+'</div>'+(o?body:'');}
 function ordered(rs,srt){const a=rs.slice(),k=srt||sort.value;
 if(k==='time')a.sort((x,y)=>stamp(y)-stamp(x));
 else if(k==='title')a.sort((x,y)=>x.title.toLowerCase().localeCompare(y.title.toLowerCase()));
@@ -59,10 +59,7 @@ function renderPinned(){
 if(!pinShown()){pinEl.innerHTML='';return;}
 const pl=pinnedLive();pinEl.innerHTML=sec('sec:pin','Pinned',pl.length,pl.map(rowHtml).join(''),'sl');}
 function progTxt(d,t){return d<t?'Searched '+d+' of '+t+' chats':'';}
-function hitsText(n){if(!tot||!tot.totalHits||(!tot.hitsCapped&&tot.totalHits===n))return '';
-const one=tot.totalHits===1&&!tot.hitsCapped;return (tot.hitsCapped?nf(1000000)+'+':nf(tot.totalHits))+(one?' match':' matches');}
-function noteText(n){if(busy||(lastMsg&&lastMsg!=='No matches'))return lastMsg||'';
-return hasResults?hitsText(n):'';}
+function noteText(){return '';}
 function nkey(x,seen){const b=x.dataset.sec?'s:'+x.dataset.sec:'r:'+(x.dataset.id||x.className);seen[b]=(seen[b]||0)+1;return b+'#'+seen[b];}
 function topOf(el,x){while(x&&x.parentNode!==el)x=x.parentNode;return x;}
 function refocus(f,fd){let t=f;if(fd){t=Array.from(f.querySelectorAll(fd.tag)).find(x=>x.dataset.a===fd.a&&x.dataset.t===fd.t&&x.className===fd.c)||f;}if(t.focus)t.focus();}
@@ -77,10 +74,10 @@ old.forEach(o=>o.remove());
 if(ak&&!act.isConnected){const s3={},f=Array.from(el.children).find(c=>nkey(c,s3)===ak);if(f)refocus(f,fd);}}
 function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;
 const base=hasResults?rs.filter(r=>!arch.has(r.id)):sessBase(),keep=stKeep(base);stUi(stCounts(base));
-const capOn=capShown(),t=capOn?'':noteText(keep.length),hid=base.length-keep.length;
+const capOn=capShown(),t=capOn?'':noteText(),hid=base.length-keep.length;
 noteIn=t||hid?esc(t)+stNote(hid,!!t):'';
 patch(list,hasResults?resultsHtml(keep):sessHtml(keep));
 const used=noteIn==='';st.classList.toggle('vh',used);st.textContent=t+(hid?(t?' · ':'')+hid+' hidden by status filter':'');
 if(!used){st.innerHTML=noteIn;noteIn='';}
-$('cap').innerHTML=capHtml();renderPinned();renderArch();stSync();exSync();tipSync();}
+$('cap').innerHTML=capHtml();renderPinned();renderArch();stSync();exSync();sumSync();tipSync();}
 `;
