@@ -33,35 +33,53 @@ function gitIcon(r){const n=(r.prs||0)+(r.commits||0);if(!n)return '';
 const t=(r.prs?r.prs+(r.prs===1?' PR':' PRs'):'')+(r.prs&&r.commits?', ':'')+(r.commits?r.commits+(r.commits===1?' commit':' commits'):'');
 return '<button class="gi" data-a="git" data-tip="'+esc(t+' - show Git section')+'" aria-label="'+esc('Git activity: '+t)+'">'+GIT_SVG+'<span>'+n+'</span></button>';}
 function gitPill(cls,a,k,v,label,tip,br){return '<span class="gp'+cls+'" data-a="'+a+'" data-'+k+'="'+esc(v)+'" role="button" tabindex="0" aria-label="'+esc(tip)+'" data-tip="'+esc(tip)+'">'+esc(label)+(br?' <span class="br">on '+esc(br)+'</span>':'')+'</span>';}
-const gl={};
-const glSeen=new Set();
+const LAZY=/^(git|unc|unp|wt|rel):/;
+const xo=new Set(),lz={};
+function lzLoad(key){const i=key.indexOf(':'),part=key.slice(0,i),id=key.slice(i+1);
+if(lz[key])return;lz[key]={s:'loading'};
+vs.postMessage(part==='rel'?{type:'related',id:id}:{type:'gitLive',id:id,part:part});}
+function lzToggle(key){if(xo.has(key))xo.delete(key);else{xo.add(key);lzLoad(key);}}
+function lzReset(id){['git','unc','unp','wt','rel'].forEach(p=>{const k=p+':'+id;xo.delete(k);delete lz[k];});}
+function lzClear(){xo.clear();Object.keys(lz).forEach(k=>{delete lz[k];});}
+function lzData(key){const s=lz[key];return s&&s.s==='done'?s.data:null;}
+function lzFail(key,why,retry){return '<div class="none">'+esc(why||'Could not load')+(retry?'. <span class="gp" data-a="lretry" data-key="'+esc(key)+'" role="button" tabindex="0" aria-label="Retry loading" data-tip="Load this section again">Retry</span>':'')+'</div>';}
+function lzBody(key,fn){const s=lz[key];
+if(!s||s.s==='loading')return '<div class="m">Loading...</div>';
+if(s.s==='fail')return lzFail(key,s.reason,true);
+const d=s.data;
+if(d&&d.state&&d.state!=='ok')return d.state==='none'?'<div class="none">'+esc(d.reason||'No git information')+'</div>':lzFail(key,d.reason,true);
+return fn(d);}
+function lzSec(key,label,n,fn){return xsec(key,label,n,xo.has(key)?lzBody(key,fn):'','x'+key.slice(0,key.indexOf(':')),true,xo.has(key));}
 function glRow(l,v,tip){return '<div class="gr" data-tip="'+esc(tip)+'"><span class="gk">'+esc(l)+'</span><span class="gv">'+v+'</span></div>';}
-function glPart(r,d){let h='';
-if(d.state==='timeout')return '<div class="none">'+esc(d.reason||'Git info timed out')+'. <span class="gp" data-a="gretry" role="button" tabindex="0" aria-label="Retry loading git info" data-tip="Load the git info again">Retry</span></div>';
-if(d.state!=='ok')return '<div class="none" data-tip="'+esc(d.reason||'')+'">'+esc(d.reason||'No git information')+'</div>';
+function gitBody(d,e){let h='';const g=(e&&e.full&&e.git)||{prs:[],commits:[],moreCommits:0};
 const b=d.detached?'detached HEAD':(d.branch||'unknown');
 const ab=(d.ahead?' <span class="up" data-tip="'+esc(plur(d.ahead,'commit')+' not pushed to '+(d.upstream||'the upstream branch'))+'">↑'+d.ahead+'</span>':'')+(d.behind?' <span class="dn" data-tip="'+esc(plur(d.behind,'commit')+' on '+(d.upstream||'the upstream branch')+' not in this branch')+'">↓'+d.behind+'</span>':'')+(d.gone?' <span class="gn" data-tip="The upstream branch no longer exists">upstream gone</span>':'');
 h+=glRow('Branch','<span data-tip="'+esc('Branch checked out in the chat\'s folder'+(d.upstream?'\nUpstream: '+d.upstream:''))+'">'+esc(b)+'</span>'+ab,'Branch checked out in the chat\'s working folder');
 h+=glRow('Folder','<span class="gp2" data-tip="'+esc('Worktree path used by this chat\n'+d.top)+'">'+esc(d.top)+'</span>','Worktree path used by this chat');
-if(d.fileTotal){const t=[d.modified?d.modified+' modified':'',d.staged?d.staged+' staged':'',d.untracked?d.untracked+' new':''].filter(Boolean).join(', ');
-h+=glRow('Uncommitted',plur(d.fileTotal,'file')+' <span class="gm">('+esc(t)+')</span>',plur(d.fileTotal,'file')+' not committed: '+t);
-h+='<div class="gfs">'+d.files.map((f,i)=>'<span class="gf" data-a="gfile" data-i="'+i+'" role="button" tabindex="0" aria-label="'+esc('Open '+f.p)+'" data-tip="'+esc('Open '+f.p+' ('+({'M':'modified','A':'added','D':'deleted','R':'renamed','?':'new'}[f.s]||'changed')+')')+'"><b>'+esc(f.s)+'</b> '+esc(f.p.split(/[\\/]/).pop())+'</span>').join('')+(d.fileTotal>d.files.length?'<span class="gmore">+'+(d.fileTotal-d.files.length)+' more</span>':'')+'</div>';}
-if(d.ahead)h+=glRow('Unpushed',plur(d.ahead,'commit'),plur(d.ahead,'commit')+' on this branch not pushed to '+(d.upstream||'the upstream branch'));
-if(d.worktrees.length>1)h+=glRow('Worktrees','<div class="gws">'+d.worktrees.map(w=>'<div class="gw'+(w.here?' here':'')+'" data-tip="'+esc(w.path+(w.main?'\nMain checkout':'\nLinked worktree')+(w.missing?'\nFolder is missing':'')+(w.here?'\nUsed by this chat':''))+'">'+esc(w.path.split(/[\\/]/).pop()||w.path)+' <span class="br">'+esc(w.detached?'detached':w.branch)+(w.here?' · this chat':'')+(w.missing?' · missing':'')+'</span></div>').join('')+'</div>','Worktrees of this repository');
 if(d.prs.length)h+=glRow('Pull request',d.prs.map(p=>'<span class="gp pr" data-a="gpr" data-n="'+p.number+'" role="button" tabindex="0" aria-label="'+esc('Open pull request #'+p.number)+'" data-tip="'+esc('Open pull request #'+p.number+' in the browser\n'+p.title+'\nState: open'+(p.draft?', draft':'')+(p.review?', '+p.review:''))+'">#'+p.number+' '+esc(p.title)+' <span class="br">open'+(p.draft?' · draft':'')+'</span></span>').join(''),'Open pull request for this branch');
 else if(d.prPending)h+='<div class="none">Looking up pull requests...</div>';
 else if(d.prNote)h+='<div class="none" data-tip="'+esc('Open pull requests could not be looked up: '+d.prNote)+'">Pull requests unavailable: '+esc(d.prNote)+'</div>';
+let m=g.prs.map(p=>gitPill('','pr','n',p.number,'#'+p.number+(p.repository?' '+p.repository:''),'Search chats that mention PR #'+p.number)).join('');
+m+=g.commits.map(c=>gitPill(' cm','sha','s',c.sha.slice(0,7),c.sha.slice(0,7),'Search chats with commit '+c.sha.slice(0,7),c.branch)).join('');
+if(g.moreCommits>0)m+='<span class="gmore">+'+g.moreCommits+' more</span>';
+if(m)h+=glRow('In this chat','<div class="gps">'+m+'</div>','Pull requests and commits mentioned in this chat; click to search for them');
 return h;}
-function glCount(d){return d&&d.state==='ok'?d.fileTotal+d.ahead+d.prs.length:0;}
-function gitHtml(r,e){const g=e.git||{prs:[],commits:[],moreCommits:0},d=gl[r.id],key='git:'+r.id,sk='gs:'+r.id;
-if(d&&!glSeen.has(sk)){glSeen.add(sk);if(glCount(d)||g.prs.length||g.commits.length)col.delete(key);else col.add(key);}
-let body=d?glPart(r,d):'<div class="none">Loading...</div>';
-let b=g.prs.map(p=>gitPill('','pr','n',p.number,'#'+p.number+(p.repository?' '+p.repository:''),'Search chats that mention PR #'+p.number)).join('');
-b+=g.commits.map(c=>gitPill(' cm','sha','s',c.sha.slice(0,7),c.sha.slice(0,7),'Search chats with commit '+c.sha.slice(0,7),c.branch)).join('');
-if(g.moreCommits>0)b+='<span class="gmore">+'+g.moreCommits+' more</span>';
-if(b)body+=glRow('In this chat','<div class="gps">'+b+'</div>','Pull requests and commits mentioned in this chat; click to search for them');
-const n=d?glCount(d)+g.prs.length+g.commits.length+g.moreCommits:'';
-return xsec(key,'Git',n,body,'xg',true);}
+function uncBody(d){if(!d.fileTotal)return '<div class="none">No uncommitted files</div>';
+const t=[d.modified?d.modified+' modified':'',d.staged?d.staged+' staged':'',d.untracked?d.untracked+' new':''].filter(Boolean).join(', ');
+return glRow('Files',plur(d.fileTotal,'file')+' <span class="gm">('+esc(t)+')</span>',plur(d.fileTotal,'file')+' not committed: '+t)
++'<div class="gfs gf0">'+d.files.map((f,i)=>'<span class="gf" data-a="gfile" data-i="'+i+'" role="button" tabindex="0" aria-label="'+esc('Open '+f.p)+'" data-tip="'+esc('Open '+f.p+' ('+({'M':'modified','A':'added','D':'deleted','R':'renamed','?':'new'}[f.s]||'changed')+')')+'"><b>'+esc(f.s)+'</b> '+esc(f.p.split(/[\\/]/).pop())+'</span>').join('')+(d.fileTotal>d.files.length?'<span class="gmore">+'+(d.fileTotal-d.files.length)+' more</span>':'')+'</div>';}
+function unpBody(d){if(!d.ahead)return '<div class="none">'+(d.gone?'The upstream branch no longer exists':d.upstream?'Nothing to push':'This branch has no upstream branch')+'</div>';
+return d.commits.map(c=>'<div class="gw" data-tip="'+esc(c.sha+' '+c.subject)+'"><span class="gp2">'+esc(c.sha)+'</span> '+esc(c.subject)+'</div>').join('')+(d.ahead>d.commits.length?'<div class="gmore">+'+(d.ahead-d.commits.length)+' more</div>':'');}
+function wtBody(d){return d.worktrees.length?'<div class="gws">'+d.worktrees.map(w=>'<div class="gw'+(w.here?' here':'')+'" data-tip="'+esc(w.path+(w.main?'\nMain checkout':'\nLinked worktree')+(w.missing?'\nFolder is missing':'')+(w.here?'\nUsed by this chat':''))+'">'+esc(w.path.split(/[\\/]/).pop()||w.path)+' <span class="br">'+esc(w.detached?'detached':w.branch)+(w.here?' · this chat':'')+(w.missing?' · missing':'')+'</span></div>').join('')+'</div>':'<div class="none">No worktrees found</div>';}
+function okN(key,fn){const d=lzData(key);return d&&(!d.state||d.state==='ok')?fn(d):'';}
+function relBody(rel){return rel.length?rel.map(relHtml).join(''):'<div class="none">No other chat touched the same files</div>';}
+function lazyHtml(r,e){const id=r.id;
+return safeSec('git',()=>{const k='git:'+id,g=(e&&e.full&&e.git)||{prs:[],commits:[],moreCommits:0};
+return lzSec(k,'Git',okN(k,d=>d.prs.length+g.prs.length+g.commits.length+g.moreCommits),d=>gitBody(d,e));})
++safeSec('uncommitted',()=>lzSec('unc:'+id,'Uncommitted files',okN('unc:'+id,d=>d.fileTotal),uncBody))
++safeSec('unpushed',()=>lzSec('unp:'+id,'Unpushed commits',okN('unp:'+id,d=>d.ahead),unpBody))
++safeSec('worktrees',()=>lzSec('wt:'+id,'Worktrees',okN('wt:'+id,d=>d.worktrees.length),wtBody))
++safeSec('related',()=>{const k='rel:'+id,rel=lzData(k);return lzSec(k,'Related chats',Array.isArray(rel)&&rel.length?rel.length:'',relBody);});}
 function tokRewrite(v,t){const k=t.slice(0,t.indexOf(':')).toLowerCase();let r='',at=0;
 const re=/(?:^|\s)(?:(file|edited|cmd|tag|sha|pr|branch):(?:"[^"]*"?|\S*)|last:\d+(?=\s|$))|"[^"]*(?:"|$)|\S+/gi;
 for(const m of v.matchAll(re)){if(!m[1]||m[1].toLowerCase()!==k)continue;
@@ -70,6 +88,5 @@ while(f<v.length&&/\s/.test(v[f]))f++;r+=v.slice(at,s);at=f;}
 r=(r+v.slice(at)).trimEnd();return r?r+' '+t:t;}
 function addTok(t){q.value=tokRewrite(q.value,t);go();}
 function gitScroll(id){const n=Array.from(document.querySelectorAll('[data-sec]')).find(x=>x.dataset.sec==='git:'+id);if(n)n.scrollIntoView({block:'nearest'});}
-function gitOpen(id){col.delete('git:'+id);glSeen.add('gs:'+id);gitFocus=id;
-if(!open.has(id))openCard(id);rerender();if(ex[id]&&ex[id].full){gitFocus='';gitScroll(id);}}
+function gitOpen(id){if(!open.has(id))openCard(id);xo.add('git:'+id);lzLoad('git:'+id);rerender();gitScroll(id);}
 `;

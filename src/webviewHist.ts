@@ -8,7 +8,8 @@ setOpts(it.when,it.last);q.setSelectionRange(q.value.length,q.value.length);go()
 function histNav(up){
 if(up){if(!history.length)return false;if(histIdx<0)histSnap=cur();
 const n=Math.min(histIdx+1,history.length-1);if(n!==histIdx){histIdx=n;applyState(history[n]);}return true;}
-if(histIdx<0)return false;histIdx--;applyState(histIdx<0?histSnap:history[histIdx]);return true;}
+if(histIdx<0){if(q.value||!history.length)return false;histSnap=cur();histIdx=0;applyState(history[0]);return true;}
+histIdx--;applyState(histIdx<0?histSnap:history[histIdx]);return true;}
 function histEsc(){if(histIdx<0)return false;histIdx=-1;applyState(histSnap);return true;}
 function recordHist(force){clearTimeout(histTimer);const c=cur();
 if(!c.query||!hasResults||busy||stale||c.query!==lastQ||(histIdx>=0&&!force))return;

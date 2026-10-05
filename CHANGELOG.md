@@ -2,6 +2,16 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.19.0 - 2026-10-04
+- Changed: in a chat card, Git, Uncommitted files, Unpushed commits, Worktrees and Related chats are now five separate sections side by side. All five start collapsed. Nothing is fetched until you open a section, so opening a card is much lighter. Each section shows "Loading..." while it loads and a count when it arrives, and a failed or slow one shows a Retry link. Unpushed commits now lists the commits (short id and subject).
+- Changed: sort and status moved out of the search details into two icon buttons beside the search box. Each opens a small menu (sort choices; a checkable status list) and shows a dot when it is not at its default. Escape or a click outside closes it. Both apply to search results and to All sessions.
+- Changed: the status "Normal" is now called "Mid-size" (a chat with none of the other statuses: 4 to 299 messages, under 10 MB, active in the last 30 days, context under 80 percent, not pinned, not running, waiting or unread). Each status in the list has a tooltip with its exact rule. Your saved status choices still load.
+- Changed: in All sessions, chats that are open (with a dot) now list above chats that are not open, even when the others were active more recently, with a thin divider between the two blocks. Pinned chats are unchanged.
+- Changed: the search details are more compact: each drop-down sits beside its label, drop-downs are the same height and corners as the search box and use its colors, and the gap under the "..." button is smaller.
+- Fixed: Up and Down in the search box now only walk the search history. Down in an empty box shows the newest earlier search. Down at the newest end of a non-empty box moves to the first chat in the list.
+- Removed: the Export button in the panel. Open in editor (the summary line under the search box) shows the same matches.
+- Changed: the build check now also covers the collapsed sections, the sort and status menus, the arrow keys and the open-chats-first order.
+
 ## 0.18.2 - 2026-10-04
 - Fixed: a bug since 0.15.2 where expanding a chat that has related chats stayed on "Loading..." forever (no Git section, no Related chats), and the panel then stopped updating while that card was open (search results, status dots and pins froze). A renamed helper was still called by its old name.
 - Fixed: one section that fails to draw (stats, Git, files, Related chats) now shows "Could not show this section" and no longer stops the rest of the card or the panel.

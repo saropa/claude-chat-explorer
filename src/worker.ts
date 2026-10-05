@@ -115,8 +115,14 @@ async function expand(m: any): Promise<unknown> {
   const offset = Math.max(0, Number(m.offset) || 0);
   const lite = m.lite === true;
   const ex = expandChat(ix, chat, compile(m.query, m.o), m.o, ctxOf(m), offset, lite);
-  if (offset === 0 && !lite) { ex.related = ix.related(chat); } // lazy: only on first expand
   return ex;
+}
+
+/** Related chats of one chat, computed only when the card's Related chats section is opened; null when the chat is not indexed. */
+async function related(m: any): Promise<unknown> {
+  await loaded;
+  const chat = ix?.find(m.chat);
+  return ix && chat ? ix.related(chat) : null;
 }
 
 /** Rows for pinned chats, newest first. */
@@ -157,6 +163,7 @@ async function cwdOf(m: any): Promise<string> {
 async function request(m: any): Promise<unknown> {
   if (m.t === 'chatCwd') { return cwdOf(m); }
   if (m.t === 'expand') { return expand(m); }
+  if (m.t === 'related') { return related(m); }
   if (m.t === 'sessions') { return sessions(m); }
   if (m.t === 'fileSessions') { return fileSessions(m); }
   if (m.t === 'handover') { return handover(m); }

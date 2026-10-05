@@ -4,9 +4,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { TIMEOUT_MSG, WorkerClient } from './client';
 import { runExpand } from './expandRun';
-import { GitLive, GitLiveService, GitTargets, timedOutLive, withDeadline, TIMED_OUT, GIT_DEADLINE_MS } from './gitLive';
+import { GIT_PARTS, GitLive, GitLiveService, GitPart, GitTargets, timedOutLive, withDeadline, TIMED_OUT, GIT_DEADLINE_MS } from './gitLive';
 import { IndexStatus } from './indexStatus';
-import { runExport } from './exportRun';
 import { maxResults, pickTotals, Totals } from './maxResults';
 import { opts, sortOf } from './msgOpts';
 import { gitHint } from './gitMatch';
@@ -112,7 +111,7 @@ class Provider implements vscode.WebviewViewProvider {
 
   private restore(): void {
     this.post({ type: 'restore', max: maxResults(), state: this.store.state, history: this.store.history, statuses: this.store.statuses,
-      export: this.store.exportPrefs, archOpen: this.store.archOpen, advOpen: this.store.advOpen });
+      archOpen: this.store.archOpen, advOpen: this.store.advOpen });
     this.postDots();
     void this.postMeta();
     if (this.progress) { this.post({ type: 'indexing', ...this.progress }); }
@@ -138,8 +137,6 @@ class Provider implements vscode.WebviewViewProvider {
       if (!m || typeof m !== 'object') { return; }
       if (m.type === 'ready') { this.restore(); }
       else if (m.type === 'status') { this.store.setStatuses(m.checked); }
-      else if (m.type === 'exportPrefs') { this.store.setExportPrefs({ context: !!m.context, unique: !!m.unique }); }
-      else if (m.type === 'export') { await runExport(m, { client: this.client, store: this.store, post: (x) => this.post(x), logErr, ctxMsg: this.ctxMsg }); }
       else if (m.type === 'draft') {
         this.store.setDraft({ ...this.store.draft, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
       } else if (m.type === 'search') { await this.search(m); }
@@ -185,7 +182,8 @@ class Provider implements vscode.WebviewViewProvider {
     else if (m.type === 'handover') { await this.handover(id, String(m.query ?? '')); }
     else if (m.type === 'archive') { await this.actions?.setArchived(id, !!m.on); }
     else if (m.type === 'expand') { await this.expand(id, m); }
-    else if (m.type === 'gitLive') { await this.loadGit(id); }
+    else if (m.type === 'gitLive' && GIT_PARTS.includes(m.part)) { await this.loadGit(id, m.part as GitPart); }
+    else if (m.type === 'related') { await this.loadRelated(id); }
     else if (m.type === 'gitFile') { await this.openGitFile(id, Number(m.i)); }
     else if (m.type === 'gitPr') { await this.openGitPr(id, Number(m.n)); }
     else if (m.type === 'pin') { await this.store.togglePin(id); await this.postMeta(); }
@@ -197,24 +195,42 @@ class Provider implements vscode.WebviewViewProvider {
     await copyHandover(id, query, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), roots: folderPaths, log: logErr });
   }
 
-  /** Load the Git section data of one chat and post it: the first step (branch, counts) as soon as it is ready, the PR step after; a deadline or failure posts a one-line state. */
-  private async loadGit(id: string): Promise<void> {
-    const post = (live: GitLive, t?: GitTargets): void => { if (t) { this.gitTargets.set(id, t); } else { this.gitTargets.delete(id); } this.post({ type: 'gitLive', id, data: live }); };
+  /** Load one part of a chat card (git, wt, unc or unp) and post it; the git part posts its first step (branch, counts) before the PR step; a deadline or failure posts a one-line state. */
+  private async loadGit(id: string, part: GitPart): Promise<void> {
+    const post = (live: GitLive, t?: GitTargets): void => {
+      if (t) { this.gitTargets.set(id, { ...this.gitTargets.get(id), ...t }); }
+      this.post({ type: 'gitLive', id, part, data: live });
+    };
     try {
       const cwd = await withDeadline(this.client.request({ t: 'chatCwd', chat: id, folders: folderPaths() }, true, true), GIT_DEADLINE_MS);
       const prs = vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false;
       if (cwd === TIMED_OUT) { post(timedOutLive()); return; }
-      const r = await this.gitLive.load(id, typeof cwd === 'string' ? cwd : '', prs, (p) => post(p.live, p.targets));
+      const r = await this.gitLive.load(typeof cwd === 'string' ? cwd : '', part, prs, (p) => post(p.live, p.targets));
       post(r.live, r.targets);
     } catch (e) {
-      logErr('git section', e);
+      logErr('git section ' + part, e);
       post(timedOutLive('error', 'Could not read git state'));
     }
   }
 
+  private readonly relBusy = new Set<string>();
+
+  /** Related chats of one chat, asked when its section is opened; one request per chat at a time (a soft request: a stall fails this card only). */
+  private async loadRelated(id: string): Promise<void> {
+    if (this.relBusy.has(id)) { return; }
+    this.relBusy.add(id);
+    try {
+      const r = await this.client.request({ t: 'related', chat: id }, true, true);
+      if (Array.isArray(r)) { this.post({ type: 'related', id, related: r }); } else { this.post({ type: 'relatedFailed', id, reason: 'This chat is not indexed yet' }); }
+    } catch (e) {
+      logErr('related chats', e);
+      this.post({ type: 'relatedFailed', id, reason: 'Could not load related chats' });
+    } finally { this.relBusy.delete(id); }
+  }
+
   /** Open a changed file listed in a Git section (resolved from the last load, never from a path the panel sent). */
   private async openGitFile(id: string, i: number): Promise<void> {
-    const t = this.gitTargets.get(id), f = t?.files[i];
+    const t = this.gitTargets.get(id), f = t?.files?.[i];
     if (!t || !f) { return; }
     const p = path.resolve(t.top, f.p);
     if (!p.startsWith(t.top + path.sep)) { return; }
@@ -223,7 +239,7 @@ class Provider implements vscode.WebviewViewProvider {
 
   /** Open a pull request page from the Git section. */
   private async openGitPr(id: string, n: number): Promise<void> {
-    const u = this.gitTargets.get(id)?.urls.get(n);
+    const u = this.gitTargets.get(id)?.urls?.get(n);
     if (u) { await vscode.env.openExternal(vscode.Uri.parse(u)); }
   }
 

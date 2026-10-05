@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Exec, ExecResult, OVERFLOW } from './wipExec';
-import { parseRefs, parseStatus, parseWorktrees, REF_FORMAT, StatusParts } from './wipParse';
+import { MAX_COMMITS, parseCommits, parseRefs, parseStatus, parseTrack, parseWorktrees, REF_FORMAT, StatusParts } from './wipParse';
 import { emptyFolder, FolderFacts, RepoFacts } from './wipTypes';
 
 /** Everything a scan needs: the runner, cancellation, timeouts and flags raised on the way. */
@@ -36,9 +36,10 @@ export async function probe(c: Ctx, cwd: string): Promise<FolderFacts> {
   let r = await git(c, cwd, ['rev-parse', '--show-toplevel', '--git-common-dir', '--abbrev-ref', 'HEAD']);
   if (r.code !== 0 && /not a git repository/i.test(r.stderr)) { return emptyFolder(cwd, 'notgit'); }
   if (r.code !== 0 && !r.timedOut && !r.aborted && r.code !== 'ENOENT') { r = await git(c, cwd, ['rev-parse', '--show-toplevel', '--git-common-dir']); } // a repository with no commits has no HEAD
-  const [top, common] = r.stdout.split(/\r?\n/);
+  const [top, common, head] = r.stdout.split(/\r?\n/);
   if (r.code !== 0 || !top || !common) { return emptyFolder(cwd, /not a git repository/i.test(r.stderr) ? 'notgit' : 'unavailable', whyFailed(r)); }
-  return { ...emptyFolder(cwd, 'ok'), top: await real(top), common: await real(path.resolve(cwd, common)) };
+  return { ...emptyFolder(cwd, 'ok'), top: await real(top), common: await real(path.resolve(cwd, common)),
+    branch: head && head !== 'HEAD' ? head : undefined, detached: head === 'HEAD' ? true : undefined };
 }
 
 /** `git status` of one worktree top; undefined with the reason when it failed. */
@@ -56,4 +57,16 @@ export async function repoOf(c: Ctx, common: string, cwd: string): Promise<RepoF
   const main = worktrees[0]?.path ?? path.dirname(common);
   const base = path.basename(common) === '.git' ? path.basename(path.dirname(common)) : path.basename(common).replace(/\.git$/, '');
   return { common, name: base || path.basename(main), main, worktrees, branches: refs.code === 0 ? parseRefs(refs.stdout) : [] };
+}
+
+/** Upstream, ahead and behind of one branch (one cheap for-each-ref call; no working tree scan). */
+export async function trackOf(c: Ctx, top: string, branch: string): Promise<ReturnType<typeof parseTrack> | string> {
+  const r = await git(c, top, ['for-each-ref', '--format=' + REF_FORMAT, 'refs/heads/' + branch]);
+  return r.code === 0 ? parseTrack(r.stdout) : whyFailed(r);
+}
+
+/** The commits on HEAD that the upstream does not have (newest first, capped), with the short id and subject. */
+export async function unpushedOf(c: Ctx, top: string): Promise<Array<{ sha: string; subject: string }> | string> {
+  const r = await git(c, top, ['rev-list', '--max-count=' + MAX_COMMITS, '--format=%h%x09%s', '@{u}..HEAD']);
+  return r.code === 0 ? parseCommits(r.stdout) : whyFailed(r);
 }

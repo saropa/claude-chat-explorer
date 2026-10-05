@@ -27,7 +27,7 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 #status.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #ah{margin:2px 0 0;font-size:0.85em;color:var(--vscode-descriptionForeground)}
 #ah[hidden]{display:none}
-.sel{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:8px}
+.osep{height:0;margin:3px 10px;border-top:1px solid var(--vscode-widget-border,var(--vscode-descriptionForeground));opacity:.35}
 .nm{padding:4px 10px;color:var(--vscode-descriptionForeground);font-size:0.92em}
 .nm b{font-weight:600;color:var(--vscode-foreground)}
 .sm{flex:1;min-width:0;text-align:right;text-transform:none;letter-spacing:0;font-weight:400;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

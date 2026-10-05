@@ -49,13 +49,16 @@ function resultsHtml(rs){const a=ordered(rs);if(!a.length)return '';
 if(sort.value==='time')return groupsHtml(a);
 if(!pinShown())return a.map(rowHtml).join('');
 return sec('sec:res','Results',a.length,a.map(rowHtml).join(''),'sl',takeNote());}
+function openFirst(a){const t=[],r=[];a.forEach(x=>{if(pins.has(x.id)||dots[x.id])t.push(x);else r.push(x);});return{top:t,rest:r};}
+function sessBody(a){return sort.value==='time'?groupsHtml(a):a.map(rowHtml).join('');}
+function sessRows(a){const g=openFirst(a);if(!g.top.length||!g.rest.length)return sessBody(a);
+return g.top.map(rowHtml).join('')+'<div class="osep" role="separator"></div>'+sessBody(g.rest);}
 function sessHtml(keep){if(!sessOn||!sess)return '';
 const nm=lastMsg==='No matches'?'<div class="nm">No matches for <b>'+esc(lastQ)+'</b></div>':'';
 if(!keep.length)return nm;
-const a=ordered(keep,sort.value==='score'?'time':sort.value);
-if(sort.value==='time')return nm+groupsHtml(a);
-if(!pinShown())return nm+a.map(rowHtml).join('');
-return nm+sec('sec:all','All sessions',a.length,a.map(rowHtml).join(''),'sl',takeNote());}
+const a=ordered(keep,sort.value==='score'?'time':sort.value),body=sessRows(a);
+if(sort.value==='time'||!pinShown())return nm+body;
+return nm+sec('sec:all','All sessions',a.length,body,'sl',takeNote());}
 function pinnedLive(){return pinned.filter(r=>!arch.has(r.id));}
 function pinShown(){return sessOn&&!lastQ&&!busy&&pinnedLive().length>0;}
 function sessBase(){return hasResults||!sessOn||!sess?[]:(pinShown()?sess.rows.filter(r=>!pins.has(r.id)):sess.rows);}
@@ -83,5 +86,5 @@ noteIn=t||hid?esc(t)+stNote(hid,!!t):'';
 patch(list,hasResults?resultsHtml(keep):sessHtml(keep));
 const used=noteIn==='';st.classList.toggle('vh',used);st.textContent=t+(hid?(t?' · ':'')+hid+' hidden by status filter':'');
 if(!used){st.innerHTML=noteIn;noteIn='';}
-$('cap').innerHTML=capHtml();renderPinned();renderArch();stSync();exSync();sumSync();tipSync();}
+$('cap').innerHTML=capHtml();renderPinned();renderArch();sumSync();tipSync();}
 `;

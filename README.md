@@ -8,7 +8,7 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 - Searches subagent transcripts too. A chat's row shows its newest match, even when a subagent wrote it.
 - Click a result to resume that Claude Code session. Resuming needs the Claude Code extension.
 - Shows which Claude session edited this file, from the Explorer, editor or tab menu.
-- Shows the git state of a chat in its expanded card: branch, files not committed, unpushed commits, worktrees and open pull requests.
+- Shows the git state of a chat in its expanded card, one collapsed section at a time: branch and open pull request, files not committed, unpushed commits and worktrees.
 - Runs in the background and reads local files. The extension itself makes no network requests. The optional pull request lookup runs the local `gh` command, which contacts GitHub with your own sign-in (setting `saropaChatExplorer.lookupPullRequests`, on by default).
 
 ## Features
@@ -21,11 +21,11 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 | Quoted phrases | With Match any order on, `"quoted phrases"` stay exact. |
 | Last N messages | `last:<n>` or the "messages to search" dropdown (last 10, 25, 50, 100) searches only the final N messages of each chat. |
 | When filter | "chats active during": any time, last hour, 2, 4 or 8 hours, today, this week or this month. Local time: today starts at midnight, this week at 00:00 on Monday, this month at 00:00 on the 1st. |
-| Search details | The `...` button under the search box (tooltip "Toggle search details") shows or hides the details: chats active during, messages to search, sort results by, and search scope (the All projects and Subagents checkboxes). They start hidden, the choice is remembered per workspace, and a count on the button shows how many of them differ from the defaults; its tooltip lists them. |
+| Search details | The `...` button under the search box (tooltip "Toggle search details") shows or hides the details, each as a label on the left and its control on the right: chats active during, messages to search, and search scope (the All projects and Subagents checkboxes). They start hidden, the choice is remembered per workspace, and a count on the button shows how many of them differ from the defaults; its tooltip lists them. Sort and status are not here: they are the two icon buttons beside the search box. |
 | Open in editor | The summary line under the search box ("2,040 results in 265 chats - Open in editor") opens all matches in a read-only "Search: query" editor tab: a header per chat (Cmd/Ctrl+click resumes it), matching lines with one line of context and real JSONL line numbers, highlighted matches. Also in the Command Palette as "Saropa Chat Explorer: Open Results in Editor". |
 | Result limit | Like VS Code Search, the panel lists at most 500 chats (setting `saropaChatExplorer.maxResults`, 50 to 2000) and says so: "Showing the top 500 of 1,284 chats (21,904 matches)" with a warning to narrow the search. Every match is still counted. A chat shows "9,999+" above 9,999 hits, and totals stop at "1,000,000+". All sessions and Archived show the same notice. |
-| Sort | Set under "sort results by" in the search details. Score, time (grouped by day), title, length, cost or context (fullest first; chats with no usage data last). Pinned chats list first. |
-| Status filter | The Status button next to Export. Include or exclude Normal, Active, Empty, Tiny, Huge, Nearly full (context 80 percent or more), Abandoned and Pinned chats. Active means running, waiting for you or unread, as Claude Code defines it. |
+| Sort | The sort icon beside the search box opens a small menu: Score, Time (grouped by day), Title, Length, Cost or Context (fullest first; chats with no usage data last). Pinned chats list first. It applies to search results and to All sessions. A dot on the icon shows a sort other than Score. Escape or a click outside closes the menu. |
+| Status filter | The funnel icon beside the search box opens a checkable list: Mid-size, Active, Empty, Tiny, Huge, Nearly full (context 80 percent or more), Abandoned and Pinned, each with a count and a tooltip that gives its exact rule. Reset turns them all back on. It applies to search results and to All sessions. A dot on the icon shows that a status is turned off. Mid-size means a chat with none of the other statuses: 4 to 299 messages, under 10 MB, active in the last 30 days, context under 80 percent, not pinned, and not running, waiting or unread. Active means running, waiting for you or unread, as Claude Code defines it. |
 | Subagent search | The Subagents checkbox (under "search scope") is on by default. Subagent matches count toward the chat. When the newest match is a subagent's, the row shows a purple pill with its agent type. |
 | Ranking | Title matches rank first. Recent matches score higher. |
 | Instant results | A background index keeps results fast. Results show while indexing is still running. |
@@ -39,7 +39,7 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 | Highlights | Snippets start just before the first match, so the match is always visible. |
 | Pin and tag | Star a chat to pin it. The pin, archive and tag icons appear over the end of the title when you hover the row or tab into it, so they take no room at rest. Click the tag icon on a row (it also shows when the card is open), type a name and press Enter. Escape cancels. A chat with no tags shows no tag row. Click a tag to filter. |
 | Search tokens | `file:`, `edited:`, `cmd:`, `tag:`, `sha:`, `pr:` and `branch:`. See Search syntax. |
-| Git section | The expanded row has a Git section (a count pill in its header; open when the chat has any git state, collapsed otherwise). It shows the branch with commits ahead and behind, the working folder path, files not committed (count and a list of file names; click opens the file), commits not pushed, the worktrees of the chat's repository (the one this chat used is marked), the open pull request for the branch (number, title, state; click opens it in your browser) and the PRs and commits the chat mentions (click to search for one). It loads when the card opens, with one lookup per working folder. A folder that is missing or not a git folder says so in one line. Every label has a tooltip. |
+| Card sections | The expanded row has five sections, all collapsed when the card opens: Git, Uncommitted files, Unpushed commits, Worktrees and Related chats. Nothing for a section is fetched until you open it; each then shows a quiet "Loading..." and, when it arrives, a count pill. Git shows the branch with commits ahead and behind, the working folder path, the open pull request for the branch (number, title, state; click opens it in your browser) and the PRs and commits the chat mentions (click to search for one). Uncommitted files lists the changed files (click opens the file). Unpushed commits lists the commits not pushed (short id and subject, up to 20). Worktrees lists the worktrees of the chat's repository (the one this chat used is marked). Related chats lists up to 5 other chats that touched the same files. One request per section and working folder runs at a time. A folder that is missing or not a git folder says so in one line. A section that fails shows a Retry link. Every label has a tooltip. |
 | Cost info | Dollars, lines added and removed, and models used, such as `$1.23 · +120/-30 lines · opus, sonnet`. |
 | Status dot and pill | A dot shows Claude Code's own chat state (see Status dot). A chip on the pill line shows Huge, Empty, Tiny or Abandoned. The dot already says Active, so there is no Active chip. |
 | Context pill | A pill on the pill line shows how full a chat's context window is, only from 60 percent: amber at 60 to 79, orange at 80 to 89, red at 90 and above ("82% full"). Hover it for tokens used of the window, the model, the compaction count and notes. The open card always shows a Context stat, such as "82% (164k of 200k, opus-4-6)". Chats with no usage data show nothing. The figure approximates Claude Code's own and lags one turn: it comes from the last reply, so a reply still being written is not counted. |
@@ -48,8 +48,8 @@ Saropa Chat Explorer lets you search your Claude Code chat history from the VS C
 | Archive | Archive chats to move them into a collapsed Archived section. Import Claude Code's archived list once. See Archived chats. |
 | Copy ID | The Copy ID button in the expanded row copies the chat's session id. |
 | Day groups | Time-sorted results are grouped by day. |
-| Related chats | The expanded row lists up to 5 other chats that touched the same files, each with its shared file count and last active time. |
-| Export | The Export button copies or saves one line per matching line, with or without context. It is disabled until a search has results; clicking it then says to run a search first. |
+| Open chats first | In All sessions (no search), chats that are open (they have a dot) list above chats that are not open, with a thin divider between the two blocks, even when the others were active more recently. Each block keeps the chosen sort. Pinned chats stay in their own Pinned section. |
+| Search history | With the cursor in the search box, Up shows the previous search, Down the next one. Down past the newest restores what you typed, and Escape does too. Down in an empty box shows the newest earlier search; in a box with text it moves to the first chat in the list. In the list, Up and Down move between rows. |
 | Chats that touched this file | The Explorer, editor and tab menus and the status bar count open the panel and search `file:<path>`. Each row shows an edited or read pill. |
 | Copy hand-over note | The expanded row's Copy hand-over note button copies the chat title, session id, folder, branch, last active time, context percent and, for file searches, the file and whether it was edited or read. |
 | Responsive layout | The panel fits any width, from a narrow sidebar to a wide editor tab. |
@@ -73,7 +73,7 @@ Extensions panel:
 1. Click the Saropa Chat Explorer icon in the activity bar.
 2. Wait for the first index to finish. Search works on what is indexed so far.
 3. Type a word or phrase. Results appear after you stop typing. Enter searches at once.
-4. Narrow the results with the toggles and the search details (`...`) button (sort, scope, time and message limits).
+4. Narrow the results with the toggles, the sort and status icons, and the search details (`...`) button (scope, time and message limits).
 5. Click a result to resume that session, or click its chevron to read the matching messages.
 6. Tick All projects (in the search details) to search chats from every project, not only this workspace.
 
@@ -123,7 +123,6 @@ An 8 px dot sits left of each chat title. It uses the same states and colors as 
 - The Archived section sits at the bottom of the results. It starts collapsed with a count. Its rows are built only when you expand it. With a query, the count is the number of archived matches.
 - The archive icon on an archived row (or "Unarchive Chat") moves it back.
 - The archive list is shared by all your workspaces. The expanded state is remembered per workspace.
-- Export leaves out archived chats.
 - To bring in the chats you archived in Claude Code, run "Saropa Chat Explorer: Import Archived Chats from Claude Code" from the Command Palette, or press Import in the Archived header. It runs only when you ask, reads the list once and shows how many chats it added.
 - Import needs the `sqlite3` command-line tool on your PATH. If it is missing, or Claude Code has stored no list, you get a message and nothing changes.
 
@@ -146,8 +145,8 @@ These work with the cursor in the search box.
 
 - Reads chat files from `~/.claude/projects` on your machine.
 - Reads Claude Code's live session files in `~/.claude/sessions` (process id, session id and status) to color the dots. It never writes there.
-- When you open a chat card, its Git section runs these local read-only commands with no shell, 5 second limit each, in that chat's working folder: `git rev-parse --show-toplevel --git-common-dir --abbrev-ref HEAD`, `git status --porcelain=v1 --branch -z`, `git worktree list --porcelain` and `git for-each-ref --format=<fields> refs/heads`. It never runs fetch, pull, checkout, reset, clean, stash, commit, push or anything that writes. Git is told not to take optional locks and never to prompt.
-- While `saropaChatExplorer.lookupPullRequests` is on (the default), the Git section runs `gh pr list --state open --limit 100 --json number,title,headRefName,isDraft,reviewDecision,url` once per repository (no shell, 15 second limit, answers kept 5 minutes). The `gh` command contacts GitHub using your own existing `gh` sign-in. The extension adds no network code of its own. Clicking a pull request opens the address `gh` returned (https only) in your browser. Turn the setting off and `gh` is never started. If `gh` is missing, signed out or offline, the section shows one muted line "Pull requests unavailable".
+- When you open a section of a chat card (not when you open the card), it runs these local read-only commands with no shell, 5 second limit each, in that chat's working folder: `git rev-parse --show-toplevel --git-common-dir --abbrev-ref HEAD` (every section), then `git for-each-ref --format=<fields> refs/heads/<branch>` (Git), `git status --porcelain=v1 --branch -z` (Uncommitted files), `git rev-list --max-count=20 --format=<fields> @{u}..HEAD` (Unpushed commits) or `git worktree list --porcelain` and `git for-each-ref --format=<fields> refs/heads` (Worktrees). It never runs fetch, pull, checkout, reset, clean, stash, commit, push or anything that writes. Git is told not to take optional locks and never to prompt.
+- While `saropaChatExplorer.lookupPullRequests` is on (the default), the Git section, when opened, runs `gh pr list --state open --limit 100 --json number,title,headRefName,isDraft,reviewDecision,url` once per repository (no shell, 15 second limit, answers kept 5 minutes). The `gh` command contacts GitHub using your own existing `gh` sign-in. The extension adds no network code of its own. Clicking a pull request opens the address `gh` returned (https only) in your browser. Turn the setting off and `gh` is never started. If `gh` is missing, signed out or offline, the section shows one muted line "Pull requests unavailable".
 - The search cache now also stores each chat's working folder path (the last `cwd` recorded in the chat file).
 - Runs the local `ps -A -o pid=,ppid=` command (no shell, 3 second limit, once per 30 second poll) to read each Claude process's parent process id for the open window marker. The output is parsed in memory and not stored. No network is used.
 - Reads which Claude Code chats are open as tabs from VS Code's workspace storage (`state.vscdb`), with the local `sqlite3` tool, read-only, on a temporary copy that is deleted afterwards. Only session ids are kept.
@@ -155,14 +154,14 @@ These work with the cursor in the search box.
 - Writes a search cache to the extension's global storage folder in VS Code. Message text is stored there in record files, up to 20,000 characters per message (8,000 for subagents). File paths and the first 300 characters of each command are stored too. Tool results are skipped.
 - Pins, tags, archived chats, unread marks, history and options are saved by VS Code in its own storage.
 - The source contains no network, HTTP or telemetry calls of its own. The only programs it starts are `ps` (the open window marker), `sqlite3` (during Import), `git` (Git section, read-only) and `gh` (open PR lookup, on by default; contacts GitHub through your own `gh` sign-in).
-- Resuming a chat hands the session id to the Claude Code extension through a VS Code command, or a VS Code link if the command fails. Export writes only where you choose.
+- Resuming a chat hands the session id to the Claude Code extension through a VS Code command, or a VS Code link if the command fails.
 - Errors go to the "Saropa Chat Explorer" output channel.
 
 ## Performance
 
 - Indexing and search run in a worker thread, so the editor does not freeze.
 - Index data is cached on disk and refreshed incrementally, so later starts are faster than the first.
-- Recently read chat records are cached in memory, up to 64 MB. Results are capped at 500 rows by default (see Result limit). Export is capped at 50,000 lines or 20 MB.
+- Recently read chat records are cached in memory, up to 64 MB. Results are capped at 500 rows by default (see Result limit).
 - A pattern that stalls for 3 seconds is stopped with "Search timed out: simplify the pattern".
 - `node scripts/bench.js` (after `npm run compile`) prints build, load and query timings for your machine. Timings depend on your machine and the size of your chat folder.
 

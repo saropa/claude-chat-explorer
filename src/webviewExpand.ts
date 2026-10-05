@@ -9,7 +9,7 @@ note:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentCol
 read:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.400" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.500l3 3 7-7"/></svg>'};
 let tagIn=null;
 function plur(n,w){return n+' '+w+(n===1?'':'s');}
-function xsec(key,label,n,body,k,pill){const o=!col.has(key),c=n===''?'':pill?'<span class="pill" role="img" aria-label="'+n+'" data-tip="'+n+'">'+n+'</span>':'<span class="xc">'+n+'</span>';
+function xsec(key,label,n,body,k,pill,ov){const o=ov===undefined?!col.has(key):ov,c=n===''?'':pill?'<span class="pill" role="img" aria-label="'+n+'" data-tip="'+n+'">'+n+'</span>':'<span class="xc">'+n+'</span>';
 return '<section class="'+k+'"><div class="xh'+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'" aria-label="'+esc(label+(n===''?'':', '+n))+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+c+'</div>'+(o?'<div class="xb2">'+body+'</div>':'')+'</section>';}
 function xbtn(a,ic,label,txt,cls,extra,tip){return '<button class="xb'+(cls||'')+'" data-a="'+a+'"'+(extra||'')+' aria-label="'+label+'" data-tip="'+(tip||label)+'">'+ic+'<span class="xl'+(a==='read'||a==='copyid'||a==='handover'?' xo':'')+'">'+txt+'</span></button>';}
 function actHtml(r){const p=pins.has(r.id),ia=arch.has(r.id);
@@ -40,16 +40,12 @@ if(e.commands.length)h+=xsec('cmd:'+r.id,'Matched commands',e.commands.length,e.
 return h;}
 function relHtml(x){const n=plur(x.shared,'shared file'),now=Date.now();
 return '<div class="rr" data-id="'+esc(x.id)+'" tabindex="0" role="button" aria-label="'+esc(x.title+', '+n+', active '+agoLong(x.last,now)+'. Resume')+'" data-tip="'+esc(x.title+'\n'+full(x.last))+'">'+dotHtml(x.id)+'<span class="t">'+esc(x.title)+'</span><span class="sh">'+n+'</span>'+timeText(x.last,now)+'</div>';}
-const relSeen=new Set();
-function relBlock(r,e){const rel=e.related||[],key='rel:'+r.id;
-if(!relSeen.has(key)){relSeen.add(key);if(rel.length)col.delete(key);else col.add(key);}
-return xsec(key,'Related chats',rel.length||'',rel.length?rel.map(relHtml).join(''):'<div class="none">No other chat touched the same files</div>','xr',true);}
 function safeSec(name,fn){try{return fn();}catch(err){console.error('section '+name,err);return '<div class="none">Could not show this section ('+name+')</div>';}}
 function loadHtml(e){return e&&e.failed?'<div class="none">'+esc(e.reason||'Could not load details')+'. <span class="gp" data-a="xretry" role="button" tabindex="0" aria-label="Retry loading details" data-tip="Load the details again">Retry</span></div>':'<div class="m">Loading...</div>';}
 function exHtml(r){const e=ex[r.id],f=e&&e.full,t=r.title;
-const left=safeSec('stats',()=>statsHtml(r))+safeSec('tags',()=>tagsHtml(r))+(f?safeSec('git',()=>gitHtml(r,e)):'');
+const left=safeSec('stats',()=>statsHtml(r))+safeSec('tags',()=>tagsHtml(r));
 const mid=f?safeSec('files',()=>filesHtml(r,e)):loadHtml(e);
-return '<div class="ex" role="region" aria-label="Details: '+esc(t)+'">'+safeSec('actions',()=>actHtml(r))+'<div class="xca">'+mid+'</div><div class="xcl">'+left+'</div>'+(f?'<div class="xcb">'+safeSec('related',()=>relBlock(r,e))+'</div>':'')+'</div>';}
+return '<div class="ex" role="region" aria-label="Details: '+esc(t)+'">'+safeSec('actions',()=>actHtml(r))+'<div class="xca">'+mid+'</div><div class="xcl">'+left+'</div>'+'<div class="xcb">'+lazyHtml(r,e)+'</div></div>';}
 function rowFocus(id,sel){const n=Array.from(document.querySelectorAll('.r')).find(x=>x.dataset.id===id);if(!n)return;n.focus();const f=n.querySelector(sel);if(f)f.focus();}
 function tagOpen(id){tagIn={id:id,v:''};rerender();rowFocus(id,'.tin');}
 function tagClose(id,back){tagIn=null;rerender();if(back)rowFocus(id,'[data-a=addtag]');}

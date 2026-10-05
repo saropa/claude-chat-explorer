@@ -70,3 +70,21 @@ export function parseRefs(out: string): BranchAhead[] {
   }
   return list;
 }
+
+/** Upstream facts of one branch from a for-each-ref line (REF_FORMAT): upstream name, ahead, behind and whether the upstream is gone. */
+export function parseTrack(out: string): { upstream?: string; ahead: number; behind: number; gone: boolean } {
+  const [, up = '', track = ''] = (out.split(/\r?\n/)[0] ?? '').split('\t');
+  return { upstream: up || undefined, ahead: num(/ahead (\d+)/, track), behind: num(/behind (\d+)/, track), gone: /\bgone\b/.test(track) };
+}
+
+export const MAX_COMMITS = 20;
+
+/** Parse `rev-list --format=%h%x09%s`: the "commit <id>" header lines are skipped, each other line is a short id and a subject. */
+export function parseCommits(out: string): Array<{ sha: string; subject: string }> {
+  const list: Array<{ sha: string; subject: string }> = [];
+  for (const line of out.split(/\r?\n/)) {
+    const i = line.indexOf('\t');
+    if (i > 0 && list.length < MAX_COMMITS) { list.push({ sha: line.slice(0, i), subject: line.slice(i + 1).replace(/[\u0000-\u001f]/g, ' ').slice(0, 120) }); }
+  }
+  return list;
+}

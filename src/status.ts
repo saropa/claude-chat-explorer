@@ -9,11 +9,22 @@ const HUGE_BYTES = 10 * 1024 * 1024; // Huge: or a file larger than this
 const NEARLY_PCT = 80; // Nearly full: context window this full or more
 
 export const STATUS_KEYS = ['normal', 'active', 'empty', 'tiny', 'huge', 'nearly', 'abandoned', 'pinned'];
+/** Filter list tooltips; Mid-size is the plain-words name of the key 'normal' (kept so saved filters still load). */
+export const STATUS_TIPS: { [k: string]: string } = {
+  normal: `Mid-size: ${TINY_MAX_MSGS + 1} to ${HUGE_MIN_MSGS - 1} messages, under ${HUGE_BYTES / 1048576} MB, active in the last ${ABANDONED_MS / 86400000} days, context under ${NEARLY_PCT}% full, not pinned, and not running, waiting or unread`,
+  active: 'Open chats that are running, waiting for you or unread',
+  empty: 'No messages',
+  tiny: `${TINY_MAX_MSGS} messages or fewer`,
+  huge: `${HUGE_MIN_MSGS} messages or more, or a transcript over ${HUGE_BYTES / 1048576} MB`,
+  nearly: `Context window ${NEARLY_PCT}% full or more`,
+  abandoned: `Last active more than ${ABANDONED_MS / 86400000} days ago`,
+  pinned: 'Pinned chats',
+};
 export const STATUS_LABELS: { [k: string]: string } = {
-  normal: 'Normal', active: 'Active', empty: 'Empty', tiny: 'Tiny', huge: 'Huge', nearly: 'Nearly full', abandoned: 'Abandoned', pinned: 'Pinned',
+  normal: 'Mid-size', active: 'Active', empty: 'Empty', tiny: 'Tiny', huge: 'Huge', nearly: 'Nearly full', abandoned: 'Abandoned', pinned: 'Pinned',
 };
 
-/** Every status of a chat; a chat can have several. 'normal' only when it has none of the others. */
+/** Every status of a chat; a chat can have several. 'normal' (shown as Mid-size) only when it has none of the others. */
 export function statusesOf(r: { msgs: number; last: number; size: number; ctx?: { pct: number } }, pinned: boolean, now: number, dot?: string): string[] {
   const out: string[] = [];
   const age = now - r.last;
@@ -38,5 +49,5 @@ export function pillOf(statuses: string[]): string {
 export const STATUS_SRC = [
   'const ACTIVE_DOTS=' + JSON.stringify(ACTIVE_DOTS), 'ABANDONED_MS=' + ABANDONED_MS, 'TINY_MAX_MSGS=' + TINY_MAX_MSGS,
   'HUGE_MIN_MSGS=' + HUGE_MIN_MSGS, 'HUGE_BYTES=' + HUGE_BYTES, 'NEARLY_PCT=' + NEARLY_PCT,
-  'PILL_ORDER=' + JSON.stringify(PILL_ORDER), 'STATUS_KEYS=' + JSON.stringify(STATUS_KEYS), 'STATUS_LABELS=' + JSON.stringify(STATUS_LABELS),
+  'PILL_ORDER=' + JSON.stringify(PILL_ORDER), 'STATUS_KEYS=' + JSON.stringify(STATUS_KEYS), 'STATUS_LABELS=' + JSON.stringify(STATUS_LABELS), 'STATUS_TIPS=' + JSON.stringify(STATUS_TIPS),
 ].join(',') + ';\n' + statusesOf.toString() + '\n' + pillOf.toString() + '\n';
