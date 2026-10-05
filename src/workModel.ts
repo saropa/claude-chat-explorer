@@ -1,7 +1,7 @@
 /**
  * Open Work model: pure, self-contained functions (no outer references except each other) because the page
  * embeds their source via Function.toString(); node checks import the same functions.
- * Slice 2 adds the git rules (To finish, Ready to tidy, Ready to remove); the pull request rules of slice 3 plug into bandOf.
+ * Git rules (To finish, Ready to tidy, Ready to remove) and pull request rules (failing checks, review state, checks pending).
  */
 
 export const BAND_ORDER = ['needs', 'finish', 'waiting', 'tidy', 'idle'];
@@ -11,18 +11,24 @@ export const BAND_CHIP: { [k: string]: string } = { needs: 'need you', finish: '
 
 /**
  * Band of a row from its dot state and, when known, its git view g (ok, files, ahead, gone, up, merged, isDef, ready; a worktree row adds wt and locked).
- * First matching rule wins. Unknown git facts (g missing or not ok) never move a row: it is placed from the facts it has.
+ * g.pr, when a pull request is open on the branch, has review ('approved', 'changes requested', 'review requested' or ''), draft and checks
+ * ('failing', 'pending', 'passing', 'none', or anything else while unknown). First matching rule wins.
+ * Unknown facts (g missing or not ok, checks still loading) never move a row: it is placed from the facts it has.
  */
 export function bandOf(dot: string, g?: any, last?: number, now?: number): string {
   if (g && g.wt) {
     if (g.locked || !g.ok) { return 'idle'; }
+    if (g.pr && g.pr.checks === 'failing') { return 'finish'; }
     if (g.files > 0 || g.ahead > 0) { return 'finish'; }
     return g.ready ? 'tidy' : 'idle';
   }
   if (dot === 'waiting' || dot === 'unread') { return 'needs'; }
+  const p = g && g.ok ? g.pr : undefined;
+  if (p && p.checks === 'failing') { return 'finish'; }
   if (dot === 'running') { return 'waiting'; }
   if (g && g.ok) {
     if (g.files > 0 || g.ahead > 0) { return 'finish'; }
+    if (p) { return p.review === 'changes requested' || (p.review === 'approved' && p.checks !== 'pending') ? 'finish' : 'waiting'; }
     const old = typeof last === 'number' && typeof now === 'number' && now - last >= 3 * 86400000;
     if (g.gone || g.ready || (g.merged && !g.isDef) || (old && (g.up || g.isDef || g.merged))) { return 'tidy'; }
   }
@@ -38,10 +44,13 @@ export function nextStep(dot: string, g?: any): string {
   if (dot === 'unread') { return 'The agent finished while you were away. Open the chat to read it.'; }
   if (dot === 'running') { return 'The agent is working in this chat. Nothing to do yet.'; }
   if (!g || !g.ok) { return 'No open work is known for this chat yet. Git state is not shown.'; }
+  const pr = g.pr ? 'pull request #' + g.pr.n : '';
+  if (pr && g.pr.checks === 'failing') { return 'A check is failing on ' + pr + '. Open the pull request and fix it.'; }
   const todo: string[] = [];
   if (g.files > 0) { todo.push('commit or discard ' + countWord(g.files, 'changed file')); }
   if (g.ahead > 0) { todo.push('push ' + countWord(g.ahead, 'commit')); }
   if (todo.length) { return 'Open work: ' + todo.join(', then ') + '.'; }
+  if (pr) { return g.pr.review === 'changes requested' ? 'Changes were requested on ' + pr + '. Make them and push.' : g.pr.review === 'approved' && g.pr.checks !== 'pending' ? 'The ' + pr + ' is approved. It is ready to merge.' : 'Waiting on ' + pr + ' (review or checks).'; }
   if (g.ready) { return 'This worktree is finished. You can remove it with the copied command.'; }
   if (g.gone) { return 'The remote branch is gone. The branch can be deleted and the chat archived.'; }
   if (g.merged && !g.isDef) { return 'This branch is merged. It can be deleted and the chat archived.'; }
@@ -78,25 +87,31 @@ export function groupRows(rows: Array<{ id: string; last: number; project: strin
  * This is a read-only marker: nothing is ever removed by the extension.
  */
 export function wtReady(w: any, g: any, open: boolean): boolean {
-  if (!w || w.main || w.locked || w.ws || open) { return false; }
+  if (!w || w.main || w.locked || w.ws || open || (g && g.pr)) { return false; }
   if (w.missing) { return true; }
   if (!g || !g.ok || g.files > 0) { return false; }
   if (!(g.ahead === 0 || g.gone)) { return false; }
   return w.merged === true || !!g.gone;
 }
 
-/** What a Mark done remembers: the chat part (last message time, dot state) and the git part (branch, files, ahead; empty while git is unknown). */
+/**
+ * What a Mark done remembers: the chat part (last message time, dot state), the git part (branch, files, ahead; empty while git is unknown)
+ * and the pull request part (number, review state, checks failing yes or no; empty while the pull request layer has not answered or there is no pull request).
+ * Only failing is kept from the checks, so pending turning to passing never brings a row back.
+ */
 export function fingerprint(dot: string, last: number, g?: any): string {
-  return last + '|' + dot + '#' + (g && g.ok ? (g.branch || '') + '|' + g.files + '|' + g.ahead : '');
+  const git = g && g.ok ? (g.branch || '') + '|' + g.files + '|' + g.ahead : '';
+  const pr = g && g.ok && g.pr ? g.pr.n + '|' + (g.pr.review || '') + '|' + (g.pr.checks === 'failing' ? 'F' : '-') : '';
+  return last + '|' + dot + '#' + git + (pr ? '#' + pr : '');
 }
 
-/** True while a marked-done row should stay hidden: the chat part is unchanged, and the git part too whenever git is known now and was known then. */
+/** True while a marked-done row should stay hidden: the chat part is unchanged, and the git part and the pull request part too whenever each is known now and was known then. */
 export function doneHidden(stored: string | undefined, dot: string, last: number, g?: any): boolean {
   if (typeof stored !== 'string') { return false; }
-  const i = stored.indexOf('#'), now = fingerprint(dot, last, g), j = now.indexOf('#');
-  if (i < 0 || stored.slice(0, i) !== now.slice(0, j)) { return false; }
-  const was = stored.slice(i + 1), is = now.slice(j + 1);
-  return !was || !is || was === is;
+  const was = stored.split('#'), is = fingerprint(dot, last, g).split('#');
+  if (was.length < 2 || was[0] !== is[0]) { return false; }
+  for (let k = 1; k < 3; k++) { if (was[k] && is[k] && was[k] !== is[k]) { return false; } }
+  return true;
 }
 
 /** Source of the functions and constants above, for the page script. */

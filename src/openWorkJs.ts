@@ -1,6 +1,7 @@
 import { SHARED_SRC } from './group';
 import { POP_JS, TIP_ENGINE_JS } from './webviewPop';
 import { OW_GIT_JS } from './openWorkGitJs';
+import { OW_PR_JS } from './openWorkPrJs';
 import { WORK_MODEL_SRC } from './workModel';
 
 /** Page script of Open Work. Own scope: it reads only the ids of its own page, and no sidebar global. */
@@ -22,19 +23,21 @@ function dotOf(id){return dots[id]?dots[id].s:'idle';}
 function ctxClass(r){return r.ctx?'l'+ctxLevel(r.ctx.pct):'l0';}
 function btn(a,label,txt,tip){return '<button type="button" class="ab" data-a="'+a+'" aria-label="'+esc(label)+'" data-tip="'+esc(tip||label)+'">'+txt+'</button>';}
 function rowHtml(r,tab){const wt=r.kind==='wt',d=wt?null:dots[r.id],s=wt?'idle':dotOf(r.id),words=dotText(d||{s:'idle'}),age=wt?'':shortAgo(r.last,Date.now()),isOpen=open.has(r.id),t=r.title||(wt?'Worktree':'Untitled chat');
-const c=cellsOf(r),g=viewOf(r),w=wt?r.w:wtOf(r),ready=!!(g&&g.ready),locked=!!(w&&w.locked&&!w.main);
+const c=cellsOf(r),pc=prCells(r),g=viewOf(r),w=wt?r.w:wtOf(r),ready=!!(g&&g.ready),locked=!!(w&&w.locked&&!w.main);
 const stTxt=s==='waiting'?'Waiting for you':s==='unread'?'Unread':s==='running'?'Running':ready?(w&&w.missing?'Folder missing':'Ready to remove'):locked?'Locked':'';
-const label=t+', '+(r.project||'no folder')+(wt?', worktree':'')+(stTxt?', '+stTxt:'')+(age?', active '+age+(age==='now'?'':' ago'):'')+(r.pinned?', pinned':'')+(c.busy?', reading git':'');
+const label=t+', '+(r.project||'no folder')+(wt?', worktree':'')+(stTxt?', '+stTxt:'')+(age?', active '+age+(age==='now'?'':' ago'):'')+(r.pinned?', pinned':'')+(c.busy?', reading git':'')+(pc.busy?', checking pull requests':'');
 const hvT=hv[r.id]==='busy'?'Copying...':hv[r.id]==='done'?'Copied':'Copy note';
 const dot=wt?'<span class="dot none" aria-hidden="true"></span>':d?'<span class="dot '+esc(s)+'" role="img" aria-label="'+esc(words)+'"></span>':'<span class="dot none" aria-hidden="true"></span>';
 const isDone=!wt&&donemap[r.id]!==undefined;
 const acts=(wt?'':btn('open','Open chat: '+t,'Open','Open chat')+btn('handover','Copy hand-over note: '+t,esc(hvT),'Copy hand-over note')+btn('find','Find in the sidebar search: '+t,'Find','Find in the sidebar search')+btn('arch','Archive chat: '+t,'Archive','Archive chat')
 +(isDone?btn('undone','Show again: '+t,'Undo done','Show this row again'):btn('done','Mark done: '+t,'Done',DONE_TIP)))
++prActs(r,t)
 +(c.retry?'<button type="button" class="ab" data-a="fretry" data-k="'+esc(c.retry)+'" aria-label="'+esc('Retry reading git: '+t)+'" data-tip="'+esc(retryTip(gs[c.retry])||'Read git again')+'">Retry</button>':'')
++(pc.retry?'<button type="button" class="ab" data-a="fretry" data-k="'+esc(pc.retry)+'" aria-label="'+esc('Retry pull request lookup: '+t)+'" data-tip="Look up the pull request again">Retry</button>':'')
 +(ready&&w&&!w.main?'<button type="button" class="ab" data-a="rm" data-k="'+esc(w.k)+'" aria-label="'+esc('Copy remove command: '+t)+'" data-tip="Copy a command that removes this finished worktree. Nothing is run.">Copy remove command</button>':'');
-return '<div class="row" role="listitem" data-id="'+esc(r.id)+'" aria-busy="'+(c.busy?'true':'false')+'"><div class="main"><button type="button" class="rb" data-a="row" tabindex="'+(tab?0:-1)+'" aria-expanded="'+isOpen+'" aria-label="'+esc(label)+'">'+dot
+return '<div class="row" role="listitem" data-id="'+esc(r.id)+'" aria-busy="'+(c.busy||pc.busy?'true':'false')+'"><div class="main"><button type="button" class="rb" data-a="row" tabindex="'+(tab?0:-1)+'" aria-expanded="'+isOpen+'" aria-label="'+esc(label)+'">'+dot
 +'<span class="t" data-tip="'+esc(t+(wt?'\nWorktree with no chat':'\n'+words))+'">'+(r.pinned?'<span class="pill">Pinned</span> ':'')+esc(t)+'</span>'
-+'<span class="meta"><span class="pj">'+esc(r.project||'')+'</span><span class="br">'+c.br+'</span><span class="fl">'+c.fl+'</span><span class="ah">'+esc(c.ah)+'</span><span class="cx '+(wt?'l0':ctxClass(r))+'">'+(!wt&&r.ctx?r.ctx.pct+'% full':'')+'</span><span class="st">'+esc(stTxt)+'</span><span class="tm">'+esc(age)+'</span></span></button>'
++'<span class="meta"><span class="pj">'+esc(r.project||'')+'</span><span class="br">'+c.br+'</span><span class="fl">'+c.fl+'</span><span class="ah">'+esc(c.ah)+'</span>'+(prsOn?'<span class="pr">'+pc.pr+'</span><span class="kc">'+pc.ck+'</span>':'')+'<span class="cx '+(wt?'l0':ctxClass(r))+'">'+(!wt&&r.ctx?r.ctx.pct+'% full':'')+'</span><span class="st">'+esc(stTxt)+'</span><span class="tm">'+esc(age)+'</span></span></button>'
 +'<div class="acts">'+acts+'</div></div>'
 +(isOpen?exHtml(r,words,g):'')+'</div>';}
 function exHtml(r,words,g){const wt=r.kind==='wt',kv=wt?[['Worktree',esc(r.title||'')],['Repository',esc(r.project||'')]]:[['Chat',esc(r.title||'Untitled chat')],['Folder',esc(r.project||'')],['Last active',esc(new Date(r.last).toLocaleString())],['Context',r.ctx?esc(ctxStat(r.ctx)):''],['State',esc(words)]];
@@ -56,9 +59,9 @@ if(!vis.length)return err+'<p class="msg">No chats in the last '+days+' days.</p
 const gr=groupRows(vis,dots,group,hidden,bandHeld);
 if(!gr.length)return err+'<p class="msg">Nothing to show with these filters. <button type="button" class="ab" data-a="idle">Show idle</button></p>';
 let tabId=gr.some(g=>g.rows.some(r=>r.id===focusId))?focusId:gr[0].rows[0].id;
-const th='<div class="th" aria-hidden="true"><div class="a"><span></span><span>Chat</span><span>Folder</span><span>Branch</span><span>Files</span><span>Ahead</span><span>Context</span><span>State</span><span>Active</span></div><div class="b"></div></div>';
+const th='<div class="th" aria-hidden="true"><div class="a"><span></span><span>Chat</span><span>Folder</span><span>Branch</span><span>Files</span><span>Ahead</span>'+(prsOn?'<span>PR</span><span>Checks</span>':'')+'<span>Context</span><span>State</span><span>Active</span></div><div class="b"></div></div>';
 return err+th+gr.map(g=>'<section class="band" aria-label="'+esc(g.label)+'"><h2 class="bh" role="heading" aria-level="2">'+esc(g.label)+' <span class="pill">'+g.rows.length+'</span></h2><div role="list">'+g.rows.map(r=>rowHtml(r,r.id===tabId)).join('')+'</div></section>').join('');}
-function layout(){const w=document.documentElement.clientWidth||window.innerWidth||400;$('wrap').classList.toggle('wide',w>=WIDE_PX);}
+function layout(){const w=document.documentElement.clientWidth||window.innerWidth||400;$('wrap').classList.toggle('wide',w>=WIDE_PX);prsUi();}
 function updText(){$('upd').textContent=lastAt?'Updated '+(Date.now()-lastAt<10000?'just now':Math.floor((Date.now()-lastAt)/1000)+' s ago'):'';}
 function render(){lastRender=Date.now();
 try{const ae=document.activeElement,had=ae&&ae.classList&&ae.classList.contains('rb');moving=false;const vis=visibleRows();layout();chips(vis);progUi();noteUi();
@@ -86,6 +89,7 @@ if(k==='retry'||k==='refresh'){refresh();}
 else if(k==='idle'){toggleBand('idle');}
 else if(k==='band'){toggleBand(a.dataset.b);}
 else if(k==='fretry'){retryKey(a.dataset.k);}
+else if(k==='pr'||k==='prc'){const n=Number(a.dataset.n);if(/^r\d+$/.test(a.dataset.k||'')&&n>0)vs.postMessage({type:k==='pr'?'openPr':'copyPr',repo:a.dataset.k,n:n});}
 else if(k==='file'){vs.postMessage({type:'openFile',key:a.dataset.k,i:Number(a.dataset.i)});}
 else if(k==='rm'){vs.postMessage({type:'copyRemove',key:a.dataset.k});}
 else if(k==='more'){vs.postMessage({type:'scanMore'});}
@@ -112,13 +116,15 @@ document.addEventListener('focusout',()=>{if(moving)settle(HOLD_MS);});
 window.addEventListener('resize',layout);
 setInterval(updText,10000);
 window.addEventListener('message',e=>{const d=e.data;if(!d)return;
-if(d.type==='init'){days=d.days||14;if(GROUPS.some(g=>g[0]===d.group))group=d.group;hidden=Array.isArray(d.hidden)?d.hidden.filter(b=>BAND_ORDER.indexOf(b)>=0):[];wsOnly=!!d.wsOnly;wsN=Number(d.ws)||0;donemap=d.done&&typeof d.done==='object'?d.done:{};render();}
+if(d.type==='init'){days=d.days||14;if(GROUPS.some(g=>g[0]===d.group))group=d.group;hidden=Array.isArray(d.hidden)?d.hidden.filter(b=>BAND_ORDER.indexOf(b)>=0):[];wsOnly=!!d.wsOnly;wsN=Number(d.ws)||0;setPrsOn(d.prsOn);donemap=d.done&&typeof d.done==='object'?d.done:{};render();}
 else if(d.type==='chats'){if(d.scan<scan)return;if(d.scan>scan){scanLive=!!d.scanning;prog=null;Object.keys(fwatch).forEach(k=>{clearTimeout(fwatch[k]);});fwatch={};touch();}scan=d.scan;rows=Array.isArray(d.rows)?d.rows:[];pend.clear();loaded=true;failed='';indexing=!!d.indexing;lastAt=Date.now();clearTimeout(watch);render();say(rows.length+' chats shown.');}
 else if(d.type==='chatsFailed'){if(d.scan<scan)return;failed=d.message||'Could not load chats';clearTimeout(watch);render();}
 else if(d.type==='dots'){dots=d.map||{};gotDots=true;sched();}
 else if(d.type==='folder'){onFolder(d);}
 else if(d.type==='repo'){onRepo(d);}
 else if(d.type==='progress'){onProgress(d);}
+else if(d.type==='prs'){onPrs(d);}
+else if(d.type==='checks'){onChecks(d);}
 else if(d.type==='end'){onEnd(d);}
 else if(d.type==='notes'){onNotes(d);}
 else if(d.type==='detail'){onDetail(d);}
@@ -127,4 +133,4 @@ arm();
 vs.postMessage({type:'ready'});
 `;
 
-export const OW_SCRIPT = SHARED_SRC + WORK_MODEL_SRC + POP_JS + TIP_ENGINE_JS + OW_GIT_JS + CORE;
+export const OW_SCRIPT = SHARED_SRC + WORK_MODEL_SRC + POP_JS + TIP_ENGINE_JS + OW_GIT_JS + OW_PR_JS + CORE;

@@ -6,7 +6,7 @@ body{margin:0;padding:12px 16px 24px;line-height:normal;font-weight:normal;color
 button,select,input{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);font-weight:normal;line-height:normal}
 h1{margin:0;font-size:calc(var(--vscode-font-size) + 5px);font-weight:600}
 h2{margin:0;font-size:inherit;font-weight:600}
-#wrap{--acts:400px;max-width:1400px;margin:0 auto}
+#wrap{--acts:400px;--gc:14px minmax(0,3fr) minmax(0,1.5fr) minmax(0,1.2fr) 11ch 10ch 7ch 16ch 7ch;max-width:1400px;margin:0 auto}
 .hr{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .hr .sp{flex:1 1 auto}
 .ab,.chip,.gb{padding:2px 8px;cursor:pointer;color:var(--vscode-button-secondaryForeground);background:var(--vscode-button-secondaryBackground);border:1px solid var(--vscode-contrastBorder,transparent);border-radius:2px}
@@ -56,15 +56,20 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .wide .th{display:flex;align-items:center;gap:0 8px}
 .wide .th span,.wide .meta>span{min-width:0}
 .wide .main{flex-wrap:nowrap}
-.wide .rb{flex:1 1 auto;grid-template-columns:14px minmax(0,3fr) minmax(0,1.5fr) minmax(0,1.2fr) 11ch 10ch 7ch 16ch 7ch;column-gap:8px}
+.wide.wpr{--acts:560px;--gc:14px minmax(0,3fr) minmax(0,1.5fr) minmax(0,1.2fr) 11ch 10ch 14ch 22ch 7ch 16ch 7ch}
+.wide .rb{flex:1 1 auto;grid-template-columns:var(--gc);column-gap:8px}
 .wide .meta{display:contents}
 .wide .acts{flex:none;width:var(--acts);padding:0 4px}
-.wide .th .a{flex:1 1 auto;display:grid;grid-template-columns:14px minmax(0,3fr) minmax(0,1.5fr) minmax(0,1.2fr) 11ch 10ch 7ch 16ch 7ch;column-gap:8px;padding:0 4px}
+.wide .th .a{flex:1 1 auto;display:grid;grid-template-columns:var(--gc);column-gap:8px;padding:0 4px}
 .wide .th .b{flex:none;width:var(--acts);padding:0 4px}
 .meta>span:empty{display:none}
 .wide .meta>span:empty{display:block}
 .pj{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pn,.st,.cx,.tm,.pj,.br,.fl,.ah{white-space:nowrap}
+.pn,.st,.cx,.tm,.pj,.br,.fl,.ah,.pr,.kc{white-space:nowrap}
+.ck{font-weight:600}
+.ck.fail{color:var(--vscode-testing-iconFailed,var(--vscode-errorForeground))}
+.ck.pend{color:var(--vscode-testing-iconQueued,var(--vscode-editorWarning-foreground))}
+.ck.pass{color:var(--vscode-testing-iconPassed,var(--vscode-foreground))}
 .wide .meta>span{overflow:hidden;text-overflow:ellipsis}
 .br{color:var(--vscode-descriptionForeground);overflow:hidden;text-overflow:ellipsis}
 .ah{font-weight:600}

@@ -2,7 +2,7 @@
   "name": "claude-chat-explorer",
   "displayName": "Saropa Chat Explorer",
   "description": "Search your AI agent chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
@@ -195,7 +195,7 @@
         "saropaChatExplorer.lookupPullRequests": {
           "type": "boolean",
           "default": true,
-          "description": "Look up open pull requests for the Git section of a chat card with the gh command (GitHub CLI). This contacts GitHub using your own gh sign-in. Turn it off to never run gh."
+          "description": "Look up open pull requests and their check results (passing, failing, pending) for the Git section of a chat card and for the Open Work page, with the gh command (GitHub CLI). This contacts GitHub using your own gh sign-in. Turn it off to never run gh."
         }
       }
     },
@@ -245,7 +245,7 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "tsc -p .",
-    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_scan.js && node scripts/check_guards.js",
+    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_scan.js && node scripts/check_prs.js && node scripts/check_guards.js",
     "package": "npx @vscode/vsce package --allow-missing-repository --skip-license"
   },
   "devDependencies": {

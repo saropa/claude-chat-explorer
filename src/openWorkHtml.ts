@@ -15,7 +15,7 @@ export function openWorkHtml(): string {
 <style nonce="${nonce}">${OW_CSS}${POP_CSS}${TIP_CSS}</style></head><body>
 <div id="wrap">
 <header id="hd">
-<div class="hr"><h1>${OW_TITLE}</h1><span class="sp"></span>
+<div class="hr"><h1 id="ttl">${OW_TITLE}</h1><span class="sp"></span>
 <div class="pw"><button type="button" class="gb" id="grb" data-tip="Group chats by" aria-label="Group chats by: By attention" aria-haspopup="true" aria-expanded="false" aria-controls="grm"><span id="grt">By attention</span></button>
 <div id="grm" class="pop" role="group" aria-label="Group chats by" hidden></div></div>
 <button type="button" class="chip" id="idl" data-a="idle" aria-pressed="true" data-tip="Show or hide chats with nothing open">Show idle</button>
@@ -25,7 +25,7 @@ export function openWorkHtml(): string {
 </div>
 <div id="cnt" role="group" aria-label="Chats by band"></div>
 <div id="ixs" role="status" hidden><span>Indexing...</span><span>Index still building: list may be incomplete.</span><span class="ixp"><i></i></span><button type="button" class="ab" data-a="retry" aria-label="Retry reading the chat list">Retry</button></div>
-<div id="prog" class="sub" role="progressbar" aria-label="Git progress" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="" hidden></div>
+<div id="prog" class="sub" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="" hidden></div>
 <div id="upd" class="sub"></div>
 <div id="note" class="sub"></div>
 </header>

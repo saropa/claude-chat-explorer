@@ -54,11 +54,10 @@ const fail = (why: string): Loaded => ({ live: blank('error', `Could not read gi
 
 /** Loads one part of a chat card on demand. One load per folder and part runs at a time and a deadline ends it. */
 export class GitLiveService {
-  private readonly cache = new PrCache();
   private readonly running = new Map<string, { p: Promise<Loaded>; subs: Set<Partial_> }>();
 
-  /** exec is how commands run: the sidebar lane of the shared limiter in the extension, a plain runner elsewhere. */
-  constructor(private readonly exec: Exec = realExec) {}
+  /** exec runs git (the sidebar lane of the shared limiter in the extension, a plain runner elsewhere); ghExec runs gh; cache is the PR cache shared with the Open Work page. */
+  constructor(private readonly exec: Exec = realExec, private readonly ghExec: Exec = realExec, private readonly cache: PrCache = new PrCache()) {}
 
   /** Never throws and never waits past the deadline; a timed-out load is aborted and released. onPartial gets the git part's first step before the PR lookup ends. */
   load(cwd: string, part: GitPart, prs: boolean, onPartial?: Partial_): Promise<Loaded> {
@@ -80,7 +79,7 @@ export class GitLiveService {
 
   private async run(cwd: string, part: GitPart, prs: boolean, signal: AbortSignal, onPart: Partial_): Promise<Loaded> {
     try {
-      const ctx: Ctx = { exec: this.exec, ghExec: realExec, gitMs: GIT_MS, ghMs: GH_MS, flags: { gitMissing: false }, signal };
+      const ctx: Ctx = { exec: this.exec, ghExec: this.ghExec, gitMs: GIT_MS, ghMs: GH_MS, flags: { gitMissing: false }, signal };
       const f = await probe(ctx, cwd);
       if (ctx.flags.gitMissing) { return { live: blank('error', 'Git was not found on this computer') }; }
       if (f.state !== 'ok' || !f.top) { return { live: f.state === 'unavailable' ? blank('error', `Git is unavailable: ${f.reason ?? 'error'}`) : blank('none', NONE[f.state]) }; }

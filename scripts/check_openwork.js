@@ -288,6 +288,156 @@ function gitScenario(W) {
 }
 for (const W of [400, 760, 1400]) { gitScenario(W); }
 
+// Slice 3: pull request layer, check states, streaming, hold-still, retry, lookups off.
+function prScenario(W) {
+  const P = createHarness({ page, name: 'openwork-prs@' + W, width: W, popIds: ['grb', 'grm'] });
+  const { els, document, posted, fire, deliver, advance, check, step } = P;
+  const body = els.get('body'), tag = (s) => s + ' at ' + W, prog = els.get('prog');
+  const facts = (o) => Object.assign({ name: 'proj', branch: 'feat', detached: false, upstream: 'origin/feat', ahead: 0, behind: 0, gone: false, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], rk: 'r1', ws: true }, o || {});
+  const fm = (sc, key, state, o) => Object.assign({ type: 'folder', scan: sc, key, state }, o || {});
+  const click = (a, n, data) => fire(body, 'click', { target: target(a, n ? id(n) : '', data ? { dataset: Object.assign({ a }, data) } : undefined) });
+  const rowsP = [row(1, { fk: 'f1', last: NOW - 1 * H }), row(2, { fk: 'f2', last: NOW - 2 * H }), row(3, { last: NOW - 3 * H })];
+  const rowOf = (key) => { const i = body.innerHTML.indexOf('data-id="' + key + '"'); if (i < 0) { return ''; } const j = body.innerHTML.indexOf('class="row"', i); return body.innerHTML.slice(i, j < 0 ? undefined : j); };
+  const inBand = (label, n) => { const i = body.innerHTML.indexOf('aria-label="' + label + '"'); const j = body.innerHTML.indexOf('data-id="' + id(n) + '"'); if (i < 0 || j < 0) { return false; } const next = body.innerHTML.indexOf('<section', i + 10); return j > i && (next < 0 || j < next); };
+  const prs = (state, o) => Object.assign({ type: 'prs', scan: 1, repo: 'r1', state }, o || {});
+  const chk = (n, state, o) => Object.assign({ type: 'checks', scan: 1, repo: 'r1', n, state }, o || {});
+  const BY = { feat: { n: 81, title: 'Fix <b>it</b>', draft: false, review: 'approved', link: true }, other: { n: 82, title: 'Draft one', draft: true, review: '', link: true } };
+  P.start();
+  step('init', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {} }));
+  step('dots', () => deliver({ type: 'dots', map: { [id(1)]: { s: 'running' } } }));
+  step('chats', () => { deliver({ type: 'chats', scan: 1, rows: rowsP, indexing: false, scanning: true }); deliver(fm(1, 'f1', 'ok', { facts: facts() })); deliver(fm(1, 'f2', 'ok', { facts: facts({ branch: 'other' }) })); advance(300); });
+  check(tag('the PR and Checks columns exist when lookups are on'), />PR</.test(body.innerHTML) && />Checks</.test(body.innerHTML) && els.get('wrap').classList.contains('wpr'));
+  check(tag('the header title has no off-tooltip while lookups are on'), !els.get('ttl').dataset.tip);
+  step('queued', () => { deliver(prs('queued')); advance(300); });
+  check(tag('a queued PR layer shows a waiting cell and the row is busy'), /class="q" data-tip="Waiting to look up pull requests"/.test(rowOf(id(1))) && /aria-busy="true"/.test(rowOf(id(1))));
+  check(tag('a chat with no folder has no PR cell state and is not busy'), !/aria-busy="true"/.test(rowOf(id(3))));
+  step('checking', () => { deliver(prs('checking')); deliver({ type: 'progress', scan: 1, git: { done: 2, total: 2 }, prs: { done: 0, total: 1 } }); advance(300); });
+  check(tag('a PR layer being read shows a spinner with a label'), /class="spin" role="img" aria-label="Checking pull request"/.test(rowOf(id(1))));
+  check(tag('the progress line shows the PR counter with numbers and the git part is gone once it is done'), /Checking pull requests: 0 of 1 repository/.test(prog.textContent) && !/Checking git/.test(prog.textContent) && prog.getAttribute('aria-valuemax') === '3' && prog.getAttribute('aria-valuenow') === '2' && prog.hidden === false);
+  step('both running', () => deliver({ type: 'progress', scan: 1, git: { done: 1, total: 2 }, prs: { done: 0, total: 3 } }));
+  check(tag('while both run, both counters show'), /Checking git: 1 of 2 folders · Checking pull requests: 0 of 3 repositories/.test(prog.textContent));
+  step('list', () => { deliver(prs('ok', { by: BY })); deliver(chk(81, 'checking')); advance(300); });
+  check(tag('the PR cell shows number, review state; the checks cell shows a spinner and the word checking'), /#81 approved/.test(rowOf(id(1))) && /aria-label="Checking pull request"/.test(rowOf(id(1))) && /checking/.test(rowOf(id(1))) && /#82 draft/.test(rowOf(id(2))));
+  check(tag('a PR in review with unknown checks puts the running chat in Waiting on others; a clean chat with a draft PR is Waiting on others'), inBand('Waiting on others', 1) && inBand('Waiting on others', 2));
+  check(tag('the PR title is escaped in the expanded row and no raw tag reaches the page'), (() => { step('expand', () => click('row', 1)); const h = rowOf(id(1)); step('collapse', () => click('row', 1)); return /Fix &lt;b&gt;it&lt;\/b&gt;/.test(h) && !/<b>it<\/b>/.test(h); })());
+  check(tag('Open PR and Copy PR link buttons are on the row with the repository key and the number only'), /data-a="pr" data-k="r1" data-n="81"/.test(rowOf(id(1))) && /data-a="prc" data-k="r1" data-n="81"/.test(rowOf(id(1))) && /aria-label="Copy PR link: Chat 1"/.test(rowOf(id(1))));
+  step('open pr', () => click('pr', 1, { k: 'r1', n: '81' }));
+  step('copy pr', () => click('prc', 1, { k: 'r1', n: '81' }));
+  check(tag('Open PR posts openPr and Copy PR link posts copyPr with the key and number, never a link'), posted.some((p) => p.type === 'openPr' && p.repo === 'r1' && p.n === 81 && Object.keys(p).length === 3) && posted.some((p) => p.type === 'copyPr' && p.repo === 'r1' && p.n === 81 && !('url' in p)));
+  step('bad key', () => { click('pr', 1, { k: '../x', n: '81' }); click('pr', 1, { k: 'r1', n: 'x' }); });
+  check(tag('a PR click with a bad key or number posts nothing'), posted.filter((p) => p.type === 'openPr').length === 1);
+  // Failing check moves the running chat up (even while running); the cell has icon and text.
+  const names = ['lint <img src=x onerror=alert(1)>', 'unit'];
+  step('failing', () => { deliver(chk(81, 'failing', { total: 9, failing: 2, pending: 0, names })); advance(300); });
+  check(tag('a failing check moves the chat to To finish even while the agent is running'), inBand('To finish', 1) && /class="dot running"/.test(rowOf(id(1))));
+  check(tag('the failing badge has an icon and text, not color alone'), /class="ck fail"[^>]*>✗ checks failing \(2 of 9\)</.test(rowOf(id(1))));
+  check(tag('failing check names are in the tooltip, escaped'), /data-tip="Failing: lint &lt;img src=x onerror=alert\(1\)&gt;, unit"/.test(rowOf(id(1))) && !/<img src=x/.test(body.innerHTML));
+  check(tag('the To finish chip counts it'), /1 to finish/.test(els.get('cnt').innerHTML));
+  step('expand failing', () => click('row', 1));
+  check(tag('the expanded row lists the pull request and the failing names, escaped'), /Checks<\/dt><dd>checks failing \(2 of 9\): lint &lt;img/.test(rowOf(id(1))) && /Pull request<\/dt><dd>#81 Fix &lt;b&gt;it&lt;\/b&gt; \(approved\)/.test(rowOf(id(1))));
+  step('collapse', () => click('row', 1));
+  // Pending moves to Waiting; passing + approved moves to To finish (not running).
+  step('dots idle', () => { deliver({ type: 'dots', map: {} }); advance(300); });
+  step('pending', () => { deliver(chk(81, 'pending', { total: 9, failing: 0, pending: 3, names: [] })); advance(300); });
+  check(tag('pending checks put an approved PR in Waiting on others'), inBand('Waiting on others', 1) && /◔ checks pending/.test(rowOf(id(1))));
+  step('passing', () => { deliver(chk(81, 'passing', { total: 9, failing: 0, pending: 0, names: [] })); advance(300); });
+  check(tag('approved with checks passing is To finish'), inBand('To finish', 1) && /✓ checks passing/.test(rowOf(id(1))));
+  step('none', () => { deliver(chk(81, 'none', { total: 0, failing: 0, pending: 0, names: [] })); advance(300); });
+  check(tag('no checks shows no badge'), !/class="ck/.test(rowOf(id(1))) && inBand('To finish', 1));
+  // Mark done ignores pending -> passing but comes back on failing.
+  step('pending again', () => { deliver(chk(81, 'pending', { total: 9, failing: 0, pending: 3, names: [] })); advance(300); });
+  step('mark done', () => click('done', 1));
+  advance(300);
+  const dm = posted.filter((p) => p.type === 'done' && p.id === id(1) && p.on === true).pop();
+  check(tag('Mark done hides the row and its fingerprint records the PR'), dm && /#feat\|0\|0#81\|approved\|-$/.test(dm.fp) && !new RegExp('data-id="' + id(1) + '"').test(body.innerHTML));
+  step('pending to passing', () => { deliver(chk(81, 'passing', { total: 9, failing: 0, pending: 0, names: [] })); advance(300); });
+  check(tag('checks going from pending to passing do not bring a done row back'), !new RegExp('data-id="' + id(1) + '"').test(body.innerHTML) && !posted.some((p) => p.type === 'done' && p.id === id(1) && p.on === false));
+  step('failing again', () => { deliver(chk(81, 'failing', { total: 9, failing: 1, pending: 0, names: ['unit'] })); advance(300); });
+  check(tag('a failing check brings a done row back and clears the mark'), new RegExp('data-id="' + id(1) + '"').test(body.innerHTML) && posted.some((p) => p.type === 'done' && p.id === id(1) && p.on === false) && inBand('To finish', 1));
+  // Hold still while streaming: a row under the mouse does not jump when a check result arrives.
+  step('back to passing and none', () => { deliver(chk(81, 'pending', { total: 9, failing: 0, pending: 3, names: [] })); advance(300); });
+  check(tag('setup: pending puts it in Waiting on others'), inBand('Waiting on others', 1));
+  const hoverRow = (n) => ({ target: { closest: (sel) => (sel === '.row' ? { dataset: { id: id(n) } } : null), dataset: {} } });
+  step('hover', () => fire(document, 'mouseover', hoverRow(1)));
+  step('failing while hovered', () => { deliver(chk(81, 'failing', { total: 9, failing: 1, pending: 0, names: ['unit'] })); advance(300); });
+  check(tag('a hovered row stays in its band while the failing result streams in (the badge itself updates)'), inBand('Waiting on others', 1) && /checks failing/.test(rowOf(id(1))));
+  step('leave', () => { fire(document, 'mouseover', { target: { closest: () => null, dataset: {} } }); advance(300); });
+  check(tag('the row moves up to To finish once the mouse leaves'), inBand('To finish', 1));
+  step('hover and wait', () => { step('pending', () => deliver(chk(81, 'pending', { total: 9, failing: 0, pending: 3, names: [] }))); advance(300); });
+  check(tag('setup: failing to pending leaves To finish when nothing is hovered'), inBand('Waiting on others', 1));
+  step('hover 2', () => fire(document, 'mouseover', hoverRow(1)));
+  step('failing hovered', () => { deliver(chk(81, 'failing', { total: 9, failing: 1, pending: 0, names: ['unit'] })); advance(300); });
+  check(tag('held while hovered'), inBand('Waiting on others', 1));
+  step('2 s', () => advance(2100));
+  check(tag('a hovered row moves after 2 s anyway'), inBand('To finish', 1));
+  step('mouse out', () => fire(document, 'mouseover', { target: { closest: () => null, dataset: {} } }));
+  // Unavailable states.
+  step('unavailable', () => { deliver(chk(81, 'unavailable', { reason: 'timed out' })); advance(300); });
+  check(tag('a failed check lookup shows PR info unavailable with Retry; the row keeps its git facts and band'), /PR info unavailable/.test(rowOf(id(1))) && /data-a="fretry" data-k="p1"/.test(rowOf(id(1))) && /aria-label="Retry pull request lookup: Chat 1"/.test(rowOf(id(1))));
+  step('retry', () => click('fretry', 1, { k: 'p1' }));
+  advance(300);
+  check(tag('Retry posts retry with the p key and shows the repository as waiting'), posted.some((p) => p.type === 'retry' && p.key === 'p1') && /data-tip="Waiting to look up pull requests"/.test(rowOf(id(2))));
+  step('retry watchdog', () => advance(25500));
+  check(tag('a PR layer left on queued or checking ends as unavailable with Retry after the watchdog (never an endless spinner)'), !/class="spin"/.test(rowOf(id(2))) && /PR info unavailable/.test(rowOf(id(2))) && /data-a="fretry" data-k="p1"/.test(rowOf(id(2))));
+  step('good again', () => { deliver(prs('ok', { by: BY })); deliver(chk(81, 'passing', { total: 1, failing: 0, pending: 0, names: [] })); advance(300); });
+  step('layer unavailable', () => { deliver(prs('unavailable', { reason: 'not a GitHub repository' })); advance(300); });
+  check(tag('a permanent reason (not a GitHub repository) shows no per-row text or Retry, only a header note'), !/PR info unavailable/.test(rowOf(id(2))) && !/data-k="p1"/.test(rowOf(id(2))) && /Pull requests unavailable for 1 repository: not a GitHub repository\./.test(els.get('note').innerHTML));
+  step('layer transient', () => { deliver(prs('unavailable', { reason: 'GitHub not reachable' })); advance(300); });
+  check(tag('a transient reason shows PR info unavailable with Retry on each row of the repository'), /PR info unavailable/.test(rowOf(id(2))) && /data-k="p1"/.test(rowOf(id(2))));
+  // end lists unfinished PR keys; stale scans are dropped.
+  step('stale', () => { deliver(prs('ok', { scan: 0, by: {} })); deliver(chk(81, 'failing', { scan: 5, total: 1, failing: 1, names: [] })); advance(300); });
+  check(tag('PR and check messages of another scan are dropped'), /PR info unavailable/.test(rowOf(id(2))));
+  step('2nd scan', () => { deliver({ type: 'chats', scan: 2, rows: rowsP, indexing: false, scanning: true }); deliver(prs('queued', { scan: 2 })); deliver(prs('checking', { scan: 2 })); advance(300); });
+  step('end with p1', () => { deliver({ type: 'end', scan: 2, open: ['p1'] }); advance(300); });
+  check(tag('end listing p1 turns a checking layer into unavailable with Retry'), !/class="spin"/.test(rowOf(id(2))) && /data-k="p1"/.test(rowOf(id(2))) && prog.hidden === true);
+  step('scan-wide silence', () => { deliver({ type: 'chats', scan: 3, rows: rowsP, indexing: false, scanning: true }); deliver(prs('checking', { scan: 3 })); deliver(chk(81, 'checking', { scan: 3 })); advance(300); });
+  step('silence', () => advance(45500));
+  check(tag('a silent scan ends every PR spinner as unavailable'), !/class="spin"/.test(body.innerHTML.replace(/data-id="[^"]*"[^]*$/, '') + rowOf(id(1)) + rowOf(id(2))));
+  // Odd payloads never throw.
+  for (const m of [{ type: 'prs' }, { type: 'prs', scan: 3 }, { type: 'prs', scan: 3, repo: 5 }, { type: 'prs', scan: 3, repo: 'r1', state: 'ok', by: null }, { type: 'prs', scan: 3, repo: 'r2', state: 'ok', by: { x: null, y: {}, z: { n: -1 } } }, { type: 'checks' }, { type: 'checks', scan: 3, repo: 'r1' }, { type: 'checks', scan: 3, repo: 'r1', n: 81, state: 'bogus' }, { type: 'checks', scan: 3, repo: 'r9', n: 1, state: 'failing', names: 'x' }, { type: 'progress', scan: 3, git: { done: 1, total: 2 }, prs: 5 }, { type: 'progress', scan: 3, git: { done: 1, total: 2 }, prs: {} }, { type: 'notes', scan: 3, more: 0, prsOn: 'x' }]) { step('odd ' + JSON.stringify(m).slice(0, 50), () => { deliver(m); advance(300); }); }
+  // Lookups off: no PR column, no PR text, no PR progress, a quiet tooltip, messages ignored.
+  step('off', () => { deliver({ type: 'init', v: 3, prsOn: false, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {} }); advance(300); });
+  check(tag('lookups off: no PR or Checks column and no PR cells'), !/>PR</.test(body.innerHTML) && !/>Checks</.test(body.innerHTML) && !/class="pr"/.test(body.innerHTML) && !/class="kc"/.test(body.innerHTML) && !els.get('wrap').classList.contains('wpr'));
+  check(tag('lookups off: the header tooltip says so quietly'), els.get('ttl').dataset.tip === 'Pull requests are off (setting Look Up Pull Requests).' && !/Pull requests/.test(els.get('note').innerHTML));
+  step('off messages', () => { deliver({ type: 'chats', scan: 4, rows: rowsP, indexing: false, scanning: true }); deliver(prs('ok', { scan: 4, by: BY })); deliver(chk(81, 'failing', { scan: 4, total: 1, failing: 1, names: ['x'] })); deliver({ type: 'progress', scan: 4, git: { done: 1, total: 2 }, prs: { done: 0, total: 3 } }); advance(300); });
+  check(tag('lookups off: PR messages are ignored, no PR band move, no PR progress text'), !/checks failing/.test(body.innerHTML) && !/#81/.test(body.innerHTML) && !/pull requests/i.test(prog.textContent) && !/data-a="pr"/.test(body.innerHTML));
+  step('on again', () => { deliver({ type: 'notes', scan: 4, more: 0, prsOn: true }); advance(300); });
+  check(tag('turning lookups back on restores the columns and clears the tooltip'), /class="pr"/.test(body.innerHTML) && !els.get('ttl').dataset.tip);
+  check(tag('no agent name in the PR cells'), !/claude/i.test(body.innerHTML));
+  P.errors.forEach((e) => failures.push(e));
+}
+for (const W of [400, 760, 1400]) { prScenario(W); }
+
+// Pull request rules of the model.
+{
+  const g = (o) => Object.assign({ ok: true, files: 0, ahead: 0, gone: false, up: true, merged: false, isDef: false }, o || {});
+  const pr = (review, checks, draft) => ({ n: 7, review, checks, draft: !!draft });
+  const b = (dot, gg) => model.bandOf(dot, gg, NOW, NOW);
+  if (b('idle', g({ pr: pr('', 'failing') })) !== 'finish') { bad('model: failing checks put a chat in To finish'); }
+  if (b('running', g({ pr: pr('', 'failing') })) !== 'finish') { bad('model: failing checks put a RUNNING chat in To finish'); }
+  if (b('waiting', g({ pr: pr('', 'failing') })) !== 'needs') { bad('model: Needs you still wins over failing checks'); }
+  if (b('idle', g({ pr: pr('', 'pending') })) !== 'waiting' || b('idle', g({ pr: pr('', 'passing') })) !== 'waiting' || b('idle', g({ pr: pr('', 'unknown') })) !== 'waiting') { bad('model: a PR in review is Waiting on others'); }
+  if (b('idle', g({ pr: pr('', 'passing', true) })) !== 'waiting') { bad('model: a draft PR is Waiting on others'); }
+  if (b('idle', g({ pr: pr('approved', 'pending') })) !== 'waiting') { bad('model: approved with checks pending is Waiting on others'); }
+  if (b('idle', g({ pr: pr('approved', 'passing') })) !== 'finish' || b('idle', g({ pr: pr('approved', 'none') })) !== 'finish') { bad('model: approved with checks passing or none is To finish'); }
+  if (b('idle', g({ pr: pr('changes requested', 'passing') })) !== 'finish') { bad('model: changes requested is To finish'); }
+  if (b('idle', g({ ahead: 1, pr: pr('', 'pending') })) !== 'finish') { bad('model: unpushed commits still make To finish with a PR open'); }
+  if (b('idle', g({ pr: undefined })) !== 'idle' || b('idle', undefined) !== 'idle') { bad('model: no PR facts do not move a row'); }
+  if (b('running', g({ pr: pr('approved', 'unknown') })) !== 'waiting') { bad('model: unknown checks never move a running chat'); }
+  if (b('idle', { ok: false, pr: pr('', 'failing') }) !== 'idle') { bad('model: PR facts without known git facts do not move a row'); }
+  if (model.bandOf('idle', { wt: true, ok: true, files: 0, ahead: 0, ready: true, pr: pr('', 'failing') }) !== 'finish') { bad('model: a worktree whose branch has failing checks is To finish'); }
+  if (model.wtReady({ main: false, locked: false, merged: true }, { ok: true, files: 0, ahead: 0, gone: false, pr: pr('', 'passing') }, false) !== false) { bad('model: a worktree with an open PR is not Ready to remove'); }
+  const fp = (gg) => model.fingerprint('idle', 5, gg);
+  if (model.doneHidden(fp(g({ branch: 'f', pr: pr('approved', 'pending') })), 'idle', 5, g({ branch: 'f', pr: pr('approved', 'passing') })) !== true) { bad('model: pending to passing keeps a done row hidden'); }
+  if (model.doneHidden(fp(g({ branch: 'f', pr: pr('approved', 'passing') })), 'idle', 5, g({ branch: 'f', pr: pr('approved', 'failing') })) !== false) { bad('model: failing brings a done row back'); }
+  if (model.doneHidden(fp(g({ branch: 'f', pr: pr('approved', 'failing') })), 'idle', 5, g({ branch: 'f', pr: pr('approved', 'passing') })) !== false) { bad('model: failing to passing changes the fingerprint (it was marked while failing)'); }
+  if (model.doneHidden(fp(g({ branch: 'f' })), 'idle', 5, g({ branch: 'f', pr: pr('', 'failing') })) !== true) { bad('model: a PR layer that answers after Mark done does not bring the row back by itself'); }
+  if (model.doneHidden(fp(g({ branch: 'f', pr: pr('approved', 'passing') })), 'idle', 5, g({ branch: 'f' })) !== true) { bad('model: unknown PR facts never bring a done row back'); }
+  if (model.doneHidden(fp(g({ branch: 'f', pr: pr('approved', 'passing') })), 'idle', 5, g({ branch: 'f', pr: { n: 8, review: 'approved', checks: 'passing' } })) !== false) { bad('model: another PR number brings a done row back'); }
+  if (model.doneHidden(model.fingerprint('idle', 5, g({ branch: 'f' })), 'idle', 5, g({ branch: 'f' })) !== true || model.doneHidden('5|idle#', 'idle', 5, undefined) !== true) { bad('model: the older two-part fingerprint still works'); }
+  if (!/nextStep/.test(model.WORK_MODEL_SRC) || model.nextStep('idle', g({ pr: pr('', 'failing') })).indexOf('A check is failing on pull request #7') !== 0) { bad('model: the next step names a failing check'); }
+}
+
 // Resize on one page: layout class follows.
 {
   const R = createHarness({ page, name: 'openwork-resize', width: 400, popIds: ['grb', 'grm'] });

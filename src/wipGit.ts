@@ -10,6 +10,10 @@ export interface Ctx { exec: Exec; ghExec?: Exec; signal?: AbortSignal; gitMs: n
 
 const GIT_OK = new Set(['rev-parse', 'symbolic-ref', 'status', 'worktree', 'for-each-ref', 'rev-list']);
 const GH_OK = ['pr', 'list'];
+/** The one other gh shape: a read-only look at one pull request's checks; the number is digits only. */
+export const CHECKS_FIELDS = 'statusCheckRollup,headRefOid';
+const PR_NUMBER = /^[1-9][0-9]{0,8}$/;
+const isChecksView = (a: string[]): boolean => a.length === 5 && a[0] === 'pr' && a[1] === 'view' && PR_NUMBER.test(a[2]) && a[3] === '--json' && a[4] === CHECKS_FIELDS;
 
 /** Run one read-only git command; a command outside the allowed list throws before anything starts. */
 export async function git(c: Ctx, cwd: string, args: string[]): Promise<ExecResult> {
@@ -19,9 +23,9 @@ export async function git(c: Ctx, cwd: string, args: string[]): Promise<ExecResu
   return r;
 }
 
-/** Run the one allowed gh command (pr list). */
+/** Run an allowed gh command: `pr list ...`, or `pr view <digits> --json statusCheckRollup,headRefOid`. Anything else throws before it starts. */
 export function gh(c: Ctx, cwd: string, args: string[]): Promise<ExecResult> {
-  if (args[0] !== GH_OK[0] || args[1] !== GH_OK[1]) { throw new Error('gh command not allowed: ' + args[0]); }
+  if (!(args[0] === GH_OK[0] && args[1] === GH_OK[1]) && !isChecksView(args)) { throw new Error('gh command not allowed: ' + args[0]); }
   return (c.ghExec ?? c.exec)('gh', args, { cwd, timeout: c.ghMs, signal: c.signal });
 }
 

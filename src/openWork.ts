@@ -34,9 +34,11 @@ export interface OpenWorkDeps {
   log: (where: string, e: unknown) => void;
   scan: WorkScan;
   workspace: () => string[];
+  prsOn: () => boolean; // the setting lookupPullRequests; off means no gh call and no pull request state
 }
 interface Prefs { group: string; hidden: string[]; wsOnly: boolean; }
-interface Model { chats?: object; notes?: object; progress?: object; end?: object; folder: Map<string, object>; repo: Map<string, object>; }
+interface Model { chats?: object; notes?: object; progress?: object; end?: object; folder: Map<string, object>; repo: Map<string, object>; prs: Map<string, object>; checks: Map<string, object>; }
+const newModel = (): Model => ({ folder: new Map(), repo: new Map(), prs: new Map(), checks: new Map() });
 
 /** Days of history shown, from the setting (1 to 90, default 14). */
 export function openWorkDays(): number {
@@ -52,7 +54,7 @@ export class OpenWork {
   private scanned = new Set<string>();
   private scanning = false;
   private lastEnd = 0;
-  private model: Model = { folder: new Map(), repo: new Map() };
+  private model: Model = newModel();
   private chatFk = new Map<string, string>();
   private prevRunning = new Set<string>();
   private titles = new Map<string, string>();
@@ -85,6 +87,7 @@ export class OpenWork {
       this.hub.on('indexed', () => this.later()),
       this.hub.on('changed', () => this.later()),
       this.hub.on('archived', () => { void this.refresh(); }),
+      vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.lookupPullRequests')) { void this.refresh({ restart: true }); } }),
     ];
     panel.onDidDispose(() => { subs.forEach((s) => s.dispose()); this.close(); });
     // The page posts 'ready' once its listener is attached; the full model is replayed then.
@@ -100,7 +103,7 @@ export class OpenWork {
     this.panel = undefined;
     this.scanning = false;
     this.scanned = new Set();
-    this.model = { folder: new Map(), repo: new Map() };
+    this.model = newModel();
     this.reqNo++;
   }
 
@@ -112,6 +115,8 @@ export class OpenWork {
   private postScan(m: any): void {
     const k = this.model;
     if (m.type === 'folder' || m.type === 'repo') { (m.type === 'folder' ? k.folder : k.repo).set(String(m.key), m); }
+    else if (m.type === 'prs') { k.prs.set(String(m.repo), m); }
+    else if (m.type === 'checks') { k.checks.set(m.repo + '|' + m.n, m); }
     else if (m.type === 'progress') { k.progress = m; }
     else if (m.type === 'end') { k.end = m; }
     this.post(m);
@@ -153,7 +158,7 @@ export class OpenWork {
       const same = !o.force && !o.restart && this.scanned.size > 0 && wanted.every((c) => this.scanned.has(c));
       const rows = this.rowsOut(raw);
       this.titles = new Map(rows.map((x) => [x.id, String(x.title ?? '')]));
-      if (!same) { this.scanNo++; this.model = { folder: new Map(), repo: new Map() }; }
+      if (!same) { this.scanNo++; this.model = newModel(); }
       const msg = { type: 'chats', scan: this.scanNo, rows, indexing: r?.indexing === true, scanning: !same };
       this.model.chats = msg;
       this.post(msg);
@@ -179,7 +184,7 @@ export class OpenWork {
     this.scanned = new Set(wanted);
     const last = new Map<string, number>();
     for (const x of raw) { const c = String(x.cwd ?? ''); if (c && !last.has(c)) { last.set(c, Number(x.last) || 0); } }
-    const notes = { type: 'notes', scan: this.scanNo, more };
+    const notes = { type: 'notes', scan: this.scanNo, more, prsOn: this.d.prsOn() };
     this.model.notes = notes;
     this.post(notes);
     this.scanning = true;
@@ -188,11 +193,11 @@ export class OpenWork {
 
   private replay(): void {
     const p = this.prefs;
-    this.post({ type: 'init', v: 2, days: openWorkDays(), group: p.group, hidden: p.hidden, wsOnly: p.wsOnly, ws: this.d.workspace().length, done: Object.fromEntries(this.done) });
+    this.post({ type: 'init', v: 3, prsOn: this.d.prsOn(), days: openWorkDays(), group: p.group, hidden: p.hidden, wsOnly: p.wsOnly, ws: this.d.workspace().length, done: Object.fromEntries(this.done) });
     this.post({ type: 'dots', map: this.d.dots() });
     const k = this.model;
     if (!k.chats) { void this.refresh(); return; }
-    [k.chats, k.notes, ...k.folder.values(), ...k.repo.values(), k.progress, k.end].forEach((m) => { if (m) { this.post(m); } });
+    [k.chats, k.notes, ...k.folder.values(), ...k.repo.values(), ...k.prs.values(), ...k.checks.values(), k.progress, k.end].forEach((m) => { if (m) { this.post(m); } });
   }
 
   private async onMessage(m: any): Promise<void> {
@@ -201,7 +206,8 @@ export class OpenWork {
       const t = m.type;
       if (t === 'ready') { this.replay(); }
       else if (t === 'refresh') { this.d.poke(); await this.refresh({ force: m.force !== false }); }
-      else if (t === 'retry') { if (typeof m.key === 'string' && /^[fr]\d{1,6}$/.test(m.key)) { this.d.scan.retry(m.key); } }
+      else if (t === 'retry') { if (typeof m.key === 'string' && /^[frp]\d{1,6}$/.test(m.key)) { this.d.scan.retry(m.key); } }
+      else if (t === 'openPr' || t === 'copyPr') { await this.prLink(t === 'copyPr', String(m.repo), Number(m.n)); }
       else if (t === 'scanMore') { this.cap += MAX_FOLDERS; await this.refresh({ restart: true }); }
       else if (t === 'prefs') { void this.savePrefs(m); }
       else if (t === 'openFile') { await this.openFile(String(m.key), Number(m.i)); }
@@ -249,6 +255,15 @@ export class OpenWork {
     const p = path.resolve(t.top, t.file.p);
     if (!p.startsWith(t.top + path.sep)) { return; }
     try { await vscode.window.showTextDocument(vscode.Uri.file(p)); } catch { void vscode.window.showInformationMessage('That file is not available (it may be deleted).'); }
+  }
+
+  /** Open or copy a pull request link. The link is the one gh gave for that repository key and number in the last answer, https only; the page never sends a link. */
+  private async prLink(copy: boolean, rk: string, n: number): Promise<void> {
+    if (!/^r\d{1,6}$/.test(rk) || !Number.isInteger(n)) { return; }
+    const url = this.d.scan.prUrl(rk, n);
+    if (!url || !/^https:\/\/[^\s]+$/.test(url)) { void vscode.window.showInformationMessage('That pull request link is not available. Refresh and try again.'); return; }
+    if (copy) { await vscode.env.clipboard.writeText(url); void vscode.window.showInformationMessage(`Copied the link to pull request #${n}.`); return; }
+    await vscode.env.openExternal(vscode.Uri.parse(url));
   }
 
   /** Copy the remove command of a finished worktree. Nothing is run: the user pastes it in a terminal. */

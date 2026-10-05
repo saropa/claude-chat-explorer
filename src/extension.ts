@@ -29,6 +29,8 @@ import { OpenWork, registerOpenWork } from './openWork';
 import { Limiter } from './execLimit';
 import { realExec } from './wipExec';
 import { WorkScan } from './workScan';
+import { WorkPrs } from './workPrs';
+import { PrCache } from './wipPrs';
 
 const POST_GAP_MS = 100;
 const REVEAL_CMD = 'workbench.view.extension.claudeChatExplorer'; // opens the Saropa Chat Explorer container and its view
@@ -42,6 +44,11 @@ const logErr = (where: string, e: unknown): void => log(`${where}: ${e instanceo
 /** One global limit on git processes: 4 at a time, the Open Work page at most 3 of them, the sidebar first. */
 const limiter = new Limiter(4, 3);
 const uiExec = limiter.wrap(realExec, 'ui');
+/** One global limit on gh processes: 2 at a time (the sidebar first); the pull request cache is shared by the sidebar and the Open Work page. */
+const ghLimiter = new Limiter(2, 2);
+const ghUiExec = ghLimiter.wrap(realExec, 'ui');
+const prCache = new PrCache();
+const prsOn = (): boolean => vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false;
 
 const folderPaths = (): string[] => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
 
@@ -52,7 +59,7 @@ class Provider implements vscode.WebviewViewProvider {
   private readonly queue = new QueryQueue((m) => this.post(m), () => vscode.commands.executeCommand(REVEAL_CMD), logErr);
   watcher?: LiveWatcher; // live state of Claude sessions
   actions?: ArchiveActions;
-  private readonly gitLive = new GitLiveService(uiExec);
+  private readonly gitLive = new GitLiveService(uiExec, ghUiExec, prCache);
   private readonly counts = new CardCounts({
     request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), folders: folderPaths, log: logErr,
     prsOn: () => vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false, post: (m) => this.post(m),
@@ -350,7 +357,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
   registerOpenWork(ctx, new OpenWork(ctx, hub, { softRequest: (m) => client!.request(m as Parameters<WorkerClient['request']>[0], true, true), pins: () => Object.keys(store!.pins),
     archived: () => [...store!.archived], dots: () => provider.watcher?.dots ?? {}, resume: (id) => provider.resume(id), copyNote: (id, state) => provider.copyNote(id, state),
     setArchived: (id, on) => provider.actions!.setArchived(id, on), find: (q) => provider.showQuery(q), poke: () => provider.watcher?.poke(), log: logErr,
-    scan: new WorkScan({ exec: realExec, limiter, workspace: folderPaths, log: logErr }), workspace: folderPaths }));
+    scan: new WorkScan({ exec: realExec, limiter, workspace: folderPaths, log: logErr, prsOn, prs: new WorkPrs({ exec: realExec, limiter: ghLimiter, cache: prCache, log: logErr }) }), workspace: folderPaths, prsOn }));
   registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info, () => provider.watcher, () => warner.atOrAbove80);
   provider.watcher.start();
   done = true;

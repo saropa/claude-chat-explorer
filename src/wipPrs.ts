@@ -3,7 +3,10 @@ import { Ctx, gh } from './wipGit';
 import { PrInfo } from './wipTypes';
 
 export const PR_CACHE_MS = 5 * 60 * 1000;
-export const PR_ARGS = ['pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,headRefName,isDraft,reviewDecision,url'];
+const PR_FIELDS = 'number,title,headRefName,isDraft,reviewDecision,url';
+export const PR_ARGS = ['pr', 'list', '--state', 'open', '--limit', '100', '--json', PR_FIELDS + ',headRefOid,isCrossRepository'];
+/** Same list without the two newer fields, for a gh that does not know them. */
+export const PR_ARGS_OLD = ['pr', 'list', '--state', 'open', '--limit', '100', '--json', PR_FIELDS];
 const TITLE_MAX = 80;
 
 /** Open PRs of one repository by branch, or why they are unavailable (short words, never raw output). */
@@ -18,17 +21,17 @@ export const cleanTitle = (t: string): string => t.replace(/https?:\/\/\S+/gi, '
 /** The PR page address from gh, only when it is an https link. */
 const safeUrl = (u: unknown): string | undefined => (typeof u === 'string' && /^https:\/\/\S+$/.test(u) ? u : undefined);
 
-/** Map the JSON of `gh pr list` by head branch (the highest number wins); undefined when it is not the expected shape. */
+/** Map the JSON of `gh pr list` by head branch (the highest number wins); fork pull requests are skipped (a fork branch of the same name is not this repository's branch); undefined when it is not the expected shape. */
 export function parsePrs(stdout: string): Map<string, PrInfo> | undefined {
   let v: unknown;
   try { v = JSON.parse(stdout); } catch { return undefined; }
   if (!Array.isArray(v)) { return undefined; }
   const m = new Map<string, PrInfo>();
   for (const x of v as Array<{ [k: string]: unknown }>) {
-    if (!x || typeof x.number !== 'number' || typeof x.headRefName !== 'string') { continue; }
+    if (!x || typeof x.number !== 'number' || typeof x.headRefName !== 'string' || x.isCrossRepository === true) { continue; }
     const prev = m.get(x.headRefName);
     if (prev && prev.number > x.number) { continue; }
-    m.set(x.headRefName, { number: x.number, title: cleanTitle(String(x.title ?? '')), draft: x.isDraft === true, review: String(x.reviewDecision ?? ''), url: safeUrl(x.url) });
+    m.set(x.headRefName, { number: x.number, title: cleanTitle(String(x.title ?? '')), draft: x.isDraft === true, review: String(x.reviewDecision ?? ''), url: safeUrl(x.url), sha: typeof x.headRefOid === 'string' && /^[0-9a-f]{7,64}$/i.test(x.headRefOid) ? x.headRefOid : undefined });
   }
   return m;
 }
@@ -47,7 +50,8 @@ export function ghReason(r: ExecResult): string {
 
 /** One gh call for a repository folder. */
 export async function fetchPrs(c: Ctx, cwd: string): Promise<PrResult> {
-  const r = await gh(c, cwd, PR_ARGS);
+  let r = await gh(c, cwd, PR_ARGS);
+  if (r.code !== 0 && /unknown json field/i.test(r.stderr)) { r = await gh(c, cwd, PR_ARGS_OLD); } // an older gh: ask without the two newer fields
   if (r.code !== 0) { return { byBranch: new Map(), error: ghReason(r), missing: r.code === 'ENOENT' }; }
   const m = parsePrs(r.stdout);
   return m ? { byBranch: m } : { byBranch: new Map(), error: 'unreadable gh answer' };

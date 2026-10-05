@@ -6,6 +6,7 @@ import { Limiter } from './execLimit';
 import { Exec, pool } from './wipExec';
 import { Ctx, probe, statusOf, unpushedOf } from './wipGit';
 import { FileChange } from './wipTypes';
+import { PrRun, WorkPrs } from './workPrs';
 import { readRepo, removeCommand, RepoOut, WtOut } from './workRepo';
 
 export const MAX_FOLDERS = 60;
@@ -21,6 +22,7 @@ export interface FolderIn { cwd: string; last: number; }
 export interface ScanOpts {
   exec: Exec; limiter: Limiter; gitMs?: number; deadlineMs?: number; cacheMs?: number; now?: () => number;
   workspace?: () => string[]; log?: (where: string, e: unknown) => void;
+  prs?: WorkPrs; prsOn?: () => boolean; // the pull request layer; prsOn false means no gh call and no PR message at all
 }
 interface FolderOut { state: FolderState; reason?: string; top?: string; common?: string; facts?: { [k: string]: unknown }; files: FileChange[]; ahead: number; }
 interface FolderEntry { key: string; cwd: string; out?: FolderOut; topReal?: string; wsSent?: boolean; }
@@ -29,7 +31,7 @@ interface Ws { paths: string[]; reals: Set<string>; commons: Set<string>; }
 interface Run {
   scan: number; ac: AbortController; post: (m: object) => void; force: boolean; flags: { gitMissing: boolean };
   total: number; done: number; counted: Set<string>; unfinished: Set<string>; repos: Map<string, RepoRun>; repoChain: Promise<void>;
-  lastProg: number; progTimer?: NodeJS.Timeout; ws?: Promise<Ws>;
+  lastProg: number; progTimer?: NodeJS.Timeout; ws?: Promise<Ws>; prs?: PrRun;
 }
 interface Lane { ctx: Ctx; late: Promise<'late'>; timedOut: () => boolean; stop: () => void; }
 
@@ -79,6 +81,7 @@ export class WorkScan {
     this.cancel();
     const run: Run = { scan, ac: new AbortController(), post, force, flags: { gitMissing: false }, total: items.length, done: 0, counted: new Set(), unfinished: new Set(), repos: new Map(), repoChain: Promise.resolve(), lastProg: 0 };
     this.run = run;
+    if (this.o.prs && this.o.prsOn?.() !== false) { run.prs = this.o.prs.begin({ post: (m) => this.put(run, m), signal: run.ac.signal, force, changed: () => this.progress(run, false) }); }
     try { await this.drive(run, items); } catch (e) { this.log('open work scan', e); }
   }
 
@@ -94,9 +97,10 @@ export class WorkScan {
     this.progress(run, true);
     await pool(todo, FOLDER_POOL, (e) => this.runFolder(run, e, false), () => run.ac.signal.aborted);
     await run.repoChain;
+    await run.prs?.settled();
     if (run.ac.signal.aborted) { return; }
     this.progress(run, true);
-    run.post({ type: 'end', scan: run.scan, open: [...run.unfinished], gitMissing: run.flags.gitMissing });
+    run.post({ type: 'end', scan: run.scan, open: [...run.unfinished, ...(run.prs?.open() ?? [])], gitMissing: run.flags.gitMissing });
   }
 
   private put(run: Run, m: object): void { if (!run.ac.signal.aborted) { run.post({ ...m, scan: run.scan }); } }
@@ -104,7 +108,7 @@ export class WorkScan {
 
   /** At most one progress message per 100 ms; a trailing one carries the last numbers. */
   private progress(run: Run, now: boolean): void {
-    const send = (): void => { run.progTimer = undefined; run.lastProg = Date.now(); this.put(run, { type: 'progress', git: { done: run.done, total: run.total } }); };
+    const send = (): void => { run.progTimer = undefined; run.lastProg = Date.now(); this.put(run, { type: 'progress', git: { done: run.done, total: run.total }, ...(run.prs ? { prs: run.prs.progress() } : {}) }); };
     if (run.progTimer) { if (now) { clearTimeout(run.progTimer); send(); } return; }
     if (now || Date.now() - run.lastProg >= PROGRESS_MS) { send(); return; }
     run.progTimer = setTimeout(send, PROGRESS_MS);
@@ -170,7 +174,11 @@ export class WorkScan {
     }
     this.postFolder(run, e.key, msg);
     this.progress(run, false);
-    if (out.state === 'ok' && out.common && out.top) { this.kickRepo(run, out.common, out.top, e.key); }
+    if (out.state === 'ok' && out.common && out.top) {
+      this.kickRepo(run, out.common, out.top, e.key);
+      const b = out.facts && !out.facts.detached && typeof out.facts.branch === 'string' ? out.facts.branch : undefined;
+      run.prs?.join(this.rkeyOf(out.common), out.common, out.top, b);
+    }
     void run.ws?.then(() => this.reportWs(run, e));
   }
 
@@ -245,6 +253,7 @@ export class WorkScan {
     st.done = true;
     run.unfinished.delete(rk);
     this.postRepo(run, rk, state, reason);
+    if (out) { run.prs?.addBranches(rk, out.worktrees.filter((w) => !w.detached).map((w) => w.branch)); }
   }
 
   private postRepo(run: Run, rk: string, state: string, reason?: string): void {
@@ -270,6 +279,7 @@ export class WorkScan {
   retry(key: string, quiet = false): void {
     const run = this.run;
     if (!run || run.ac.signal.aborted) { return; }
+    if (/^p\d+$/.test(key)) { run.prs?.retry('r' + key.slice(1)); return; }
     const f = /^f\d+$/.test(key) ? this.byKey.get(key) : undefined;
     if (f) { if (!quiet) { this.postFolder(run, key, { state: 'queued' }); } run.unfinished.add(key); void this.runFolder(run, f, quiet); return; }
     const common = /^r\d+$/.test(key) ? this.repoCommon.get(key) : undefined;
@@ -281,6 +291,9 @@ export class WorkScan {
     this.put(run, { type: 'repo', key, state: 'running', name: this.repos.get(key)?.name, worktrees: [], merged: [] });
     run.repoChain = run.repoChain.then(() => this.runRepo(run, key, common, top, st, true));
   }
+
+  /** The https link of a pull request listed for a repository key (from the last answer), for Open and Copy PR link. */
+  prUrl(rk: string, n: number): string | undefined { return this.o.prs?.url(rk, n); }
 
   /** The files a click resolves against: the folder key (or worktree key) the page names, never a path the page sent. */
   fileOf(key: string, i: number): { top: string; file: FileChange } | undefined {
