@@ -33,8 +33,8 @@ export interface Rec {
   lines: Uint32Array; // 1-based JSONL line of each message, for a later export feature
 }
 
-/** Whose messages are searched: both, only the user's (you), or only Claude's (assistant and subagent messages). */
-export type From = 'both' | 'you' | 'claude';
+/** Whose messages are searched: both, only the user's (you), or only the agent's (assistant and subagent messages). */
+export type From = 'both' | 'you' | 'agent';
 export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; any?: boolean; when: string; subs: boolean; last: number; from?: From; }
 export interface Abort { aborted: boolean; }
 

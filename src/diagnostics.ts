@@ -27,7 +27,7 @@ export function registerDiagnostics(ctx: vscode.ExtensionContext, request: (m: {
     const count = await chatCount(request);
     const claude = vscode.extensions.getExtension('anthropic.claude-code') ? 'installed' : 'not installed';
     const lines = [`Saropa Chat Explorer ${version}`, `activation completed: ${activated() ? 'yes' : 'no'}`,
-      `chats indexed: ${count < 0 ? 'unknown (worker did not answer)' : count}`, `Claude Code extension: ${claude}`,
+      `chats indexed: ${count < 0 ? 'unknown (worker did not answer)' : count}`, `Agent extension: ${claude}`,
       `~/.claude/sessions: ${fs.existsSync(sessionsDir()) ? 'exists' : 'missing'}`, `views: ${VIEW_IDS.join(', ')}`, ...windowLines(winInfo?.()), `open tabs: ${tabInfo?.()?.tabIds.size ?? 0}`, `state.vscdb workspace hash: ${tabInfo?.()?.tabHash || 'none'}`, `live chats at 80% context or more: ${nearly?.() ?? 0}`];
     void vscode.window.showInformationMessage(lines.join(' | '));
   }));

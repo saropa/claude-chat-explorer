@@ -199,7 +199,9 @@ class Provider implements vscode.WebviewViewProvider {
   }
 
   private async handover(id: string, query: string): Promise<void> {
-    await copyHandover(id, query, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), roots: folderPaths, log: logErr });
+    await copyHandover(id, query, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), roots: folderPaths, log: logErr,
+      folders: folderPaths, prsOn: () => vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false,
+      gitLive: this.gitLive, state: (cid, state) => this.post({ type: 'handoverState', id: cid, state }) });
   }
 
   /** Load one part of a chat card (git, wt, unc or unp) and post it; the git part posts its first step (branch, counts) before the PR step; a deadline or failure posts a one-line state. */

@@ -70,7 +70,7 @@ function subResult(sc: Scan, s: Chat, h: Hit): SubResult {
 /** Matching subagents of a parent (newest first), within the time filter. */
 function subHits(sc: Scan, p: Chat): Array<[Chat, Hit]> {
   const out: Array<[Chat, Hit]> = [];
-  if (noSubs(sc.c.from)) { return out; } // subagent messages count as Claude's
+  if (noSubs(sc.c.from)) { return out; } // subagent messages count as the agent's
   const win = subWinOf(sc.c.last, () => sc.ix.rec(p));
   for (const s of sc.ix.subsOf(p)) {
     if (s.mtime < sc.cutoff || s.last < sc.cutoff) { continue; }

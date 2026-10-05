@@ -8,6 +8,9 @@ starOn:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d=
 note:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.200" stroke-linejoin="round"><rect x="3" y="2.500" width="10" height="11.500" rx="1.500"/><path d="M5.500 6h5M5.500 8.500h5M5.500 11h3" stroke-linecap="round"/></svg>',
 read:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.400" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.500l3 3 7-7"/></svg>'};
 let tagIn=null;
+const hv={};
+function handoverState(d){if(d.state)hv[d.id]=d.state;else delete hv[d.id];rerender();
+if(d.state==='done')setTimeout(()=>{if(hv[d.id]==='done'){delete hv[d.id];rerender();}},2000);}
 function plur(n,w){return n+' '+w+(n===1?'':'s');}
 function pillBit(n){return n===''?'':n==='\u2026'?'<span class="pill w" aria-hidden="true">\u2026</span>':'<span class="pill'+(n===0?' z':'')+'" role="img" aria-label="'+n+'" data-tip="'+n+'">'+n+'</span>';}
 function xsec(key,label,n,body,k,pill,ov){const o=ov===undefined?!col.has(key):ov,c=n===''?'':pill?pillBit(n):'<span class="xc">'+n+'</span>',cn=n===''||n==='\u2026'?'':', '+n;
@@ -18,7 +21,7 @@ return '<div class="xa" role="toolbar" aria-label="Chat actions"><button class="
 +xbtn('pin',p?XI.starOn:XI.star,p?'Unpin':'Pin',p?'Pinned':'Pin',p?' on':'',' aria-pressed="'+p+'"')
 +xbtn('arch',ARCH_SVG,ia?'Unarchive':'Archive',ia?'Unarchive':'Archive','')
 +((dots[r.id]||{}).s==='unread'?xbtn('read',XI.read,'Mark as read','Mark read',''):'')
-+'<span class="sp"></span>'+xbtn('handover',XI.note,'Copy hand-over note','Copy hand-over note','')+xbtn('copyid',XI.copy,'Copy session ID','Copy ID','','','Copy session ID '+esc(r.id))+'</div>';}
++'<span class="sp"></span>'+xbtn('handover',hv[r.id]==='done'?XI.read:XI.note,'Copy hand-over note',hv[r.id]==='busy'?'Copying...':hv[r.id]==='done'?'Copied':'Copy hand-over note',hv[r.id]==='busy'?' busy':'',hv[r.id]==='busy'?' aria-busy="true"':'')+xbtn('copyid',XI.copy,'Copy session ID','Copy ID','','','Copy session ID '+esc(r.id))+'</div>';}
 function statCell(l,v,tip,a){return '<div data-tip="'+esc(tip)+'"><dt>'+l+'</dt><dd'+(a?' aria-label="'+a+'"':'')+'>'+v+'</dd></div>';}
 function statsHtml(r){let h='';const now=Date.now();
 if(r.msgs)h+=statCell('Messages',r.msgs,plur(r.msgs,'message')+' in this chat');
@@ -32,7 +35,7 @@ if(r.add||r.rem)h+=statCell('Lines','<span class="add">+'+(r.add||0)+'</span> <s
 if(r.models&&r.models.length)h+='<div class="wide" data-tip="'+esc('Models used\n'+r.models.join(', '))+'"><dt>Models</dt><dd>'+esc(r.models.join(', '))+'</dd></div>';
 return '<dl class="xs" aria-label="Chat stats">'+h+'</dl>';}
 function tagInput(id){return tagIn&&tagIn.id===id
-?'<span class="xin"><input class="tin" list="tl" placeholder="Tag name" maxlength="40" aria-label="New tag. Enter adds, Escape cancels" value="'+esc(tagIn.v)+'"><span class="k">Enter to add · Esc to cancel</span></span>':'';}
+?'<span class="xin"><input class="tin" list="tl" placeholder="Add tag" maxlength="40" aria-label="New tag. Enter adds, Escape cancels" aria-description="Enter to add, Escape to cancel" data-tip="Enter to add · Esc to cancel" value="'+esc(tagIn.v)+'"></span>':'';}
 function tagLine(id){return chips(id)+tagInput(id);}
 function tagsHtml(r){return (tags[r.id]||[]).length||tagInput(r.id)?'<div class="xt" role="group" aria-label="Tags">'+tagLine(r.id)+'</div>':'';}
 function filesHtml(r,e){let h='';

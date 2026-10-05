@@ -22,8 +22,8 @@ export const TIPS_CSS = String.raw`
 
 /** Webview script: tips grouped under quiet subheadings; each row is a button whose click fills the search box. Loaded after the sort script, which owns popover open/close. */
 export const TIPS_JS = String.raw`
-const TIPS=[['Find in files and git',[['Chats that touched a file','file:app.ts'],['Chats that edited a file','edited:app.ts'],['A command Claude ran','cmd:"npm test"'],['A commit hash','sha:3028413'],['A pull request number','pr:123'],['A branch name','branch:main']]],
-['Narrow the search',[['Chats with a tag','tag:review'],['Only the last N messages','last:25'],['Who wrote it: you or claude','from:claude']]]];
+const TIPS=[['Find in files and git',[['Chats that touched a file','file:app.ts'],['Chats that edited a file','edited:app.ts'],['A command the agent ran','cmd:"npm test"'],['A commit hash','sha:3028413'],['A pull request number','pr:123'],['A branch name','branch:main']]],
+['Narrow the search',[['Chats with a tag','tag:review'],['Only the last N messages','last:25'],['Who wrote it: you or the agent','from:agent']]]];
 const tpm=$('tpm');
 tpm.innerHTML='<div class="tpg"><div class="tph">Click an example to try it</div>'+TIPS.map(g=>'<div class="tph">'+g[0]+'</div>'+g[1].map(t=>'<button type="button" class="tpx" data-ex="'+esc(t[1])+'" aria-label="'+esc(t[0]+': '+t[1])+'"><code>'+esc(t[1])+'</code><span>'+t[0]+'</span></button>').join('')).join('')+'<div class="tph">Put a value in quotes to include spaces</div></div>';
 tpm.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-ex]');if(!b)return;

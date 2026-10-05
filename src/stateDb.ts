@@ -13,7 +13,7 @@ const TIMEOUT_MS = 5000;
 /** The archived ids in the query output, or the reason there are none. */
 export function parseHidden(out: string): HiddenRead {
   const text = out.trim();
-  if (!text) { return { ok: false, reason: `The key ${KEY} was not found in the database, so Claude Code has stored nothing there yet.` }; }
+  if (!text) { return { ok: false, reason: `The key ${KEY} was not found in the database, so the agent has stored nothing there yet.` }; }
   let v: any;
   try { v = JSON.parse(text); } catch { return { ok: false, reason: `The value stored under ${KEY} is not JSON.` }; }
   const list = v && typeof v === 'object' ? v.hiddenSessionIds : undefined;
@@ -113,6 +113,6 @@ export async function readTabs(root: string, folders: string[], run: Run = runSq
     const r = await tabsOf(path.join(root, h, 'state.vscdb'), run);
     if (r) { r.forEach((i) => ids.add(i)); used.push(h); }
   }
-  if (!used.length) { return { ok: false, reason: 'no workspace database has the Claude Code tab list' }; }
+  if (!used.length) { return { ok: false, reason: 'no workspace database has the agent tab list' }; }
   return { ok: true, ids: [...ids], hash: used.join(',') + ' (all)' };
 }

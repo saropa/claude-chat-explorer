@@ -13,8 +13,8 @@ export async function openChat(id: string, log: (msg: string) => void): Promise<
   try {
     const uri = vscode.Uri.parse(`${vscode.env.uriScheme}://anthropic.claude-code/open?session=${encodeURIComponent(id)}`);
     if (await vscode.env.openExternal(uri)) { return; }
-  } catch (e) { log('Claude Code URI fallback failed: ' + String(e)); }
-  void vscode.window.showErrorMessage('Could not open Claude chat ' + id + '. Is the Claude Code extension installed?');
+  } catch (e) { log('agent URI fallback failed: ' + String(e)); }
+  void vscode.window.showErrorMessage('Could not open chat ' + id + '. Is the agent extension installed?');
 }
 
 /** Copy a session id to the clipboard and say so. */

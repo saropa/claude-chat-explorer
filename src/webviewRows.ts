@@ -62,7 +62,7 @@ function mkey(s){return s.replace(/^…/,'').replace(/\s+/g,' ').slice(0,96);}
 function mgroups(r,e){const m=new Map(),out=[],lk=mkey(r.snippet||'');
 e.items.forEach((it,i)=>{if(i===0)return;const k=mkey(it.snippet),g=m.get(k);
 if(g){g.n.push(it);return;}const n={i:i,it:it,n:[it],same:k===lk};m.set(k,n);out.push(n);});return out;}
-function whoHtml(it){return it.sub!==undefined?saPill(it.sub):'<span class="who">'+(it.role==='user'?'You':'Claude')+'</span>';}
+function whoHtml(it){return it.sub!==undefined?saPill(it.sub):'<span class="who">'+(it.role==='user'?'You':'Agent')+'</span>';}
 function miHtml(g){const it=g.it,n=g.n.length,now=Date.now();
 return '<li class="mi" data-i="'+g.i+'" data-tip="k:item"><div class="mih">'+whoHtml(it)+'<span class="d">'+esc(it.desc||'')+'</span>'
 +(n>1?'<span class="xn" role="img" aria-label="'+n+' messages with this text">×'+n+'</span>':'')

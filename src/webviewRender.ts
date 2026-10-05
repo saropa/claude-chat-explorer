@@ -27,7 +27,7 @@ function marked(s,rg){let o='',p=0;for(const g of rg){o+=esc(s.slice(p,g[0]))+'<
 return o+esc(s.slice(p));}
 function snip(r){return marked(r.snippet,r.ranges);}
 function tagActive(t){return new RegExp('(^|\\s)tag:'+reEsc(t)+'(\\s|$)','i').test(q.value);}
-function chips(id){return (tags[id]||[]).map(t=>'<span class="chip'+(tagActive(t)?' on':'')+'" data-a="tag" data-t="'+esc(t)+'" data-tip="Filter by tag" aria-label="Filter by tag '+esc(t)+'" role="button" tabindex="0">'+esc(t)+'<b class="cx" data-a="untag" data-t="'+esc(t)+'" data-tip="Remove tag" aria-label="Remove tag '+esc(t)+'" role="button" tabindex="0">×</b></span>').join('');}
+function chips(id){return (tags[id]||[]).map(t=>'<span class="chip'+(tagActive(t)?' on':'')+'" data-a="tag" data-t="'+esc(t)+'" data-tip="Filter by tag" aria-label="Filter by tag '+esc(t)+'" role="button" tabindex="0"><span class="ct">'+esc(t)+'</span><b class="cx" data-a="untag" data-t="'+esc(t)+'" data-tip="Remove tag" aria-label="Remove tag '+esc(t)+'" role="button" tabindex="0">×</b></span>').join('');}
 function fileChip(f){const b=f.path.split(/[\\/]/).pop()||f.path;return '<span class="fp'+(f.edited?' ed':'')+'" data-tip="'+esc((f.edited?'Edited: ':'Read: ')+f.path)+'">'+(f.edited?'✎ ':'')+esc(b)+'</span>';}
 function hdHtml(r,op){const p=pins.has(r.id),ia=arch.has(r.id),tg=tagIn&&tagIn.id===r.id;
 const ti=r.titleShown&&(!op||r.titleShown===r.title)?marked(r.titleShown,r.titleRanges):esc(r.title);

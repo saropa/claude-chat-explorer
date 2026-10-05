@@ -38,7 +38,7 @@ function gitPill(cls,a,k,v,label,tip,br){return '<span class="gp'+cls+'" data-a=
 const LAZY=/^(git|unc|unp|wt|rel):/;
 const xo=new Set(),lz={},cnt={};let cq=0;
 function cntAsk(id){cnt[id]={rq:++cq,v:{}};vs.postMessage({type:'counts',id:id,rq:cnt[id].rq});}
-function cnOf(part,id,exact){if(exact!==''&&exact!==undefined&&exact!==null)return exact;const c=cnt[id];if(!c)return '';const v=c.v[part];return v===undefined?'\u2026':v===null?'':v;}
+function cnOf(part,id,exact){if(exact!==''&&exact!==undefined&&exact!==null)return exact;const c=cnt[id];if(!c)return part==='rel'?0:'';const v=c.v[part];return v===undefined?'\u2026':v===null?(part==='rel'?0:''):v;}
 function cntSet(d){const c=cnt[d.id];if(!c||c.rq!==d.rq||!open.has(d.id)||!(d.part in {rel:1,unc:1,unp:1,wt:1,git:1}))return;
 c.v[d.part]=typeof d.n==='number'&&d.n>=0?d.n:null;cntPatch(d.part,d.id);}
 function cntPatch(part,id){const h=Array.from(document.querySelectorAll('[data-sec]')).find(x=>x.dataset.sec===part+':'+id);if(!h)return;

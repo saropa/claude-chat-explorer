@@ -48,7 +48,7 @@ export class LiveWatcher {
       const r = await readLive(this.h.dir, this.alive);
       if (!this.warned && (r.bad || !r.exists)) {
         this.warned = true;
-        this.h.log(r.exists ? `Skipped ${r.bad} unreadable Claude session file(s)` : 'Claude sessions folder not found: dots show idle');
+        this.h.log(r.exists ? `Skipped ${r.bad} unreadable agent session file(s)` : 'Agent sessions folder not found: dots show idle');
       }
       await this.markWindows(r.pids, r.live.size);
       await this.readTabs();

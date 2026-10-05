@@ -81,7 +81,7 @@ else if(k==='pin')vs.postMessage({type:'pin',id:id});
 else if(k==='resume')openId(id);
 else if(k==='read')vs.postMessage({type:'read',id:id});
 else if(k==='copyid')vs.postMessage({type:'copyId',id:id});
-else if(k==='handover')vs.postMessage({type:'handover',id:id,query:q.value.trim()});
+else if(k==='handover'){if(hv[id]!=='busy'){hv[id]='busy';rerender();vs.postMessage({type:'handover',id:id,query:q.value.trim()});}}
 else if(k==='addtag')tagToggle(id);
 else if(k==='arch')archToggle(id);
 else if(k==='tag')toggleTag(a.dataset.t);
@@ -118,6 +118,7 @@ else if(d.type==='expanded'){ex[d.id]=exMerge(d);rerender();}
 else if(d.type==='expandFailed'){if(!d.lite){ex[d.id]=Object.assign({items:[],total:0,files:[],commands:[],git:null},ex[d.id],{full:false,failed:true,reason:d.reason});rerender();}}
 else if(d.type==='gitLive'){const k=d.part+':'+d.id;if(lz[k]){lz[k]={s:'done',data:d.data};rerender();}}
 else if(d.type==='counts')cntSet(d);
+else if(d.type==='handoverState')handoverState(d);
 else if(d.type==='related'){const k='rel:'+d.id;if(lz[k]){lz[k]={s:'done',data:d.related||[]};rerender();}}
 else if(d.type==='relatedFailed'){const k='rel:'+d.id;if(lz[k]){lz[k]={s:'fail',reason:d.reason};rerender();}}
 else if(d.type==='indexing'){ix={done:d.done,total:d.total,subs:d.subs||0,first:!!d.first};showIx();}

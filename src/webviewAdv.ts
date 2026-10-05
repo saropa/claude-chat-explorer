@@ -3,7 +3,7 @@ export const ADV_HTML = `<div class="advr"><button type="button" class="opt" id=
 <div id="adv" hidden>
 <label class="ar2" for="when"><span class="lb2">chats active during</span><select id="when" aria-label="chats active during"><option value="any">any time</option><option value="1h">last hour</option><option value="2h">last 2 hours</option><option value="4h">last 4 hours</option><option value="8h">last 8 hours</option><option value="today">today</option><option value="week">this week</option><option value="month">this month</option></select></label>
 <label class="ar2" for="msgs"><span class="lb2">messages to search</span><select id="msgs" aria-label="messages to search"><option value="0">all messages</option><option value="10">last 10</option><option value="25">last 25</option><option value="50">last 50</option><option value="100">last 100</option></select></label>
-<label class="ar2" for="frm"><span class="lb2">messages from</span><select id="frm" aria-label="messages from"><option value="both">both</option><option value="you">you</option><option value="claude">Claude</option></select></label>
+<label class="ar2" for="frm"><span class="lb2">messages from</span><select id="frm" aria-label="messages from"><option value="both">both</option><option value="you">you</option><option value="agent">agent</option></select></label>
 <div class="ar2" role="group" aria-labelledby="lbsc"><span class="lb2" id="lbsc">search scope</span><div class="scr"><label class="al" title="Search every project, not only this workspace"><input type="checkbox" id="all"> All projects</label><label class="al" title="Include subagent chats"><input type="checkbox" id="subs" checked> Subagents</label></div></div>
 </div>`;
 
@@ -30,13 +30,13 @@ export const ADV_CSS = String.raw`
 export const ADV_JS = String.raw`
 const advb=$('advb'),adv=$('adv'),advn=$('advn');
 function selTxt(el){return el.options[el.selectedIndex].text.toLowerCase();}
-function advList(){const l=[];if(when.value!=='any')l.push('chats active '+selTxt(when));if(msgSel.value!=='0')l.push('messages '+selTxt(msgSel));if(frm.value!=='both')l.push('messages from '+selTxt(frm).replace('claude','Claude'));
+function advList(){const l=[];if(when.value!=='any')l.push('chats active '+selTxt(when));if(msgSel.value!=='0')l.push('messages '+selTxt(msgSel));if(frm.value!=='both')l.push('messages from '+selTxt(frm));
 if(all.checked)l.push('all projects');if(!subs.checked)l.push('subagents off');return l;}
 function advSync(){const l=advList(),n=l.length,o=!adv.hidden,t='Hidden settings changed: '+l.join(', ');
 advb.setAttribute('aria-expanded',o?'true':'false');advb.classList.toggle('on',o);
 advn.hidden=o||!n;advn.textContent=n;
 advb.title=!o&&n?'Toggle search details. '+t:'Toggle search details';advn.title=t;}
-function setOpts(w,l,f){when.value=w||'any';if(when.value!==(w||'any'))when.value='any';msgSel.value=String(l||0);if(msgSel.value!==String(l||0))msgSel.value='0';frm.value=f||'both';if(frm.value!==(f||'both'))frm.value='both';advSync();}
+function setOpts(w,l,f){when.value=w||'any';if(when.value!==(w||'any'))when.value='any';msgSel.value=String(l||0);if(msgSel.value!==String(l||0))msgSel.value='0';f=f==='claude'?'agent':f;frm.value=f||'both';if(frm.value!==(f||'both'))frm.value='both';advSync();}
 function advSet(o,save){adv.hidden=!o;advSync();if(save)vs.postMessage({type:'advOpen',open:o});}
 advb.addEventListener('click',()=>advSet(adv.hidden,true));
 [when,msgSel,frm,all,subs].forEach(e=>e.addEventListener('change',advSync));

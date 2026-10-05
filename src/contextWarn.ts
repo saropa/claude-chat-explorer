@@ -37,7 +37,7 @@ export function ctxReply(find: (id: string) => Chat | undefined, ids: string[]):
 /** Toast text for a level. */
 export function warnText(title: string, level: number): string {
   const t = title.length > TITLE_MAX ? title.slice(0, TITLE_MAX) + '...' : title;
-  return level >= 90 ? `Chat "${t}" is 90% full. Start a new chat or run /compact soon.` : `Chat "${t}" is 80% full. Claude may auto-compact soon.`;
+  return level >= 90 ? `Chat "${t}" is 90% full. Start a new chat or run /compact soon.` : `Chat "${t}" is 80% full. The chat may auto-compact soon.`;
 }
 
 /** Drop warned marks that a compaction or a fall below level minus 10 has re-armed. */

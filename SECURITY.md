@@ -18,9 +18,9 @@
 
 ## What the extension does with data
 
-- Reads Claude Code chat files under `~/.claude/projects`.
+- Reads Claude Code transcripts under `~/.claude/projects`.
 - Reads live session files under `~/.claude/sessions`.
-- Reads open Claude Code tab ids from VS Code's workspace `state.vscdb`, read-only, on a temporary copy.
+- Reads open chat tab ids from VS Code's workspace `state.vscdb`, read-only, on a temporary copy.
 - Keeps a local index cache in the extension's global storage folder. It includes each chat's working folder path.
 - Makes no network requests of its own and sends no telemetry.
   - A search of `src/` finds no HTTP client, `fetch`, `XMLHttpRequest`, WebSocket, `net` or `dns` use.
@@ -28,7 +28,7 @@
   - The panel's content security policy blocks all loads (`default-src 'none'`).
 - Starts local programs in four places only, all with `execFile` (no shell):
   - `ps -A -o pid=,ppid=` finds parent process ids, to mark which VS Code window owns a session.
-  - `sqlite3 -readonly` reads Claude Code's archived-chat list. It runs only when the user runs "Import Archived Chats from Claude Code". It reads a temporary copy of VS Code's `state.vscdb`, which is deleted afterward.
+  - `sqlite3 -readonly` reads the agent's archived-chat list. It runs only when the user runs "Import Archived Chats from the Agent". It reads a temporary copy of VS Code's `state.vscdb`, which is deleted afterward.
   - `git`, read-only, in the single working folder of a chat, only when the Git section of that chat's card opens (5 second limit, `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`). Exact command lines:
     - `git rev-parse --show-toplevel --git-common-dir --abbrev-ref HEAD` (or the same without `--abbrev-ref HEAD` when the repository has no commits)
     - `git status --porcelain=v1 --branch -z`
@@ -37,11 +37,11 @@
   - `gh pr list --state open --limit 100 --json number,title,headRefName,isDraft,reviewDecision,url`, once per repository, 15 second limit, only while `saropaChatExplorer.lookupPullRequests` is on (the default). Results are kept 5 minutes. Clicking a PR in the card opens its https address in the browser.
   - The code allows no other git subcommand and no other gh subcommand; any other call throws before it starts. It never runs fetch, pull, checkout, reset, clean, stash, commit, push, worktree add or remove, or gc.
 - Runs its search in a worker thread (`worker_threads`), not a separate process.
-- Opens a chat by calling the Claude Code extension, or by a `vscode://` link to it.
+- Opens a chat by calling the agent extension, or by a `vscode://` link to it.
 
 ## What it never does
 
-- Writes to Claude Code's data. Its writes go to its own global storage folder and a temporary folder.
+- Writes to the agent's data. Its writes go to its own global storage folder and a temporary folder.
 - Uploads anything.
 
 ## In scope
@@ -54,7 +54,7 @@
 
 ## Out of scope
 
-- Issues in VS Code or Claude Code themselves.
+- Issues in VS Code or the agent extension themselves.
 - Social engineering.
 - The content of your own chats.
 

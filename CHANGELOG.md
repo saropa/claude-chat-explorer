@@ -2,6 +2,15 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.21.1 - 2026-10-05
+- Changed: Copy hand-over note now writes everything the card shows: the Git section (branch, ahead and behind, open pull request with number, title and link), Uncommitted files (count and up to 20 names), Unpushed commits (count and up to 20 with short id and subject), Worktrees (path, branch, which one this chat used) and Related chats (title, id, shared files), after the chat title, session id, folder, branch, last active time and context percent. The parts are read at the same time with one 5 second limit. A part that fails or is too slow is written as "Not available" and the copy never waits longer. The button shows "Copying..." and then "Copied".
+- Changed: the Related chats header always shows a dimmed 0 when no chat shares files; it still opens and says "No other chat touched the same files".
+- Changed: the stat labels in the info panel (Messages, Last active and so on) have 1 px more space above them.
+- Changed: the extension no longer names a specific agent in its text, so it can work with other agents later. The "messages from" drop-down is Both, You and Agent, the search prefix is from:you or from:agent (from:claude still works, so saved searches keep working), and tooltips, notices, settings text and the README use neutral wording. Command and setting ids are unchanged.
+- Changed: the tag editor wraps. Tag chips and the input flow onto new lines instead of overflowing at narrow widths, and long tag names are cut with an ellipsis.
+- Changed: the "Enter to add, Esc to cancel" hint is no longer on screen. It is a tooltip on the tag input, and the placeholder is "Add tag".
+- Changed: the build check covers the neutral wording, the full hand-over note, the zero Related pill, the stat label margin and the tag editor.
+
 ## 0.21.0 - 2026-10-05
 - Added: when you expand a chat card, the counts on its Git, Uncommitted files, Unpushed commits, Worktrees and Related chats sections now load by themselves in the background, so you can see which sections are worth opening. The sections still load their contents only when you open them. Each count shows a small faint "..." until it arrives and then fills in without redrawing the card or closing any open section. If a count cannot be read (slow git, no upstream branch, not a git folder) no number is shown and there is no error. The Git count is the number of open pull requests and appears only when pull request lookups are on. Counts are reused for 30 seconds, so closing and reopening a card does not ask again. Collapsed cards never load anything, and counting never slows down a search.
 - Changed: the count badge in the section headers is one step smaller with tighter padding, and a zero count is dimmed so sections with something in them stand out. A section with zero can still be opened.

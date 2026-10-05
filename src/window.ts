@@ -20,11 +20,11 @@ export const inWin = (w: Win, rec: Rec, i: number): boolean =>
 /** Window factory for a top-level chat; undefined when no message limit and no author choice is set. */
 export function topWinOf(n: number, from: From = 'both'): WinOf | undefined {
   if (n <= 0 && from === 'both') { return undefined; }
-  const role = from === 'you' ? 0 : from === 'claude' ? 1 : undefined;
+  const role = from === 'you' ? 0 : from === 'agent' ? 1 : undefined;
   return (rec) => ({ ...(n > 0 ? topWin(n, rec) : { from: 0, minTs: 0 }), role });
 }
 
-/** True when subagents are left out: their messages count as Claude's, so a you-only search has none. */
+/** True when subagents are left out: their messages count as the agent's, so a you-only search has none. */
 export const noSubs = (from: From | undefined): boolean => from === 'you';
 
 /** Window factory for the subagents of one parent; the parent record is decoded once, on first use. */

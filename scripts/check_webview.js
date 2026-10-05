@@ -78,8 +78,9 @@ function deliver(msg, where) {
 run(script, 'panel.js');
 // patch() diffs real DOM nodes, which the stub cannot hold: keep the real call (it must not throw) and record the html it was given.
 run("{const real=patch;patch=function(el,h){el.innerHTML=h;return real(el,h);};}", 'wrap patch');
+const asyncChecks = [];
 if (!errors.length) drive();
-report();
+Promise.all(asyncChecks).then(report);
 
 function drive() {
   const NOW = Date.now(), H = 3600e3;
@@ -276,11 +277,46 @@ function drive() {
   check('author choice is sent with the search and saved in the draft', posted.some((p) => p.type === 'draft' && p.from === 'you') && run('cur().from', 'cur') === 'you');
   check('summary notes a non-default author', run("fromNote()", 'note') === ' · from you only');
   step('query prefix wins over the drop-down', () => { els.get('q').value = 'x from:claude'; });
-  check('from:claude shows in the note', run('fromNote()', 'note2') === ' · from Claude only');
+  check('from:claude (old alias) and from:agent both show the agent note', run('fromNote()', 'note2') === ' · from agent only' && (() => { els.get('q').value = 'x from:agent'; return run('fromNote()', 'note2b') === ' · from agent only'; })());
   step('restore author', () => { els.get('q').value = ''; deliver({ type: 'restore', max: 500, state: { query: '', results: [], searched: '', subs: true, when: 'any', sort: 'time', from: 'claude' }, history: [], archOpen: false, advOpen: false }); });
-  check('restore sets the author drop-down', els.get('frm').value === 'claude');
+  check('restore sets the author drop-down', els.get('frm').value === 'agent');
   step('back to both', () => { els.get('frm').value = 'both'; fire('frm', 'change'); });
   check('both shows no note', run('fromNote()', 'note3') === '');
+
+  // Neutral wording: no "claude" in the generated page except the from:claude alias handling.
+  const left = [...page.matchAll(/.{0,30}claude.{0,30}/gi)].map((x) => x[0]).filter((x) => !/\|claude\||===\s*'claude'|\|claude\)/.test(x));
+  check('no "claude" in the generated page outside the from:claude alias (' + left.slice(0, 3).join(' / ') + ')', left.length === 0);
+  check('messages from drop-down is Both / You / Agent', /<option value="agent">agent<\/option>/.test(page) && !/value="claude"/.test(page));
+  check('Search tips teach from:agent', /data-ex="from:agent"/.test(page) || /from:agent/.test(page));
+  check('stat labels have a 1px top margin', /\.xs dt\{margin-top:1px/.test(page));
+  // Tag editor: wraps, no visible hint, tooltip carries it.
+  step('tag editor open', () => run('tagIn={id:' + JSON.stringify(id(1)) + ",v:''};", 'tagIn'));
+  const tin = run('tagInput(' + JSON.stringify(id(1)) + ')', 'tagInput');
+  check('no visible "Enter to add" text in the tag editor', !/>[^<]*Enter to add/.test(tin) && !/class="k"/.test(tin));
+  check('tag input has the tooltip, accessible description and short placeholder', /data-tip="Enter to add · Esc to cancel"/.test(tin) && /aria-description="Enter to add, Escape to cancel"/.test(tin) && /placeholder="Add tag"/.test(tin));
+  check('tag editor wraps with a 4px row gap, 80px input and ellipsis chips', /\.xt\{display:flex;flex-wrap:wrap;[^}]*row-gap:4px/.test(page) && /\.xin\{[^}]*flex:1 1 80px;min-width:80px/.test(page) && /\.xt \.ct\{[^}]*text-overflow:ellipsis/.test(page));
+  step('tag editor close', () => run('tagIn=null;', 'tagIn off'));
+  // Related zero pill is dimmed and the section still opens.
+  step('back to the session list with two open cards', () => {
+    run("sessOn=true;lastQ='';hasResults=false;lastRs=[];lastMsg='';busy=false;open.clear();", 'reset list');
+    deliver({ type: 'sessions', sn: run('sn', 'sn'), rows, total: 3, arch: [], archTotal: 0, max: 500 });
+    for (const n of [1, 3]) { run('openCard(' + JSON.stringify(id(n)) + ');rerender();', 'open ' + n); deliver(expandReply(n)); }
+  });
+  const rq3 = countPosts().filter((p) => p.id === id(3)).pop().rq;
+  step('related count 0', () => { deliver({ type: 'counts', id: id(3), rq: rq3, part: 'rel', n: 0 }); run('rerender();', 'rr'); });
+  const relSec = (n) => { const m = new RegExp('<section class="xrel"><div class="xh[^"]*" data-sec="rel:' + id(n) + '"[\\s\\S]*?</div>').exec(list.innerHTML); return m ? m[0] : ''; };
+  check('Related header shows a dimmed 0 pill', /class="pill z"[^>]*>0</.test(relSec(3)));
+  step('related count failed', () => { deliver({ type: 'counts', id: id(3), rq: rq3, part: 'rel', n: null }); run('rerender();', 'rr2'); });
+  check('Related header still shows the dimmed 0 pill when the count is unknown', /class="pill z"[^>]*>0</.test(relSec(3)));
+  step('open empty Related', () => { run("toggleSec('rel:' + " + JSON.stringify(id(3)) + ');', 'rel3'); deliver({ type: 'related', id: id(3), related: [] }); });
+  check('empty Related opens and says so', /No other chat touched the same files/.test(list.innerHTML) && /class="pill z"[^>]*>0</.test(relSec(3)));
+  // Hand-over button feedback.
+  step('handover busy', () => deliver({ type: 'handoverState', id: id(1), state: 'busy' }));
+  check('hand-over button shows busy', /aria-busy="true"/.test(list.innerHTML) && /Copying\.\.\./.test(list.innerHTML));
+  step('handover done', () => deliver({ type: 'handoverState', id: id(1), state: 'done' }));
+  check('hand-over button shows Copied', />Copied</.test(list.innerHTML));
+  step('handover cleared', () => deliver({ type: 'handoverState', id: id(1), state: '' }));
+  asyncChecks.push(handoverChecks(check));
   roleChecks(check);
   // No font family or size in the generated CSS other than the VS Code variables (code/paths use the editor font).
   const css = [...page.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((x) => x[1]).join('\n');
@@ -316,18 +352,56 @@ function drive() {
 function roleChecks(check) {
   const q = require(path.join(OUT, 'query.js')), w = require(path.join(OUT, 'window.js')), mo = require(path.join(OUT, 'msgOpts.js')), mt = require(path.join(OUT, 'match.js')), pr = require(path.join(OUT, 'parse.js'));
   const o = (x) => Object.assign({ all: false, cs: false, ww: false, re: false, when: 'any', subs: true, last: 0 }, x);
-  check('parser reads from:you and from:claude and removes them from the text', q.parseQuery('from:you hello').from === 'you' && q.parseQuery('hello from:Claude').plain === 'hello' && q.parseQuery('from:bob x').from === undefined);
-  check('compile takes the prefix first, then the option, then both', q.compile('a from:claude', o({ from: 'you' })).from === 'claude' && q.compile('a', o({ from: 'you' })).from === 'you' && q.compile('a', o()).from === 'both');
-  check('options validate the author value', mo.opts({ from: 'you' }).from === 'you' && mo.opts({ from: 'x' }).from === 'both' && mo.opts({}).from === 'both');
+  check('parser reads from:you and from:claude and removes them from the text', q.parseQuery('from:you hello').from === 'you' && q.parseQuery('hello from:Claude').plain === 'hello' && q.parseQuery('from:claude').from === 'agent' && q.parseQuery('from:agent').from === 'agent' && q.parseQuery('from:bob x').from === undefined);
+  check('compile takes the prefix first, then the option, then both', q.compile('a from:claude', o({ from: 'you' })).from === 'agent' && q.compile('a', o({ from: 'you' })).from === 'you' && q.compile('a', o()).from === 'both');
+  check('options validate the author value', mo.opts({ from: 'you' }).from === 'you' && mo.opts({ from: 'claude' }).from === 'agent' && mo.opts({ from: 'agent' }).from === 'agent' && mo.opts({ from: 'x' }).from === 'both' && mo.opts({}).from === 'both');
   const texts = ['hello from me', 'hello from bot', 'hello again bot'], roles = [0, 1, 1];
   const rec = { text: texts.join(pr.SEP), ts: [1, 2, 3], ends: [], roles, cmds: [], cmdAt: [], lines: new Uint32Array(3) };
   let p = 0; texts.forEach((t, i) => { rec.ends.push(p + t.length); p += t.length + pr.SEP.length; });
   const cmp = (from) => Object.assign(q.compile('hello', o({ from })), { grams: [] });
   const run1 = (from) => mt.matchChat({ files: [], bloom: new Uint8Array(0), last: 3 }, cmp(from), { pins: new Set(), tags: {} }, 'x', () => rec, 10, w.topWinOf(0, from));
-  check('both counts every message, you only user messages, Claude only assistant messages', run1('both').hits === 3 && run1('you').hits === 1 && run1('claude').hits === 2 && run1('you').role === 0 && run1('claude').role === 1);
-  check('hit counts and matching messages follow the author', run1('both').mc === 3 && run1('you').mc === 1 && run1('claude').mc === 2);
+  check('both counts every message, you only user messages, agent only assistant messages', run1('both').hits === 3 && run1('you').hits === 1 && run1('agent').hits === 2 && run1('you').role === 0 && run1('agent').role === 1);
+  check('hit counts and matching messages follow the author', run1('both').mc === 3 && run1('you').mc === 1 && run1('agent').mc === 2);
   check('author filter combines with last:N (last 1 message is Claude)', (() => { const h = mt.matchChat({ files: [], bloom: new Uint8Array(0), last: 3 }, cmp('you'), { pins: new Set(), tags: {} }, 'x', () => rec, 10, w.topWinOf(1, 'you')); return h === null; })());
-  check('subagents are skipped for you only and kept for Claude', w.noSubs('you') && !w.noSubs('claude') && !w.noSubs('both') && !w.noSubs(undefined));
+  check('subagents are skipped for you only and kept for Claude', w.noSubs('you') && !w.noSubs('agent') && !w.noSubs('both') && !w.noSubs(undefined));
+}
+
+
+// Hand-over note on the real compiled modules: every card section is written, a missing part is "not available", the live gather obeys its deadline.
+function handoverChecks(check) {
+  const h = require(path.join(OUT, 'handover.js')), lv = require(path.join(OUT, 'handoverLive.js'));
+  const d = { id: '00000000-0000-4000-8000-000000000001', title: 'Fix  the thing', folder: '/Users/x/proj', branch: 'feat/x', last: Date.now() - 3600e3, pct: 61, files: [{ path: '/Users/x/proj/a.ts', edited: true }] };
+  const many = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+  const ok = { state: 'ok', top: '/Users/x/proj', branch: 'feat/x', upstream: 'origin/feat/x', ahead: 25, behind: 2, staged: 1, modified: 30, untracked: 2, fileTotal: 33,
+    files: many(25, (i) => ({ s: 'M', p: 'f' + i + '.ts' })), commits: many(25, (i) => ({ sha: 'abc' + String(1000 + i), subject: 'subject ' + i })),
+    worktrees: [{ path: '/Users/x/proj', branch: 'feat/x', detached: false, main: true, missing: false, here: true }, { path: '/Users/x/proj-wt', branch: 'fix/y', detached: false, main: false, missing: false, here: false }],
+    prs: [{ number: 7, title: 'A PR', draft: true, review: 'approved' }] };
+  const live = { git: ok, prUrls: new Map([[7, 'https://example.com/pr/7']]), prsOn: true, unc: ok, unp: ok, wt: ok, rel: [{ id: '00000000-0000-4000-8000-000000000009', title: 'Related one', shared: 3, last: 0, score: 9 }] };
+  const t = h.handoverText(d, [], Date.now(), live);
+  const heads = ['## Git', '## Uncommitted files', '## Unpushed commits', '## Worktrees', '## Related chats'];
+  check('hand-over note has every card section heading', heads.every((x) => t.includes(x)));
+  check('hand-over note keeps the existing fields', /Chat: Fix the thing/.test(t) && /Session id: 0000/.test(t) && /Project folder: \/Users\/x\/proj/.test(t) && /Git branch: feat\/x/.test(t) && /Last active:/.test(t) && /Context: 61% full/.test(t));
+  check('hand-over Git section has branch, ahead/behind and PR number, title and url', /ahead 25, behind 2/.test(t) && /Pull request: #7 A PR \(open, draft, approved\) https:\/\/example\.com\/pr\/7/.test(t));
+  check('hand-over lists at most 20 uncommitted files and 20 commits with the rest counted', (t.match(/^- M f\d+\.ts/gm) || []).length === 20 && /\(\+13 more\)/.test(t) && (t.match(/^- abc\d+ subject/gm) || []).length === 20 && /\(\+5 more\)/.test(t));
+  check('hand-over worktrees mark this chat and related lists title, id and shared files', /proj-wt \[fix\/y\]/.test(t) && /\(this chat's\)/.test(t) && /Related one \(0000.*0009\) - 3 shared files/.test(t));
+  check('hand-over note has no "claude"', !/claude/i.test(t));
+  const none = h.handoverText(d, [], Date.now(), {});
+  check('missing parts are written as not available, never dropped', heads.every((x) => none.includes(x)) && (none.match(/Not available/g) || []).length === 5);
+  check('a failed git part says why', /Not available: Git is unavailable/.test(h.handoverText(d, [], Date.now(), { git: { state: 'error', reason: 'Git is unavailable: x' } })));
+  check('empty related says so', /No other chat touched the same files/.test(h.handoverText(d, [], Date.now(), { rel: [] })));
+  const hang = new Promise(() => {});
+  const deps = (load, request) => ({ request, log() {}, folders: () => [], prsOn: () => true, gitLive: { load } });
+  const fast = async (cwd, part) => ({ live: Object.assign({}, ok, { fileTotal: 1 }), targets: part === 'git' ? { urls: new Map([[7, 'u']]) } : undefined });
+  const req = async (m) => (m.t === 'chatCwd' ? '/r' : []);
+  return lv.gatherLive('x', deps(fast, req), 200).then((g) => {
+    check('gather returns every part when all answer', g.git && g.unc && g.unp && g.wt && Array.isArray(g.rel) && g.prUrls.get(7) === 'u');
+    const t0 = Date.now();
+    const stuck = (cwd, part) => (part === 'wt' ? hang : fast(cwd, part));
+    return lv.gatherLive('x', deps(stuck, req), 150).then((g2) => {
+      check('a stuck part is left out at the deadline while the others are kept', Date.now() - t0 < 1500 && !g2.wt && g2.git && g2.unc);
+      return lv.gatherLive('x', deps((c, p) => Promise.reject(new Error('boom')), () => Promise.reject(new Error('no'))), 150).then((g3) => check('failing services never throw', !g3.git && !g3.rel));
+    });
+  }).catch((e) => fail('handover gather', e)).then(() => {});
 }
 
 function report() {

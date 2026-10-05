@@ -76,7 +76,7 @@ export function registerEditorView(ctx: vscode.ExtensionContext, d: EditorDeps, 
     vscode.languages.registerDocumentLinkProvider(sel, {
       provideDocumentLinks: (td) => (docs.get(td.uri.toString())?.links ?? []).map((l) => {
         const k = new vscode.DocumentLink(new vscode.Range(l.line, 0, l.line, l.to), vscode.Uri.parse(`command:${RESUME_CHAT_CMD}?${encodeURIComponent(JSON.stringify([l.id]))}`));
-        k.tooltip = 'Resume this chat in the Claude panel';
+        k.tooltip = 'Resume this chat in the agent panel';
         return k;
       }),
     }),

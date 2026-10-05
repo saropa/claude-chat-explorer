@@ -18,8 +18,8 @@ function sumCounts(){const rs=lastRs;
 const hits=tot?tot.totalHits:rs.reduce((a,r)=>a+(r.hits||0),0),chats=tot?tot.totalChats:rs.length;
 const x=tot&&tot.hitsCapped?nf(1000000)+'+ results':plu(hits,'result');
 return x+' in '+plu(chats,'chat');}
-function fromNow(){const m=/(?:^|\s)from:(you|claude|both)(?=\s|$)/i.exec(q.value);return m?m[1].toLowerCase():frm.value;}
-function fromNote(){const f=fromNow();return f==='you'?' · from you only':f==='claude'?' · from Claude only':'';}
+function fromNow(){const m=/(?:^|\s)from:(you|agent|claude|both)(?=\s|$)/i.exec(q.value);const v=m?m[1].toLowerCase():frm.value;return v==='claude'?'agent':v;}
+function fromNote(){const f=fromNow();return f==='you'?' · from you only':f==='agent'?' · from agent only':'';}
 function sumPlain(){const on=!hasResults&&sessOn&&sess&&sessN>0&&!busy&&err.style.display!=='block';sumEl.hidden=!on;sumEl.textContent=on?plu(sessN,'chat'):'';}
 function sumSync(){const has=!!q.value.trim()&&!!lastQ;
 if(!has||err.style.display==='block'){sumPlain();return;}

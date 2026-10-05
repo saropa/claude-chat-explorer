@@ -26,7 +26,7 @@ async function show(host: FileSessionsHost, arg: unknown): Promise<void> {
   try {
     const uri = targetUri(arg);
     if (!uri) { void vscode.window.showInformationMessage('Open a file first.'); return; }
-    if (uri.scheme !== 'file' || !fs.existsSync(uri.fsPath)) { void vscode.window.showInformationMessage('No Claude chat has touched this file yet.'); return; }
+    if (uri.scheme !== 'file' || !fs.existsSync(uri.fsPath)) { void vscode.window.showInformationMessage('No chat has touched this file yet.'); return; }
     await host.showQuery(fileQuery(uri.fsPath, roots()));
   } catch (e) { host.log('file sessions', e); void vscode.window.showErrorMessage('Could not search chats for this file: ' + (e as Error).message); }
 }

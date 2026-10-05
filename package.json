@@ -1,8 +1,8 @@
 {
   "name": "claude-chat-explorer",
   "displayName": "Saropa Chat Explorer",
-  "description": "Search Claude Code chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
-  "version": "0.21.0",
+  "description": "Search your AI agent chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
+  "version": "0.21.1",
   "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
@@ -25,9 +25,8 @@
     "Other"
   ],
   "keywords": [
-    "claude",
-    "claude-code",
-    "anthropic",
+    "agent",
+    "ai-agent",
     "chat history",
     "search",
     "explorer",
@@ -77,7 +76,7 @@
       },
       {
         "command": "saropaChatExplorer.importArchived",
-        "title": "Saropa Chat Explorer: Import Archived Chats from Claude Code"
+        "title": "Saropa Chat Explorer: Import Archived Chats from the Agent"
       },
       {
         "command": "saropaChatExplorer.diagnostics",
@@ -162,12 +161,12 @@
         "saropaChatExplorer.showFileSessionsStatusBar": {
           "type": "boolean",
           "default": true,
-          "description": "Show a status bar count of the Claude chats that touched the active file."
+          "description": "Show a status bar count of the chats that touched the active file."
         },
         "saropaChatExplorer.contextWarnings": {
           "type": "boolean",
           "default": true,
-          "description": "Show a notification when a live Claude chat reaches 80 and 90 percent of its context window."
+          "description": "Show a notification when a live chat reaches 80 and 90 percent of its context window."
         },
         "saropaChatExplorer.maxResults": {
           "type": "number",
@@ -186,7 +185,7 @@
     "colors": [
       {
         "id": "saropaChatExplorer.dotRunning",
-        "description": "Chat dot: Claude is running.",
+        "description": "Chat dot: the agent is running.",
         "defaults": {
           "dark": "#89d185",
           "light": "#89d185",
@@ -196,7 +195,7 @@
       },
       {
         "id": "saropaChatExplorer.dotWaiting",
-        "description": "Chat dot: Claude is waiting for you.",
+        "description": "Chat dot: the agent is waiting for you.",
         "defaults": {
           "dark": "#3b82f6",
           "light": "#3b82f6",

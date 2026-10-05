@@ -97,7 +97,7 @@ _Production-hardened tools for VS Code, Dart, and Flutter._
 - **[Saropa Workspace](https://marketplace.visualstudio.com/items?itemName=saropa.saropa-workspace)**
   - _File and script shortcuts:_ Pin any file as a favorite—single-click opens it, double-click runs it. Pins are project-scoped (shareable via the repo) or global, with a per-pin command prefix, CLI args, working directory, and environment. Seeds auto-pins and imports existing favorites.
 - **[Saropa Chat Explorer](https://github.com/saropa/claude-chat-explorer)** (extension id `saropa.claude-chat-explorer`; not yet on a marketplace)
-  - _Search the full text of your Claude Code chats:_ find any past conversation and resume it in the real Claude panel.
+  - _Search the full text of your agent chats:_ find any past conversation and resume it in the agent's own panel.
 - **[Saropa Suite](https://marketplace.visualstudio.com/items?itemName=saropa.saropa-suite)**
   - _One-click install_ for the full Saropa developer toolkit: Log Capture + Drift Advisor + Lints. Cross-extension integrations: bug reports embed lint findings, OWASP executive summaries, and project health scores; debug sessions carry query performance and schema context; right-click any SQL line in your logs to "Open in Drift Advisor."
 

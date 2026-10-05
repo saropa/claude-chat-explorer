@@ -56,8 +56,8 @@ export class Lines {
 
 const has = (re: RegExp, s: string): boolean => { re.lastIndex = 0; return re.test(s); };
 
-/** Who wrote message i: You, Claude, or Subagent:<type> inside a subagent file. */
-const whoOf = (rec: Rec, i: number, sub?: string): string => (sub !== undefined ? `Subagent:${sub}` : rec.roles[i] === 0 ? 'You' : 'Claude');
+/** Who wrote message i: You, Agent, or Subagent:<type> inside a subagent file. */
+const whoOf = (rec: Rec, i: number, sub?: string): string => (sub !== undefined ? `Subagent:${sub}` : rec.roles[i] === 0 ? 'You' : 'Agent');
 
 interface Src { chat: Chat; title: string; file: string; sub?: string; win?: WinOf; }
 

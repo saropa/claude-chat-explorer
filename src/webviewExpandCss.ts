@@ -18,23 +18,24 @@ const BASE = String.raw`
 .xb:hover{background:var(--vscode-toolbar-hoverBackground)}
 .xb:focus-visible,.xin input:focus,.chip:focus-visible,.xh:focus-visible,.ex .rr:focus-visible,.gp:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 .xb.pri{padding:0 10px;background:var(--vscode-button-background);color:var(--vscode-button-foreground);font-weight:500}
+.xb.busy{opacity:.6;cursor:progress}
 .xb.pri:hover{background:var(--vscode-button-hoverBackground)}
 .xb.on svg{color:var(--vscode-charts-yellow)}
 .xa .sp{flex:1}
 .xs{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.5em,1fr));gap:5px 12px;margin:0}
 .xs>div{display:flex;flex-direction:column;min-width:0}
-.xs dt{color:var(--vscode-descriptionForeground)}
+.xs dt{margin-top:1px;color:var(--vscode-descriptionForeground)}
 .xs dd{margin:0;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .xs .wide{grid-column:1/-1}
 .xs .wide dd{white-space:normal}
 .add{color:var(--vscode-charts-green)}
 .rem{color:var(--vscode-charts-red)}
-.xt{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
-.xt .chip{max-width:100%;line-height:18px;padding:0 7px;border-radius:9px;gap:4px}
-.xin{display:inline-flex;align-items:center;gap:6px;flex:1 1 10em;min-width:0}
+.xt{display:flex;flex-wrap:wrap;align-items:center;gap:4px;row-gap:4px}
+.xt .ct{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xt .chip{max-width:100%;min-width:0;overflow:hidden;white-space:nowrap;line-height:18px;padding:0 7px;border-radius:9px;gap:4px}
+.xin{display:inline-flex;align-items:center;gap:6px;flex:1 1 80px;min-width:80px}
 .xin input{flex:1;min-width:0;max-width:16em;width:auto;height:20px;box-sizing:border-box;padding:0 6px;font:inherit;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);border-radius:2px;outline:none}
 .xin input::placeholder{color:var(--vscode-input-placeholderForeground)}
-.xin .k{color:var(--vscode-descriptionForeground);white-space:nowrap}
 .xh{display:flex;align-items:center;gap:4px;min-height:22px;margin-left:-16px;cursor:pointer;user-select:none;color:var(--vscode-descriptionForeground);font-weight:600;border-radius:3px}
 .xh .chev{width:12px;height:12px}
 .xh:hover{color:var(--vscode-foreground)}
@@ -57,8 +58,7 @@ const COMPACT = String.raw`
 .sh{display:none}
 .xs{grid-template-columns:1fr}
 .xs>div{flex-direction:row;justify-content:space-between;gap:8px}
-.xs .wide{flex-direction:column}
-.xin .k{display:none}`;
+.xs .wide{flex-direction:column}`;
 
 const MEDIUM = '.xa .xl.xo{display:none}.xa{gap:2px}.xa .xb:not(.pri){padding:0 4px}';
 
