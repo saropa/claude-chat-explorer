@@ -20,6 +20,7 @@
 
 - Reads Claude Code chat files under `~/.claude/projects`.
 - Reads live session files under `~/.claude/sessions`.
+- Reads open Claude Code tab ids from VS Code's workspace `state.vscdb`, read-only, on a temporary copy.
 - Keeps a local index cache in the extension's global storage folder. It includes each chat's working folder path.
 - Makes no network requests of its own and sends no telemetry.
   - A search of `src/` finds no HTTP client, `fetch`, `XMLHttpRequest`, WebSocket, `net` or `dns` use.

@@ -12,3 +12,7 @@ plans/**
 out/**/*.map
 **/__pycache__/**
 PUBLISHING.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SUPPORT.md
+SECURITY.md
