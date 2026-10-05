@@ -19,12 +19,12 @@ type Node =
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
-/** Chat leaf: title, short age, Claude's state dot (a ring when open elsewhere); a click resumes the chat like a search result. */
+/** Chat leaf: title, short age, Claude's state dot; a click resumes the chat like a search result. */
 function chatItem(ref: ChatRef, dots: DotMap): vscode.TreeItem {
-  const d = dots[ref.id] ?? { s: 'idle', ring: false };
+  const d = dots[ref.id] ?? { s: 'idle' };
   const it = new vscode.TreeItem(ref.title, vscode.TreeItemCollapsibleState.None);
   it.description = shortAgo(ref.last, Date.now());
-  it.iconPath = new vscode.ThemeIcon(d.ring ? 'circle-large-outline' : 'circle-filled', new vscode.ThemeColor(DOT_COLORS[d.s]));
+  it.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor(DOT_COLORS[d.s]));
   it.command = { command: OPEN_CMD, title: 'Resume chat', arguments: [ref.id] };
   it.tooltip = dotText(d) + '\n' + new Date(ref.last).toLocaleString();
   return it;

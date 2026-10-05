@@ -8,7 +8,7 @@ export type Mode = 'chat' | 'worktree';
 export interface View { mode: Mode; clean: boolean; now: number; dots: DotMap; }
 const BRANCH_MAX = 28;
 
-export const isLive = (d?: Dot): boolean => !!d && (d.s === 'running' || d.s === 'waiting' || d.ring);
+export const isLive = (d?: Dot): boolean => !!d && (true);
 export const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
 /** State word of a chat: running, waiting, unread, else its short age. */

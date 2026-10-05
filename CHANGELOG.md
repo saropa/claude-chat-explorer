@@ -2,6 +2,11 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.16.0 - 2026-10-04
+- Changed: dots are plain now, like the official Claude sidebar. Green is running, blue is waiting for you, orange is unread, grey is open but idle. The rings and outlines are gone. Hover a dot to see whether the chat is open in this window or another one.
+- Changed: a chat counts as open when it has a tab in Claude Code, even if no Claude process is running for it (a restored tab). Those chats now show a grey dot, so the dots match the sidebar's open list.
+- Added: Show Diagnostics lists the number of open tabs and which VS Code workspace database the tab list came from.
+
 ## 0.15.3 - 2026-10-04
 - Changed: dots now match the official Claude sidebar. Only chats open in Claude Code for VS Code show a dot (running, waiting for you, unread or open). Closed chats show none, and a chat that closes loses its unread mark.
 - Changed: the Active status filter counts only those open chats. Chats open in a terminal or other Claude app get no dot.

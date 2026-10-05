@@ -6,8 +6,8 @@ import { isSessionId } from './sessionId';
 import { WinMark } from './windowMarker';
 
 export type LiveStatus = 'busy' | 'waiting' | 'idle';
-/** Dot of one chat: s is running, waiting, unread or idle; ring means a live process has it open; win says in which window (absent when unknown). */
-export interface Dot { s: string; ring: boolean; win?: WinMark; }
+/** Dot of one chat (present only for open chats): s is running, waiting, unread or idle; win says in which window (tooltip only, absent when unknown). */
+export interface Dot { s: string; win?: WinMark; }
 export type DotMap = { [id: string]: Dot };
 export interface LiveRead { exists: boolean; live: Map<string, LiveStatus>; bad: number; pids: Map<string, number[]>; }
 
@@ -53,27 +53,27 @@ export async function readLive(dir: string, alive: (pid: number) => boolean = pi
   return { exists: true, live, bad: rows.filter((r) => !r).length, pids };
 }
 
-/** Unread set after a poll: a session seen busy or waiting that is now idle becomes unread; ids that are not live are dropped (a closed chat has no dot). No previous poll marks nothing. */
-export function nextUnread(prev: Map<string, LiveStatus> | undefined, next: Map<string, LiveStatus>, unread: Set<string>): Set<string> {
+/** Unread set after a poll: a session seen busy or waiting that is now idle becomes unread; ids that are not open (live or a tab) are dropped. No previous poll marks nothing. */
+export function nextUnread(prev: Map<string, LiveStatus> | undefined, next: Map<string, LiveStatus>, unread: Set<string>, open: Set<string> = new Set(next.keys())): Set<string> {
   const out = new Set(unread);
   if (prev) { for (const [id, was] of prev) { if (was !== 'idle' && next.get(id) === 'idle') { out.add(id); } } }
-  return new Set([...out].filter((id) => next.has(id)));
+  return new Set([...out].filter((id) => open.has(id)));
 }
 
-/** Dot of one chat from its live status (undefined when no live process) and unread flag. */
+/** Dot of one chat from its live status (undefined for a tab with no live process) and unread flag. */
 export function dotState(live: LiveStatus | undefined, unread: boolean, win?: WinMark): Dot {
-  const d: Dot = live === 'busy' ? { s: 'running', ring: false } : live === 'waiting' ? { s: 'waiting', ring: false } : { s: unread ? 'unread' : 'idle', ring: live === 'idle' };
+  const d: Dot = live === 'busy' ? { s: 'running' } : live === 'waiting' ? { s: 'waiting' } : { s: unread ? 'unread' : 'idle' };
   if (live && win) { d.win = win; }
   return d;
 }
 
-/** Dots that differ from the default (idle, solid); only live sessions get one, every other chat is idle. */
-export function buildDots(live: Map<string, LiveStatus>, unread: Set<string>, win?: Map<string, WinMark>): DotMap {
+/** The open set: live session ids plus the ids of Claude's open tabs. */
+export const openSet = (live: Map<string, LiveStatus>, tabs: Iterable<string>): Set<string> => new Set([...live.keys(), ...tabs]);
+
+/** Dots of every open chat (live or a tab); a tab with no live session is idle, a live status wins. Every other chat has no dot. */
+export function buildDots(live: Map<string, LiveStatus>, unread: Set<string>, win?: Map<string, WinMark>, tabs: Iterable<string> = []): DotMap {
   const out: DotMap = {};
-  for (const id of live.keys()) {
-    const d = dotState(live.get(id), unread.has(id), win?.get(id));
-    if (d.s !== 'idle' || d.ring) { out[id] = d; }
-  }
+  for (const id of openSet(live, tabs)) { out[id] = dotState(live.get(id), unread.has(id), win?.get(id)); }
   return out;
 }
 

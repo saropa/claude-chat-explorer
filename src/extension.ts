@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { readTabs, workspaceStorageOf } from './stateDb';
 import * as fs from 'fs';
 import { TIMEOUT_MSG, WorkerClient } from './client';
 import { runExpand } from './expandRun';
@@ -263,9 +264,10 @@ export function activate(ctx: vscode.ExtensionContext): void {
   provider.actions = new ArchiveActions(store, ctx.globalStorageUri.fsPath, { changed, rebuild: () => provider.watcher?.rebuild() });
   const warner = createWarner(ctx, { request: (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), open: (id) => provider.resume(id), log });
   let wip: WipController | undefined;
-  provider.watcher = new LiveWatcher({ dir: sessionsDir(), unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
+  provider.watcher = new LiveWatcher({ dir: sessionsDir(), tabs: async () => { const r = await readTabs(workspaceStorageOf(ctx.globalStorageUri.fsPath), folderPaths()); return r.ok ? r : undefined; },
+    unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
     onChange: () => { provider.postDots(); tree.redraw(); wip?.onDots(); }, onLive: (ids) => { void warner.check(ids); } });
-  ctx.subscriptions.push({ dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));
+  ctx.subscriptions.push(vscode.window.onDidChangeWindowState((s) => { if (s.focused) { provider.watcher?.poke(); } }), { dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));
   ctx.subscriptions.push(channel, status, tree, vscode.workspace.onDidChangeWorkspaceFolders(() => provider.onScope?.()),
     vscode.commands.registerCommand('claudeChatExplorer.clearHistory', () => {
       provider.clearHistory();
@@ -278,7 +280,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
       { webviewOptions: { retainContextWhenHidden: true } }));
   registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
     showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { const was = provider.onIndex; provider.onIndex = () => { was?.(); fn(); }; } });
-  registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info, () => warner.atOrAbove80, () => wip?.diagLines() ?? []);
+  registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info, () => provider.watcher, () => warner.atOrAbove80, () => wip?.diagLines() ?? []);
   wip = new WipController({ ctx, client, log: logErr, dots: live.dots, archived: live.archived, folders: folderPaths });
   wip.start();
   provider.watcher.start();

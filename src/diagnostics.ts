@@ -22,13 +22,13 @@ export function windowLines(w: WinInfo | undefined): string[] {
 }
 
 /** Command "Show Diagnostics": one message with the facts needed to explain a missing icon or menu. */
-export function registerDiagnostics(ctx: vscode.ExtensionContext, request: (m: { [k: string]: any }, bg?: boolean) => Promise<any>, version: string, activated: () => boolean, winInfo?: () => WinInfo | undefined, nearly?: () => number, wipLines?: () => string[]): void {
+export function registerDiagnostics(ctx: vscode.ExtensionContext, request: (m: { [k: string]: any }, bg?: boolean) => Promise<any>, version: string, activated: () => boolean, winInfo?: () => WinInfo | undefined, tabInfo?: () => { tabIds: Set<string>; tabHash: string } | undefined, nearly?: () => number, wipLines?: () => string[]): void {
   ctx.subscriptions.push(vscode.commands.registerCommand(DIAG_CMD, async () => {
     const count = await chatCount(request);
     const claude = vscode.extensions.getExtension('anthropic.claude-code') ? 'installed' : 'not installed';
     const lines = [`Saropa Chat Explorer ${version}`, `activation completed: ${activated() ? 'yes' : 'no'}`,
       `chats indexed: ${count < 0 ? 'unknown (worker did not answer)' : count}`, `Claude Code extension: ${claude}`,
-      `~/.claude/sessions: ${fs.existsSync(sessionsDir()) ? 'exists' : 'missing'}`, `views: ${VIEW_IDS.join(', ')}`, ...windowLines(winInfo?.()), `live chats at 80% context or more: ${nearly?.() ?? 0}`, ...(wipLines?.() ?? [])];
+      `~/.claude/sessions: ${fs.existsSync(sessionsDir()) ? 'exists' : 'missing'}`, `views: ${VIEW_IDS.join(', ')}`, ...windowLines(winInfo?.()), `open tabs: ${tabInfo?.()?.tabIds.size ?? 0}`, `state.vscdb workspace hash: ${tabInfo?.()?.tabHash || 'none'}`, `live chats at 80% context or more: ${nearly?.() ?? 0}`, ...(wipLines?.() ?? [])];
     void vscode.window.showInformationMessage(lines.join(' | '));
   }));
 }

@@ -51,10 +51,6 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .dot.running{--dc:#89d185}
 .dot.waiting{--dc:#3b82f6}
 .dot.unread{--dc:#d97757}
-.dot.ring{background:transparent;border:2px solid var(--dc)}
-.dot.wo.ring{border:0;background:repeating-conic-gradient(var(--dc) 0 50deg,transparent 50deg 90deg);-webkit-mask:radial-gradient(circle closest-side,transparent 54%,#000 58%);mask:radial-gradient(circle closest-side,transparent 54%,#000 58%)}
-.dot.wt:not(.ring),.dot.wo:not(.ring){outline:1px solid var(--dc);outline-offset:1px}
-.dot.wo:not(.ring){outline-style:dashed}
 .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pj{flex:none;max-width:25%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85em;color:var(--vscode-descriptionForeground)}
 .tm{flex:none;min-width:22px;text-align:right;font-size:0.92em;color:var(--vscode-descriptionForeground)}

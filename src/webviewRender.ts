@@ -2,9 +2,9 @@
 export const RENDER = String.raw`
 const CHEV='<svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const TAG_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.500 2.500h5l6 6-5 5-6-6z"/><circle cx="5.500" cy="5.500" r="1"/></svg>';
-function dotHtml(id){const d=dots[id]||{s:'idle',ring:false},t=dotText(d);
-return '<span class="dot '+d.s+(d.ring?' ring':'')+(d.win==='this'?' wt':d.win==='other'?' wo':'')+'" role="img" aria-label="'+esc(t)+'" data-tip="'+esc(dotTip(d))+'"></span>';}
-function decorated(r){const d=dots[r.id];return pins.has(r.id)||!!(d&&(d.ring||d.s!=='idle'));}
+function dotHtml(id){const d=dots[id]||{s:'idle'},t=dotText(d);
+return '<span class="dot '+d.s+'" role="img" aria-label="'+esc(t)+'" data-tip="'+esc(dotTip(d))+'"></span>';}
+function decorated(r){const d=dots[r.id];return pins.has(r.id)||!!d;}
 function stamp(r){return r.hits>0&&r.snipAt?r.snipAt:r.last;}
 function resOf(id){return lastRs.concat(pinned,sess?sess.rows.concat(sess.arch||[]):[]).find(r=>r.id===id);}
 function reEsc(t){return t.replace(/[.*+?^$\x7b\x7d()|[\]\\]/g,'\\$&');}

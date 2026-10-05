@@ -22,7 +22,7 @@ export function parseHidden(out: string): HiddenRead {
 }
 
 /** Copy the database and its -wal and -shm files (when present) into a fresh temp folder; returns the copied database path. */
-function copyOut(db: string, tmp: string): string {
+export function copyOut(db: string, tmp: string): string {
   const to = path.join(tmp, 'state.vscdb');
   fs.copyFileSync(db, to);
   for (const ext of ['-wal', '-shm']) {
@@ -32,7 +32,7 @@ function copyOut(db: string, tmp: string): string {
 }
 
 type Run = (file: string, args: string[]) => Promise<string>;
-const runSqlite: Run = (file, args) => new Promise((resolve, reject) => {
+export const runSqlite: Run = (file, args) => new Promise((resolve, reject) => {
   execFile(file, args, { timeout: TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024 }, (err, stdout) => (err ? reject(err) : resolve(stdout)));
 });
 
@@ -56,3 +56,63 @@ export async function readHidden(db: string, run: Run = runSqlite): Promise<Hidd
 
 /** The global state database of this VS Code build: the folder holding the per-extension storage folders. */
 export const stateDbOf = (globalStorage: string): string => path.join(path.dirname(globalStorage), 'state.vscdb');
+
+export type TabsRead = { ok: true; ids: string[]; hash: string } | { ok: false; reason: string };
+
+/** The open tab session ids in the query output (titles are truncated, so only ids are used). */
+export function parseTabs(out: string): string[] | undefined {
+  try {
+    const list = JSON.parse(out.trim())?.panelTabSessions;
+    if (!Array.isArray(list)) { return undefined; }
+    return [...new Set(list.map((t: { sessionId?: unknown }) => t?.sessionId).filter(isSessionId))] as string[];
+  } catch { return undefined; }
+}
+
+/** workspaceStorage folder of this VS Code build, from the global storage folder of an extension. */
+export const workspaceStorageOf = (globalStorage: string): string => path.join(path.dirname(path.dirname(globalStorage)), 'workspaceStorage');
+
+/** Workspace storage hashes whose workspace.json folder is one of the given folder paths, most recently modified state.vscdb first. */
+export function hashesFor(root: string, folders: string[]): { all: string[]; match: string[] } {
+  const all: { h: string; t: number }[] = [], match: { h: string; t: number }[] = [];
+  const want = new Set(folders.map((f) => f.replace(/\/+$/, '')));
+  let names: string[] = [];
+  try { names = fs.readdirSync(root); } catch { return { all: [], match: [] }; }
+  for (const h of names) {
+    try {
+      const t = fs.statSync(path.join(root, h, 'state.vscdb')).mtimeMs;
+      all.push({ h, t });
+      const j = JSON.parse(fs.readFileSync(path.join(root, h, 'workspace.json'), 'utf8'));
+      const f = typeof j.folder === 'string' ? decodeURIComponent(j.folder.replace(/^file:\/\//, '')).replace(/\/+$/, '') : '';
+      if (want.has(f)) { match.push({ h, t }); }
+    } catch { /* not a usable workspace folder */ }
+  }
+  const by = (a: { t: number }, b: { t: number }) => b.t - a.t;
+  return { all: all.sort(by).map((x) => x.h), match: match.sort(by).map((x) => x.h) };
+}
+
+async function tabsOf(db: string, run: Run): Promise<string[] | undefined> {
+  let tmp = '';
+  try {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccs-tabs-'));
+    return parseTabs(await run('sqlite3', ['-readonly', copyOut(db, tmp), SQL]));
+  } catch { return undefined; } finally {
+    if (tmp) { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ } }
+  }
+}
+
+/** Open tab ids of Claude Code: the newest state.vscdb whose workspace is one of the folders, else the union over every workspace that has the key. Read-only, on temporary copies. */
+export async function readTabs(root: string, folders: string[], run: Run = runSqlite): Promise<TabsRead> {
+  const { all, match } = hashesFor(root, folders);
+  const ids = new Set<string>(), used: string[] = [];
+  for (const h of match.slice(0, 1)) {
+    const r = await tabsOf(path.join(root, h, 'state.vscdb'), run);
+    if (r) { r.forEach((i) => ids.add(i)); used.push(h); }
+  }
+  if (used.length) { return { ok: true, ids: [...ids], hash: used[0] }; }
+  for (const h of all) {
+    const r = await tabsOf(path.join(root, h, 'state.vscdb'), run);
+    if (r) { r.forEach((i) => ids.add(i)); used.push(h); }
+  }
+  if (!used.length) { return { ok: false, reason: 'no workspace database has the Claude Code tab list' }; }
+  return { ok: true, ids: [...ids], hash: used.join(',') + ' (all)' };
+}

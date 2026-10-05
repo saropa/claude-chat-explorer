@@ -6,9 +6,9 @@ function tmark(s,rg){const c=s.length>TIP_CAP,t=c?s.slice(0,TIP_CAP):s;return ma
 function kv(rows){return '<dl>'+rows.filter(x=>x[1]!==''&&x[1]!=null).map(x=>'<dt>'+esc(x[0])+'</dt><dd>'+x[1]+'</dd>').join('')+'</dl>';}
 function tipStatic(t){const a=tcap(t).split('\n');return '<b>'+esc(a[0])+'</b>'+a.slice(1).map(x=>'<p class="tsm">'+esc(x)+'</p>').join('');}
 function dotTip(d){const w=d.win==='this'?'Open in this window':d.win==='other'?'Open in another window':'';
-const h={running:'Running',waiting:'Waiting for you',unread:'Unread',idle:d.ring?(w||'Open elsewhere'):'Idle'}[d.s]||'Idle';
-const m={running:'Claude is working in this chat now.',waiting:'Claude is waiting for your answer.',unread:'Finished while you were away (approximate).',idle:d.ring?'A live Claude process has this chat open.':'Not open anywhere.'}[d.s]||'';
-return h+'\n'+m+(w&&d.s!=='idle'?'\n'+w:'');}
+const h={running:'Running',waiting:'Waiting for you',unread:'Unread',idle:'Idle'}[d.s]||'Idle';
+const m={running:'Claude is working in this chat now.',waiting:'Claude is waiting for your answer.',unread:'Finished while you were away (approximate).',idle:'Open in Claude Code, not running.'}[d.s]||'';
+return h+'\n'+m+(w?'\n'+w:'');}
 function tipTitle(r){const now=Date.now(),c=r.cost>0?(r.cost<0.01?'<$0.01':'$'+r.cost.toFixed(2)):'';
 return '<b>'+esc(tcap(r.title))+'</b>'+kv([['Project',esc(r.project||'')],['Active',agoLong(r.last,now)],['Date',esc(full(r.last))],['Messages',r.msgs],['Active for',r.last>r.first?esc(durText(r.first,r.last)):''],['Files edited',r.edited||''],['Size',sizeText(r.size)],['Cost',c],['Models',esc((r.models||[]).join(', '))]])
 +(r.title.length>TIP_CAP?'<p class="nt">Title cut at '+TIP_CAP+' characters.</p>':'');}
