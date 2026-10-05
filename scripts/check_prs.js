@@ -108,8 +108,16 @@ async function main() {
   check('view parse: junk is undefined', parseView('nope') === undefined && parseView('[]') === undefined && parseView('{"statusCheckRollup":5}') === undefined && parseView('null') === undefined);
 
   // ---- list parser: fork PRs skipped, new fields kept, old gh tolerated ----
-  const lm = parsePrs(JSON.stringify([pr(1, 'feat'), pr(2, 'feat', { isCrossRepository: true }), pr(3, 'other', { headRefOid: undefined, isCrossRepository: undefined }), pr(4, 'bad', { headRefOid: 'zz;rm' })]));
-  check('list: a fork PR with the same branch name is skipped, the repository PR kept', lm.get('feat').number === 1 && lm.size === 3);
+  const listJson = JSON.stringify([pr(1, 'feat'), pr(2, 'feat', { isCrossRepository: true }), pr(3, 'other', { headRefOid: undefined, isCrossRepository: undefined }), pr(4, 'bad', { headRefOid: 'zz;rm' })]);
+  const lm = parsePrs(listJson, true);
+  check('list: for Open Work a fork PR with the same branch name is skipped, the repository PR kept', lm.get('feat').number === 1 && lm.size === 3);
+  const all = parsePrs(listJson);
+  check('sidebar: the default parse keeps a fork PR (the pill shows the PR whose head branch matches), highest number wins', all.get('feat').number === 2 && all.size === 3);
+  {
+    const forkOnly = JSON.stringify([pr(7, 'fk', { isCrossRepository: true })]);
+    const r = await fetchPrs({ exec: async () => ok(forkOnly), gitMs: 1, ghMs: 1, flags: { gitMissing: false } }, '/x');
+    check('sidebar: fetchPrs lists a fork-only branch for the sidebar but not for Open Work matching', r.byBranch.get('fk').number === 7 && r.own && !r.own.has('fk'));
+  }
   check('list: head commit kept; missing new fields (older gh) accepted; a junk commit id dropped', lm.get('feat').sha === SHA('a') && lm.get('other').sha === undefined && lm.get('other').number === 3 && lm.get('bad').sha === undefined);
   { // an older gh rejects the two newer fields: one retry without them
     const calls = [];

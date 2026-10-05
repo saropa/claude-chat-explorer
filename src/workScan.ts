@@ -224,7 +224,7 @@ export class WorkScan {
       st = { fks: new Set(), done: false };
       run.repos.set(rk, st);
       run.unfinished.add(rk);
-      this.put(run, { type: 'repo', key: rk, state: 'running', worktrees: [], merged: [] });
+      this.put(run, { type: 'repo', key: rk, state: 'queued', worktrees: [], merged: [] }); // running is posted when its lane starts
       const s = st;
       run.repoChain = run.repoChain.then(() => this.runRepo(run, rk, common, top, s, false));
     }
@@ -236,7 +236,7 @@ export class WorkScan {
     if (run.ac.signal.aborted) { return; }
     const hit = run.force || force ? undefined : this.rcache.get(common);
     if (hit && this.now - hit.at < (this.o.cacheMs ?? SCAN_CACHE_MS)) { this.repoDone(run, rk, st, hit.out, 'ok', undefined); return; }
-    const lane = this.lane(run, () => undefined);
+    const lane = this.lane(run, () => this.put(run, { type: 'repo', key: rk, state: 'running', name: this.repos.get(rk)?.name, worktrees: [], merged: [] }));
     let res: RepoOut | string;
     try {
       res = await Promise.race([readRepo(lane.ctx, common, top, (p) => { this.repos.set(rk, p); this.postRepo(run, rk, 'running'); }), lane.late]);
@@ -288,7 +288,7 @@ export class WorkScan {
     if (!common || !st || !top) { return; }
     st.done = false;
     run.unfinished.add(key);
-    this.put(run, { type: 'repo', key, state: 'running', name: this.repos.get(key)?.name, worktrees: [], merged: [] });
+    this.put(run, { type: 'repo', key, state: 'queued', name: this.repos.get(key)?.name, worktrees: [], merged: [] });
     run.repoChain = run.repoChain.then(() => this.runRepo(run, key, common, top, st, true));
   }
 
@@ -327,11 +327,12 @@ export class WorkScan {
   }
 
   /** The folder key of a chat's working folder, and the worktree the folder is in (for the copy-remove button). */
-  removeText(key: string, win?: boolean): { text: string; name: string } | undefined {
+  removeText(key: string, win?: boolean): { text: string; name: string; manual?: boolean } | undefined {
     const w = this.wkeys.get(key);
     const r = w ? this.repos.get(w.rk) : undefined;
     const wt: WtOut | undefined = r?.worktrees.find((x) => x.real === w?.real);
     const text = r && wt ? removeCommand(r, wt, win) : '';
+    if (text === 'manual' && wt) { return { text: '', name: path.basename(wt.path), manual: true }; }
     return text && wt ? { text, name: path.basename(wt.path) } : undefined;
   }
 }

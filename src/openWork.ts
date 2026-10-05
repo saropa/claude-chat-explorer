@@ -5,6 +5,7 @@ import { Hub } from './hub';
 import { openWorkHtml, OW_TITLE } from './openWorkHtml';
 import { DotMap } from './liveState';
 import { isSessionId } from './sessionId';
+import { capDone } from './workModel';
 import { MAX_FOLDERS, WorkScan } from './workScan';
 
 export const OPEN_WORK_CMD = 'claudeChatExplorer.openWork';
@@ -236,13 +237,13 @@ export class OpenWork {
   private async markDone(id: string, on: boolean, fp: unknown): Promise<void> {
     const rest = this.done.filter(([k]) => k !== id);
     if (on && typeof fp === 'string' && fp.length <= FP_MAX) { rest.push([id, fp]); }
-    await this.ctx.globalState.update(DONE_KEY, rest.slice(-DONE_MAX));
+    await this.ctx.globalState.update(DONE_KEY, capDone(rest, new Set(this.titles.keys()), DONE_MAX)); // at the cap: marks of chats no longer listed go first
   }
 
   /** The unpushed commits of a row (a chat id or a worktree key) for its expanded view. */
   private async expand(id: string): Promise<void> {
     const key = isSessionId(id) ? this.chatFk.get(id) : /^[fw]\d{1,6}$/.test(id) ? id : undefined;
-    if (!key) { return; }
+    if (!key) { this.post({ type: 'detail', id, commits: null, reason: 'Git state is not loaded for this row' }); return; } // always answer: the page shows Retry
     const r = await this.d.scan.commits(key);
     this.post({ type: 'detail', id, commits: r.commits ?? null, reason: r.reason ?? '' });
   }
@@ -271,6 +272,7 @@ export class OpenWork {
     if (!/^w\d{1,6}$/.test(key)) { return; }
     const r = this.d.scan.removeText(key);
     if (!r) { void vscode.window.showInformationMessage('That worktree cannot be removed: it is the main checkout or it is locked.'); return; }
+    if (r.manual) { void vscode.window.showInformationMessage(`Remove manually: the path or branch name of ${r.name} contains special characters.`); return; }
     await vscode.env.clipboard.writeText(r.text);
     void vscode.window.showInformationMessage(`Copied the remove command for ${r.name}. Run it in a terminal.`);
   }

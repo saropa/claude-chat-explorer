@@ -182,13 +182,27 @@ async function scanTests() {
 
 function pureTests() {
   const wt = parseWorktrees('worktree /a\nHEAD 1111111\nbranch refs/heads/main\n\nworktree /b\nHEAD 2222222\ndetached\nlocked\n\nworktree /c\nHEAD 3333333\nbranch refs/heads/x\nlocked why\nprunable gone\n');
+  const wz = parseWorktrees('worktree /a\0HEAD 1111111\0branch refs/heads/main\0\0worktree /b\nc d\0HEAD 2222222\0branch refs/heads/x\0locked why\0\0worktree /e\0HEAD 3333333\0detached\0\0');
+  check('parse -z: a path holding a newline parses whole, fields and blocks split on NUL', wz.length === 3 && wz[1].path === '/b\nc d' && wz[1].branch === 'x' && wz[1].locked && wz[1].lockReason === 'why' && wz[2].detached && wz[0].main && wz[0].path === '/a');
+  check('parse -z: the plain porcelain text still parses', parseWorktrees('worktree /a\nHEAD 1\nbranch refs/heads/m\n\nworktree /b\nHEAD 2\ndetached\n').length === 2);
   check('parse: locked without a reason, locked with a reason, prunable, detached, head', wt[1].locked && !wt[1].lockReason && wt[1].detached && wt[2].locked && wt[2].lockReason === 'why' && wt[2].prunable && !wt[0].locked && wt[0].head === '1111111');
   const R = { main: '/home/me/my repo', defLocal: 'main' };
   const W = (o) => Object.assign({ path: "/home/me/it's wt", branch: 'feat', main: false, locked: false, missing: false, merged: true }, o);
   const posix = repoMod.removeCommand(R, W(), false);
   check('remove: POSIX quotes spaces and an apostrophe', posix === "git -C '/home/me/my repo' worktree remove '/home/me/it'\\''s wt'\ngit -C '/home/me/my repo' branch -d 'feat'");
   const win = repoMod.removeCommand({ main: 'C:\\my repo', defLocal: 'main' }, W({ path: 'C:\\my wt' }), true);
-  check('remove: Windows uses double quotes', win === 'git -C "C:\\my repo" worktree remove "C:\\my wt"\ngit -C "C:\\my repo" branch -d "feat"');
+  check('remove: Windows uses PowerShell single quotes', win === "git -C 'C:\\my repo' worktree remove 'C:\\my wt'\ngit -C 'C:\\my repo' branch -d 'feat'");
+  check('remove: Windows doubles an apostrophe inside single quotes', repoMod.removeCommand({ main: 'C:\\r', defLocal: 'main' }, W({ path: "C:\\it's" }), true) === "git -C 'C:\\r' worktree remove 'C:\\it''s'\ngit -C 'C:\\r' branch -d 'feat'");
+  // Windows shells still act on $( ), $env:X, backtick, %VAR%, ! and ^ inside quotes, and a deleted " could retarget branch -d: no command is built for them.
+  const RW = { main: 'C:\\r', defLocal: 'main' };
+  for (const [what, o] of [['$( )', { path: 'C:\\a$(calc)' }], ['$env:X', { path: 'C:\\a$env:TEMP' }], ['backtick', { path: 'C:\\a`b' }], ['%VAR%', { path: 'C:\\%TEMP%\\x' }], ['double quote', { path: 'C:\\a"b' }], ['!', { path: 'C:\\a!b' }], ['^', { path: 'C:\\a^b' }], ['newline', { path: 'C:\\a\nb' }], ['smart quote', { path: 'C:\\a\u2019b' }], ['branch with $', { branch: 'f$(x)' }], ['branch with "', { branch: 'a"b' }]]) {
+    const c = repoMod.removeCommand(RW, W(o), true);
+    check('remove: Windows builds no command when ' + what + ' is in the path or branch (' + JSON.stringify(c) + ')', c === 'manual');
+  }
+  check('remove: Windows main folder with $ also builds no command', repoMod.removeCommand({ main: 'C:\\r$x', defLocal: 'main' }, W({ path: 'C:\\ok' }), true) === 'manual');
+  check('remove: Windows prune ignores the worktree path (not in the command)', repoMod.removeCommand(RW, W({ missing: true, path: 'C:\\a$b' }), true) === "git -C 'C:\\r' worktree prune");
+  check('remove: Windows with an unmerged unsafe branch builds worktree remove only (the branch is not in the command)', repoMod.removeCommand(RW, W({ merged: false, branch: 'a$b', path: 'C:\\ok' }), true) === "git -C 'C:\\r' worktree remove 'C:\\ok'");
+  check('remove: POSIX stays single-quoted for $ and a double quote (single quotes are literal there)', /worktree remove '\/x\$\(y\)"z'/.test(repoMod.removeCommand(R, W({ path: '/x$(y)"z' }), false)));
   check('remove: branch -d only when merged', !/branch/.test(repoMod.removeCommand(R, W({ merged: false }), false)) && !/branch/.test(repoMod.removeCommand(R, W({ merged: null }), false)) && !/branch/.test(repoMod.removeCommand(R, W({ branch: 'main' }), false)));
   check('remove: a missing folder gives worktree prune', repoMod.removeCommand(R, W({ missing: true }), false) === "git -C '/home/me/my repo' worktree prune");
   check('remove: the main checkout and a locked worktree give nothing', repoMod.removeCommand(R, W({ main: true }), false) === '' && repoMod.removeCommand(R, W({ locked: true }), false) === '');
@@ -229,6 +243,54 @@ function pureTests() {
   check('done: a new file, commit, branch, message or dot state brings the row back', [model.doneHidden(fp, 'idle', 1000, { ok: true, branch: 'b', files: 3, ahead: 1 }), model.doneHidden(fp, 'idle', 1000, { ok: true, branch: 'b', files: 2, ahead: 2 }), model.doneHidden(fp, 'idle', 1000, { ok: true, branch: 'c', files: 2, ahead: 1 }), model.doneHidden(fp, 'idle', 2000, { ok: true, branch: 'b', files: 2, ahead: 1 }), model.doneHidden(fp, 'running', 1000, { ok: true, branch: 'b', files: 2, ahead: 1 })].every((x) => x === false));
   check('done: git still loading keeps it hidden; marked before git was known compares chat state only', model.doneHidden(fp, 'idle', 1000, undefined) === true && model.doneHidden(model.fingerprint('idle', 1000, undefined), 'idle', 1000, { ok: true, branch: 'b', files: 9, ahead: 9 }) === true);
   check('done: a bad stored value never hides', model.doneHidden(undefined, 'idle', 1, undefined) === false && model.doneHidden('garbage', 'idle', 1, undefined) === false);
+}
+
+async function repoLayerTests() {
+  const { readRepo } = repoMod;
+  // 12 linked worktrees: the repository layer never has more than 2 status calls in flight, and its list command is the -z form.
+  const main = path.join(base, 'big'); fs.mkdirSync(path.join(main, '.git'), { recursive: true });
+  let txt = 'worktree ' + main + '\nHEAD aaaaaaa1\nbranch refs/heads/main\n\n';
+  const tops = new Map();
+  for (let i = 0; i < 12; i++) { const d = path.join(base, 'big-wt' + i); fs.mkdirSync(d, { recursive: true }); txt += 'worktree ' + d + '\nHEAD bbbbbbb' + i + '\nbranch refs/heads/b' + i + '\n\n'; tops.set(d, { repo: null, top: d, common: path.join(main, '.git'), branch: 'b' + i, status: '## b' + i + '...origin/b' + i + '\0 M f.txt\0' }); }
+  const repo = { common: path.join(main, '.git'), worktree: txt, merged: '', main };
+  const ent = { repo, top: main, common: repo.common, branch: 'main', status: '## main\0' };
+  const world = { byCwd: (cwd) => (cwd === main ? ent : tops.get(cwd) && Object.assign(tops.get(cwd), { repo })) };
+  const mkCtx = (g, signal) => { const t = { cur: 0, max: 0, wl: [] }; const exec = (cmd, args, o) => { const a = args.slice(2); if (a[0] === 'status') { t.cur++; t.max = Math.max(t.max, t.cur); } if (a[0] === 'worktree') { t.wl.push(a.join(' ')); } return g.exec(cmd, args, o).finally(() => { if (a[0] === 'status') { t.cur--; } }); }; return { t, ctx: { exec, signal, gitMs: 500, ghMs: 500, flags: { gitMissing: false } } }; };
+  {
+    const g = fakeGit(world, { delay: 15 }), { t, ctx } = mkCtx(g);
+    const out = await readRepo(ctx, repo.common, main);
+    check('repo layer: 12 worktrees are read with at most 2 status calls at once (saw ' + t.max + ')', t.max >= 1 && t.max <= 2 && typeof out !== 'string' && out.worktrees.filter((w) => w.facts && w.facts.ok).length === 12);
+    check('repo layer: the worktree list is asked with --porcelain -z', t.wl.length === 1 && t.wl[0] === 'worktree list --porcelain -z');
+  }
+  // A timeout mid-way: the finished worktrees keep their facts, the rest stay unread (no canceled error is stored), nothing new starts after the abort.
+  {
+    const g = fakeGit(world, { delay: 60 }), ac = new AbortController(), { ctx } = mkCtx(g, ac.signal);
+    const partial = [];
+    setTimeout(() => ac.abort(), 330);
+    const out = await readRepo(ctx, repo.common, main, (r) => partial.push(r));
+    const done = out.worktrees.filter((w) => w.facts && w.facts.ok).length, errs = out.worktrees.filter((w) => w.facts && !w.facts.ok).length, unread = out.worktrees.filter((w) => !w.main && !w.facts).length;
+    check('repo layer: after a timeout the finished worktrees keep their facts (' + done + ' done, ' + unread + ' unread, ' + errs + ' errors)', done >= 2 && done < 12 && unread >= 1 && errs === 0);
+    check('repo layer: the worktree rows are offered before any status runs', partial.length >= 1 && partial[0].worktrees.length === 13);
+  }
+  // Through the scan: a short deadline ends the repository as timeout, and the posted repository still carries the finished worktrees.
+  {
+    const g = fakeGit(world, { delay: 40 }), scan = new WorkScan({ exec: g.exec, limiter: new Limiter(4, 3), deadlineMs: 300, gitMs: 200, workspace: () => [] }), c = collect();
+    await scan.start(1, [{ cwd: main, last: 1 }], false, c.post);
+    const fin = c.of('repo').filter((m) => m.state !== 'running' && m.state !== 'queued').pop();
+    const withFacts = fin ? fin.worktrees.filter((w) => w.facts && w.facts.ok).length : -1;
+    check('scan: a timed-out repository still renders its finished worktrees (' + (fin && fin.state) + ', ' + withFacts + ' with facts)', fin && fin.state === 'timeout' && withFacts >= 1 && withFacts < 12);
+  }
+  // queued, then running when the repository lane starts; each repository waits its turn on the chain.
+  {
+    const w3 = mkWorld(3), g = fakeGit(w3, { delay: 30 }), scan = new WorkScan({ exec: g.exec, limiter: new Limiter(4, 3), deadlineMs: 400, gitMs: 200, workspace: () => [] }), c = collect();
+    await scan.start(1, w3.repos.map((r, i) => ({ cwd: r.top, last: 10 - i })), false, c.post);
+    const by = new Map();
+    c.msgs.filter((x) => x.m.type === 'repo').forEach((x) => { by.set(x.m.key, (by.get(x.m.key) || []).concat({ s: x.m.state, at: x.at })); });
+    const keys = [...by.keys()];
+    check('scan: a repository is posted queued first, then running (' + keys.map((k) => by.get(k).map((v) => v.s).join('>')).join(' | ') + ')', keys.length === 3 && keys.every((k) => by.get(k)[0].s === 'queued' && by.get(k).some((v) => v.s === 'running') && by.get(k).findIndex((v) => v.s === 'running') > 0));
+    const lastKey = keys[2], prevOk = by.get(keys[1]).find((v) => v.s === 'ok');
+    check('scan: a repository waiting on the chain is not running before the repository ahead of it ended', prevOk && by.get(lastKey).find((v) => v.s === 'running').at >= prevOk.at);
+  }
 }
 
 async function prTests() {
@@ -281,6 +343,7 @@ async function prTests() {
   try {
     await limiterTests();
     await scanTests();
+    await repoLayerTests();
     pureTests();
     await prTests();
   } catch (e) { bad('check_scan crashed: ' + ((e && e.stack) || e)); }

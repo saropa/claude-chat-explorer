@@ -288,6 +288,80 @@ function gitScenario(W) {
 }
 for (const W of [400, 760, 1400]) { gitScenario(W); }
 
+// Review fixes (0.24.1): expand never hangs on Loading, repository queued/running, partial repositories, dropped repositories, done marks.
+function reviewScenario(W) {
+  const R = createHarness({ page, name: 'openwork-review@' + W, width: W, popIds: ['grb', 'grm'] });
+  const { els, posted, fire, deliver, advance, check, step } = R;
+  const body = els.get('body'), tag = (s) => s + ' at ' + W;
+  const facts = (o) => Object.assign({ name: 'proj', branch: 'feat', detached: false, upstream: 'origin/feat', ahead: 0, behind: 0, gone: false, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], rk: 'r1', ws: true }, o || {});
+  const fm = (sc, key, state, o) => Object.assign({ type: 'folder', scan: sc, key, state }, o || {});
+  const click = (a, n, data) => fire(body, 'click', { target: target(a, n ? id(n) : '', data ? { dataset: Object.assign({ a }, data) } : undefined) });
+  const exp = (n) => posted.filter((p) => p.type === 'expand' && p.id === id(n)).length;
+  const rows = [row(1, { fk: 'f1', last: NOW - H }), row(2, { fk: 'f2', last: NOW - 2 * H })];
+  const wtm = (k, o) => Object.assign({ k, name: 'proj-' + k, path: '/p/' + k, branch: 'b' + k, detached: false, main: false, missing: false, locked: false, prunable: false, merged: false, ws: true, fks: [] }, o || {});
+  const okf = (n) => ({ ok: true, fileTotal: n, ahead: 0, behind: 0, gone: false, files: [] });
+  R.start();
+  step('init', () => { deliver({ type: 'init', v: 3, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {} }); deliver({ type: 'dots', map: {} }); });
+  step('chats', () => { deliver({ type: 'chats', scan: 1, rows, indexing: false, scanning: true }); deliver(fm(1, 'f1', 'queued')); deliver(fm(1, 'f2', 'queued')); advance(300); });
+  // 1. A row opened while its folder is still queued gets its commit request when the folder result arrives.
+  step('open while queued', () => click('row', 1));
+  check(tag('opening a row whose folder is still queued sends no request yet'), exp(1) === 0);
+  step('folder arrives', () => { deliver(fm(1, 'f1', 'ok', { facts: facts({ ahead: 2, fileTotal: 1, files: [{ s: 'M', p: 'a.ts' }] }) })); advance(300); });
+  check(tag('the request goes out once the folder result shows unpushed commits'), exp(1) === 1 && /Loading\.\.\./.test(body.innerHTML));
+  step('same folder again', () => { deliver(fm(1, 'f1', 'ok', { facts: facts({ ahead: 2, fileTotal: 1, files: [{ s: 'M', p: 'a.ts' }] }) })); advance(300); });
+  check(tag('a repeated folder result does not ask again while the request is out'), exp(1) === 1);
+  step('host has no key', () => { deliver({ type: 'detail', id: id(1), commits: null, reason: 'Git state is not loaded for this row' }); advance(300); });
+  check(tag('an answer with no commits shows its reason with a Retry button, not Loading'), /Git state is not loaded/.test(body.innerHTML) && /data-a="dretry"/.test(body.innerHTML) && !/Loading\.\.\./.test(body.innerHTML));
+  step('another folder result', () => { deliver(fm(1, 'f1', 'ok', { facts: facts({ ahead: 2, fileTotal: 1, files: [{ s: 'M', p: 'a.ts' }] }) })); advance(300); });
+  check(tag('a failed answer is not asked again by itself (no request loop)'), exp(1) === 1);
+  step('retry detail', () => click('dretry', 1));
+  check(tag('Retry asks the host for the commits again'), exp(1) === 2);
+  step('watchdog', () => advance(15500));
+  check(tag('a request with no answer turns Loading into timed out with Retry'), /timed out/.test(body.innerHTML) && /data-a="dretry"/.test(body.innerHTML) && !/Loading\.\.\./.test(body.innerHTML));
+  step('retry after timeout', () => click('dretry', 1));
+  step('answer', () => { deliver({ type: 'detail', id: id(1), commits: [{ sha: 'abc1234', subject: 'one' }, { sha: 'def5678', subject: 'two' }], reason: '' }); advance(300); });
+  check(tag('an answer shows the commits'), /abc1234/.test(body.innerHTML) && !/data-a="dretry"/.test(body.innerHTML));
+  // 9. Re-expanding and a refresh read the commits again.
+  step('collapse and open again', () => { click('row', 1); click('row', 1); });
+  check(tag('opening the row again reads the unpushed commits again'), exp(1) === 4);
+  step('answer again', () => deliver({ type: 'detail', id: id(1), commits: [{ sha: 'abc1234', subject: 'one' }, { sha: 'def5678', subject: 'two' }], reason: '' }));
+  step('refresh scan', () => { deliver({ type: 'chats', scan: 2, rows, indexing: false, scanning: true }); deliver(fm(2, 'f1', 'queued')); advance(300); });
+  check(tag('a new scan drops the old commit list'), !/abc1234/.test(body.innerHTML));
+  step('folder of scan 2', () => { deliver(fm(2, 'f1', 'ok', { facts: facts({ ahead: 2, fileTotal: 1, files: [{ s: 'M', p: 'a.ts' }] }) })); advance(300); });
+  check(tag('after a refresh the open row asks for its commits again'), exp(1) === 5);
+  step('close row', () => { click('row', 1); advance(300); });
+  // 5. Repository queued, running, partial.
+  step('repo queued and worktrees', () => { deliver({ type: 'repo', scan: 2, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: [], ws: true, worktrees: [wtm('w1', { main: true, fks: ['f1'] }), wtm('w2', { facts: okf(3) }), wtm('w3')] }); advance(300); });
+  step('repo queued again', () => { deliver({ type: 'repo', scan: 2, key: 'r1', state: 'queued', worktrees: [], merged: [] }); advance(300); });
+  check(tag('a queued post with no worktrees keeps the worktree rows already known'), /data-id="w2"/.test(body.innerHTML) && /data-id="w3"/.test(body.innerHTML));
+  step('queued for a long time', () => advance(20000));
+  check(tag('a repository that is only queued is not timed out by the per-row watchdog'), !/data-a="fretry" data-k="r1"/.test(body.innerHTML));
+  step('running then silence', () => { deliver({ type: 'repo', scan: 2, key: 'r1', state: 'running', worktrees: [], merged: [] }); advance(15500); });
+  check(tag('a running repository that goes silent times out after 15 s'), /data-a="fretry" data-k="r1"/.test(body.innerHTML));
+  check(tag('a worktree that finished before the timeout still shows its files; the unread one says timed out'), /3 files/.test(body.innerHTML.slice(body.innerHTML.indexOf('data-id="w2"'), body.innerHTML.indexOf('data-id="w3"'))) && /timed out/.test(body.innerHTML.slice(body.innerHTML.indexOf('data-id="w3"'))));
+  // 10. Repositories of earlier scans leave the page.
+  step('another repo in scan 2', () => { deliver({ type: 'repo', scan: 2, key: 'r9', state: 'ok', name: 'old', def: 'origin/main', defLocal: 'main', merged: [], ws: true, worktrees: [wtm('w1', { main: true }), wtm('w9', { facts: okf(1) })] }); advance(300); });
+  check(tag('a repository of this scan lists its worktree'), /data-id="w9"/.test(body.innerHTML));
+  step('scan 3', () => { deliver({ type: 'chats', scan: 3, rows, indexing: false, scanning: true }); deliver(fm(3, 'f1', 'queued')); deliver({ type: 'repo', scan: 3, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: [], ws: true, worktrees: [wtm('w1', { main: true, fks: ['f1'] }), wtm('w2', { facts: okf(3) })] }); deliver({ type: 'end', scan: 3, open: [], gitMissing: false }); advance(300); });
+  check(tag('a repository that is not in the latest scan is dropped with its worktree rows'), !/data-id="w9"/.test(body.innerHTML) && /data-id="w2"/.test(body.innerHTML));
+  step('late timers', () => advance(50000));
+  check(tag('the dropped repository never flips to timed out later'), !/data-id="w9"/.test(body.innerHTML) && !/data-k="r9"/.test(body.innerHTML));
+  // 8. Mark done: no post or mutation while rendering; long branch names keep their mark.
+  const doneOfSrc = /function doneOf\(r\)\{[^]*?\n[^\n]*\}\n/.exec(R.script);
+  check(tag('doneOf (called while rendering) neither posts nor deletes'), doneOfSrc && !/postMessage|delete donemap/.test(doneOfSrc[0]));
+  const longBranch = 'feature/' + 'x'.repeat(300);
+  step('long branch folder', () => { deliver(fm(3, 'f2', 'ok', { facts: facts({ branch: longBranch, fk: 'f2', rk: 'r1' }) })); advance(300); });
+  step('mark done long', () => click('done', 2));
+  const dm = posted.filter((p) => p.type === 'done' && p.id === id(2) && p.on === true).pop();
+  check(tag('Mark done on a chat with a 300 character branch sends a fingerprint that fits the 200 character store'), dm && typeof dm.fp === 'string' && dm.fp.length <= 200 && !dm.fp.includes('xxxxxxxx'));
+  step('same state', () => { deliver(fm(3, 'f2', 'ok', { facts: facts({ branch: longBranch, rk: 'r1' }) })); advance(300); });
+  check(tag('the long-branch chat stays hidden while nothing changed'), !new RegExp('data-id="' + id(2) + '"').test(body.innerHTML));
+  step('branch changes', () => { deliver(fm(3, 'f2', 'ok', { facts: facts({ branch: longBranch + 'y', rk: 'r1' }) })); advance(300); });
+  check(tag('a different long branch brings the row back and clears the mark'), new RegExp('data-id="' + id(2) + '"').test(body.innerHTML) && posted.some((p) => p.type === 'done' && p.id === id(2) && p.on === false));
+  R.errors.forEach((e) => failures.push(e));
+}
+for (const W of [400, 1400]) { reviewScenario(W); }
+
 // Slice 3: pull request layer, check states, streaming, hold-still, retry, lookups off.
 function prScenario(W) {
   const P = createHarness({ page, name: 'openwork-prs@' + W, width: W, popIds: ['grb', 'grm'] });
@@ -498,6 +572,23 @@ if (!/Content-Security-Policy[^>]*default-src 'none'/.test(page)) { bad('page ke
   if (!r.rows[0].pinned || r.rows[1].pinned || r.total !== 3 || r.rows[0].project !== 'proj') { bad('rows carry pinned, project and total'); }
 }
 
+// Mark done keeps working with long branch names, and the 500 cap drops stale marks first.
+{
+  const g = (b) => ({ ok: true, branch: b, files: 1, ahead: 1 });
+  const long = 'feature/' + 'x'.repeat(300), fp = model.fingerprint('idle', 5, g(long));
+  if (fp.length > 200) { bad('model: a fingerprint with a 300 character branch is ' + fp.length + ' characters (the host stores at most 200)'); }
+  if (model.doneHidden(fp, 'idle', 5, g(long)) !== true) { bad('model: a long branch keeps its done row hidden'); }
+  if (model.doneHidden(fp, 'idle', 5, g(long + 'y')) !== false) { bad('model: a different long branch brings the done row back'); }
+  if (model.doneHidden(model.fingerprint('idle', 5, g('a#b|c')), 'idle', 5, g('a#b|c')) !== true || model.fingerprint('idle', 5, g('a#b|c')).split('#').length !== 2) { bad('model: a branch holding # and | is hashed so the parts stay intact'); }
+  if (model.fingerprint('idle', 5, g('feat')) !== '5|idle#feat|1|1') { bad('model: a short branch keeps the readable fingerprint'); }
+  const list = [['a', '1'], ['b', '2'], ['c', '3'], ['d', '4'], ['e', '5']];
+  const k1 = model.capDone(list, new Set(['a', 'c', 'e']), 4).map((x) => x[0]).join();
+  if (k1 !== 'a,c,d,e') { bad('capDone: the oldest stale mark goes first, listed chats stay (' + k1 + ')'); }
+  const k2 = model.capDone(list, new Set(['a', 'b', 'c', 'd', 'e']), 3).map((x) => x[0]).join();
+  if (k2 !== 'c,d,e') { bad('capDone: with every chat listed the oldest marks go (' + k2 + ')'); }
+  if (model.capDone(list, new Set(), 3).map((x) => x[0]).join() !== 'c,d,e' || model.capDone(list, new Set(['a']), 9).length !== 5) { bad('capDone: unknown list judges nothing stale; under the cap nothing goes'); }
+}
+
 // The real worker thread: a soft chat-list request answers at once, with the chats and the indexing flag.
 function workerCheck() {
   const { Worker } = require('worker_threads');
@@ -529,7 +620,28 @@ function workerCheck() {
   });
 }
 
-workerCheck().then(() => {
+// A slow disk read: the soft request answers 'indexing' at once and the host is told when the chats are readable.
+function slowLoadCheck() {
+  const { Worker } = require('worker_threads');
+  const base = fs.mkdtempSync(path.join(process.env.CCS_TMP || os.tmpdir(), 'ccs-ow-slow-'));
+  fs.mkdirSync(path.join(base, 'projects'), { recursive: true });
+  return new Promise((resolve) => {
+    const w = new Worker(path.join(OUT, 'worker.js'), { env: Object.assign({}, process.env, { CCS_TEST_LOAD_MS: '2500' }) });
+    const t0 = Date.now();
+    let answered = 0, changed = 0, done = false;
+    const end = () => { if (done) { return; } done = true; clearTimeout(timer); w.terminate().then(() => { try { fs.rmSync(base, { recursive: true, force: true }); } catch (e) { /* scratch only */ } resolve(); }); };
+    const timer = setTimeout(() => { if (!answered) { bad('slow load: the soft openWork request was not answered while the index was loading'); } else if (!changed) { bad('slow load: the host was not told when the chats became readable'); } end(); }, 5500);
+    w.on('message', (m) => {
+      if (m.t === 'reply' && m.req === 7) { answered = Date.now() - t0; const v = m.value; if (answered > 1200) { bad('slow load: answered after ' + answered + ' ms (it must not wait for the disk read)'); } if (!v || v.indexing !== true || !Array.isArray(v.rows) || v.rows.length !== 0) { bad('slow load: the early answer must be indexing with no rows'); } }
+      if (m.t === 'changed' && answered) { changed++; end(); }
+    });
+    w.on('error', (e) => { bad('slow load worker error', e); end(); });
+    w.postMessage({ t: 'init', dir: path.join(base, 'store'), root: path.join(base, 'projects') });
+    w.postMessage({ t: 'openWork', req: 7, days: 14, pins: [], archived: [], live: [] });
+  });
+}
+
+workerCheck().then(slowLoadCheck).then(() => {
   const uniq = [...new Set(failures)];
   if (uniq.length) {
     console.error('check_openwork FAILED (' + uniq.length + ')');

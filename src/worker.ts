@@ -20,6 +20,9 @@ let ix: ChatIndex | undefined;
 let loaded: Promise<void> = Promise.resolve();
 let busy = false; // an index pass is running; searches use what is indexed so far
 let passed = false; // the first index pass has finished
+let loading = true; // the stored index is still being read from disk
+let softWhileLoading = false; // an Open Work request was answered 'indexing' during that read
+const TEST_LOAD_MS = Number(process.env.CCS_TEST_LOAD_MS) || 0; // build checks only: a slow disk read
 const live = new Map<number, Abort>();
 
 const post = (m: unknown): void => port.postMessage(m);
@@ -44,8 +47,10 @@ async function init(m: any): Promise<void> {
   ix = new ChatIndex(m.dir, m.root || undefined);
   ix.onError = log;
   ix.onChange = () => post({ t: 'changed' });
-  loaded = ix.load(); // never rejects: the load catches its own errors and falls back to memory
+  loaded = ix.load().then(() => (TEST_LOAD_MS ? new Promise<void>((r) => setTimeout(r, TEST_LOAD_MS)) : undefined)); // never rejects: the load catches its own errors and falls back to memory
   await loaded;
+  loading = false;
+  if (softWhileLoading) { post({ t: 'changed' }); } // the Open Work page asked early: tell it the chats are readable now
   post({ t: 'loaded', chats: ix.size });
   await refresh().catch((e) => log('initial index', e));
   ix.watch();
@@ -135,7 +140,7 @@ async function fileSessions(m: any): Promise<FileSessionsReply> {
 
 /** Chats for the Open Work page. Soft by design: it answers at once with what is indexed, and indexing says the first index build is still running. */
 async function openWork(m: any): Promise<unknown> {
-  await loaded;
+  if (loading) { softWhileLoading = true; return { indexing: true, rows: [], total: 0 }; } // never wait on the disk read: the host asks again when it ends
   if (!ix) { return { indexing: true, rows: [], total: 0 }; }
   const ids = (a: unknown): Set<string> => new Set<string>(Array.isArray(a) ? a.filter((x: unknown) => typeof x === 'string') : []);
   const days = Math.min(90, Math.max(1, Math.floor(Number(m.days)) || 14));

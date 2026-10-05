@@ -83,13 +83,14 @@ else if(k==='find')vs.postMessage({type:'find',id:id});
 else if(k==='arch'){pend.add(id);open.delete(id);vs.postMessage({type:'archive',id:id,on:true});render();}
 else if(k==='done'){const r=rows.find(x=>x.id===id);if(!r)return;const fp=fingerprint(dotOf(id),r.last,gitView(r));donemap[id]=fp;open.delete(id);vs.postMessage({type:'done',id:id,on:true,fp:fp});render();}
 else if(k==='undone'){delete donemap[id];vs.postMessage({type:'done',id:id,on:false});render();}}
-function toggleRow(id,on){if(on===undefined?open.has(id):!on)open.delete(id);else{open.add(id);const r=visibleRows().find(x=>x.id===id),g=r&&viewOf(r);if(g&&g.ahead>0&&!detail[id])vs.postMessage({type:'expand',id:id});}focusId=id;render();}
+function toggleRow(id,on){if(on===undefined?open.has(id):!on)open.delete(id);else{open.add(id);askDetail(id,true);}focusId=id;render();}
 document.addEventListener('click',e=>{const a=e.target.closest('[data-a]');if(!a)return;const k=a.dataset.a,row=a.closest('.row'),id=row?row.dataset.id:'';
 if(k==='retry'||k==='refresh'){refresh();}
 else if(k==='idle'){toggleBand('idle');}
 else if(k==='band'){toggleBand(a.dataset.b);}
 else if(k==='fretry'){retryKey(a.dataset.k);}
 else if(k==='pr'||k==='prc'){const n=Number(a.dataset.n);if(/^r\d+$/.test(a.dataset.k||'')&&n>0)vs.postMessage({type:k==='pr'?'openPr':'copyPr',repo:a.dataset.k,n:n});}
+else if(k==='dretry'){if(id)retryDetail(id);}
 else if(k==='file'){vs.postMessage({type:'openFile',key:a.dataset.k,i:Number(a.dataset.i)});}
 else if(k==='rm'){vs.postMessage({type:'copyRemove',key:a.dataset.k});}
 else if(k==='more'){vs.postMessage({type:'scanMore'});}
@@ -117,7 +118,7 @@ window.addEventListener('resize',layout);
 setInterval(updText,10000);
 window.addEventListener('message',e=>{const d=e.data;if(!d)return;
 if(d.type==='init'){days=d.days||14;if(GROUPS.some(g=>g[0]===d.group))group=d.group;hidden=Array.isArray(d.hidden)?d.hidden.filter(b=>BAND_ORDER.indexOf(b)>=0):[];wsOnly=!!d.wsOnly;wsN=Number(d.ws)||0;setPrsOn(d.prsOn);donemap=d.done&&typeof d.done==='object'?d.done:{};render();}
-else if(d.type==='chats'){if(d.scan<scan)return;if(d.scan>scan){scanLive=!!d.scanning;prog=null;Object.keys(fwatch).forEach(k=>{clearTimeout(fwatch[k]);});fwatch={};touch();}scan=d.scan;rows=Array.isArray(d.rows)?d.rows:[];pend.clear();loaded=true;failed='';indexing=!!d.indexing;lastAt=Date.now();clearTimeout(watch);render();say(rows.length+' chats shown.');}
+else if(d.type==='chats'){if(d.scan<scan)return;if(d.scan>scan){scanLive=!!d.scanning;prog=null;resetDetail();Object.keys(fwatch).forEach(k=>{clearTimeout(fwatch[k]);});fwatch={};touch();}scan=d.scan;rows=Array.isArray(d.rows)?d.rows:[];pend.clear();loaded=true;failed='';indexing=!!d.indexing;lastAt=Date.now();clearTimeout(watch);render();say(rows.length+' chats shown.');}
 else if(d.type==='chatsFailed'){if(d.scan<scan)return;failed=d.message||'Could not load chats';clearTimeout(watch);render();}
 else if(d.type==='dots'){dots=d.map||{};gotDots=true;sched();}
 else if(d.type==='folder'){onFolder(d);}

@@ -10,7 +10,8 @@ export const PR_ARGS_OLD = ['pr', 'list', '--state', 'open', '--limit', '100', '
 const TITLE_MAX = 80;
 
 /** Open PRs of one repository by branch, or why they are unavailable (short words, never raw output). */
-export interface PrResult { byBranch: Map<string, PrInfo>; error?: string; missing?: boolean; }
+/** byBranch lists every PR (the sidebar pill shows a fork PR too); own leaves out fork PRs (Open Work matches only this repository's branches). */
+export interface PrResult { byBranch: Map<string, PrInfo>; own?: Map<string, PrInfo>; error?: string; missing?: boolean; }
 
 const REVIEW: { [k: string]: string } = { APPROVED: 'approved', CHANGES_REQUESTED: 'changes requested', REVIEW_REQUIRED: 'review requested' };
 export const reviewWord = (d: string): string => REVIEW[d] ?? '';
@@ -21,14 +22,14 @@ export const cleanTitle = (t: string): string => t.replace(/https?:\/\/\S+/gi, '
 /** The PR page address from gh, only when it is an https link. */
 const safeUrl = (u: unknown): string | undefined => (typeof u === 'string' && /^https:\/\/\S+$/.test(u) ? u : undefined);
 
-/** Map the JSON of `gh pr list` by head branch (the highest number wins); fork pull requests are skipped (a fork branch of the same name is not this repository's branch); undefined when it is not the expected shape. */
-export function parsePrs(stdout: string): Map<string, PrInfo> | undefined {
+/** Map the JSON of `gh pr list` by head branch (the highest number wins); with ownOnly, fork pull requests are skipped (a fork branch of the same name is not this repository's branch); undefined when it is not the expected shape. */
+export function parsePrs(stdout: string, ownOnly = false): Map<string, PrInfo> | undefined {
   let v: unknown;
   try { v = JSON.parse(stdout); } catch { return undefined; }
   if (!Array.isArray(v)) { return undefined; }
   const m = new Map<string, PrInfo>();
   for (const x of v as Array<{ [k: string]: unknown }>) {
-    if (!x || typeof x.number !== 'number' || typeof x.headRefName !== 'string' || x.isCrossRepository === true) { continue; }
+    if (!x || typeof x.number !== 'number' || typeof x.headRefName !== 'string' || (ownOnly && x.isCrossRepository === true)) { continue; }
     const prev = m.get(x.headRefName);
     if (prev && prev.number > x.number) { continue; }
     m.set(x.headRefName, { number: x.number, title: cleanTitle(String(x.title ?? '')), draft: x.isDraft === true, review: String(x.reviewDecision ?? ''), url: safeUrl(x.url), sha: typeof x.headRefOid === 'string' && /^[0-9a-f]{7,64}$/i.test(x.headRefOid) ? x.headRefOid : undefined });
@@ -54,7 +55,7 @@ export async function fetchPrs(c: Ctx, cwd: string): Promise<PrResult> {
   if (r.code !== 0 && /unknown json field/i.test(r.stderr)) { r = await gh(c, cwd, PR_ARGS_OLD); } // an older gh: ask without the two newer fields
   if (r.code !== 0) { return { byBranch: new Map(), error: ghReason(r), missing: r.code === 'ENOENT' }; }
   const m = parsePrs(r.stdout);
-  return m ? { byBranch: m } : { byBranch: new Map(), error: 'unreadable gh answer' };
+  return m ? { byBranch: m, own: parsePrs(r.stdout, true) } : { byBranch: new Map(), error: 'unreadable gh answer' };
 }
 
 interface Shared { p: Promise<PrResult>; ac: AbortController; waiters: number; }

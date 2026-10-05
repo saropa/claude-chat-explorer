@@ -212,8 +212,8 @@ export class PrRun {
     if (this.h.signal.aborted) { return false; }
     if (r === 'late' || lane.timedOut()) { this.fail(st, 'timed out'); return false; }
     if (r.error) { this.fail(st, r.error); return false; }
-    st.by = r.byBranch;
-    this.w.setUrls(st.rk, r.byBranch);
+    st.by = r.own ?? r.byBranch; // fork PRs never match a branch here
+    this.w.setUrls(st.rk, st.by);
     return true;
   }
 

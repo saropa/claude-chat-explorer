@@ -42,11 +42,12 @@ export function parseStatus(out: string): StatusParts {
   return r;
 }
 
-/** Parse `git worktree list --porcelain`; the first block is the main worktree. missing is filled in later. */
+/** Parse `git worktree list --porcelain -z` (NUL fields, an empty field ends a block; paths may hold newlines) or the plain form; the first block is the main worktree. missing is filled in later. */
 export function parseWorktrees(out: string): WorktreeInfo[] {
   const list: WorktreeInfo[] = [];
-  for (const block of out.split(/\r?\n\r?\n/)) {
-    const lines = block.split(/\r?\n/);
+  const nul = out.includes('\0');
+  for (const block of nul ? out.split('\0\0') : out.split(/\r?\n\r?\n/)) {
+    const lines = nul ? block.split('\0') : block.split(/\r?\n/);
     const p = lines.find((l) => l.startsWith('worktree '));
     if (!p) { continue; }
     const b = lines.find((l) => l.startsWith('branch '));

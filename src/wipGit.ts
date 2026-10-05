@@ -64,7 +64,7 @@ export async function statusOf(c: Ctx, top: string): Promise<StatusParts | strin
 
 /** Worktrees for one repository; a failed `worktree list` returns its reason so the caller can show an error and Retry. */
 export async function repoOf(c: Ctx, common: string, cwd: string): Promise<RepoFacts | string> {
-  const wt = await git(c, cwd, ['worktree', 'list', '--porcelain']);
+  const wt = await git(c, cwd, ['worktree', 'list', '--porcelain', '-z']);
   if (wt.code !== 0) { return whyFailed(wt); }
   const worktrees = parseWorktrees(wt.stdout);
   for (const w of worktrees) { w.missing = !(await isDir(w.path)); }

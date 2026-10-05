@@ -48,8 +48,8 @@ for (const line of ALLOW) { if (!wip.includes(line)) { bad('git/gh allow-list ch
   const c = { exec: async (cmd, args) => { calls.push(cmd + ' ' + args.join(' ')); return { code: 0, stdout: '', stderr: '' }; }, gitMs: 100, ghMs: 100, flags: { gitMissing: false } };
   const tryGit = async (args) => { try { await g.git(c, '/x', args); return true; } catch (e) { return false; } };
   const tryGh = (args) => { try { g.gh(c, '/x', args); return true; } catch (e) { return false; } };
-  for (const a of [['status'], ['rev-parse', 'HEAD'], ['symbolic-ref', 'HEAD'], ['worktree', 'list'], ['for-each-ref'], ['rev-list', 'HEAD']]) { if (!(await tryGit(a))) { bad('git must allow ' + a.join(' ')); } }
-  for (const a of [['push'], ['commit'], ['checkout', 'x'], ['reset', '--hard'], ['clean', '-f'], ['stash'], ['fetch'], ['merge', 'x'], ['branch', '-D', 'x'], ['config', 'a', 'b'], ['worktree', 'remove', 'x'], ['worktree', 'add', 'x'], ['worktree'], ['restore', 'x']]) { if (await tryGit(a)) { bad('git must reject ' + a.join(' ')); } }
+  for (const a of [['status'], ['rev-parse', 'HEAD'], ['symbolic-ref', 'HEAD'], ['worktree', 'list'], ['worktree', 'list', '--porcelain', '-z'], ['for-each-ref'], ['rev-list', 'HEAD']]) { if (!(await tryGit(a))) { bad('git must allow ' + a.join(' ')); } }
+  for (const a of [['push'], ['commit'], ['checkout', 'x'], ['reset', '--hard'], ['clean', '-f'], ['stash'], ['fetch'], ['merge', 'x'], ['branch', '-D', 'x'], ['config', 'a', 'b'], ['worktree', 'remove', 'x'], ['worktree', 'add', 'x'], ['worktree'], ['worktree', 'prune'], ['worktree', 'lock', 'x'], ['restore', 'x']]) { if (await tryGit(a)) { bad('git must reject ' + a.join(' ')); } }
   if (!tryGh(['pr', 'list', '--json', 'number'])) { bad('gh must allow pr list'); }
   // The one added shape: pr view <digits> --json statusCheckRollup,headRefOid, exactly.
   if (!tryGh(['pr', 'view', '81', '--json', 'statusCheckRollup,headRefOid'])) { bad('gh must allow pr view <n> --json statusCheckRollup,headRefOid'); }

@@ -100,7 +100,16 @@ export function wtReady(w: any, g: any, open: boolean): boolean {
  * Only failing is kept from the checks, so pending turning to passing never brings a row back.
  */
 export function fingerprint(dot: string, last: number, g?: any): string {
-  const git = g && g.ok ? (g.branch || '') + '|' + g.files + '|' + g.ahead : '';
+  // A long branch name (or one holding the # and | separators) is replaced by a short hash, so the whole fingerprint stays well under the 200 characters the host stores.
+  const hash = (s: string): string => {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return 'h' + (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16);
+  };
+  const br = g && g.ok ? String(g.branch || '') : '';
+  const git = g && g.ok ? (br.length > 40 || /[#|]/.test(br) ? hash(br) : br) + '|' + g.files + '|' + g.ahead : '';
   const pr = g && g.ok && g.pr ? g.pr.n + '|' + (g.pr.review || '') + '|' + (g.pr.checks === 'failing' ? 'F' : '-') : '';
   return last + '|' + dot + '#' + git + (pr ? '#' + pr : '');
 }
@@ -112,6 +121,13 @@ export function doneHidden(stored: string | undefined, dot: string, last: number
   if (was.length < 2 || was[0] !== is[0]) { return false; }
   for (let k = 1; k < 3; k++) { if (was[k] && is[k] && was[k] !== is[k]) { return false; } }
   return true;
+}
+
+/** The marked-done list at its cap: marks of chats no longer listed go first (oldest first), then the oldest of the rest. listed empty means the list is unknown, so nothing is judged stale. */
+export function capDone(list: Array<[string, string]>, listed: Set<string>, max: number): Array<[string, string]> {
+  let extra = list.length - max;
+  const kept = extra > 0 && listed.size ? list.filter(([k]) => listed.has(k) || extra-- <= 0) : list;
+  return kept.slice(-max);
 }
 
 /** Source of the functions and constants above, for the page script. */
