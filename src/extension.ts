@@ -24,6 +24,8 @@ import { Draft, Store } from './store';
 import { Compiled, Options, Result } from './types';
 import { html, NAME } from './webview';
 import { OPEN_EDITOR_CMD, registerEditorView } from './editorView';
+import { Hub } from './hub';
+import { OpenWork, registerOpenWork } from './openWork';
 
 const POST_GAP_MS = 100;
 const REVEAL_CMD = 'workbench.view.extension.claudeChatExplorer'; // opens the Saropa Chat Explorer container and its view
@@ -40,7 +42,6 @@ class Provider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private progress: { done: number; total: number; subs: number; first: boolean } | null = null;
   private lastPost = 0;
-  onIndex?: () => void; // the index changed
   private readonly queue = new QueryQueue((m) => this.post(m), () => vscode.commands.executeCommand(REVEAL_CMD), logErr);
   watcher?: LiveWatcher; // live state of Claude sessions
   actions?: ArchiveActions;
@@ -52,7 +53,7 @@ class Provider implements vscode.WebviewViewProvider {
   private readonly gitTargets = new Map<string, GitTargets>(); // per chat: what a click in its Git section resolves against
 
   constructor(private readonly store: Store, private readonly client: WorkerClient,
-    private readonly status: IndexStatus) {
+    private readonly status: IndexStatus, private readonly hub: Hub) {
     client.onError = logErr;
     client.onEvent = (m) => this.onWorker(m);
   }
@@ -65,8 +66,8 @@ class Provider implements vscode.WebviewViewProvider {
     if (m.t === 'log') { log(String(m.msg)); }
     else if (m.t === 'fatal') { log(String(m.message)); this.post({ type: 'error', message: String(m.message) }); }
     else if (m.t === 'progress') { this.indexing(m.done, m.total, m.subs, !!m.first); }
-    else if (m.t === 'indexed') { this.indexed(); this.onIndex?.(); }
-    else if (m.t === 'changed') { void this.postMeta(); this.onIndex?.(); }
+    else if (m.t === 'indexed') { this.indexed(); this.hub.emit('indexed', logErr); }
+    else if (m.t === 'changed') { void this.postMeta(); this.hub.emit('changed', logErr); }
   }
 
   /** Index progress shown in the panel and status bar. */
@@ -198,10 +199,13 @@ class Provider implements vscode.WebviewViewProvider {
     else if (m.type === 'tagRemove') { await this.store.removeTag(id, String(m.tag ?? '')); await this.postMeta(); }
   }
 
-  private async handover(id: string, query: string): Promise<void> {
+  /** Copy the hand-over note for another page; state reports busy and done to that page. */
+  copyNote(id: string, state: (id: string, s: 'busy' | 'done' | '') => void): Promise<void> { return this.handover(id, '', state); }
+
+  private async handover(id: string, query: string, state: (id: string, s: 'busy' | 'done' | '') => void = (cid, s) => this.post({ type: 'handoverState', id: cid, state: s })): Promise<void> {
     await copyHandover(id, query, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), roots: folderPaths, log: logErr,
       folders: folderPaths, prsOn: () => vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false,
-      gitLive: this.gitLive, state: (cid, state) => this.post({ type: 'handoverState', id: cid, state }) });
+      gitLive: this.gitLive, state });
   }
 
   /** Load one part of a chat card (git, wt, unc or unp) and post it; the git part posts its first step (branch, counts) before the PR step; a deadline or failure posts a one-line state. */
@@ -316,13 +320,14 @@ export function activate(ctx: vscode.ExtensionContext): void {
   client = new WorkerClient(dir);
   const status = new IndexStatus();
   store = new Store(ctx, (e) => logErr('save state', e));
-  const provider = new Provider(store, client, status);
-  const changed = () => { void provider.postMeta(); };
+  const hub = new Hub();
+  const provider = new Provider(store, client, status, hub);
+  const changed = () => { void provider.postMeta(); hub.emit('archived', logErr); };
   provider.actions = new ArchiveActions(store, ctx.globalStorageUri.fsPath, { changed, rebuild: () => provider.watcher?.rebuild() });
   const warner = createWarner(ctx, { request: (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), open: (id) => provider.resume(id), log });
   provider.watcher = new LiveWatcher({ dir: sessionsDir(), tabs: async () => { const r = await readTabs(workspaceStorageOf(ctx.globalStorageUri.fsPath), folderPaths()); return r.ok ? r : undefined; },
     unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
-    onChange: () => { provider.postDots(); }, onLive: (ids) => { void warner.check(ids); } });
+    onChange: () => { provider.postDots(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); } });
   ctx.subscriptions.push(vscode.window.onDidChangeWindowState((s) => { if (s.focused) { provider.watcher?.poke(); } }), { dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));
   ctx.subscriptions.push(channel, status,
     vscode.commands.registerCommand('claudeChatExplorer.clearHistory', () => {
@@ -334,7 +339,10 @@ export function activate(ctx: vscode.ExtensionContext): void {
   registerEditorView(ctx, { client, ctxMsg: () => provider.searchCtx, archived: () => [...store!.archived], log: logErr, resume: (id) => provider.resume(id) },
     () => ({ ...store!.draft, statuses: store!.statuses }));
   registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
-    showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { const was = provider.onIndex; provider.onIndex = () => { was?.(); fn(); }; } });
+    showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { ctx.subscriptions.push(hub.on('indexed', fn), hub.on('changed', fn)); } });
+  registerOpenWork(ctx, new OpenWork(ctx, hub, { softRequest: (m) => client!.request(m as Parameters<WorkerClient['request']>[0], true, true), pins: () => Object.keys(store!.pins),
+    archived: () => [...store!.archived], dots: () => provider.watcher?.dots ?? {}, resume: (id) => provider.resume(id), copyNote: (id, state) => provider.copyNote(id, state),
+    setArchived: (id, on) => provider.actions!.setArchived(id, on), find: (q) => provider.showQuery(q), poke: () => provider.watcher?.poke(), log: logErr }));
   registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info, () => provider.watcher, () => warner.atOrAbove80);
   provider.watcher.start();
   done = true;

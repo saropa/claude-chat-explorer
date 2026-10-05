@@ -2,80 +2,17 @@
 // Builds the real page with out/webview.js html(), runs its script in node vm with a stub DOM, and feeds
 // rows with live state, an expand reply with related chats, git payloads, search results and archived rows.
 // Any exception, window.onerror or console.error from the script (including a section's "could not show" fallback) is a failure.
-const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
+const { createHarness } = require('./webview_harness');
 
 const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
 const page = require(path.join(OUT, 'webview.js')).html();
-const m = /<script nonce="[^"]*">([\s\S]*)<\/script>/.exec(page);
-if (!m) { console.error('check_webview: no <script> found in the panel page'); process.exit(1); }
-const script = m[1];
-
-const errors = [];
-const fail = (where, e) => errors.push(where + ': ' + String((e && e.stack) || e).split('\n').slice(0, 3).join(' | '));
-
-// 1. Syntax only.
-try { new vm.Script(script, { filename: 'panel.js' }); } catch (e) { fail('syntax', e); report(); }
-
-// 2. Stub DOM.
-const ids = [...page.matchAll(/\sid="([^"]+)"/g)].map((x) => x[1]);
-const listeners = { window: {}, document: {} };
-function mkEl(id) {
-  const cls = new Set();
-  const el = {
-    id, value: '', checked: false, hidden: false, disabled: false, title: '', textContent: '', innerHTML: '', className: '', tabIndex: 0,
-    scrollTop: 0, scrollHeight: 0, clientHeight: 0, offsetWidth: 300, offsetHeight: 20, dataset: {}, style: { setProperty() {}, removeProperty() {} },
-    children: [], childNodes: [], parentNode: null, get parentElement() { return mkEl(""); }, options: [{ text: "Any", value: "" }], selectedIndex: 0, nextElementSibling: null, previousElementSibling: null, isConnected: true, open: false, type: '', selectionStart: 0,
-    classList: { add: (...c) => c.forEach((x) => cls.add(x)), remove: (...c) => c.forEach((x) => cls.delete(x)), contains: (c) => cls.has(c), toggle: (c, f) => { const on = f === undefined ? !cls.has(c) : !!f; on ? cls.add(c) : cls.delete(c); return on; } },
-    _l: {}, attrs: {}, addEventListener(t, f) { (this._l[t] = this._l[t] || []).push(f); }, removeEventListener() {},
-    setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }, hasAttribute(k) { return k in this.attrs; }, removeAttribute(k) { delete this.attrs[k]; },
-    focus() {}, blur() {}, click() {}, select() {}, scrollIntoView() {}, appendChild() {}, remove() {}, insertAdjacentHTML() {}, setSelectionRange() {},
-    closest(sel) { return this.inPw && sel === '.pw' ? {} : null; }, matches: () => false, contains: () => false, querySelector: () => null, querySelectorAll: () => [],
-    getBoundingClientRect: () => ({ top: 0, left: 0, right: 300, bottom: 20, width: 300, height: 20 }),
-  };
-  return el;
-}
-const els = new Map(ids.map((i) => [i, mkEl(i)]));
-for (const t of page.matchAll(/<[^>]*\sid="([^"]+)"[^>]*>/g)) { if (/\shidden(\s|>|=)/.test(t[0])) { els.get(t[1]).hidden = true; } } // honor hidden in the markup
-['srb', 'srm', 'sfb', 'sfm', 'tpb', 'tpm'].forEach((i) => { els.get(i).inPw = true; }); // these sit inside a .pw popover wrapper
-const document = {
-  body: mkEl('body'), documentElement: mkEl('html'), activeElement: null,
-  getElementById: (i) => els.get(i) || null, querySelector: () => null, querySelectorAll: () => [], createElement: (t) => Object.assign(mkEl(''), t === 'template' ? { content: { children: [] } } : {}),
-  addEventListener(t, f) { (listeners.document[t] = listeners.document[t] || []).push(f); }, removeEventListener() {},
-};
-const window = {
-  addEventListener(t, f) { (listeners.window[t] = listeners.window[t] || []).push(f); }, removeEventListener() {},
-  getComputedStyle: () => ({ getPropertyValue: () => '' }), matchMedia: () => ({ matches: false, addEventListener() {} }),
-  innerWidth: 400, innerHeight: 800, requestAnimationFrame: (f) => setTimeout(f, 0), getSelection: () => ({ toString: () => '' }),
-};
-const posted = [];
-const sandbox = {
-  window, document, console: { log() {}, warn() {}, error: (...a) => fail('console.error', a.map(String).join(' ')) },
-  acquireVsCodeApi: () => ({ postMessage: (x) => posted.push(x), getState: () => undefined, setState() {} }),
-  setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, requestAnimationFrame: () => 0,
-  navigator: { clipboard: {} }, Date, Math, JSON, Array, Object, Set, Map, String, Number, RegExp, Error, Promise, Intl, URL, Symbol,
-  ResizeObserver: class { observe() {} disconnect() {} }, IntersectionObserver: class { observe() {} disconnect() {} },
-  MutationObserver: class { observe() {} disconnect() {} }, CSS: { escape: (s) => s },
-};
-sandbox.globalThis = sandbox; sandbox.self = sandbox;
-Object.assign(window, { document, console: sandbox.console });
-const ctx = vm.createContext(sandbox);
-
-function run(code, where) { try { return vm.runInContext(code, ctx, { filename: where }); } catch (e) { fail(where, e); } }
-// Fire an event on a stub element (its own listeners) or on document.
-function fire(idOrEl, type, extra) {
-  const el = typeof idOrEl === 'string' ? els.get(idOrEl) : idOrEl;
-  const ev = Object.assign({ type, key: '', altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, preventDefault() {}, stopPropagation() {}, target: el }, extra || {});
-  const fs = el === document ? listeners.document[type] || [] : (el._l[type] || []).concat(listeners.document[type] || []);
-  for (const f of fs) { try { f(ev); } catch (e) { fail('event ' + type, e); } }
-}
-function deliver(msg, where) {
-  for (const f of listeners.window.message || []) { try { f({ data: msg }); } catch (e) { fail(where || msg.type, e); } }
-}
+const H = createHarness({ page, name: 'panel', width: 400, popIds: ['srb', 'srm', 'sfb', 'sfm', 'tpb', 'tpm'] });
+const { errors, fail, els, mkEl, document, window, posted, run, fire, deliver } = H;
+if (H.syntaxFailed) { H.report(); }
 
 // 3. Run the script, then drive it.
-run(script, 'panel.js');
+H.start();
 // patch() diffs real DOM nodes, which the stub cannot hold: keep the real call (it must not throw) and record the html it was given.
 run("{const real=patch;patch=function(el,h){el.innerHTML=h;return real(el,h);};}", 'wrap patch');
 const asyncChecks = [];
@@ -257,7 +194,7 @@ function drive() {
   check('tip example fills the search box and runs it', els.get('q').value === 'file:extension.ts' && hid('tpm') && posted.some((p) => p.type === 'search' && p.query === 'file:extension.ts'));
   step('clear tip query', () => { els.get('q').value = ''; run('qSync();', 'qSync'); });
   // Popovers stay inside the panel at narrow, medium and wide widths (the wrapper that used to clip them is gone).
-  for (const W of [220, 330, 600]) {
+  for (const W of [220, 330, 400, 600, 760, 1400]) {
     for (const [b, mid] of [['srb', 'srm'], ['sfb', 'sfm'], ['tpb', 'tpm']]) {
       const m = els.get(mid);
       window.innerWidth = W; m.offsetWidth = 400; // wider than the panel on purpose
@@ -404,13 +341,4 @@ function handoverChecks(check) {
   }).catch((e) => fail('handover gather', e)).then(() => {});
 }
 
-function report() {
-  const uniq = [...new Set(errors)];
-  if (uniq.length) {
-    console.error('check_webview FAILED: the panel script threw on realistic messages (' + uniq.length + ')');
-    uniq.slice(0, 12).forEach((e) => console.error('  - ' + e));
-    process.exit(1);
-  }
-  console.log('check_webview OK: panel script ran ' + (posted.length) + ' posts, no exceptions');
-  process.exit(0);
-}
+function report() { H.report('panel script ran ' + posted.length + ' posts, no exceptions'); }

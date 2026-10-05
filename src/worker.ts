@@ -6,6 +6,7 @@ import { compile } from './query';
 import { fileSessionsOf, FileSessionsReply } from './fileSessions';
 import { handoverData } from './handover';
 import { chatCwd } from './wipChats';
+import { openWorkRows } from './workChats';
 import { clampMax, Tally, totalsOf } from './limits';
 import { expandChat, searchIndex } from './search';
 import { ctxReply } from './contextWarn';
@@ -18,6 +19,7 @@ const port = parentPort!;
 let ix: ChatIndex | undefined;
 let loaded: Promise<void> = Promise.resolve();
 let busy = false; // an index pass is running; searches use what is indexed so far
+let passed = false; // the first index pass has finished
 const live = new Map<number, Abort>();
 
 const post = (m: unknown): void => port.postMessage(m);
@@ -35,7 +37,7 @@ async function refresh(): Promise<void> {
       lastPost = Date.now();
       post({ t: 'progress', done, total, subs, first: ix!.building });
     });
-  } finally { busy = false; post({ t: 'indexed' }); }
+  } finally { busy = false; passed = true; post({ t: 'indexed' }); }
 }
 
 async function init(m: any): Promise<void> {
@@ -131,6 +133,15 @@ async function fileSessions(m: any): Promise<FileSessionsReply> {
   return fileSessionsOf(ix, String(m.file ?? ''), roots, new Set<string>(m.pins ?? []), Date.now(), m.dots ?? {});
 }
 
+/** Chats for the Open Work page. Soft by design: it answers at once with what is indexed, and indexing says the first index build is still running. */
+async function openWork(m: any): Promise<unknown> {
+  await loaded;
+  if (!ix) { return { indexing: true, rows: [], total: 0 }; }
+  const ids = (a: unknown): Set<string> => new Set<string>(Array.isArray(a) ? a.filter((x: unknown) => typeof x === 'string') : []);
+  const days = Math.min(90, Math.max(1, Math.floor(Number(m.days)) || 14));
+  return { indexing: ix.building || (!passed && ix.size === 0), ...openWorkRows(ix, { days, now: Date.now(), live: ids(m.live), archived: ids(m.archived), pins: ids(m.pins) }) };
+}
+
 /** Facts for one chat's hand-over note; null when the chat is not indexed. */
 async function handover(m: any): Promise<unknown> {
   await loaded;
@@ -152,6 +163,7 @@ async function request(m: any): Promise<unknown> {
   if (m.t === 'sessions') { return sessions(m); }
   if (m.t === 'fileSessions') { return fileSessions(m); }
   if (m.t === 'handover') { return handover(m); }
+  if (m.t === 'openWork') { return openWork(m); }
   if (m.t === 'ctx') { await loaded; return ctxReply((id) => ix?.find(id), Array.isArray(m.ids) ? m.ids.filter((x: unknown) => typeof x === 'string') : []); }
   if (m.t === 'pinned') { return pinned(m.ids ?? [], m.subs !== false); }
   if (m.t === 'stats') { return { chats: ix?.size ?? 0, heap: process.memoryUsage().heapUsed, rss: process.memoryUsage().rss, buf: process.memoryUsage().arrayBuffers }; }

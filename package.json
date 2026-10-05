@@ -2,7 +2,7 @@
   "name": "claude-chat-explorer",
   "displayName": "Saropa Chat Explorer",
   "description": "Search your AI agent chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
-  "version": "0.21.1",
+  "version": "0.22.0",
   "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
@@ -63,6 +63,11 @@
     },
     "commands": [
       {
+        "command": "claudeChatExplorer.openWork",
+        "title": "Saropa Chat Explorer: Open Work",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "saropaChatExplorer.fileSessions.show",
         "title": "Saropa: Related Chats"
       },
@@ -118,6 +123,11 @@
         }
       ],
       "view/title": [
+        {
+          "command": "claudeChatExplorer.openWork",
+          "when": "view == claudeChatExplorer.view",
+          "group": "navigation"
+        },
         {
           "command": "claudeChatExplorer.clearHistory",
           "when": "view == claudeChatExplorer.view"
@@ -175,6 +185,13 @@
           "maximum": 2000,
           "description": "The most chats listed in search results and in All sessions. Chats beyond it are still counted, and the panel says so."
         },
+        "saropaChatExplorer.openWorkDays": {
+          "type": "number",
+          "default": 14,
+          "minimum": 1,
+          "maximum": 90,
+          "description": "How many days of chats the Open Work page lists. Chats that are open now are always listed. Archived chats are left out."
+        },
         "saropaChatExplorer.lookupPullRequests": {
           "type": "boolean",
           "default": true,
@@ -228,7 +245,7 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "tsc -p .",
-    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js",
+    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_guards.js",
     "package": "npx @vscode/vsce package --allow-missing-repository --skip-license"
   },
   "devDependencies": {

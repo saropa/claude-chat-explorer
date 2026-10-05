@@ -1,6 +1,7 @@
 import { SHARED_SRC } from './group';
 import { GIT_JS } from './webviewGit';
 import { SORT_JS } from './webviewSort';
+import { POP_JS } from './webviewPop';
 import { TIPS_JS } from './webviewTips';
 import { RENDER } from './webviewRender';
 import { CAP_JS } from './webviewCap';
@@ -139,4 +140,4 @@ else if(d.type==='setQuery'){q.value=d.query||'';go();}});
 vs.postMessage({type:'ready'});
 `;
 
-export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + GIT_JS + HIST_JS + CORE + STATUS + SORT_JS + TIPS_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS + TOUCH_JS + SUM_JS;
+export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + GIT_JS + HIST_JS + POP_JS + CORE + STATUS + SORT_JS + TIPS_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS + TOUCH_JS + SUM_JS;
