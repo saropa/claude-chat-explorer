@@ -36,7 +36,7 @@ export function html(): string {
 <div id="ah" hidden>Up and Down arrows show previous searches</div>
 ${ADV_HTML}
 <div class="sel">
-${STATUS_HTML}${EXPORT_HTML}
+${EXPORT_HTML}
 </div>
 <div id="exn" role="status" aria-live="polite"></div>
 <div id="err"></div>

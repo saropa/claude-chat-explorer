@@ -1,3 +1,4 @@
+import { STATUS_HTML } from './webviewStatus';
 /** Search details: an ellipsis toggle under the search box that shows the When and Messages rows. */
 export const ADV_HTML = `<div class="advr"><button type="button" class="opt" id="advb" title="Toggle search details" aria-label="Toggle search details" aria-expanded="false" aria-controls="adv"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="3.500" cy="8" r="1.200" fill="currentColor"/><circle cx="8" cy="8" r="1.200" fill="currentColor"/><circle cx="12.500" cy="8" r="1.200" fill="currentColor"/></svg><span class="advn" id="advn" hidden></span></button></div>
 <div id="adv" hidden>
@@ -5,6 +6,7 @@ export const ADV_HTML = `<div class="advr"><button type="button" class="opt" id=
 <label class="ar2" for="msgs"><span class="lb2">messages to search</span><select id="msgs" aria-label="messages to search"><option value="0">all messages</option><option value="10">last 10</option><option value="25">last 25</option><option value="50">last 50</option><option value="100">last 100</option></select></label>
 <label class="ar2" for="sort"><span class="lb2">sort results by</span><select id="sort" aria-label="sort results by"><option value="score">Score</option><option value="time">Time</option><option value="title">Title</option><option value="length">Length</option><option value="cost">Cost</option><option value="context">Context</option></select></label>
 <div class="ar2" role="group" aria-labelledby="lbsc"><span class="lb2" id="lbsc">search scope</span><div class="scr"><label class="al" title="Search every project, not only this workspace"><input type="checkbox" id="all"> All projects</label><label class="al" title="Include subagent chats"><input type="checkbox" id="subs" checked> Subagents</label></div></div>
+<div class="ar2" role="group" aria-labelledby="lbst"><span class="lb2" id="lbst">chat status</span>${STATUS_HTML}</div>
 </div>`;
 
 export const ADV_CSS = String.raw`
@@ -29,7 +31,7 @@ export const ADV_JS = String.raw`
 const advb=$('advb'),adv=$('adv'),advn=$('advn');
 function selTxt(el){return el.options[el.selectedIndex].text.toLowerCase();}
 function advList(){const l=[];if(when.value!=='any')l.push('chats active '+selTxt(when));if(msgSel.value!=='0')l.push('messages '+selTxt(msgSel));
-if(sort.value!=='score')l.push('sort by '+selTxt(sort));if(all.checked)l.push('all projects');if(!subs.checked)l.push('subagents off');return l;}
+if(sort.value!=='score')l.push('sort by '+selTxt(sort));if(all.checked)l.push('all projects');if(!subs.checked)l.push('subagents off');if(stOn.size<STATUS_KEYS.length)l.push('status filter');return l;}
 function advSync(){const l=advList(),n=l.length,o=!adv.hidden,t='Hidden settings changed: '+l.join(', ');
 advb.setAttribute('aria-expanded',o?'true':'false');advb.classList.toggle('on',o);
 advn.hidden=o||!n;advn.textContent=n;

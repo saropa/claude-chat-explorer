@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { TIMEOUT_MSG, WorkerClient } from './client';
 import { runExpand } from './expandRun';
-import { GitLiveService, GitTargets } from './gitLive';
+import { GitLive, GitLiveService, GitTargets, timedOutLive, withDeadline, TIMED_OUT, GIT_DEADLINE_MS } from './gitLive';
 import { IndexStatus } from './indexStatus';
 import { runExport } from './exportRun';
 import { maxResults, pickTotals, Totals } from './maxResults';
@@ -197,17 +197,18 @@ class Provider implements vscode.WebviewViewProvider {
     await copyHandover(id, query, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true), roots: folderPaths, log: logErr });
   }
 
-  /** Load the Git section data of one chat and post it; failures post a one-line message. */
+  /** Load the Git section data of one chat and post it: the first step (branch, counts) as soon as it is ready, the PR step after; a deadline or failure posts a one-line state. */
   private async loadGit(id: string): Promise<void> {
+    const post = (live: GitLive, t?: GitTargets): void => { if (t) { this.gitTargets.set(id, t); } else { this.gitTargets.delete(id); } this.post({ type: 'gitLive', id, data: live }); };
     try {
-      const cwd = await this.client.request({ t: 'chatCwd', chat: id, folders: folderPaths() }, true);
+      const cwd = await withDeadline(this.client.request({ t: 'chatCwd', chat: id, folders: folderPaths() }, true), GIT_DEADLINE_MS);
       const prs = vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false;
-      const r = await this.gitLive.load(id, typeof cwd === 'string' ? cwd : '', prs);
-      if (r.targets) { this.gitTargets.set(id, r.targets); } else { this.gitTargets.delete(id); }
-      this.post({ type: 'gitLive', id, data: r.live });
+      if (cwd === TIMED_OUT) { post(timedOutLive()); return; }
+      const r = await this.gitLive.load(id, typeof cwd === 'string' ? cwd : '', prs, (p) => post(p.live, p.targets));
+      post(r.live, r.targets);
     } catch (e) {
       logErr('git section', e);
-      this.post({ type: 'gitLive', id, data: { state: 'error', reason: 'Could not read git state', ahead: 0, behind: 0, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], worktrees: [], prs: [] } });
+      post(timedOutLive('error', 'Could not read git state'));
     }
   }
 

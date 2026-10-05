@@ -37,6 +37,7 @@ const gl={};
 const glSeen=new Set();
 function glRow(l,v,tip){return '<div class="gr" data-tip="'+esc(tip)+'"><span class="gk">'+esc(l)+'</span><span class="gv">'+v+'</span></div>';}
 function glPart(r,d){let h='';
+if(d.state==='timeout')return '<div class="none">'+esc(d.reason||'Git info timed out')+'. <span class="gp" data-a="gretry" role="button" tabindex="0" aria-label="Retry loading git info" data-tip="Load the git info again">Retry</span></div>';
 if(d.state!=='ok')return '<div class="none" data-tip="'+esc(d.reason||'')+'">'+esc(d.reason||'No git information')+'</div>';
 const b=d.detached?'detached HEAD':(d.branch||'unknown');
 const ab=(d.ahead?' <span class="up" data-tip="'+esc(plur(d.ahead,'commit')+' not pushed to '+(d.upstream||'the upstream branch'))+'">↑'+d.ahead+'</span>':'')+(d.behind?' <span class="dn" data-tip="'+esc(plur(d.behind,'commit')+' on '+(d.upstream||'the upstream branch')+' not in this branch')+'">↓'+d.behind+'</span>':'')+(d.gone?' <span class="gn" data-tip="The upstream branch no longer exists">upstream gone</span>':'');
@@ -48,6 +49,7 @@ h+='<div class="gfs">'+d.files.map((f,i)=>'<span class="gf" data-a="gfile" data-
 if(d.ahead)h+=glRow('Unpushed',plur(d.ahead,'commit'),plur(d.ahead,'commit')+' on this branch not pushed to '+(d.upstream||'the upstream branch'));
 if(d.worktrees.length>1)h+=glRow('Worktrees','<div class="gws">'+d.worktrees.map(w=>'<div class="gw'+(w.here?' here':'')+'" data-tip="'+esc(w.path+(w.main?'\nMain checkout':'\nLinked worktree')+(w.missing?'\nFolder is missing':'')+(w.here?'\nUsed by this chat':''))+'">'+esc(w.path.split(/[\\/]/).pop()||w.path)+' <span class="br">'+esc(w.detached?'detached':w.branch)+(w.here?' · this chat':'')+(w.missing?' · missing':'')+'</span></div>').join('')+'</div>','Worktrees of this repository');
 if(d.prs.length)h+=glRow('Pull request',d.prs.map(p=>'<span class="gp pr" data-a="gpr" data-n="'+p.number+'" role="button" tabindex="0" aria-label="'+esc('Open pull request #'+p.number)+'" data-tip="'+esc('Open pull request #'+p.number+' in the browser\n'+p.title+'\nState: open'+(p.draft?', draft':'')+(p.review?', '+p.review:''))+'">#'+p.number+' '+esc(p.title)+' <span class="br">open'+(p.draft?' · draft':'')+'</span></span>').join(''),'Open pull request for this branch');
+else if(d.prPending)h+='<div class="none">Looking up pull requests...</div>';
 else if(d.prNote)h+='<div class="none" data-tip="'+esc('Open pull requests could not be looked up: '+d.prNote)+'">Pull requests unavailable: '+esc(d.prNote)+'</div>';
 return h;}
 function glCount(d){return d&&d.state==='ok'?d.fileTotal+d.ahead+d.prs.length:0;}

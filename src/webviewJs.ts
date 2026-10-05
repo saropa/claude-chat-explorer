@@ -87,6 +87,7 @@ else if(k==='untag')vs.postMessage({type:'tagRemove',id:id,tag:a.dataset.t});
 else if(k==='more')askExpand(id,ex[id]?ex[id].items.length:0,true);
 else if(k==='git')gitOpen(id);
 else if(k==='gfile')vs.postMessage({type:'gitFile',id:id,i:Number(a.dataset.i)});
+else if(k==='gretry'){delete gl[id];vs.postMessage({type:'gitLive',id:id});rerender();}
 else if(k==='gpr')vs.postMessage({type:'gitPr',id:id,n:Number(a.dataset.n)});
 else if(k==='pr')addTok('pr:'+a.dataset.n);
 else if(k==='sha')addTok('sha:'+a.dataset.s);

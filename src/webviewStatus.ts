@@ -7,7 +7,7 @@ export const STATUS_HTML = `<div class="sfw">
 </div>`;
 
 export const STATUS_CSS = String.raw`
-.sfw{flex:none;display:flex;align-items:center}
+.sfw{flex:none;display:flex;align-items:center;position:relative}
 .abtn{width:auto;height:24px;padding:0 8px;gap:5px;position:relative;border-color:var(--vscode-button-secondaryBackground,var(--vscode-widget-border,transparent));font-family:var(--vscode-font-family);font-size:inherit}
 .abtn:disabled{opacity:.4;pointer-events:none}
 .sfb.act{color:var(--vscode-focusBorder)}
@@ -35,7 +35,7 @@ function stKeep(rs){if(stOn.size===STATUS_KEYS.length)return rs;const now=Date.n
 return rs.filter(r=>statusesOf(r,pins.has(r.id),now,(dots[r.id]||{}).s).some(k=>stOn.has(k)));}
 function stUi(c){sfm.querySelectorAll('input').forEach(i=>{i.checked=stOn.has(i.dataset.k);});
 sfm.querySelectorAll('[data-n]').forEach(n=>{n.textContent=c[n.dataset.n];});
-const off=STATUS_KEYS.length-stOn.size;sfp.textContent=off;sfp.hidden=!off;sfb.classList.toggle('act',off>0);}
+const off=STATUS_KEYS.length-stOn.size;sfp.textContent=off;sfp.hidden=!off;sfb.classList.toggle('act',off>0);try{advSync();}catch(e){}}
 function stNote(n,has){return n>0?(has?' · ':'')+n+' hidden by status filter <button type="button" class="lnk sfr">Reset</button>':'';}
 function stClose(){sfm.hidden=true;sfb.setAttribute('aria-expanded','false');}
 function stSync(){sfb.setAttribute('aria-disabled','false');sfb.title='Filter by status';sfb.classList.remove('dim');}

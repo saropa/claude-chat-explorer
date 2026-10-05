@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Exec, ExecResult } from './wipExec';
+import { Exec, ExecResult, OVERFLOW } from './wipExec';
 import { parseRefs, parseStatus, parseWorktrees, REF_FORMAT, StatusParts } from './wipParse';
 import { emptyFolder, FolderFacts, RepoFacts } from './wipTypes';
 
@@ -13,7 +13,7 @@ const GH_OK = ['pr', 'list'];
 /** Run one read-only git command; a command outside the allowed list throws before anything starts. */
 export async function git(c: Ctx, cwd: string, args: string[]): Promise<ExecResult> {
   if (!GIT_OK.has(args[0]) || (args[0] === 'worktree' && args[1] !== 'list')) { throw new Error('git command not allowed: ' + args[0]); }
-  const r = await c.exec('git', args, { cwd, timeout: c.gitMs, signal: c.signal });
+  const r = await c.exec('git', ['--no-pager', '--no-optional-locks', ...args], { cwd, timeout: c.gitMs, signal: c.signal });
   if (r.code === 'ENOENT') { c.flags.gitMissing = true; }
   return r;
 }
@@ -43,8 +43,8 @@ export async function probe(c: Ctx, cwd: string): Promise<FolderFacts> {
 
 /** `git status` of one worktree top; undefined with the reason when it failed. */
 export async function statusOf(c: Ctx, top: string): Promise<StatusParts | string> {
-  const r = await git(c, top, ['status', '--porcelain=v1', '--branch', '-z']);
-  return r.code === 0 ? parseStatus(r.stdout) : whyFailed(r);
+  const r = await git(c, top, ['status', '--porcelain=v1', '--branch', '-z', '--untracked-files=normal']);
+  return r.code === 0 || (r.code === OVERFLOW && r.stdout) ? parseStatus(r.stdout) : whyFailed(r);
 }
 
 /** Worktrees and the branches ahead of (or orphaned from) their upstream, for one repository. */

@@ -2,6 +2,12 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.18.1 - 2026-10-04
+- Fixed: expanding a chat card could leave its Git section on "Loading..." forever. Every git and gh call now has a hard time limit (git 5 seconds, gh 8 seconds), is killed when it runs out, cannot wait for input and never takes git locks. The whole section gives up after 10 seconds and shows "Git info timed out. Retry" with a Retry link. A timed-out load is not remembered, so Retry starts clean.
+- Changed: the Git section now loads in two steps. Branch, files not committed and worktrees show first; the pull request lookup follows ("Looking up pull requests...") and a slow or failed lookup no longer holds back the rest.
+- Changed: the Status filter moved from the main row into the search details panel (the "..." toggle). While the panel is closed and a status filter is on, the "..." toggle shows its count dot.
+- Changed: the "All sessions" and "Results" headers (and a lone day header) are gone when there is only one group; the rows sit directly under the summary line. With no search, the summary line shows the chat count. Headers stay when Pinned shows or when there are several day groups, and the Archived section is unchanged.
+
 ## 0.18.0 - 2026-10-04
 - Added: one summary line under the search box, like VS Code Search: "2,040 results in 265 chats - Open in editor". While a search runs it shows the progress instead, and it is hidden when the search box is empty. It replaces the chat count and match count that used to repeat in the Results header.
 - Added: Open in editor (also the command "Saropa Chat Explorer: Open Results in Editor") opens every match in a read-only editor tab titled "Search: your query". The top says how many results and chats, then each chat has a header line (title, project, date) followed by its matching lines with one line of context above and below. Line numbers are the real line numbers in the chat's JSONL file. Matches are highlighted. Ctrl+click (Cmd+click on Mac) a chat header to resume that chat in the Claude panel. It uses your current query, filters, sort and the Match Case, Whole Word, Any Order and Regex toggles, and says in its header when the result limit cut the list.
