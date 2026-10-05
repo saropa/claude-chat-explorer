@@ -3,7 +3,7 @@ import { Ctx, gh } from './wipGit';
 import { PrInfo } from './wipTypes';
 
 export const PR_CACHE_MS = 5 * 60 * 1000;
-export const PR_ARGS = ['pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,headRefName,isDraft,reviewDecision'];
+export const PR_ARGS = ['pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,headRefName,isDraft,reviewDecision,url'];
 const TITLE_MAX = 80;
 
 /** Open PRs of one repository by branch, or why they are unavailable (short words, never raw output). */
@@ -15,6 +15,9 @@ export const reviewWord = (d: string): string => REVIEW[d] ?? '';
 /** Plain title text: control characters and anything that looks like a link removed. */
 export const cleanTitle = (t: string): string => t.replace(/https?:\/\/\S+/gi, '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, TITLE_MAX);
 
+/** The PR page address from gh, only when it is an https link. */
+const safeUrl = (u: unknown): string | undefined => (typeof u === 'string' && /^https:\/\/\S+$/.test(u) ? u : undefined);
+
 /** Map the JSON of `gh pr list` by head branch (the highest number wins); undefined when it is not the expected shape. */
 export function parsePrs(stdout: string): Map<string, PrInfo> | undefined {
   let v: unknown;
@@ -25,7 +28,7 @@ export function parsePrs(stdout: string): Map<string, PrInfo> | undefined {
     if (!x || typeof x.number !== 'number' || typeof x.headRefName !== 'string') { continue; }
     const prev = m.get(x.headRefName);
     if (prev && prev.number > x.number) { continue; }
-    m.set(x.headRefName, { number: x.number, title: cleanTitle(String(x.title ?? '')), draft: x.isDraft === true, review: String(x.reviewDecision ?? '') });
+    m.set(x.headRefName, { number: x.number, title: cleanTitle(String(x.title ?? '')), draft: x.isDraft === true, review: String(x.reviewDecision ?? ''), url: safeUrl(x.url) });
   }
   return m;
 }

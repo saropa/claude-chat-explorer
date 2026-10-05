@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import { readTabs, workspaceStorageOf } from './stateDb';
 import * as fs from 'fs';
+import * as path from 'path';
 import { TIMEOUT_MSG, WorkerClient } from './client';
 import { runExpand } from './expandRun';
-import { GIT_VIEW, GitTree, OPEN_CMD, RETRY_CMD } from './gitTree';
+import { GitLiveService, GitTargets } from './gitLive';
 import { IndexStatus } from './indexStatus';
 import { runExport } from './exportRun';
 import { maxResults, pickTotals, Totals } from './maxResults';
@@ -17,7 +18,6 @@ import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './que
 import { copyId, isSessionId, openChat } from './resume';
 import { ArchiveActions, registerArchiveCommands } from './archiveActions';
 import { LiveWatcher } from './liveWatcher';
-import { WipController } from './wipUi';
 import { createWarner } from './contextWarnUi';
 import { sessionsDir, stateMap } from './liveState';
 import { Draft, Store } from './store';
@@ -39,11 +39,12 @@ class Provider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private progress: { done: number; total: number; subs: number; first: boolean } | null = null;
   private lastPost = 0;
-  onIndex?: () => void; // the index changed: refresh the Git Activity tree
-  onScope?: () => void; // the All projects option changed
+  onIndex?: () => void; // the index changed
   private readonly queue = new QueryQueue((m) => this.post(m), () => vscode.commands.executeCommand(REVEAL_CMD), logErr);
   watcher?: LiveWatcher; // live state of Claude sessions
   actions?: ArchiveActions;
+  private readonly gitLive = new GitLiveService();
+  private readonly gitTargets = new Map<string, GitTargets>(); // per chat: what a click in its Git section resolves against
 
   constructor(private readonly store: Store, private readonly client: WorkerClient,
     private readonly status: IndexStatus) {
@@ -136,9 +137,7 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'exportPrefs') { this.store.setExportPrefs({ context: !!m.context, unique: !!m.unique }); }
       else if (m.type === 'export') { await runExport(m, { client: this.client, store: this.store, post: (x) => this.post(x), logErr, ctxMsg: this.ctxMsg }); }
       else if (m.type === 'draft') {
-        const prev = this.store.draft.all;
         this.store.setDraft({ ...this.store.draft, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
-        this.scopeChanged(prev);
       } else if (m.type === 'search') { await this.search(m); }
       else if (m.type === 'cancel') { this.client.cancel(); }
       else if (m.type === 'sessions') { await this.sessions(m); }
@@ -171,9 +170,6 @@ class Provider implements vscode.WebviewViewProvider {
     } catch (e) { logErr('sessions', e); }
   }
 
-  /** The All projects option flipped: the Git Activity tree reloads for the new scope. */
-  private scopeChanged(was: boolean): void { if (this.store.draft.all !== was) { this.onScope?.(); } }
-
   /** Messages that act on one chat; the id is validated before any use. */
   private async onChatMessage(m: any): Promise<void> {
     const id = m.id;
@@ -184,6 +180,9 @@ class Provider implements vscode.WebviewViewProvider {
     else if (m.type === 'handover') { await this.handover(id, String(m.query ?? '')); }
     else if (m.type === 'archive') { await this.actions?.setArchived(id, !!m.on); }
     else if (m.type === 'expand') { await this.expand(id, m); }
+    else if (m.type === 'gitLive') { await this.loadGit(id); }
+    else if (m.type === 'gitFile') { await this.openGitFile(id, Number(m.i)); }
+    else if (m.type === 'gitPr') { await this.openGitPr(id, Number(m.n)); }
     else if (m.type === 'pin') { await this.store.togglePin(id); await this.postMeta(); }
     else if (m.type === 'tagAdd') { await this.store.addTag(id, String(m.tag ?? '')); await this.postMeta(); }
     else if (m.type === 'tagRemove') { await this.store.removeTag(id, String(m.tag ?? '')); await this.postMeta(); }
@@ -191,6 +190,35 @@ class Provider implements vscode.WebviewViewProvider {
 
   private async handover(id: string, query: string): Promise<void> {
     await copyHandover(id, query, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true), roots: folderPaths, log: logErr });
+  }
+
+  /** Load the Git section data of one chat and post it; failures post a one-line message. */
+  private async loadGit(id: string): Promise<void> {
+    try {
+      const cwd = await this.client.request({ t: 'chatCwd', chat: id, folders: folderPaths() }, true);
+      const prs = vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false;
+      const r = await this.gitLive.load(id, typeof cwd === 'string' ? cwd : '', prs);
+      if (r.targets) { this.gitTargets.set(id, r.targets); } else { this.gitTargets.delete(id); }
+      this.post({ type: 'gitLive', id, data: r.live });
+    } catch (e) {
+      logErr('git section', e);
+      this.post({ type: 'gitLive', id, data: { state: 'error', reason: 'Could not read git state', ahead: 0, behind: 0, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], worktrees: [], prs: [], prsOff: false } });
+    }
+  }
+
+  /** Open a changed file listed in a Git section (resolved from the last load, never from a path the panel sent). */
+  private async openGitFile(id: string, i: number): Promise<void> {
+    const t = this.gitTargets.get(id), f = t?.files[i];
+    if (!t || !f) { return; }
+    const p = path.resolve(t.top, f.p);
+    if (!p.startsWith(t.top + path.sep)) { return; }
+    try { await vscode.window.showTextDocument(vscode.Uri.file(p)); } catch { void vscode.window.showInformationMessage('That file is not available (it may be deleted).'); }
+  }
+
+  /** Open a pull request page from the Git section. */
+  private async openGitPr(id: string, n: number): Promise<void> {
+    const u = this.gitTargets.get(id)?.urls.get(n);
+    if (u) { await vscode.env.openExternal(vscode.Uri.parse(u)); }
   }
 
   private async expand(id: string, m: any): Promise<void> {
@@ -257,32 +285,23 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const status = new IndexStatus();
   store = new Store(ctx, (e) => logErr('save state', e));
   const provider = new Provider(store, client, status);
-  const live = { dots: () => provider.watcher?.dots ?? {}, archived: () => store!.archived };
-  const tree = new GitTree(client, () => ({ all: store!.draft.all, folders: folderPaths() }), logErr, live);
-  provider.onIndex = provider.onScope = () => tree.refresh();
-  const changed = () => { void provider.postMeta(); tree.redraw(); };
+  const changed = () => { void provider.postMeta(); };
   provider.actions = new ArchiveActions(store, ctx.globalStorageUri.fsPath, { changed, rebuild: () => provider.watcher?.rebuild() });
   const warner = createWarner(ctx, { request: (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), open: (id) => provider.resume(id), log });
-  let wip: WipController | undefined;
   provider.watcher = new LiveWatcher({ dir: sessionsDir(), tabs: async () => { const r = await readTabs(workspaceStorageOf(ctx.globalStorageUri.fsPath), folderPaths()); return r.ok ? r : undefined; },
     unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
-    onChange: () => { provider.postDots(); tree.redraw(); wip?.onDots(); }, onLive: (ids) => { void warner.check(ids); } });
+    onChange: () => { provider.postDots(); }, onLive: (ids) => { void warner.check(ids); } });
   ctx.subscriptions.push(vscode.window.onDidChangeWindowState((s) => { if (s.focused) { provider.watcher?.poke(); } }), { dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));
-  ctx.subscriptions.push(channel, status, tree, vscode.workspace.onDidChangeWorkspaceFolders(() => provider.onScope?.()),
+  ctx.subscriptions.push(channel, status,
     vscode.commands.registerCommand('claudeChatExplorer.clearHistory', () => {
       provider.clearHistory();
       void vscode.window.showInformationMessage('Search history cleared');
     }),
-    vscode.commands.registerCommand(RETRY_CMD, () => tree.refresh(true)),
-    vscode.window.registerTreeDataProvider(GIT_VIEW, tree),
-    vscode.commands.registerCommand(OPEN_CMD, (id: unknown) => (isSessionId(id) ? provider.resume(id) : undefined)),
     vscode.window.registerWebviewViewProvider('claudeChatExplorer.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
   registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
     showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { const was = provider.onIndex; provider.onIndex = () => { was?.(); fn(); }; } });
-  registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info, () => provider.watcher, () => warner.atOrAbove80, () => wip?.diagLines() ?? []);
-  wip = new WipController({ ctx, client, log: logErr, dots: live.dots, archived: live.archived, folders: folderPaths });
-  wip.start();
+  registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info, () => provider.watcher, () => warner.atOrAbove80);
   provider.watcher.start();
   done = true;
   log(`activated ${String(ctx.extension?.packageJSON?.version ?? 'unknown')}`);

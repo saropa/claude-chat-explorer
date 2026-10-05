@@ -2,7 +2,7 @@
   "name": "claude-chat-explorer",
   "displayName": "Saropa Chat Explorer",
   "description": "Search Claude Code chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
@@ -49,11 +49,6 @@
           "id": "claudeChatExplorer",
           "title": "Saropa Chat Explorer",
           "icon": "icon.svg"
-        },
-        {
-          "id": "claudeChatExplorerGit",
-          "title": "Saropa Git Activity",
-          "icon": "gitIcon.svg"
         }
       ]
     },
@@ -65,30 +60,8 @@
           "name": "Saropa Chat Explorer",
           "icon": "icon.svg"
         }
-      ],
-      "claudeChatExplorerGit": [
-        {
-          "id": "claudeChatExplorer.git",
-          "name": "Git Activity",
-          "icon": "icon.svg"
-        },
-        {
-          "id": "claudeChatExplorer.wip",
-          "name": "Work in Progress",
-          "icon": "icon.svg"
-        }
       ]
     },
-    "viewsWelcome": [
-      {
-        "view": "claudeChatExplorer.git",
-        "contents": "No git activity found in your chats yet."
-      },
-      {
-        "view": "claudeChatExplorer.wip",
-        "contents": "Nothing in progress. Chats with uncommitted files, unpushed commits, open PRs or a running session appear here."
-      }
-    ],
     "commands": [
       {
         "command": "saropaChatExplorer.fileSessions.show",
@@ -117,39 +90,6 @@
       {
         "command": "saropaChatExplorer.markRead",
         "title": "Mark as Read"
-      },
-      {
-        "command": "saropaChatExplorer.wip.refresh",
-        "title": "Saropa Chat Explorer: Refresh Work in Progress",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "saropaChatExplorer.wip.copySummary",
-        "title": "Saropa Chat Explorer: Copy Work in Progress Summary"
-      },
-      {
-        "command": "saropaChatExplorer.wip.groupByChat",
-        "title": "Saropa Chat Explorer: Group by Chat",
-        "toggled": {
-          "condition": "saropaChatExplorer.wipGroup == 'chat'",
-          "icon": "$(check)"
-        }
-      },
-      {
-        "command": "saropaChatExplorer.wip.groupByWorktree",
-        "title": "Saropa Chat Explorer: Group by Worktree",
-        "toggled": {
-          "condition": "saropaChatExplorer.wipGroup == 'worktree'",
-          "icon": "$(check)"
-        }
-      },
-      {
-        "command": "saropaChatExplorer.wip.showClean",
-        "title": "Saropa Chat Explorer: Show Clean Chats",
-        "toggled": {
-          "condition": "saropaChatExplorer.wipClean",
-          "icon": "$(check)"
-        }
       }
     ],
     "menus": {
@@ -178,31 +118,6 @@
         {
           "command": "claudeChatExplorer.clearHistory",
           "when": "view == claudeChatExplorer.view"
-        },
-        {
-          "command": "saropaChatExplorer.wip.refresh",
-          "when": "view == claudeChatExplorer.wip",
-          "group": "navigation@1"
-        },
-        {
-          "command": "saropaChatExplorer.wip.copySummary",
-          "when": "view == claudeChatExplorer.wip",
-          "group": "1_actions@1"
-        },
-        {
-          "command": "saropaChatExplorer.wip.groupByChat",
-          "when": "view == claudeChatExplorer.wip",
-          "group": "2_group@1"
-        },
-        {
-          "command": "saropaChatExplorer.wip.groupByWorktree",
-          "when": "view == claudeChatExplorer.wip",
-          "group": "2_group@2"
-        },
-        {
-          "command": "saropaChatExplorer.wip.showClean",
-          "when": "view == claudeChatExplorer.wip",
-          "group": "3_filter@1"
         }
       ],
       "webview/context": [
@@ -234,18 +149,6 @@
         {
           "command": "saropaChatExplorer.markRead",
           "when": "false"
-        },
-        {
-          "command": "saropaChatExplorer.wip.groupByChat",
-          "when": "false"
-        },
-        {
-          "command": "saropaChatExplorer.wip.groupByWorktree",
-          "when": "false"
-        },
-        {
-          "command": "saropaChatExplorer.wip.showClean",
-          "when": "false"
         }
       ]
     },
@@ -272,14 +175,7 @@
         "saropaChatExplorer.lookupPullRequests": {
           "type": "boolean",
           "default": true,
-          "description": "Look up open pull requests for the Work in Progress view with the gh command (GitHub CLI). This contacts GitHub using your own gh sign-in. Turn it off to never run gh."
-        },
-        "saropaChatExplorer.workInProgressDays": {
-          "type": "number",
-          "default": 7,
-          "minimum": 1,
-          "maximum": 60,
-          "description": "The Work in Progress view covers chats active in this many days, plus chats with a running Claude session."
+          "description": "Look up open pull requests for the Git section of a chat card with the gh command (GitHub CLI). This contacts GitHub using your own gh sign-in. Turn it off to never run gh."
         }
       }
     },

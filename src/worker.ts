@@ -5,8 +5,7 @@ import { ChatIndex } from './index';
 import { compile } from './query';
 import { fileSessionsOf, FileSessionsReply } from './fileSessions';
 import { handoverData } from './handover';
-import { gitSummary } from './gitSummary';
-import { wipChats } from './wipChats';
+import { chatCwd } from './wipChats';
 import { clampMax, Tally, totalsOf } from './limits';
 import { expandChat, searchIndex } from './search';
 import { ctxReply } from './contextWarn';
@@ -118,17 +117,6 @@ async function sessions(m: any): Promise<unknown> {
   return sessionRows(ix, m.o, Array.isArray(m.folders) ? m.folders : [], String(m.sort ?? 'time'), new Set<string>(m.pins ?? []), new Set<string>(m.archived ?? []), clampMax(m.max));
 }
 
-/** Yield to the event loop; while a search or export runs, wait for it to end first. */
-async function idle(): Promise<void> {
-  do { await new Promise((res) => setTimeout(res, live.size ? 50 : 0)); } while (live.size);
-}
-
-/** Git Activity tree data for the chats in scope. */
-async function gitTree(m: any): Promise<unknown> {
-  await loaded;
-  return ix ? gitSummary(ix, !!m.all, Array.isArray(m.folders) ? m.folders : [], idle) : { repos: [], branches: [] };
-}
-
 /** Chats that touched one file; while the first index build runs it answers empty with indexing set. */
 async function fileSessions(m: any): Promise<FileSessionsReply> {
   await loaded;
@@ -144,16 +132,15 @@ async function handover(m: any): Promise<unknown> {
   return ix && chat ? handoverData(ix, chat, String(m.query ?? '')) : null;
 }
 
-/** Chats in scope for the Work in Progress view. */
-async function wip(m: any): Promise<unknown> {
+/** Working folder of one chat, for the Git section of its card. */
+async function cwdOf(m: any): Promise<string> {
   await loaded;
-  const strs = (a: unknown): string[] => (Array.isArray(a) ? a.filter((x: unknown) => typeof x === 'string') : []);
-  return ix ? wipChats(ix, Number(m.since) || 0, new Set(strs(m.live)), strs(m.folders)) : [];
+  const folders: string[] = Array.isArray(m.folders) ? m.folders.filter((x: unknown) => typeof x === 'string') : [];
+  return ix ? chatCwd(ix, String(m.chat ?? ''), folders) : '';
 }
 
 async function request(m: any): Promise<unknown> {
-  if (m.t === 'wipChats') { return wip(m); }
-  if (m.t === 'gitSummary') { return gitTree(m); }
+  if (m.t === 'chatCwd') { return cwdOf(m); }
   if (m.t === 'expand') { return expand(m); }
   if (m.t === 'sessions') { return sessions(m); }
   if (m.t === 'fileSessions') { return fileSessions(m); }

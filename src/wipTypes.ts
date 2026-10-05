@@ -1,4 +1,4 @@
-/** Shared types of the Work in Progress view. */
+/** Shared types of the git collector behind the chat card's Git section. */
 
 export type FolderState = 'ok' | 'missing' | 'notgit' | 'unavailable' | 'notscanned';
 export interface FileChange { s: string; p: string; }
@@ -13,7 +13,7 @@ export interface FolderFacts {
 export interface WorktreeInfo { path: string; branch: string; detached: boolean; main: boolean; missing: boolean; }
 export interface BranchAhead { name: string; ahead: number; gone: boolean; }
 export interface RepoFacts { common: string; name: string; main: string; worktrees: WorktreeInfo[]; branches: BranchAhead[]; }
-export interface PrInfo { number: number; title: string; draft: boolean; review: string; }
+export interface PrInfo { number: number; title: string; draft: boolean; review: string; url?: string; }
 
 /** A chat in scope, as the worker reports it. */
 export interface WipChatIn { id: string; title: string; last: number; cwd: string; prs: Array<[number, string]>; }

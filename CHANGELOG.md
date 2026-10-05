@@ -2,6 +2,12 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.17.0 - 2026-10-04
+- Changed: git information now lives in the chat card. Expand a chat and open its Git section to see the branch (with commits ahead and behind), files not committed (click a file name to open it), commits not pushed, the worktrees of the chat's repository, the open pull request (click to open it in your browser) and the PRs and commits the chat mentions. The section has a count pill like Related chats, opens by itself when the chat has git state and loads only when the card opens.
+- Removed: the second activity-bar icon "Saropa Git Activity", with its Git Activity tree and Work in Progress view. Their Refresh, Copy Summary, Group by Chat, Group by Worktree and Show Clean Chats commands are gone too.
+- Removed: the setting `saropaChatExplorer.workInProgressDays`. The card shows the worktrees of its own folder, so no grouping or day range is needed. `saropaChatExplorer.lookupPullRequests` stays and now controls the pull request line in the Git section.
+- Changed: the Git icon on a row still shows how many PRs and commits the chat mentions, and clicking it opens the card at the Git section.
+
 ## 0.16.0 - 2026-10-04
 - Changed: dots are plain now, like the official Claude sidebar. Green is running, blue is waiting for you, orange is unread, grey is open but idle. The rings and outlines are gone. Hover a dot to see whether the chat is open in this window or another one.
 - Changed: a chat counts as open when it has a tab in Claude Code, even if no Claude process is running for it (a restored tab). Those chats now show a grey dot, so the dots match the sidebar's open list.
