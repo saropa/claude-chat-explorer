@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.20.1 - 2026-10-05
+- Changed: the Search tips menu is easier to read: one example chip per row with a short plain description beside it, grouped under two quiet headings, in the VS Code font and theme colors.
+
 ## 0.20.0 - 2026-10-05
 - Added: an info icon beside the sort and filter icons opens "Search tips". It lists every prefix the search understands (file:, edited:, cmd:, tag:, sha:, pr:, branch:, last: and from:) with one example each. Click an example to put it in the search box and run it.
 - Added: search by who wrote the message. The new "messages from" drop-down in the search details has Both (default), You and Claude. You means only your own messages; Claude means Claude's replies and everything a subagent said. It changes hit counts, snippets, the nested subagent rows and Open in editor. The summary line adds "from you only" or "from Claude only" when it is not Both, the choice is remembered with your other search settings, and the "..." count includes it. You can also type from:you or from:claude in the search box. File, tag and git filters are not affected by it.
