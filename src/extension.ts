@@ -194,14 +194,14 @@ class Provider implements vscode.WebviewViewProvider {
   }
 
   private async handover(id: string, query: string): Promise<void> {
-    await copyHandover(id, query, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true), roots: folderPaths, log: logErr });
+    await copyHandover(id, query, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), roots: folderPaths, log: logErr });
   }
 
   /** Load the Git section data of one chat and post it: the first step (branch, counts) as soon as it is ready, the PR step after; a deadline or failure posts a one-line state. */
   private async loadGit(id: string): Promise<void> {
     const post = (live: GitLive, t?: GitTargets): void => { if (t) { this.gitTargets.set(id, t); } else { this.gitTargets.delete(id); } this.post({ type: 'gitLive', id, data: live }); };
     try {
-      const cwd = await withDeadline(this.client.request({ t: 'chatCwd', chat: id, folders: folderPaths() }, true), GIT_DEADLINE_MS);
+      const cwd = await withDeadline(this.client.request({ t: 'chatCwd', chat: id, folders: folderPaths() }, true, true), GIT_DEADLINE_MS);
       const prs = vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false;
       if (cwd === TIMED_OUT) { post(timedOutLive()); return; }
       const r = await this.gitLive.load(id, typeof cwd === 'string' ? cwd : '', prs, (p) => post(p.live, p.targets));

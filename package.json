@@ -2,7 +2,7 @@
   "name": "claude-chat-explorer",
   "displayName": "Saropa Chat Explorer",
   "description": "Search Claude Code chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
-  "version": "0.18.1",
+  "version": "0.18.2",
   "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
@@ -229,7 +229,7 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "tsc -p .",
-    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js",
+    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js",
     "package": "npx @vscode/vsce package --allow-missing-repository --skip-license"
   },
   "devDependencies": {

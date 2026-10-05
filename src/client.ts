@@ -150,13 +150,13 @@ export class WorkerClient {
     this.finish(j, 'cancel');
   }
 
-  /** One request with its own timeout; rejects on timeout, restarting the worker; a background request restarts it only while no search or export runs. */
-  request(m: Msg, background = false): Promise<any> {
+  /** One request with its own timeout; rejects on timeout, restarting the worker; a background request restarts it only while no search or export runs; a soft request never restarts it. */
+  request(m: Msg, background = false, soft = false): Promise<any> {
     const req = ++this.seq;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.reqs.delete(req);
-        if (!background) { void this.restart('error'); } else if (this.jobs.size === 0 && this.canRestart()) { void this.restart('error'); }
+        if (soft) { /* reject only: a slow detail request must not kill a running search */ } else if (!background) { void this.restart('error'); } else if (this.jobs.size === 0 && this.canRestart()) { void this.restart('error'); }
         reject(new Error(TIMEOUT_MSG));
       }, TIMEOUT_MS * 2);
       this.reqs.set(req, { resolve, reject, timer });

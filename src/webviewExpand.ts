@@ -39,15 +39,17 @@ if(e.files.length)h+=xsec('fil:'+r.id,'Matched files',e.files.length,'<div class
 if(e.commands.length)h+=xsec('cmd:'+r.id,'Matched commands',e.commands.length,e.commands.map(c=>'<div class="fi">'+esc(c)+'</div>').join(''),'xf');
 return h;}
 function relHtml(x){const n=plur(x.shared,'shared file'),now=Date.now();
-return '<div class="rr" data-id="'+esc(x.id)+'" tabindex="0" role="button" aria-label="'+esc(x.title+', '+n+', active '+agoLong(x.last,now)+'. Resume')+'" data-tip="'+esc(x.title+'\n'+full(x.last))+'">'+dotHtml(x.id)+'<span class="t">'+esc(x.title)+'</span><span class="sh">'+n+'</span>'+timePill(x.last,now)+'</div>';}
+return '<div class="rr" data-id="'+esc(x.id)+'" tabindex="0" role="button" aria-label="'+esc(x.title+', '+n+', active '+agoLong(x.last,now)+'. Resume')+'" data-tip="'+esc(x.title+'\n'+full(x.last))+'">'+dotHtml(x.id)+'<span class="t">'+esc(x.title)+'</span><span class="sh">'+n+'</span>'+timeText(x.last,now)+'</div>';}
 const relSeen=new Set();
 function relBlock(r,e){const rel=e.related||[],key='rel:'+r.id;
 if(!relSeen.has(key)){relSeen.add(key);if(rel.length)col.delete(key);else col.add(key);}
 return xsec(key,'Related chats',rel.length||'',rel.length?rel.map(relHtml).join(''):'<div class="none">No other chat touched the same files</div>','xr',true);}
+function safeSec(name,fn){try{return fn();}catch(err){console.error('section '+name,err);return '<div class="none">Could not show this section ('+name+')</div>';}}
+function loadHtml(e){return e&&e.failed?'<div class="none">'+esc(e.reason||'Could not load details')+'. <span class="gp" data-a="xretry" role="button" tabindex="0" aria-label="Retry loading details" data-tip="Load the details again">Retry</span></div>':'<div class="m">Loading...</div>';}
 function exHtml(r){const e=ex[r.id],f=e&&e.full,t=r.title;
-const left=statsHtml(r)+tagsHtml(r)+(f?gitHtml(r,e):'');
-const mid=f?filesHtml(r,e):'<div class="m">Loading...</div>';
-return '<div class="ex" role="region" aria-label="Details: '+esc(t)+'">'+actHtml(r)+'<div class="xca">'+mid+'</div><div class="xcl">'+left+'</div>'+(f?'<div class="xcb">'+relBlock(r,e)+'</div>':'')+'</div>';}
+const left=safeSec('stats',()=>statsHtml(r))+safeSec('tags',()=>tagsHtml(r))+(f?safeSec('git',()=>gitHtml(r,e)):'');
+const mid=f?safeSec('files',()=>filesHtml(r,e)):loadHtml(e);
+return '<div class="ex" role="region" aria-label="Details: '+esc(t)+'">'+safeSec('actions',()=>actHtml(r))+'<div class="xca">'+mid+'</div><div class="xcl">'+left+'</div>'+(f?'<div class="xcb">'+safeSec('related',()=>relBlock(r,e))+'</div>':'')+'</div>';}
 function rowFocus(id,sel){const n=Array.from(document.querySelectorAll('.r')).find(x=>x.dataset.id===id);if(!n)return;n.focus();const f=n.querySelector(sel);if(f)f.focus();}
 function tagOpen(id){tagIn={id:id,v:''};rerender();rowFocus(id,'.tin');}
 function tagClose(id,back){tagIn=null;rerender();if(back)rowFocus(id,'[data-a=addtag]');}

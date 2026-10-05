@@ -59,7 +59,7 @@ when.addEventListener('change',go);
 msgSel.addEventListener('change',go);
 sort.addEventListener('change',()=>{draft();if(sessOn&&!hasResults)askSess();rerender();});
 function askExpand(id,offset,lite){vs.postMessage(Object.assign({type:'expand',id:id,offset:offset,lite:!!lite},cur()));}
-function openCard(id){open.add(id);if(ex[id])ex[id].full=false;askExpand(id,0,false);vs.postMessage({type:'gitLive',id:id});}
+function openCard(id){open.add(id);if(ex[id]){ex[id].full=false;ex[id].failed=false;}askExpand(id,0,false);vs.postMessage({type:'gitLive',id:id});}
 function exMerge(d){const n=ex[d.id]||{};
 if(d.offset>0)return Object.assign({},n,{items:(n.items||[]).concat(d.items),total:d.total});
 const items=n.items&&n.items.length>d.items.length?n.items:d.items;
@@ -87,6 +87,7 @@ else if(k==='untag')vs.postMessage({type:'tagRemove',id:id,tag:a.dataset.t});
 else if(k==='more')askExpand(id,ex[id]?ex[id].items.length:0,true);
 else if(k==='git')gitOpen(id);
 else if(k==='gfile')vs.postMessage({type:'gitFile',id:id,i:Number(a.dataset.i)});
+else if(k==='xretry'){if(ex[id])ex[id].failed=false;askExpand(id,0,false);rerender();}
 else if(k==='gretry'){delete gl[id];vs.postMessage({type:'gitLive',id:id});rerender();}
 else if(k==='gpr')vs.postMessage({type:'gitPr',id:id,n:Number(a.dataset.n)});
 else if(k==='pr')addTok('pr:'+a.dataset.n);
@@ -112,6 +113,7 @@ if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;s
 capN=d.max||500;tot=s.totals||null;history=d.history||[];lastQ=s.query||'';sessOn=!(s.results&&s.results.length);render(s.results||[],s.searched);if(sessOn)askSess();ahSync();}
 else if(d.type==='meta'){pins=new Set(d.pins);tags=d.tags||{};pinned=d.pinned||[];arch=new Set(d.arch||[]);tl.innerHTML=(d.all||[]).map(t=>'<option value="'+esc(t)+'">').join('');rerender();if(sessOn&&!hasResults)askSessSoon();}
 else if(d.type==='expanded'){ex[d.id]=exMerge(d);rerender();if(gitFocus===d.id&&!d.lite){gitFocus='';gitScroll(d.id);}}
+else if(d.type==='expandFailed'){if(!d.lite){ex[d.id]=Object.assign({items:[],total:0,files:[],commands:[],related:[],git:null},ex[d.id],{full:false,failed:true,reason:d.reason});rerender();}}
 else if(d.type==='gitLive'){gl[d.id]=d.data;rerender();}
 else if(d.type==='indexing'){ix={done:d.done,total:d.total,subs:d.subs||0,first:!!d.first};showIx();}
 else if(d.type==='indexed'){ix=null;showIx();if(dirty){dirty=false;go();}}
