@@ -2,6 +2,13 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.18.2 - 2026-10-04
+- Fixed: a bug since 0.15.2 where expanding a chat that has related chats stayed on "Loading..." forever (no Git section, no Related chats), and the panel then stopped updating while that card was open (search results, status dots and pins froze). A renamed helper was still called by its old name.
+- Fixed: one section that fails to draw (stats, Git, files, Related chats) now shows "Could not show this section" and no longer stops the rest of the card or the panel.
+- Fixed: the card no longer waits forever when details cannot be loaded (chat not indexed yet, invalid search pattern, or a slow read). It shows "Could not load details. Retry" with a Retry link.
+- Fixed: a slow card load, hand-over note or git lookup no longer restarts the search worker, so it cannot cancel a running search or show "Search timed out: simplify the pattern".
+- Added: the build now runs the panel script against sample messages and stops the release if it throws.
+
 ## 0.18.1 - 2026-10-04
 - Fixed: expanding a chat card could leave its Git section on "Loading..." forever. Every git and gh call now has a hard time limit (git 5 seconds, gh 8 seconds), is killed when it runs out, cannot wait for input and never takes git locks. The whole section gives up after 10 seconds and shows "Git info timed out. Retry" with a Retry link. A timed-out load is not remembered, so Retry starts clean.
 - Changed: the Git section now loads in two steps. Branch, files not committed and worktrees show first; the pull request lookup follows ("Looking up pull requests...") and a slow or failed lookup no longer holds back the rest.
