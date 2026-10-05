@@ -168,6 +168,37 @@ async function scanTests() {
     check('scan: the copy-remove text comes from the scan result for a merged worktree', rm && /worktree remove '.*-wt-a'/.test(rm.text) && /branch -d 'feat'/.test(rm.text) && !/--force| -D/.test(rm.text));
     check('scan: the main checkout and a locked worktree have no remove text', !scan.removeText(c.of('repo').pop().worktrees[0].k) && !scan.removeText(c.of('repo').pop().worktrees[2].k) && !scan.removeText('w999'));
   }
+  // Branches without a worktree: read on demand, filtered, copy text from the last answer.
+  {
+    const r0 = world.repos[0], extra = path.join(base, 'repo0-chat');
+    fs.mkdirSync(extra, { recursive: true });
+    const w2 = { repos: world.repos, byCwd: (cwd) => (cwd === extra ? { repo: r0.repo, top: extra, common: r0.common, branch: 'chatbr', status: '## chatbr...origin/chatbr\0' } : world.byCwd(cwd)) };
+    const g = fakeGit(w2), scan = mk(g), c = collect();
+    await scan.start(1, [{ cwd: r0.top, last: 1 }, { cwd: extra, last: 1 }], false, c.post);
+    const rk = c.of('repo').pop().key;
+    check('branches: nothing is read until the page asks (lazy)', !g.calls.some((x) => /upstream:track/.test(x.a)));
+    const r = await scan.branches(rk);
+    const names = (r.list || []).map((b) => b.name);
+    check('branches: only merged or upstream-gone branches with no worktree, no chat and not default (' + names.join('|') + ')', names.join('|') === "stale|merged1|it's-done");
+    check('branches: merged and gone flags', r.list[0].gone === true && r.list[0].merged === false && r.list[1].merged === true && r.more === 0);
+    check('branches: the read is one for-each-ref call', g.calls.filter((x) => /upstream:track/.test(x.a)).length === 1 && g.calls.every((x) => x.cmd === 'git'));
+    const t = scan.branchText(rk, 1, false);
+    check('branches: the copy text is git -C <main> branch -d <name>, quoted, never --force or -D', t && t.text === "git -C '" + r0.repo.main + "' branch -d 'merged1'" && !/--force| -D/.test(t.text));
+    const q = scan.branchText(rk, 2, false);
+    check('branches: an apostrophe in the name is escaped for the shell', q && q.text === "git -C '" + r0.repo.main + "' branch -d 'it'\\''s-done'");
+    check('branches: an index out of range, a negative or fractional one and an unknown repository give nothing', !scan.branchText(rk, 99, false) && !scan.branchText(rk, -1, false) && !scan.branchText('r999', 0, false) && !scan.branchText(rk, 1.5, false));
+    check('branches: an unknown or malformed repository key answers with a reason', !!(await scan.branches('r999')).reason && !!(await scan.branches('x;rm')).reason);
+    const w = scan.branchText(rk, 2, true);
+    check('branches: Windows gets the same safe quoting (apostrophe doubled)', w && w.text === "git -C '" + r0.repo.main + "' branch -d 'it''s-done'");
+    const R = { main: '/m', defLocal: 'main' };
+    check('branches: no command for the default branch or an option-like name; none ever has --force or -D', repoMod.branchCommand(R, 'main', false) === '' && repoMod.branchCommand(R, '-D', false) === '' && repoMod.branchCommand(R, '', false) === '' && !/--force| -D/.test(repoMod.branchCommand(R, 'x', false)));
+    check('branches: Windows with a dollar sign builds no command (manual)', repoMod.branchCommand({ main: 'C:\\r', defLocal: 'main' }, 'a$b', true) === 'manual' && repoMod.branchCommand({ main: 'C:\\r$x', defLocal: 'main' }, 'ok', true) === 'manual');
+    const many = Array.from({ length: 70 }, (_, i) => 'b' + i + '\t\t[gone]').join('\n') + '\n';
+    r0.repo.branches = many;
+    const big = await scan.branches(rk);
+    check('branches: at most 50 are listed, the rest are counted', big.list.length === 50 && big.more === 20);
+    r0.repo.branches = '';
+  }
   // Workspace scope by repository: a sibling worktree folder of a workspace repository counts as in the workspace.
   {
     const g = fakeGit(world), scan = mk(g, { workspace: () => [world.repos[0].top] }), c = collect();

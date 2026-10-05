@@ -57,25 +57,32 @@ export function nextStep(dot: string, g?: any): string {
   return 'Nothing is open. Archive the chat when you are done with it.';
 }
 
-/** Rows by band, newest first; every band is present, empty or not. bandFn(row, dot) places a row (the page uses it to hold rows still while they are hovered). */
-export function bandRows(rows: Array<{ id: string; last: number }>, dots: { [id: string]: { s: string } }, bandFn?: (r: any, dot: string) => string): { [band: string]: any[] } {
+/** Row order inside a band or group: 'recent' (newest first, the default), 'name' (title) or 'repo' (project, then newest). */
+export function rowCmp(mode?: string): (a: any, b: any) => number {
+  const byLast = (a: any, b: any): number => b.last - a.last;
+  const text = (k: string) => (a: any, b: any): number => String(a[k] || '').toLowerCase().localeCompare(String(b[k] || '').toLowerCase()) || byLast(a, b);
+  return mode === 'name' ? text('title') : mode === 'repo' ? text('project') : byLast;
+}
+
+/** Rows by band (newest first unless sort says otherwise); every band is present, empty or not. bandFn(row, dot) places a row (the page uses it to hold rows still while they are hovered). */
+export function bandRows(rows: Array<{ id: string; last: number }>, dots: { [id: string]: { s: string } }, bandFn?: (r: any, dot: string) => string, sort?: string): { [band: string]: any[] } {
   const out: { [band: string]: any[] } = { needs: [], finish: [], waiting: [], tidy: [], idle: [] };
   const place = bandFn || function (r: any, dot: string): string { return bandOf(dot); };
-  const sorted = rows.slice().sort((a, b) => b.last - a.last);
+  const sorted = rows.slice().sort(rowCmp(sort));
   for (const r of sorted) { out[place(r, dots[r.id] ? dots[r.id].s : 'idle')].push(r); }
   return out;
 }
 
 /** Display groups for a mode: attention (bands), chat (one flat list) or repo (by project folder, newest group first). hidden lists bands whose rows are left out. */
-export function groupRows(rows: Array<{ id: string; last: number; project: string }>, dots: { [id: string]: { s: string } }, mode: string, hidden: string[], bandFn?: (r: any, dot: string) => string): Array<{ key: string; label: string; rows: any[] }> {
+export function groupRows(rows: Array<{ id: string; last: number; project: string }>, dots: { [id: string]: { s: string } }, mode: string, hidden: string[], bandFn?: (r: any, dot: string) => string, sort?: string): Array<{ key: string; label: string; rows: any[] }> {
   const place = bandFn || function (r: any, dot: string): string { return bandOf(dot); };
-  const by = bandRows(rows, dots, place);
+  const by = bandRows(rows, dots, place, sort);
   if (mode === 'chat' || mode === 'repo') {
-    const shown = rows.filter((r) => hidden.indexOf(place(r, dots[r.id] ? dots[r.id].s : 'idle')) < 0).sort((a, b) => b.last - a.last);
+    const shown = rows.filter((r) => hidden.indexOf(place(r, dots[r.id] ? dots[r.id].s : 'idle')) < 0).sort(rowCmp(sort));
     if (mode === 'chat') { return shown.length ? [{ key: 'all', label: 'All chats', rows: shown }] : []; }
     const g: { [p: string]: any[] } = {};
     for (const r of shown) { (g[r.project || 'Unknown folder'] = g[r.project || 'Unknown folder'] || []).push(r); }
-    return Object.keys(g).sort((a, b) => g[b][0].last - g[a][0].last).map((p) => ({ key: 'repo:' + p, label: p, rows: g[p] }));
+    return Object.keys(g).sort((a, b) => (sort === 'name' || sort === 'repo' ? a.toLowerCase().localeCompare(b.toLowerCase()) : g[b].reduce((m: number, x: any) => Math.max(m, x.last), 0) - g[a].reduce((m: number, x: any) => Math.max(m, x.last), 0))).map((p) => ({ key: 'repo:' + p, label: p, rows: g[p] }));
   }
   const labels: { [k: string]: string } = { needs: 'Needs you', finish: 'To finish', waiting: 'Waiting on others', tidy: 'Ready to tidy', idle: 'Idle' };
   return ['needs', 'finish', 'waiting', 'tidy', 'idle'].filter((b) => hidden.indexOf(b) < 0 && by[b].length).map((b) => ({ key: b, label: labels[b], rows: by[b] }));
@@ -130,6 +137,55 @@ export function capDone(list: Array<[string, string]>, listed: Set<string>, max:
   return kept.slice(-max);
 }
 
+/** True when every word of the query appears (any case) in the row's text; an empty query matches everything. */
+export function filterMatch(hay: string, q: string): boolean {
+  const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const h = String(hay || '').toLowerCase();
+  for (const w of words) { if (h.indexOf(w) < 0) { return false; } }
+  return true;
+}
+
+/** State filters (f: pr, fail, dirty, push): a row passes when it meets every one that is on. A row whose git state is unknown fails them. */
+export function flagPass(g: any, f: any): boolean {
+  if (!f || !(f.pr || f.fail || f.dirty || f.push)) { return true; }
+  if (!g || !g.ok) { return false; }
+  if (f.pr && !g.pr) { return false; }
+  if (f.fail && !(g.pr && g.pr.checks === 'failing')) { return false; }
+  if (f.dirty && !(g.files > 0)) { return false; }
+  if (f.push && !(g.ahead > 0)) { return false; }
+  return true;
+}
+
+/**
+ * Markdown summary of the open items (band, title, project, branch, state, files, ahead, pr, wt, ready, locked per item).
+ * Titles and names are cleaned: control characters and line breaks become spaces, links and long key-like strings are replaced, markdown characters escaped. No links are ever included.
+ */
+export function summaryOf(items: any[], days: number): { text: string; n: number } {
+  const clean = (s: any): string => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/https?:\/\/\S+/gi, '[link]').replace(/[A-Za-z0-9_\-]{32,}/g, '[redacted]').replace(/\s+/g, ' ').trim().slice(0, 120).replace(/([\\`*_{}\[\]<>|#~])/g, '\\$1');
+  const order = ['needs', 'finish', 'waiting', 'tidy'];
+  const labels: { [k: string]: string } = { needs: 'Needs you', finish: 'To finish', waiting: 'Waiting on others', tidy: 'Ready to tidy' };
+  const open = items.filter((x) => order.indexOf(x.band) >= 0);
+  const out: string[] = ['# Open work: ' + countWord(open.length, 'item'), '', 'Chats from the last ' + countWord(days, 'day') + ', and worktrees without a chat.', ''];
+  out.push(order.map((b) => labels[b] + ' ' + open.filter((x) => x.band === b).length).join(', ') + '.');
+  for (const b of order) {
+    const list = open.filter((x) => x.band === b);
+    if (!list.length) { continue; }
+    out.push('', '## ' + labels[b] + ' (' + list.length + ')');
+    for (const x of list) {
+      const where = [clean(x.project), clean(x.branch)].filter(Boolean).join(', ');
+      const facts: string[] = [];
+      if (x.wt) { facts.push(x.locked ? 'worktree, locked' : x.ready ? 'worktree, ready to remove' : 'worktree'); }
+      if (x.state) { facts.push(clean(x.state)); }
+      if (x.files > 0) { facts.push(countWord(x.files, 'uncommitted file')); }
+      if (x.ahead > 0) { facts.push(countWord(x.ahead, 'unpushed commit')); }
+      if (x.pr) { facts.push('PR #' + Number(x.pr.n) + (x.pr.draft ? ' draft' : '') + (x.pr.review ? ' ' + clean(x.pr.review) : '') + (x.pr.checks && x.pr.checks !== 'unknown' && x.pr.checks !== 'none' ? ', checks ' + clean(x.pr.checks) : '')); }
+      out.push('- **' + clean(x.title || 'Untitled') + '**' + (where ? ' (' + where + ')' : '') + (facts.length ? ': ' + facts.join('; ') : ''));
+    }
+  }
+  if (!open.length) { out.push('', 'Nothing is open.'); }
+  return { text: out.join('\n') + '\n', n: open.length };
+}
+
 /** Source of the functions and constants above, for the page script. */
-export const WORK_MODEL_SRC = [bandOf, countWord, nextStep, bandRows, groupRows, wtReady, fingerprint, doneHidden].map((f) => f.toString()).join('\n')
+export const WORK_MODEL_SRC = [bandOf, countWord, nextStep, rowCmp, bandRows, groupRows, wtReady, fingerprint, doneHidden, filterMatch, flagPass, summaryOf].map((f) => f.toString()).join('\n')
   + '\nconst BAND_ORDER=' + JSON.stringify(BAND_ORDER) + ',BAND_LABEL=' + JSON.stringify(BAND_LABEL) + ',BAND_CHIP=' + JSON.stringify(BAND_CHIP) + ';\n';

@@ -27,7 +27,7 @@ function fakeGit(world, o) {
     if (a.startsWith('status')) { return OKRES(r.status); }
     if (a.startsWith('worktree list')) { return OKRES(r.repo.worktree); }
     if (a.startsWith('rev-parse --abbrev-ref origin/HEAD')) { return OKRES('origin/main\n'); }
-    if (a.startsWith('for-each-ref')) { return OKRES(r.repo.merged); }
+    if (a.startsWith('for-each-ref')) { return OKRES(a.includes('%09%(upstream:track)') ? r.repo.branches || '' : r.repo.merged); }
     if (a.startsWith('rev-list --count')) { return OKRES('0\n'); }
     if (a.startsWith('rev-list --max-count')) { return OKRES('commit abc\nabc1234\tfirst commit\ncommit def\ndef5678\tsecond\n'); }
     return { code: 1, stdout: '', stderr: 'unexpected ' + a, timedOut: false, aborted: false };
@@ -49,7 +49,9 @@ function mkWorld(base0, n) {
       + 'worktree ' + wtA + '\nHEAD bbbbbbb2\nbranch refs/heads/feat\n\n'
       + 'worktree ' + wtB + '\nHEAD ccccccc3\ndetached\nlocked reason here\n\n'
       + 'worktree ' + path.join(base, 'gone-wt') + '\nHEAD ddddddd4\nbranch refs/heads/old\nprunable gitdir file points to non-existent location\n';
-    const repo = { common: path.join(main, '.git'), worktree, merged: 'feat\nold\n', main };
+    // branches: every local branch (name, upstream, track) as for-each-ref prints it; the leftovers are stale (gone), merged1 and it's-done (merged).
+    const branches = 'main\torigin/main\t\nfeat\torigin/feat\t\nold\t\t\nstale\torigin/stale\t[gone]\nmerged1\t\t\nit\'s-done\t\t\nlive\torigin/live\t\nchatbr\torigin/chatbr\t[gone]\n-x\t\t\n';
+    const repo = { common: path.join(main, '.git'), worktree, merged: 'feat\nold\nmerged1\nit\'s-done\n-x\n', main, branches };
     const e = { repo, top: main, common: repo.common, branch: 'main', status: '## main...origin/main [ahead 1]\0 M a.txt\0?? b.txt\0' };
     repos.push(e); byTop.set(main, e);
     byTop.set(wtA, { repo, top: wtA, common: repo.common, branch: 'feat', status: '## feat...origin/feat\0' });

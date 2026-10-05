@@ -2,6 +2,18 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.25.0 - 2026-10-05
+- Added: a filter box on the Open Work page. Type words and only rows that match stay: title, project, branch, repository, changed file names, and pull request number or title ("#81" works). It waits a moment after you stop typing, and Escape clears it. The text is remembered per workspace.
+- Added: four state filters next to the box: Has open PR, Failing checks, Uncommitted and Unpushed. They combine, and they are remembered per workspace. A "Clear filters" button appears while any filter is on.
+- Added: a Sort menu (recent activity, name, repository) that orders the rows inside each group.
+- Added: "Copy summary" copies a markdown summary of everything open: the bands with counts, then each item with its state, uncommitted and unpushed counts, pull request number and check state, and worktrees. Links and key-like text are left out. The button says "Copied 7 items" for a moment.
+- Added: "Branches without a worktree", a collapsed section at the bottom. Open a repository to see its local branches that have no chat and no worktree and are merged or whose remote branch is gone. Each has "Copy delete command" (`git branch -d`, never `-D` or `--force`, and never for the default branch). Nothing is read until you open a repository, so the page stays fast.
+- Added: keyboard use. j and k (or the arrow keys) move between rows, "/" goes to the filter box, "?" lists the shortcuts, and Enter, Space, Left and Right work as before.
+- Added: calm empty states. "All clear" when nothing is open, "No chats match these filters" with a Clear filters button, and a note when none of your chats is in a git repository.
+- Changed: the header status now reads "Updated 2 min ago - Refresh" and has a Refresh link.
+- Changed: the README has a full section on the Open Work page (bands, actions, the `saropaChatExplorer.openWorkDays` setting, keyboard, and safety: it never changes your repositories).
+- Changed: the build checks cover every item above (filter words and debounce, each state filter, saved view, sorts, summary text and escaping, keyboard, lazy branch lists and timeouts, empty states, the status line) and now also fail if any copy command could hold `--force`, `-D` or unquoted text, or if the page script sets a color, font or inline style.
+
 ## 0.24.1 - 2026-10-05
 - Fixed: an expanded row could say "Loading..." forever. If you opened a row before its folder had been read, the unpushed commits were never requested. They are now requested the moment the folder result arrives. If the commits cannot be read the row says why with a Retry button, and if nothing answers within 15 seconds it says "timed out" with Retry.
 - Fixed: the unpushed commit list was read once and never again. Opening the row again, pressing Refresh, or a changed commit count now reads it again.

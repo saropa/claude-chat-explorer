@@ -145,6 +145,45 @@ These work with the cursor in the search box.
 | Enter | Search now |
 | Escape | Restore what you typed before browsing history |
 
+## Open Work page
+
+One page that answers: what is still open, and what do I do to close it? Open it from the Command Palette ("Saropa Chat Explorer: Open Work") or the checklist icon in the sidebar title bar.
+
+**What it shows**
+- One row per chat from the last 14 days, plus open chats, minus archived ones. Change the number of days with the setting `saropaChatExplorer.openWorkDays` (1 to 90, default 14).
+- Worktrees that no chat uses get their own rows.
+- Each row shows the chat state, branch, changed files, unpushed commits, and the open pull request with its check result.
+- The header says how fresh it is ("Updated 2 min ago - Refresh"), with a progress line while git and pull requests are being read.
+
+**Bands** (the header chips show the counts and turn a band on or off)
+- Needs you: the agent is waiting for you, or finished while you were away.
+- To finish: changed files, unpushed commits, a failing check, changes requested, or an approved pull request.
+- Waiting on others: the agent is running, or a pull request is in review or its checks are pending.
+- Ready to tidy: clean and pushed, and the branch is merged or its remote branch is gone; finished worktrees.
+- Idle: nothing open. Hidden with the "Show idle" chip.
+- Group the page by attention (bands), by chat or by repository. Sort rows inside a group by recent activity (default), name or repository.
+
+**Find things**
+- The filter box matches the title, project, branch, repository, changed file names and pull request number or title. Every word you type must match. It waits a moment after you stop typing.
+- State filters: Has open PR, Failing checks, Uncommitted, Unpushed. Filters combine (a row must meet all of them). "This workspace only" and "Show done" are chips too.
+- The filter text, state filters and sort are remembered per workspace.
+- If nothing matches, the page says so and offers "Clear filters". If nothing is open, it says "All clear". If none of your chats is in a git repository, it says that instead.
+
+**Actions**
+- Open chat, Copy hand-over note, Find in the sidebar search, Archive (with Undo), Mark done (hides the row until its git or chat state changes), open a pull request or copy its link.
+- Copy remove command: for a finished worktree, copies `git worktree remove` (and `git branch -d` when merged) for you to run yourself.
+- Branches without a worktree: a collapsed section lists, per repository, local branches that have no chat and no worktree and are merged or whose remote branch is gone. A repository is read only when you open it. "Copy delete command" copies `git branch -d <branch>` (never for the default branch).
+- Copy summary: copies a short markdown summary of everything open (bands with counts, each item with its state, changed and unpushed counts, pull request number and check state) and shows "Copied N items". It holds no links.
+
+**Keyboard**
+- j or Down: next row. k or Up: previous row. Home and End: first and last row.
+- Enter: open the chat. Space or Right: expand. Left: collapse.
+- /: go to the filter box. Esc: clear the box, or close or collapse. ?: show this list.
+
+**Safety**
+- The extension never changes your repositories. It only runs read-only git commands (and read-only `gh pr` lookups when "Look Up Pull Requests" is on). Every command it offers is copied to your clipboard for you to read and run yourself; nothing is run for you, and none uses `--force` or `-D`.
+- Paths and branch names in copied commands are quoted for your shell. If Windows cannot quote a name safely, the page tells you to do it by hand.
+
 ## Privacy
 
 - Reads Claude Code transcripts from `~/.claude/projects` on your machine.

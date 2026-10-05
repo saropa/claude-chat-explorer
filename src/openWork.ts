@@ -12,6 +12,9 @@ export const OPEN_WORK_CMD = 'claudeChatExplorer.openWork';
 const PANEL_TYPE = 'saropaChatExplorer.openWork';
 const PREFS_KEY = 'saropaChatExplorer.openWorkPrefs';
 const DONE_KEY = 'saropaChatExplorer.openWorkDone';
+const VIEW_KEY = 'saropaChatExplorer.openWorkView'; // filter text, state filters and sort: kept per workspace
+const SORTS = ['recent', 'name', 'repo'];
+const SUMMARY_MAX_CHARS = 100000;
 const BANDS = ['needs', 'finish', 'waiting', 'tidy', 'idle'];
 const GROUPS = ['attention', 'chat', 'repo'];
 const REFRESH_DEBOUNCE_MS = 1000;
@@ -38,6 +41,7 @@ export interface OpenWorkDeps {
   prsOn: () => boolean; // the setting lookupPullRequests; off means no gh call and no pull request state
 }
 interface Prefs { group: string; hidden: string[]; wsOnly: boolean; }
+interface View { q: string; f: { pr: boolean; fail: boolean; dirty: boolean; push: boolean }; sort: string; }
 interface Model { chats?: object; notes?: object; progress?: object; end?: object; folder: Map<string, object>; repo: Map<string, object>; prs: Map<string, object>; checks: Map<string, object>; }
 const newModel = (): Model => ({ folder: new Map(), repo: new Map(), prs: new Map(), checks: new Map() });
 
@@ -68,6 +72,9 @@ export class OpenWork {
     const p = this.ctx.globalState.get<Partial<Prefs>>(PREFS_KEY) ?? {};
     return { group: GROUPS.includes(String(p.group)) ? String(p.group) : 'attention', hidden: Array.isArray(p.hidden) ? p.hidden.filter((b) => BANDS.includes(b)) : [], wsOnly: p.wsOnly === true };
   }
+
+  /** The page's filter box, state filters and sort order for this workspace; anything unexpected falls back to the default. */
+  private get view(): View { return cleanView(this.ctx.workspaceState.get<unknown>(VIEW_KEY)); }
 
   /** Marked-done chats as [id, fingerprint], oldest first. */
   private get done(): Array<[string, string]> {
@@ -194,7 +201,7 @@ export class OpenWork {
 
   private replay(): void {
     const p = this.prefs;
-    this.post({ type: 'init', v: 3, prsOn: this.d.prsOn(), days: openWorkDays(), group: p.group, hidden: p.hidden, wsOnly: p.wsOnly, ws: this.d.workspace().length, done: Object.fromEntries(this.done) });
+    this.post({ type: 'init', v: 3, prsOn: this.d.prsOn(), days: openWorkDays(), group: p.group, hidden: p.hidden, wsOnly: p.wsOnly, ws: this.d.workspace().length, done: Object.fromEntries(this.done), view: this.view });
     this.post({ type: 'dots', map: this.d.dots() });
     const k = this.model;
     if (!k.chats) { void this.refresh(); return; }
@@ -213,6 +220,10 @@ export class OpenWork {
       else if (t === 'prefs') { void this.savePrefs(m); }
       else if (t === 'openFile') { await this.openFile(String(m.key), Number(m.i)); }
       else if (t === 'copyRemove') { await this.copyRemove(String(m.key)); }
+      else if (t === 'view') { await this.ctx.workspaceState.update(VIEW_KEY, cleanView(m)); }
+      else if (t === 'summary') { await this.copySummary(m.text, m.n); }
+      else if (t === 'branches') { await this.branches(String(m.key)); }
+      else if (t === 'copyBranch') { await this.copyBranch(String(m.key), Number(m.i)); }
       else if (t === 'expand') { await this.expand(String(m.id)); }
       else { await this.onChat(m); }
     } catch (e) { this.d.log('open work message ' + String(m?.type), e); }
@@ -277,6 +288,31 @@ export class OpenWork {
     void vscode.window.showInformationMessage(`Copied the remove command for ${r.name}. Run it in a terminal.`);
   }
 
+  /** Copy the page's summary of open work. The text is checked (a string, at most 100000 characters) and only copied; the page shows Copied with the item count. */
+  private async copySummary(text: unknown, n: unknown): Promise<void> {
+    const count = Number.isInteger(n) && (n as number) >= 0 ? (n as number) : 0;
+    if (typeof text !== 'string' || !text || text.length > SUMMARY_MAX_CHARS) { this.post({ type: 'summaryState', state: 'failed' }); return; }
+    await vscode.env.clipboard.writeText(text);
+    this.post({ type: 'summaryState', state: 'done', n: count });
+  }
+
+  /** Leftover branches of one repository, read when the page opens its expander; always answers (the page shows Retry on a reason). */
+  private async branches(key: string): Promise<void> {
+    if (!/^r\d{1,6}$/.test(key)) { return; }
+    const r = await this.d.scan.branches(key);
+    this.post({ type: 'branchList', key, list: r.list ?? null, more: r.more ?? 0, reason: r.reason ?? '' });
+  }
+
+  /** Copy the delete command of a leftover branch. Nothing is run: the user pastes it in a terminal. */
+  private async copyBranch(key: string, i: number): Promise<void> {
+    if (!/^r\d{1,6}$/.test(key)) { return; }
+    const r = this.d.scan.branchText(key, i);
+    if (!r) { void vscode.window.showInformationMessage('That branch is not available. Open the list again and try again.'); return; }
+    if (r.manual) { void vscode.window.showInformationMessage(`Delete manually: the path or branch name of ${r.name} contains special characters.`); return; }
+    await vscode.env.clipboard.writeText(r.text);
+    void vscode.window.showInformationMessage(`Copied the delete command for branch ${r.name}. Run it in a terminal.`);
+  }
+
   private async find(id: string): Promise<void> {
     const q = (this.titles.get(id) ?? '').replace(/\s+/g, ' ').trim().slice(0, FIND_MAX_CHARS);
     if (q) { await this.d.find(q); }
@@ -289,6 +325,12 @@ export class OpenWork {
     const pick = await vscode.window.showInformationMessage(`Archived "${this.titles.get(id) || 'chat'}".`, 'Undo');
     if (pick === 'Undo') { await this.d.setArchived(id, false); }
   }
+}
+
+/** A stored or posted view, cleaned: text up to 80 characters, booleans for the four state filters, a known sort. */
+export function cleanView(v: any): View {
+  const f = v && typeof v.f === 'object' && v.f ? v.f : {};
+  return { q: typeof v?.q === 'string' ? v.q.slice(0, FIND_MAX_CHARS) : '', f: { pr: f.pr === true, fail: f.fail === true, dirty: f.dirty === true, push: f.push === true }, sort: SORTS.includes(String(v?.sort)) ? String(v.sort) : 'recent' };
 }
 
 /** Register the command that opens the page. */

@@ -7,7 +7,7 @@ import { Exec, pool } from './wipExec';
 import { Ctx, probe, statusOf, unpushedOf } from './wipGit';
 import { FileChange } from './wipTypes';
 import { PrRun, WorkPrs } from './workPrs';
-import { readRepo, removeCommand, RepoOut, WtOut } from './workRepo';
+import { BranchOut, branchCommand, branchesOf, readRepo, removeCommand, RepoOut, WtOut } from './workRepo';
 
 export const MAX_FOLDERS = 60;
 export const FOLDER_DEADLINE_MS = 10000;
@@ -51,6 +51,7 @@ export class WorkScan {
   private readonly fcache = new Map<string, { at: number; out: FolderOut }>();
   private readonly rcache = new Map<string, { at: number; out: RepoOut }>();
   private readonly details = new Set<AbortController>();
+  private readonly branchLists = new Map<string, string[]>(); // by r key: branch names of the last answer, so a copy click names an index, never a name
   private ws: Ws = { paths: [], reals: new Set(), commons: new Set() };
 
   constructor(private readonly o: ScanOpts) {}
@@ -334,5 +335,32 @@ export class WorkScan {
     const text = r && wt ? removeCommand(r, wt, win) : '';
     if (text === 'manual' && wt) { return { text: '', name: path.basename(wt.path), manual: true }; }
     return text && wt ? { text, name: path.basename(wt.path) } : undefined;
+  }
+
+  /** Leftover local branches of one repository, read when the page asks (one read-only call on the sidebar lane, ends within 10 s). */
+  async branches(rk: string): Promise<{ list?: BranchOut[]; more?: number; reason?: string }> {
+    const r = /^r\d{1,6}$/.test(rk) ? this.repos.get(rk) : undefined;
+    if (!r) { return { reason: 'Repository is not loaded' }; }
+    const ac = new AbortController();
+    this.details.add(ac);
+    const timer = setTimeout(() => ac.abort(), DETAIL_MS);
+    try {
+      const ctx: Ctx = { exec: this.o.limiter.wrap(this.o.exec, 'ui'), signal: ac.signal, gitMs: this.gitMs, ghMs: this.gitMs, flags: { gitMissing: false } };
+      const inUse = new Set<string>();
+      for (const e of this.byKey.values()) { const o = e.out; if (o?.state === 'ok' && o.common === r.common && typeof o.facts?.branch === 'string') { inUse.add(o.facts.branch); } }
+      const res = await branchesOf(ctx, r, inUse);
+      if (typeof res === 'string') { return { reason: res }; }
+      this.branchLists.set(rk, res.list.map((b) => b.name));
+      return res;
+    } catch (e) { this.log('open work branches', e); return { reason: 'git error' }; }
+    finally { clearTimeout(timer); this.details.delete(ac); }
+  }
+
+  /** The delete command of the i-th branch of the last answer for a repository; manual when Windows would misread the text. */
+  branchText(rk: string, i: number, win?: boolean): { text: string; name: string; manual?: boolean } | undefined {
+    const r = this.repos.get(rk), name = Number.isInteger(i) ? this.branchLists.get(rk)?.[i] : undefined;
+    const text = r && name ? branchCommand(r, name, win) : '';
+    if (text === 'manual' && name) { return { text: '', name, manual: true }; }
+    return text && name ? { text, name } : undefined;
   }
 }

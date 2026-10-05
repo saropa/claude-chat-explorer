@@ -15,12 +15,13 @@ const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
 
 // 1. Open Work sources never import the worker client, and every .request( they make is soft.
 const own = fs.readdirSync(SRC).filter((f) => /^(openWork|work)[A-Za-z]*\.ts$/.test(f));
-for (const must of ['openWork.ts', 'workChats.ts', 'workScan.ts', 'workRepo.ts', 'workPrs.ts', 'openWorkGitJs.ts', 'openWorkPrJs.ts']) { if (!own.includes(must)) { bad('guard cannot see ' + must); } }
+for (const must of ['openWork.ts', 'workChats.ts', 'workScan.ts', 'workRepo.ts', 'workPrs.ts', 'openWorkGitJs.ts', 'openWorkPrJs.ts', 'openWorkViewJs.ts']) { if (!own.includes(must)) { bad('guard cannot see ' + must); } }
 if (!own.includes('openWork.ts')) { bad('guard cannot see the Open Work sources: ' + own.join(',')); }
 for (const f of own) {
   const t = read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"])\/\/.*$/gm, '$1'); // comments are not code
   if (/from\s+['"]\.\/client['"]|require\(['"]\.\/client['"]\)/.test(t)) { bad(f + ' imports ./client; it must get a soft request function instead'); }
   if (/^work/.test(f) && /from\s+['"]vscode['"]/.test(t)) { bad(f + ' imports vscode; the scan modules stay plain node so the build check can drive them'); }
+  if (/createTerminal|sendText|tasks\.executeTask|commands\.executeCommand\(['"]workbench\.action\.terminal/.test(t)) { bad(f + ' runs something in a terminal; commands are only copied for the user to run'); }
   if (/child_process|execFile|spawn\(/.test(t)) { bad(f + ' starts processes itself; commands go only through the allow-listed git() and gh() helpers'); }
   for (const m of t.matchAll(/\.request\(([^;]*)\)/g)) { if (!/,\s*true\s*,\s*true\s*$/.test(m[1])) { bad(f + ': a worker request that is not soft: .request(' + m[1].slice(0, 60) + ')'); } }
 }
@@ -65,9 +66,29 @@ for (const line of ALLOW) { if (!wip.includes(line)) { bad('git/gh allow-list ch
   if (!/prsOn, prs: new WorkPrs\(/.test(ext)) { bad('the Open Work scan must get the pull request layer and the lookupPullRequests switch'); }
 
   // 3. No agent name in the page sources or in what the host shows. The one allowed mention is the command id.
-  for (const f of ['openWorkHtml.ts', 'openWorkJs.ts', 'openWorkGitJs.ts', 'openWorkPrJs.ts', 'openWorkCss.ts', 'workModel.ts', 'workChats.ts', 'workScan.ts', 'workRepo.ts', 'workPrs.ts', 'webviewPop.ts', 'execLimit.ts']) { if (/claude/i.test(read(f))) { bad(f + ' names an agent product'); } }
+  for (const f of ['openWorkHtml.ts', 'openWorkJs.ts', 'openWorkGitJs.ts', 'openWorkPrJs.ts', 'openWorkViewJs.ts', 'openWorkCss.ts', 'workModel.ts', 'workChats.ts', 'workScan.ts', 'workRepo.ts', 'workPrs.ts', 'webviewPop.ts', 'execLimit.ts']) { if (/claude/i.test(read(f))) { bad(f + ' names an agent product'); } }
   const host = read('openWork.ts').split('\n').filter((l) => /claude/i.test(l) && !/OPEN_WORK_CMD = 'claudeChatExplorer\.openWork'/.test(l));
   if (host.length) { bad('openWork.ts names an agent product: ' + host[0].trim()); }
+
+  // 3b. Copy commands: never --force or -D, and shell-safe (every name sits inside one quoted string, so nothing outside quotes can run).
+  const repoMod = require(path.join(OUT, 'workRepo.js'));
+  const NASTY = ["a b", "it's", "x'; rm -rf ~; echo '", '$(whoami)', '`id`', 'a"b', 'a\\b', 'new\nline', '-D', '--force', 'ok-name', 'a&b', 'a|b', 'a>b', '*', '~', '%PATH%', '$env:HOME', '!x', 'a\u2018b'];
+  const stripQ = (s, win) => s.replace(win ? /'(?:[^']|'')*'/g : /'(?:[^']|'\\'')*'/g, '');
+  for (const win of [false, true]) {
+    for (const n of NASTY) {
+      const cmds = [repoMod.branchCommand({ main: '/m ' + n, defLocal: 'main' }, n, win), repoMod.removeCommand({ main: '/m ' + n, defLocal: 'main' }, { path: '/w ' + n, branch: n, main: false, locked: false, missing: false, merged: true }, win),
+        repoMod.removeCommand({ main: '/m', defLocal: 'main' }, { path: '/w', branch: 'x', main: false, locked: false, missing: true, merged: true }, win)];
+      for (const cmd of cmds) {
+        if (!cmd || cmd === 'manual') { continue; }
+        if (/--force|\s-D\b|\s-f\b|--delete|push|reset|clean|checkout/.test(stripQ(cmd, win))) { bad('a copy command holds a forbidden flag or verb (' + (win ? 'windows' : 'posix') + ', ' + JSON.stringify(n) + '): ' + cmd); }
+        if (!stripQ(cmd, win).split('\n').every((l) => /^git -C {2}(branch -d|worktree remove|worktree prune)\s*$/.test(l))) { bad('a copy command has text outside its quotes (' + (win ? 'windows' : 'posix') + ', ' + JSON.stringify(n) + '): ' + cmd); }
+      }
+    }
+  }
+  if (repoMod.branchCommand({ main: '/m', defLocal: 'main' }, 'main', false) !== '' || repoMod.branchCommand({ main: '/m', defLocal: 'main' }, '-D', false) !== '') { bad('no delete command for the default branch or an option-like name'); }
+  // 3c. The slice 4 page layer styles nothing itself: no color, font or inline style in its script or markup.
+  const view = require(path.join(OUT, 'openWorkViewJs.js')).OW_VIEW_JS;
+  if (/#[0-9a-fA-F]{3,8}\b|rgba?\(|font-family|font-size|style="|\.style\./.test(view)) { bad('openWorkViewJs.ts sets a color, font or inline style; the page CSS owns all of them'); }
 
   // 4. The popover/tooltip module reads no sidebar id or global at load.
   const pop = require(path.join(OUT, 'webviewPop.js'));

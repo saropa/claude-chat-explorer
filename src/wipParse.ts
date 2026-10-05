@@ -76,6 +76,16 @@ export function parseRefs(out: string): BranchAhead[] {
   return list;
 }
 
+/** Parse for-each-ref lines (REF_FORMAT) of every local branch: name, upstream name and whether the upstream is gone. */
+export function parseLocalBranches(out: string): Array<{ name: string; upstream?: string; gone: boolean }> {
+  const list: Array<{ name: string; upstream?: string; gone: boolean }> = [];
+  for (const line of out.split(/\r?\n/)) {
+    const [name, up = '', track = ''] = line.split('\t');
+    if (name) { list.push({ name, upstream: up || undefined, gone: /\bgone\b/.test(track) }); }
+  }
+  return list;
+}
+
 /** Upstream facts of one branch from a for-each-ref line (REF_FORMAT): upstream name, ahead, behind and whether the upstream is gone. */
 export function parseTrack(out: string): { upstream?: string; ahead: number; behind: number; gone: boolean } {
   const [, up = '', track = ''] = (out.split(/\r?\n/)[0] ?? '').split('\t');

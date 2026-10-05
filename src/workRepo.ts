@@ -2,7 +2,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { commitMergedOf, Ctx, defaultBranchOf, git, mergedOf, statusOf, whyFailed } from './wipGit';
-import { parseWorktrees, StatusParts } from './wipParse';
+import { parseLocalBranches, parseWorktrees, REF_FORMAT, StatusParts } from './wipParse';
 import { WorktreeInfo } from './wipTypes';
 
 export const MAX_WT_STATUS = 20;
@@ -96,4 +96,30 @@ export function removeCommand(r: { main: string; defLocal?: string }, w: { path:
   const lines = [g + ' worktree remove ' + quoteArg(w.path, win)];
   if (!dropBranch) { lines.push(g + ' branch -d ' + quoteArg(w.branch, win)); }
   return lines.join('\n');
+}
+
+export const MAX_BRANCH_ROWS = 50;
+/** A local branch nothing uses: no worktree, no chat, not the default branch; merged into the default branch or its remote branch is gone. */
+export interface BranchOut { name: string; merged: boolean; gone: boolean; }
+
+/** Leftover local branches of one repository (one read-only for-each-ref call). inUse holds the branches of chats in scope. A failed call returns its reason. */
+export async function branchesOf(c: Ctx, r: RepoOut, inUse: Set<string>): Promise<{ list: BranchOut[]; more: number } | string> {
+  const top = r.worktrees.find((w) => !w.missing)?.path;
+  if (!top) { return 'folder missing'; }
+  const res = await git(c, top, ['for-each-ref', '--format=' + REF_FORMAT, 'refs/heads']);
+  if (res.code !== 0) { return whyFailed(res); }
+  const used = new Set([...inUse, ...r.worktrees.map((w) => w.branch)]);
+  if (r.defLocal) { used.add(r.defLocal); }
+  const merged = new Set(r.merged);
+  const all = parseLocalBranches(res.stdout)
+    .filter((b) => !b.name.startsWith('-') && !used.has(b.name) && (merged.has(b.name) || b.gone))
+    .map((b) => ({ name: b.name, merged: merged.has(b.name), gone: b.gone }));
+  return { list: all.slice(0, MAX_BRANCH_ROWS), more: Math.max(0, all.length - MAX_BRANCH_ROWS) };
+}
+
+/** The command to paste in a terminal that deletes one leftover branch ('git branch -d', which git itself refuses for an unmerged branch); '' for the default branch or an option-like name; 'manual' when Windows would misread a character. Never --force or -D. */
+export function branchCommand(r: { main: string; defLocal?: string }, branch: string, win: boolean = process.platform === 'win32'): string {
+  if (!branch || branch.startsWith('-') || branch === r.defLocal) { return ''; }
+  if (win && (winUnsafe(r.main) || winUnsafe(branch))) { return 'manual'; }
+  return 'git -C ' + quoteArg(r.main, win) + ' branch -d ' + quoteArg(branch, win);
 }

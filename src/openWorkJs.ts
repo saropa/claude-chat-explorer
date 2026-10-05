@@ -2,6 +2,7 @@ import { SHARED_SRC } from './group';
 import { POP_JS, TIP_ENGINE_JS } from './webviewPop';
 import { OW_GIT_JS } from './openWorkGitJs';
 import { OW_PR_JS } from './openWorkPrJs';
+import { OW_VIEW_JS } from './openWorkViewJs';
 import { WORK_MODEL_SRC } from './workModel';
 
 /** Page script of Open Work. Own scope: it reads only the ids of its own page, and no sidebar global. */
@@ -13,8 +14,9 @@ const GROUPS=[['attention','By attention'],['chat','By chat'],['repo','By reposi
 let rows=[],dots={},days=14,group='attention',hidden=[],open=new Set(),hv={},pend=new Set(),loaded=false,failed='',indexing=false,scan=0,lastAt=0,askedAt=0,watch=0,rtimer=0,lastRender=0,focusId='';
 const DONE_TIP='Hide this row until its git or chat state changes';
 const body=$('body'),grm=$('grm');
-const pop=makePop([['grb','grm']]);
+const pop=makePop([['grb','grm'],['srb','srm'],['shb','shm']]);
 const tipper=makeTip({bounds:()=>{const w=document.documentElement.clientWidth||window.innerWidth||400;return{left:0,right:w,width:w};},html:el=>tipPlain(el.dataset.tip||'')});
+$('srm').innerHTML='<div class="pt">Sort rows by</div>'+SORTS.map(g=>'<label class="pi"><input type="radio" name="srt" value="'+g[0]+'"><span>'+g[1]+'</span></label>').join('');
 grm.innerHTML='<div class="pt">Group chats by</div>'+GROUPS.map(g=>'<label class="pi"><input type="radio" name="grp" value="'+g[0]+'"><span>'+g[1]+'</span></label>').join('');
 function groupLabel(){return GROUPS.find(g=>g[0]===group)[1];}
 function groupUi(){grm.querySelectorAll('input').forEach(i=>{i.checked=i.value===group;});const t='Group chats by: '+groupLabel();$('grt').textContent=groupLabel();$('grb').setAttribute('aria-label',t);}
@@ -51,22 +53,25 @@ return '<button type="button" class="chip" data-a="band" data-b="'+b+'" aria-pre
 const idle=hidden.indexOf('idle')<0;$('idl').setAttribute('aria-pressed',String(idle));$('idl').textContent='Show idle ('+by.idle.length+')';
 const dn=doneCount();$('dnb').setAttribute('aria-pressed',String(showDone));$('dnb').textContent='Show done ('+dn+')';$('dnb').hidden=!dn&&!showDone;
 $('wsb').setAttribute('aria-pressed',String(wsOnly));$('wsb').hidden=!wsN;}
-function bodyHtml(vis){
+function bodyHtml(vis,total){
 if(failed&&!loaded)return '<p class="msg err" role="alert">Could not load chats. <button type="button" class="ab" data-a="retry">Retry</button></p>';
 if(!loaded)return '<p class="msg" role="status">Loading chats...</p>';
 const err=failed?'<p class="msg err" role="alert">Could not load chats. <button type="button" class="ab" data-a="retry">Retry</button></p>':'';
-if(!vis.length)return err+'<p class="msg">No chats in the last '+days+' days.</p>';
-const gr=groupRows(vis,dots,group,hidden,bandHeld);
-if(!gr.length)return err+'<p class="msg">Nothing to show with these filters. <button type="button" class="ab" data-a="idle">Show idle</button></p>';
+if(!total)return err+'<p class="msg">No chats in the last '+days+' days.</p>';
+if(!vis.length)return err+'<p class="msg">No chats match these filters. <button type="button" class="ab" data-a="clearf">Clear filters</button></p>'+brHtml();
+const gr=groupRows(vis,dots,group,hidden,bandHeld,sortMode),clr=allClear(vis);
+if(!gr.length)return err+(clr?clearHtml()+'<p class="msg"><button type="button" class="ab" data-a="idle">Show idle</button></p>':'<p class="msg">Nothing to show with these filters. <button type="button" class="ab" data-a="idle">Show idle</button></p>')+brHtml();
 let tabId=gr.some(g=>g.rows.some(r=>r.id===focusId))?focusId:gr[0].rows[0].id;
 const th='<div class="th" aria-hidden="true"><div class="a"><span></span><span>Chat</span><span>Folder</span><span>Branch</span><span>Files</span><span>Ahead</span>'+(prsOn?'<span>PR</span><span>Checks</span>':'')+'<span>Context</span><span>State</span><span>Active</span></div><div class="b"></div></div>';
-return err+th+gr.map(g=>'<section class="band" aria-label="'+esc(g.label)+'"><h2 class="bh" role="heading" aria-level="2">'+esc(g.label)+' <span class="pill">'+g.rows.length+'</span></h2><div role="list">'+g.rows.map(r=>rowHtml(r,r.id===tabId)).join('')+'</div></section>').join('');}
+return err+noRepoNote()+(clr?clearHtml():'')+th+gr.map(g=>'<section class="band" aria-label="'+esc(g.label)+'"><h2 class="bh" role="heading" aria-level="2">'+esc(g.label)+' <span class="pill">'+g.rows.length+'</span></h2><div role="list">'+g.rows.map(r=>rowHtml(r,r.id===tabId)).join('')+'</div></section>').join('')+brHtml();}
 function layout(){const w=document.documentElement.clientWidth||window.innerWidth||400;$('wrap').classList.toggle('wide',w>=WIDE_PX);prsUi();}
-function updText(){$('upd').textContent=lastAt?'Updated '+(Date.now()-lastAt<10000?'just now':Math.floor((Date.now()-lastAt)/1000)+' s ago'):'';}
+function ago(ms){const s=Math.floor(ms/1000);return s<10?'just now':s<60?s+' s ago':s<3600?Math.floor(s/60)+' min ago':Math.floor(s/3600)+' h ago';}
+function updText(){$('upd').textContent=lastAt?'Updated '+ago(Date.now()-lastAt):'';$('updw').hidden=!lastAt;}
 function render(){lastRender=Date.now();
-try{const ae=document.activeElement,had=ae&&ae.classList&&ae.classList.contains('rb');moving=false;const vis=visibleRows();layout();chips(vis);progUi();noteUi();
+try{const ae=document.activeElement,had=ae&&ae.classList&&ae.classList.contains('rb');moving=false;const all=visibleRows(),vis=filtered(all);layout();chips(vis);viewUi();progUi();noteUi();
 $('ixs').hidden=!indexing;body.setAttribute('aria-busy',String(!loaded&&!failed));groupUi();updText();
-body.innerHTML=bodyHtml(vis);
+body.innerHTML=bodyHtml(vis,all.length);
+if(refocus){const rf=document.querySelector(refocus);refocus='';if(rf&&rf.focus)rf.focus();}
 if(had&&focusId){const b=document.querySelector('.row[data-id="'+focusId+'"] .rb');if(b)b.focus();}
 if(moving&&!settleT)settle(HOLD_MS);}
 catch(e){console.error('open work render: '+(e&&e.message?e.message:e));body.innerHTML='<p class="msg err">Could not show the chat list. Refresh to try again.</p>';}}
@@ -96,14 +101,25 @@ else if(k==='rm'){vs.postMessage({type:'copyRemove',key:a.dataset.k});}
 else if(k==='more'){vs.postMessage({type:'scanMore'});}
 else if(k==='ws'){wsOnly=!wsOnly;savePrefs();render();}
 else if(k==='showdone'){showDone=!showDone;render();}
+else if(k==='flt'){toggleFlag(a.dataset.f||'');}
+else if(k==='clearf'){clearFilters();}
+else if(k==='summary'){copySummary();}
+else if(k==='brsec'){brOpen=!brOpen;refocus='[data-a="brsec"]';render();}
+else if(k==='brx'){toggleBr(a.dataset.k||'');}
+else if(k==='brx2'){if(/^r\d+$/.test(a.dataset.k||'')){askBr(a.dataset.k);sched();}}
+else if(k==='brcopy'){const n=Number(a.dataset.i);if(/^r\d+$/.test(a.dataset.k||'')&&n>=0)vs.postMessage({type:'copyBranch',key:a.dataset.k,i:n});}
 else if(k==='row'&&id){toggleRow(id);}
 else if(id){act(k,id);}});
 $('grb').addEventListener('click',()=>pop.toggle('grb','grm'));
 grm.addEventListener('change',e=>{setGroup(e.target.value);pop.close('');});
+$('srb').addEventListener('click',()=>pop.toggle('srb','srm'));
+$('srm').addEventListener('change',e=>{setSort(e.target.value);pop.close('');});
+$('shb').addEventListener('click',()=>pop.toggle('shb','shm'));
+$('fq').addEventListener('input',()=>{clearTimeout(qT);qT=setTimeout(()=>applyQ($('fq').value),Q_DEBOUNCE_MS);});
 function focusStep(t,d){const all=Array.from(document.querySelectorAll('.rb')),i=all.indexOf(t)+d;if(all[i])all[i].focus();}
-document.addEventListener('keydown',e=>{const t=e.target;if(!t||!t.classList||!t.classList.contains('rb'))return;const row=t.closest('.row'),id=row?row.dataset.id:'';if(!id)return;
-if(e.key==='ArrowDown'){e.preventDefault();focusStep(t,1);}
-else if(e.key==='ArrowUp'){e.preventDefault();focusStep(t,-1);}
+document.addEventListener('keydown',e=>{if(viewKey(e))return;const t=e.target;if(!t||!t.classList||!t.classList.contains('rb'))return;const row=t.closest('.row'),id=row?row.dataset.id:'';if(!id)return;
+if(e.key==='ArrowDown'||e.key==='j'){e.preventDefault();focusStep(t,1);}
+else if(e.key==='ArrowUp'||e.key==='k'){e.preventDefault();focusStep(t,-1);}
 else if(e.key==='Home'||e.key==='End'){e.preventDefault();const all=Array.from(document.querySelectorAll('.rb'));const x=e.key==='Home'?all[0]:all[all.length-1];if(x)x.focus();}
 else if(e.key==='Enter'){e.preventDefault();vs.postMessage({type:'open',id:id});}
 else if(e.key===' '||e.key==='ArrowRight'){e.preventDefault();toggleRow(id,true);}
@@ -117,8 +133,8 @@ document.addEventListener('focusout',()=>{if(moving)settle(HOLD_MS);});
 window.addEventListener('resize',layout);
 setInterval(updText,10000);
 window.addEventListener('message',e=>{const d=e.data;if(!d)return;
-if(d.type==='init'){days=d.days||14;if(GROUPS.some(g=>g[0]===d.group))group=d.group;hidden=Array.isArray(d.hidden)?d.hidden.filter(b=>BAND_ORDER.indexOf(b)>=0):[];wsOnly=!!d.wsOnly;wsN=Number(d.ws)||0;setPrsOn(d.prsOn);donemap=d.done&&typeof d.done==='object'?d.done:{};render();}
-else if(d.type==='chats'){if(d.scan<scan)return;if(d.scan>scan){scanLive=!!d.scanning;prog=null;resetDetail();Object.keys(fwatch).forEach(k=>{clearTimeout(fwatch[k]);});fwatch={};touch();}scan=d.scan;rows=Array.isArray(d.rows)?d.rows:[];pend.clear();loaded=true;failed='';indexing=!!d.indexing;lastAt=Date.now();clearTimeout(watch);render();say(rows.length+' chats shown.');}
+if(d.type==='init'){days=d.days||14;if(GROUPS.some(g=>g[0]===d.group))group=d.group;hidden=Array.isArray(d.hidden)?d.hidden.filter(b=>BAND_ORDER.indexOf(b)>=0):[];wsOnly=!!d.wsOnly;wsN=Number(d.ws)||0;setPrsOn(d.prsOn);donemap=d.done&&typeof d.done==='object'?d.done:{};applyView(d.view);render();}
+else if(d.type==='chats'){if(d.scan<scan)return;if(d.scan>scan){scanLive=!!d.scanning;prog=null;ended=false;resetBr();resetDetail();Object.keys(fwatch).forEach(k=>{clearTimeout(fwatch[k]);});fwatch={};touch();}scan=d.scan;rows=Array.isArray(d.rows)?d.rows:[];pend.clear();loaded=true;failed='';indexing=!!d.indexing;lastAt=Date.now();clearTimeout(watch);render();say(rows.length+' chats shown.');}
 else if(d.type==='chatsFailed'){if(d.scan<scan)return;failed=d.message||'Could not load chats';clearTimeout(watch);render();}
 else if(d.type==='dots'){dots=d.map||{};gotDots=true;sched();}
 else if(d.type==='folder'){onFolder(d);}
@@ -129,9 +145,11 @@ else if(d.type==='checks'){onChecks(d);}
 else if(d.type==='end'){onEnd(d);}
 else if(d.type==='notes'){onNotes(d);}
 else if(d.type==='detail'){onDetail(d);}
+else if(d.type==='branchList'){onBranchList(d);}
+else if(d.type==='summaryState'){onSummaryState(d);}
 else if(d.type==='handoverState'){hv[d.id]=d.state||'';if(d.state==='done')setTimeout(()=>{if(hv[d.id]==='done'){hv[d.id]='';sched();}},2000);sched();}});
 arm();
 vs.postMessage({type:'ready'});
 `;
 
-export const OW_SCRIPT = SHARED_SRC + WORK_MODEL_SRC + POP_JS + TIP_ENGINE_JS + OW_GIT_JS + OW_PR_JS + CORE;
+export const OW_SCRIPT = SHARED_SRC + WORK_MODEL_SRC + POP_JS + TIP_ENGINE_JS + OW_GIT_JS + OW_PR_JS + OW_VIEW_JS + CORE;
