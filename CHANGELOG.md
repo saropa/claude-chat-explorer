@@ -2,6 +2,11 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.21.0 - 2026-10-05
+- Added: when you expand a chat card, the counts on its Git, Uncommitted files, Unpushed commits, Worktrees and Related chats sections now load by themselves in the background, so you can see which sections are worth opening. The sections still load their contents only when you open them. Each count shows a small faint "..." until it arrives and then fills in without redrawing the card or closing any open section. If a count cannot be read (slow git, no upstream branch, not a git folder) no number is shown and there is no error. The Git count is the number of open pull requests and appears only when pull request lookups are on. Counts are reused for 30 seconds, so closing and reopening a card does not ask again. Collapsed cards never load anything, and counting never slows down a search.
+- Changed: the count badge in the section headers is one step smaller with tighter padding, and a zero count is dimmed so sections with something in them stand out. A section with zero can still be opened.
+- Changed: the build check now covers the counts: one request on expand and none for collapsed cards, badges filling in place, the "..." placeholder, dimmed zero, and stale answers being ignored.
+
 ## 0.20.1 - 2026-10-05
 - Changed: the Search tips menu is easier to read: one example chip per row with a short plain description beside it, grouped under two quiet headings, in the VS Code font and theme colors.
 
