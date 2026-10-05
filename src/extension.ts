@@ -44,8 +44,8 @@ const logErr = (where: string, e: unknown): void => log(`${where}: ${e instanceo
 /** One global limit on git processes: 4 at a time, the Open Work page at most 3 of them, the sidebar first. */
 const limiter = new Limiter(4, 3);
 const uiExec = limiter.wrap(realExec, 'ui');
-/** One global limit on gh processes: 2 at a time (the sidebar first); the pull request cache is shared by the sidebar and the Open Work page. */
-const ghLimiter = new Limiter(2, 2);
+/** One global limit on gh processes: 2 at a time (the sidebar first, the page at most 1); the pull request cache is shared by the sidebar and the Open Work page. */
+const ghLimiter = new Limiter(2, 1); // the page lane keeps to 1 of the 2 slots, so a sidebar card never waits behind page lookups
 const ghUiExec = ghLimiter.wrap(realExec, 'ui');
 const prCache = new PrCache();
 const prsOn = (): boolean => vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false;

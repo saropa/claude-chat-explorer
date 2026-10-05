@@ -22,7 +22,7 @@ export class Limiter {
 
   /** An Exec that waits for a slot in its lane. onStart runs when the command really begins (not when it was queued). A queued command whose signal aborts never starts. */
   wrap(exec: Exec, lane: Lane, onStart?: () => void): Exec {
-    return (cmd, args, o) => new Promise<ExecResult>((resolve) => {
+    const wrapped: Exec & { limited?: boolean } = (cmd, args, o) => new Promise<ExecResult>((resolve) => {
       if (o.signal?.aborted) { resolve(aborted()); return; }
       const q = this.queue[lane];
       const onAbort = (): void => { const i = q.indexOf(job); if (i >= 0) { q.splice(i, 1); resolve(aborted()); } };
@@ -30,7 +30,7 @@ export class Limiter {
         lane,
         start: () => {
           o.signal?.removeEventListener('abort', onAbort);
-          try { onStart?.(); } catch { /* a start hook never blocks the command */ }
+          try { onStart?.(); o.onStart?.(); } catch { /* a start hook never blocks the command */ }
           exec(cmd, args, o).then(resolve, () => resolve(failed())).finally(() => this.done(lane));
         },
       };
@@ -38,6 +38,8 @@ export class Limiter {
       q.push(job);
       this.pump();
     });
+    wrapped.limited = true; // a caller can tell that a start hook (ExecOpts.onStart) will come
+    return wrapped;
   }
 
   private done(lane: Lane): void {

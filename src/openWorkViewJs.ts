@@ -3,7 +3,8 @@
 export const OW_VIEW_JS = String.raw`
 const SORTS=[['recent','Recent activity'],['name','Name'],['repo','Repository']],FLAGS=[['pr','Has open PR','Only rows with an open pull request',1],['fail','Failing checks','Only rows whose pull request has failing checks',1],['dirty','Uncommitted','Only rows with changed files that are not committed',0],['push','Unpushed','Only rows with commits that are not pushed',0]];
 const Q_DEBOUNCE_MS=200,BR_WATCH_MS=15000,SUM_WATCH_MS=5000,SUM_DONE_MS=2000;
-let fq='',flt={pr:false,fail:false,dirty:false,push:false},sortMode='recent',sm={st:'',n:0},smT=0,smW=0,brs={},brOpen=false,brx={},bwatch={},qT=0,ended=false,refocus='';
+let winCmd=false,fq='',flt={pr:false,fail:false,dirty:false,push:false},sortMode='recent',sm={st:'',n:0},smT=0,smW=0,brs={},brOpen=false,brx={},bwatch={},qT=0,ended=false,refocus='';
+function cw(){return winCmd?'PowerShell ':'';}
 function filtering(){return fq!==''||flt.pr||flt.fail||flt.dirty||flt.push;}
 function rowHay(r){const wt=r.kind==='wt',e=wt?null:fOf(r),f=wt?(r.w.facts&&r.w.facts.ok?r.w.facts:null):e&&e.f,rp=repos[wt?r.rk:f&&f.rk]||{};
 const br=wt?(r.w.detached?'':r.w.branch||''):f?(f.detached?'':f.branch||''):'',p=prInfo(r),pr=p&&p.pr?'#'+p.pr.n+' pr '+p.pr.n+' '+(p.pr.title||''):'';
@@ -29,7 +30,11 @@ function onSummaryState(d){clearTimeout(smW);clearTimeout(smT);if(d.state==='don
 function anyGit(){return Object.keys(gs).some(k=>gs[k].st==='ok');}
 function gitSettled(){return Object.keys(gs).every(k=>gs[k].st==='ok'||gs[k].st==='none');}
 function noRepoNote(){return loaded&&ended&&!scanLive&&!notes.gitMissing&&rows.length>0&&!anyGit()?'<p class="msg" role="status">No git repositories were found for these chats. Only chat state is shown.</p>':'';}
-function allClear(vis){if(!loaded||!ended||scanLive||notes.gitMissing||filtering()||!vis.length||!anyGit()||!gitSettled())return false;const by=bandRows(vis,dots,bandHeld);return!by.needs.length&&!by.finish.length&&!by.waiting.length&&!by.tidy.length;}
+function scanComplete(){if(!loaded||!ended||scanLive||notes.gitMissing||notes.more>0||!gitSettled())return false;
+if(Object.keys(repos).some(k=>repos[k].st!=='ok'))return false;
+if(rows.some(r=>r.fk&&!gs[r.fk]))return false;
+if(prsOn&&Object.keys(repos).some(k=>{const q=prs[k];return !q||(q.st==='unavailable'?q.reason!=='not a GitHub repository':q.st!=='ok');}))return false;return true;}
+function allClear(vis){if(filtering()||!vis.length||!anyGit()||!scanComplete())return false;const by=bandRows(vis,dots,bandHeld);return!by.needs.length&&!by.finish.length&&!by.waiting.length&&!by.tidy.length;}
 function clearHtml(){return '<div class="clear" role="status"><h2>All clear</h2><p>Nothing open. Every chat in the last '+days+' days is committed, pushed and closed.</p></div>';}
 function toggleBr(k){if(!/^r\d+$/.test(k))return;if(brx[k])delete brx[k];else{brx[k]=1;if(!brs[k]||brs[k].st==='error')askBr(k);}refocus='[data-a="brx"][data-k="'+k+'"]';render();}
 function askBr(k){brs[k]={st:'loading'};clearTimeout(bwatch[k]);bwatch[k]=setTimeout(()=>{delete bwatch[k];brs[k]={st:'error',reason:'timed out'};sched();},BR_WATCH_MS);vs.postMessage({type:'branches',key:k});}
@@ -40,7 +45,7 @@ function brRepo(k){const rp=repos[k],b=brs[k],open=!!brx[k];let h='<div class="b
 if(open){if(!b||b.st==='loading')h+='<div class="gw">Loading...</div>';
 else if(b.st==='error')h+='<div class="gw">'+esc(b.reason)+' <button type="button" class="ab" data-a="brx2" data-k="'+k+'" aria-label="Read the branches again" data-tip="Read the branches again">Retry</button></div>';
 else if(!b.list.length)h+='<div class="gw gmore">No leftover branches.</div>';
-else h+=b.list.map((x,i)=>'<div class="gw"><code>'+esc(x.name)+'</code> <span class="q">'+(x.merged?'merged':'remote branch gone, not merged here')+'</span> <button type="button" class="ab" data-a="brcopy" data-k="'+k+'" data-i="'+i+'" aria-label="'+esc('Copy delete command for branch '+x.name)+'" data-tip="Copy a command that deletes this branch. Nothing is run.">Copy delete command</button></div>').join('')+(b.more>0?'<div class="gw gmore">+'+b.more+' more</div>':'');}
+else h+=b.list.map((x,i)=>'<div class="gw"><code>'+esc(x.name)+'</code> <span class="q">'+(x.merged?'merged':'remote branch gone, not merged here')+'</span> <button type="button" class="ab" data-a="brcopy" data-k="'+k+'" data-i="'+i+'" aria-label="'+esc('Copy '+cw()+'delete command for branch '+x.name)+'" data-tip="Copy a '+cw()+'command that deletes this branch. Nothing is run.">Copy '+cw()+'delete command</button></div>').join('')+(b.more>0?'<div class="gw gmore">+'+b.more+' more</div>':'');}
 return h+'</div>';}
 function brHtml(){if(!loaded)return'';const ks=Object.keys(repos).filter(k=>{const rp=repos[k];return rp.st==='ok'&&rp.name&&(!wsOnly||!wsN||rp.ws);}).sort((a,b)=>repos[a].name.localeCompare(repos[b].name));if(!ks.length)return'';
 return '<section class="band" aria-label="Branches without a worktree"><h2 class="bh" role="heading" aria-level="2"><button type="button" class="ab" data-a="brsec" aria-expanded="'+brOpen+'" aria-controls="brbody" data-tip="Local branches with no chat and no worktree, merged or with their remote branch gone. Read only: nothing is deleted.">Branches without a worktree</button></h2>'

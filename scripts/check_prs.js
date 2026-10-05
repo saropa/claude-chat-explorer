@@ -10,7 +10,9 @@ const { fakeGit, collect, mkWorld } = require('./fake_world');
 
 const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
 const { Limiter } = require(path.join(OUT, 'execLimit.js'));
-const { PrCache, parsePrs, fetchPrs } = require(path.join(OUT, 'wipPrs.js'));
+const { PrCache, parsePrs, fetchPrs, ownerOfRemote, ghReason } = require(path.join(OUT, 'wipPrs.js'));
+const { GitLiveService } = require(path.join(OUT, 'gitLive.js'));
+const FIX = (f) => fs.readFileSync(path.join(__dirname, 'fixtures', 'gh', f), 'utf8'); // real gh output recorded from a public repository
 const { rollupChecks, parseView, WorkPrs, CHECKS_CACHE_MS } = require(path.join(OUT, 'workPrs.js'));
 const { WorkScan } = require(path.join(OUT, 'workScan.js'));
 const failures = [];
@@ -52,6 +54,7 @@ function mkGh(world) {
   const f = { calls: [], lists: 0, views: [], running: 0, max: 0, killed: 0, delay: 50 };
   f.exec = (cmd, args, opt) => new Promise((resolve) => {
     if (opt.signal && opt.signal.aborted) { resolve(ABORTED); return; }
+    if (cmd === 'git') { f.remotes = (f.remotes || 0) + 1; resolve(ok(world.origin || '')); return; } // `git remote get-url origin`, the fork owner lookup
     f.calls.push({ cmd, args: args.join(' '), cwd: opt.cwd, at: Date.now() });
     f.running++; f.max = Math.max(f.max, f.running);
     let fin = false, t = 0;
@@ -112,7 +115,7 @@ async function main() {
   const lm = parsePrs(listJson, true);
   check('list: for Open Work a fork PR with the same branch name is skipped, the repository PR kept', lm.get('feat').number === 1 && lm.size === 3);
   const all = parsePrs(listJson);
-  check('sidebar: the default parse keeps a fork PR (the pill shows the PR whose head branch matches), highest number wins', all.get('feat').number === 2 && all.size === 3);
+  check('sidebar: the default parse keeps a fork PR when it is the only one; an own PR beats a fork PR of the same branch name even with a lower number', all.get('feat').number === 1 && all.size === 3 && parsePrs(JSON.stringify([pr(5, 'x'), pr(9, 'x', { isCrossRepository: true })])).get('x').number === 5 && parsePrs(JSON.stringify([pr(9, 'x', { isCrossRepository: true }), pr(5, 'x')])).get('x').number === 5 && parsePrs(JSON.stringify([pr(5, 'x'), pr(7, 'x')])).get('x').number === 7 && parsePrs(JSON.stringify([pr(2, 'x', { isCrossRepository: true }), pr(9, 'x', { isCrossRepository: true })])).get('x').number === 9);
   {
     const forkOnly = JSON.stringify([pr(7, 'fk', { isCrossRepository: true })]);
     const r = await fetchPrs({ exec: async () => ok(forkOnly), gitMs: 1, ghMs: 1, flags: { gitMissing: false } }, '/x');
@@ -326,6 +329,78 @@ async function main() {
       check('scan abort: closing the page kills the running gh children', s.gh.running === 0 && s.gh.killed >= 1);
       check('scan abort: nothing is posted after the cancel', s.c.msgs.length === n);
       check('scan abort: no end message after a cancel', s.c.of('end').length === 0);
+    }
+
+    // ---- real recorded gh JSON: fork clone, review words, not a GitHub repository, bad numbers, sidebar lane ----
+    {
+      const real = JSON.parse(FIX('cli_list.json'));
+      const CR = 'fix/13804-gh-issue-create-errors-after-successful', UP = 'bagtoad/add-accessibility-md';
+      // A fork clone: origin is me/cli, the list comes from the parent. Only the PR whose head repository belongs to me is mine.
+      const fork = real.map((x) => Object.assign({}, x, { headRepositoryOwner: { login: x.number === 13899 ? 'me' : x.isCrossRepository ? 'someone-' + x.number : 'cli' } }));
+      const g = mkGh({ lists: { '*': fork }, views: { 13899: [] }, origin: 'git@github.com:me/cli.git\n' });
+      const e = env(g), r = e.begin();
+      r.run.join('r1', '/c/.git', '/c', CR); r.run.join('r1', '/c/.git', '/c', UP);
+      check('fork clone: settles', await settle(r));
+      const by = r.of('prs').find((m) => m.state === 'ok').by;
+      check('fork clone: my own cross-repository PR is matched, the upstream repository PR of another branch is not', Object.keys(by).join() === CR && by[CR].n === 13899 && g.remotes === 1);
+      check('fork clone: only my PR gets a check lookup', g.views.join() === '13899');
+      check('review words: CHANGES_REQUESTED from real gh JSON reaches the page as "changes requested"', by[CR].review === 'changes requested');
+      check('owner of a remote: https, ssh and scp styles', ownerOfRemote('https://github.com/Me/cli.git\n') === 'me' && ownerOfRemote('git@github.com:me/cli.git') === 'me' && ownerOfRemote('ssh://git@github.com/me/cli') === 'me' && ownerOfRemote('') === undefined);
+      // The same list in a plain clone (origin is cli/cli, no head owner known): the fork flag decides.
+      const g2 = mkGh({ lists: { '*': real }, views: {}, origin: 'https://github.com/cli/cli.git' }), e2 = env(g2), r2 = e2.begin();
+      r2.run.join('r1', '/c/.git', '/c', CR); r2.run.join('r1', '/c/.git', '/c', UP);
+      await settle(r2);
+      const by2 = r2.of('prs').find((m) => m.state === 'ok').by;
+      check('plain clone: the fork PR is skipped, the repository PR kept with the word "approved"', Object.keys(by2).join() === UP && by2[UP].review === 'approved');
+    }
+    {
+      const stderr = 'none of the git remotes configured for this repository point to a known GitHub host. To tell gh about a new GitHub host, please use `gh auth login`';
+      const calls = [];
+      const exec = async (cmd, args) => { calls.push(cmd); return cmd === 'gh' ? { code: 1, stdout: '', stderr, timedOut: false, aborted: false } : ok(''); };
+      const c = { exec, gitMs: 1, ghMs: 1, flags: { gitMissing: false } };
+      const r = await fetchPrs(c, '/x');
+      check('not GitHub: a non-GitHub remote is reported as "not a GitHub repository", never "not signed in"', r.error === 'not a GitHub repository' && r.notGithub === true);
+      check('auth failure: a real sign-in message still says not signed in', ghReason({ code: 4, stderr: 'To get started with GitHub CLI, please run:  gh auth login', stdout: '', timedOut: false, aborted: false }) === 'not signed in to gh');
+      const cache = new PrCache(); const t0 = Date.now();
+      await cache.get(c, 'k', '/x', false, t0); await cache.get(c, 'k', '/x', false, t0 + 4 * 60 * 1000);
+      check('not GitHub: cached for 5 minutes, gh runs once', calls.filter((x) => x === 'gh').length === 2); // fetchPrs above + one cached fetch
+      await cache.get(c, 'k', '/x', false, t0 + 6 * 60 * 1000);
+      check('not GitHub: asked again after 5 minutes', calls.filter((x) => x === 'gh').length === 3);
+      const flaky = async () => ({ code: 1, stdout: '', stderr: 'HTTP 502', timedOut: false, aborted: false }); let n = 0;
+      const c2 = { exec: async (...a) => { n++; return flaky(...a); }, gitMs: 1, ghMs: 1, flags: { gitMissing: false } }, cache2 = new PrCache();
+      await cache2.get(c2, 'k', '/x', false, t0); await cache2.get(c2, 'k', '/x', false, t0 + 1000);
+      check('failures other than not-GitHub are still never cached', n === 2);
+    }
+    {
+      const world = { lists: { '*': [pr(0, 'zero'), pr(1234567890, 'huge'), pr(4, 'ok')] }, views: {} };
+      const g = mkGh(world), e = env(g), r = e.begin();
+      r.run.join('r1', '/c/.git', '/c', 'zero'); r.run.join('r1', '/c/.git', '/c', 'huge'); r.run.join('r1', '/c/.git', '/c', 'ok');
+      check('bad number: settles', await settle(r));
+      check('bad number: a PR number gh would never print is skipped, the repository and the other PR still work', r.of('prs').every((m) => m.state !== 'unavailable') && Object.keys(r.of('prs').find((m) => m.state === 'ok').by).join() === 'ok' && g.views.join() === '4');
+    }
+    { // Sidebar lane: the page holds 1 of 2 gh slots with two 6 s calls; a 5 s sidebar call must finish inside its 10 s card deadline.
+      const repo = path.join(base, 'lane-repo'); fs.mkdirSync(repo, { recursive: true });
+      const slow = (ms) => (c, a, o) => new Promise((res) => { setTimeout(() => res(ok('[]')), ms); });
+      const lane = async (pageSlots, firstDelay) => {
+        const L = new Limiter(2, pageSlots), t0 = clock.t;
+        const bg = L.wrap(slow(6000), 'bg'); bg('gh', ['pr', 'list'], { cwd: '/', timeout: 8000 }); bg('gh', ['pr', 'list'], { cwd: '/', timeout: 8000 });
+        const side = new GitLiveService(realExecSafe, L.wrap(slow(5000), 'ui'), new PrCache());
+        let res; side.load(repo, 'git', true).then((x) => { res = x; });
+        await until(() => res, 100, 30000);
+        return { res, at: clock.t - t0 };
+      };
+      const realExecSafe = async (cmd, args, o) => { const a = args.slice(2); // a fake git on the fake clock (real processes would not keep up with it)
+        return ok(a[0] === 'rev-parse' ? repo + '\n.git\nrefs/heads/main\n' : a[0] === 'for-each-ref' ? 'main\t\t\n' : ''); };
+      const a = await lane(1);
+      check('sidebar lane: with the page on 1 of 2 gh slots a 5 s sidebar lookup finishes in time with its PR answer', a.res && a.res.live.state === 'ok' && a.res.live.prPending !== true && a.at <= 6000);
+      const b = await lane(2);
+      check('sidebar lane: guard that the test can fail (page on both slots, the sidebar waits 6 s and its 5 s call then runs, still inside the deadline because it counts from the start)', b.res && b.res.live.state === 'ok');
+      // Deadline counted from the start of its command: a sidebar call queued behind a 12 s job is not timed out while it waits.
+      const L = new Limiter(1, 1); const blocker = L.wrap(slow(12000), 'ui'); blocker('gh', ['pr', 'list'], { cwd: '/', timeout: 20000 });
+      const side = new GitLiveService(realExecSafe, L.wrap(slow(5000), 'ui'), new PrCache()); let res;
+      side.load(repo, 'git', true).then((x) => { res = x; });
+      await until(() => res, 100, 40000);
+      check('sidebar deadline: waiting for a slot does not use up the 10 s card deadline', res && res.live.state === 'ok');
     }
   } finally { try { fs.rmSync(base, { recursive: true, force: true }); } catch (e) { /* scratch only */ } }
 

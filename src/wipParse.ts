@@ -61,7 +61,7 @@ export function parseWorktrees(out: string): WorktreeInfo[] {
   return list;
 }
 
-export const REF_FORMAT = '%(refname:short)%09%(upstream:short)%09%(upstream:track)';
+export const REF_FORMAT = '%(refname:lstrip=2)%09%(upstream:short)%09%(upstream:track)';
 export const MAX_BRANCHES = 30;
 
 /** Parse the for-each-ref lines: only branches with an upstream that are ahead of it or whose upstream is gone. */

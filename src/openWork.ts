@@ -201,7 +201,7 @@ export class OpenWork {
 
   private replay(): void {
     const p = this.prefs;
-    this.post({ type: 'init', v: 3, prsOn: this.d.prsOn(), days: openWorkDays(), group: p.group, hidden: p.hidden, wsOnly: p.wsOnly, ws: this.d.workspace().length, done: Object.fromEntries(this.done), view: this.view });
+    this.post({ type: 'init', v: 3, prsOn: this.d.prsOn(), days: openWorkDays(), group: p.group, hidden: p.hidden, wsOnly: p.wsOnly, ws: this.d.workspace().length, done: Object.fromEntries(this.done), view: this.view, win: process.platform === 'win32' });
     this.post({ type: 'dots', map: this.d.dots() });
     const k = this.model;
     if (!k.chats) { void this.refresh(); return; }
@@ -285,7 +285,7 @@ export class OpenWork {
     if (!r) { void vscode.window.showInformationMessage('That worktree cannot be removed: it is the main checkout or it is locked.'); return; }
     if (r.manual) { void vscode.window.showInformationMessage(`Remove manually: the path or branch name of ${r.name} contains special characters.`); return; }
     await vscode.env.clipboard.writeText(r.text);
-    void vscode.window.showInformationMessage(`Copied the remove command for ${r.name}. Run it in a terminal.`);
+    void vscode.window.showInformationMessage(`Copied the ${process.platform === 'win32' ? 'PowerShell ' : ''}remove command for ${r.name}. Run it in a terminal.`);
   }
 
   /** Copy the page's summary of open work. The text is checked (a string, at most 100000 characters) and only copied; the page shows Copied with the item count. */
@@ -310,7 +310,7 @@ export class OpenWork {
     if (!r) { void vscode.window.showInformationMessage('That branch is not available. Open the list again and try again.'); return; }
     if (r.manual) { void vscode.window.showInformationMessage(`Delete manually: the path or branch name of ${r.name} contains special characters.`); return; }
     await vscode.env.clipboard.writeText(r.text);
-    void vscode.window.showInformationMessage(`Copied the delete command for branch ${r.name}. Run it in a terminal.`);
+    void vscode.window.showInformationMessage(`Copied the ${process.platform === 'win32' ? 'PowerShell ' : ''}delete command for branch ${r.name}. Run it in a terminal.`);
   }
 
   private async find(id: string): Promise<void> {

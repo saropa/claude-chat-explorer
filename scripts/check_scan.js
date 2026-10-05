@@ -211,6 +211,20 @@ async function scanTests() {
   }
 }
 
+// Merged branch names: read with refname:lstrip=2 (a tag of the same name cannot shorten it), up to 5000, reported (never silently cut) beyond that.
+async function mergedTests() {
+  const wipGit = require(path.join(OUT, 'wipGit.js'));
+  const seen = [];
+  const mk = (n) => async (cmd, args) => { seen.push(args.join(' ')); return OKRES(Array.from({ length: n }, (_, i) => 'b' + String(i).padStart(5, '0')).join('\n')); };
+  const c = (exec) => ({ exec, gitMs: 1, ghMs: 1, flags: { gitMissing: false } });
+  const a = await wipGit.mergedOf(c(mk(4000)), '/x', 'origin/main');
+  check('merged: the names are read with %(refname:lstrip=2)', seen.some((x) => /--format=%\(refname:lstrip=2\)/.test(x)) && !seen.some((x) => /refname:short/.test(x)));
+  check('merged: 4000 names are all kept (the old cap of 500 cut them alphabetically)', Array.isArray(a) && a.length === 4000 && a[3999] === 'b03999');
+  const b = await wipGit.mergedOf(c(mk(5001)), '/x', 'origin/main');
+  check('merged: more than 5000 names are reported, not silently cut', b === 'too many branches');
+  const o = await wipGit.mergedOf(c(async () => ({ code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER', stdout: 'b1\n', stderr: '', timedOut: false, aborted: false })), '/x', 'origin/main');
+  check('merged: an output overflow is reported', o === 'too many branches');
+}
 function pureTests() {
   const wt = parseWorktrees('worktree /a\nHEAD 1111111\nbranch refs/heads/main\n\nworktree /b\nHEAD 2222222\ndetached\nlocked\n\nworktree /c\nHEAD 3333333\nbranch refs/heads/x\nlocked why\nprunable gone\n');
   const wz = parseWorktrees('worktree /a\0HEAD 1111111\0branch refs/heads/main\0\0worktree /b\nc d\0HEAD 2222222\0branch refs/heads/x\0locked why\0\0worktree /e\0HEAD 3333333\0detached\0\0');
@@ -231,6 +245,13 @@ function pureTests() {
     check('remove: Windows builds no command when ' + what + ' is in the path or branch (' + JSON.stringify(c) + ')', c === 'manual');
   }
   check('remove: Windows main folder with $ also builds no command', repoMod.removeCommand({ main: 'C:\\r$x', defLocal: 'main' }, W({ path: 'C:\\ok' }), true) === 'manual');
+  // cmd.exe acts on & | < > ( ) even where PowerShell would not: no command is built for them.
+  for (const ch of ['&', '|', '<', '>', '(', ')']) {
+    check('remove: Windows builds no command for ' + ch + ' in the path', repoMod.removeCommand(RW, W({ path: 'C:\\a' + ch + 'b' }), true) === 'manual');
+    check('remove: Windows builds no command for ' + ch + ' in the main folder', repoMod.removeCommand({ main: 'C:\\r' + ch + 'x', defLocal: 'main' }, W({ path: 'C:\\ok' }), true) === 'manual');
+    check('branch: Windows builds no delete command for ' + ch + ' in the name', repoMod.branchCommand(RW, 'a' + ch + 'b', true) === 'manual');
+    check('remove: POSIX is unchanged for ' + ch + ' (single quotes are literal there)', repoMod.removeCommand(R, W({ path: '/x' + ch + 'y' }), false).indexOf("worktree remove '/x" + ch + "y'") > 0);
+  }
   check('remove: Windows prune ignores the worktree path (not in the command)', repoMod.removeCommand(RW, W({ missing: true, path: 'C:\\a$b' }), true) === "git -C 'C:\\r' worktree prune");
   check('remove: Windows with an unmerged unsafe branch builds worktree remove only (the branch is not in the command)', repoMod.removeCommand(RW, W({ merged: false, branch: 'a$b', path: 'C:\\ok' }), true) === "git -C 'C:\\r' worktree remove 'C:\\ok'");
   check('remove: POSIX stays single-quoted for $ and a double quote (single quotes are literal there)', /worktree remove '\/x\$\(y\)"z'/.test(repoMod.removeCommand(R, W({ path: '/x$(y)"z' }), false)));
@@ -372,13 +393,13 @@ async function prTests() {
 
 (async () => {
   try {
+    await mergedTests();
     await limiterTests();
     await scanTests();
     await repoLayerTests();
     pureTests();
     await prTests();
-  } catch (e) { bad('check_scan crashed: ' + ((e && e.stack) || e)); }
-  try { fs.rmSync(base, { recursive: true, force: true }); } catch (e) { /* scratch only */ }
+  } catch (e) { bad('check_scan crashed: ' + ((e && e.stack) || e)); } finally { try { fs.rmSync(base, { recursive: true, force: true }); } catch (e) { /* scratch only */ } }
   if (failures.length) {
     console.error('check_scan FAILED (' + failures.length + ')');
     [...new Set(failures)].slice(0, 30).forEach((f) => console.error('  - ' + f));

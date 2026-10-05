@@ -3,6 +3,7 @@
 export const OW_PR_JS = String.raw`
 const WATCH_PR_MS=25000,SPINP='<span class="spin" role="img" aria-label="Checking pull request"></span>',PERM={'gh not installed':1,'not a GitHub repository':1,'not signed in to gh':1},CHK=['passing','failing','pending','none','unavailable'],PRS_OFF='Pull requests are off (setting Look Up Pull Requests).';
 let prs={},prsOn=true,pwatch={};
+function revWord(v){const m={APPROVED:'approved',CHANGES_REQUESTED:'changes requested',REVIEW_REQUIRED:'review requested'};return m[v]||(/^(approved|changes requested|review requested)$/.test(v)?v:'');}
 function prSite(r){let rk='',b='';if(r.kind==='wt'){rk=r.rk||'';b=r.w&&!r.w.detached?r.w.branch||'':'';}else{const e=fOf(r),f=e&&e.f;if(f){rk=f.rk||'';b=f.detached?'':f.branch||'';}}return rk&&b?{rk:rk,b:b}:null;}
 function prInfo(r){if(!prsOn)return null;const s=prSite(r);if(!s)return null;const p=prs[s.rk];if(!p)return{rk:s.rk,p:null,pr:null,c:null};
 const pr=p.by&&p.by[s.b]?p.by[s.b]:null;return{rk:s.rk,p:p,pr:pr,c:pr?p.chk[pr.n]||null:null};}
@@ -14,7 +15,7 @@ function pwatchKey(rk){clearTimeout(pwatch[rk]);pwatch[rk]=setTimeout(()=>{delet
 function prDone(rk){clearTimeout(pwatch[rk]);delete pwatch[rk];}
 function onPrs(d){if(d.scan!==scan||typeof d.repo!=='string'||!prsOn)return;touch();const p=prs[d.repo]||(prs[d.repo]={chk:{},by:{},st:'',reason:''});
 p.st=String(d.state||'');p.reason=d.reason?String(d.reason):'';
-if(d.state==='ok'&&d.by&&typeof d.by==='object'){p.by={};Object.keys(d.by).forEach(b=>{const x=d.by[b];if(x&&x.n>0)p.by[b]={n:Number(x.n),title:String(x.title||''),draft:!!x.draft,review:String(x.review||''),link:!!x.link};});}
+if(d.state==='ok'&&d.by&&typeof d.by==='object'){p.by={};Object.keys(d.by).forEach(b=>{const x=d.by[b];if(x&&x.n>0)p.by[b]={n:Number(x.n),title:String(x.title||''),draft:!!x.draft,review:revWord(String(x.review||'')),link:!!x.link};});}
 prDone(d.repo);if(d.state==='checking'||d.state==='ok')pwatchKey(d.repo);sched();}
 function onChecks(d){if(d.scan!==scan||typeof d.repo!=='string'||!prsOn||!(d.n>0))return;touch();const p=prs[d.repo]||(prs[d.repo]={chk:{},by:{},st:'',reason:''}),n=Number(d.n),o=p.chk[n];
 if(d.state==='checking'){if(o&&o.st!=='checking'&&o.st!=='unavailable')o.re=true;else p.chk[n]={st:'checking'};}

@@ -1,17 +1,15 @@
 import { ExecResult } from './wipExec';
-import { Ctx, gh } from './wipGit';
+import { Ctx, gh, git } from './wipGit';
 import { PrInfo } from './wipTypes';
+import { PR_ARGS, PR_ARGS_OLD } from './wipPrsArgs';
 
 export const PR_CACHE_MS = 5 * 60 * 1000;
-const PR_FIELDS = 'number,title,headRefName,isDraft,reviewDecision,url';
-export const PR_ARGS = ['pr', 'list', '--state', 'open', '--limit', '100', '--json', PR_FIELDS + ',headRefOid,isCrossRepository'];
-/** Same list without the two newer fields, for a gh that does not know them. */
-export const PR_ARGS_OLD = ['pr', 'list', '--state', 'open', '--limit', '100', '--json', PR_FIELDS];
+export { PR_ARGS, PR_ARGS_OLD };
 const TITLE_MAX = 80;
 
 /** Open PRs of one repository by branch, or why they are unavailable (short words, never raw output). */
 /** byBranch lists every PR (the sidebar pill shows a fork PR too); own leaves out fork PRs (Open Work matches only this repository's branches). */
-export interface PrResult { byBranch: Map<string, PrInfo>; own?: Map<string, PrInfo>; error?: string; missing?: boolean; }
+export interface PrResult { byBranch: Map<string, PrInfo>; own?: Map<string, PrInfo>; error?: string; missing?: boolean; notGithub?: boolean; }
 
 const REVIEW: { [k: string]: string } = { APPROVED: 'approved', CHANGES_REQUESTED: 'changes requested', REVIEW_REQUIRED: 'review requested' };
 export const reviewWord = (d: string): string => REVIEW[d] ?? '';
@@ -22,26 +20,49 @@ export const cleanTitle = (t: string): string => t.replace(/https?:\/\/\S+/gi, '
 /** The PR page address from gh, only when it is an https link. */
 const safeUrl = (u: unknown): string | undefined => (typeof u === 'string' && /^https:\/\/\S+$/.test(u) ? u : undefined);
 
-/** Map the JSON of `gh pr list` by head branch (the highest number wins); with ownOnly, fork pull requests are skipped (a fork branch of the same name is not this repository's branch); undefined when it is not the expected shape. */
-export function parsePrs(stdout: string, ownOnly = false): Map<string, PrInfo> | undefined {
+/** The owner part of a git remote address (https, ssh or scp style), lower case; undefined when it has none. */
+export function ownerOfRemote(url: string): string | undefined {
+  const m = /[:/]([^/:\s]+)\/[^/\s]+?(?:\.git)?\/?\s*$/.exec(url.trim());
+  return m ? m[1].toLowerCase() : undefined;
+}
+
+/** True when the PR's head is this clone's own: same owner as the origin remote (a fork workflow's own PR), or in this repository itself. Unknown owners fall back to the fork flag. */
+function isOwn(x: { [k: string]: unknown }, originOwner?: string): boolean {
+  const o = x.headRepositoryOwner as { login?: unknown } | null | undefined;
+  const head = o && typeof o.login === 'string' ? o.login.toLowerCase() : undefined;
+  if (head && originOwner) { return head === originOwner; }
+  return x.isCrossRepository !== true;
+}
+
+/** Map the JSON of `gh pr list` by head branch. Own pull requests beat fork ones of the same branch name; within one class the highest number wins.
+ *  With ownOnly, pull requests from other owners are skipped (a foreign branch of the same name is not this clone's branch). originOwner is the owner of the origin remote. Undefined when it is not the expected shape. */
+export function parsePrs(stdout: string, ownOnly = false, originOwner?: string): Map<string, PrInfo> | undefined {
   let v: unknown;
   try { v = JSON.parse(stdout); } catch { return undefined; }
   if (!Array.isArray(v)) { return undefined; }
   const m = new Map<string, PrInfo>();
+  const own = new Map<string, boolean>();
   for (const x of v as Array<{ [k: string]: unknown }>) {
-    if (!x || typeof x.number !== 'number' || typeof x.headRefName !== 'string' || (ownOnly && x.isCrossRepository === true)) { continue; }
+    if (!x || typeof x.number !== 'number' || typeof x.headRefName !== 'string') { continue; }
+    const mine = isOwn(x, originOwner);
+    if (ownOnly && !mine) { continue; }
     const prev = m.get(x.headRefName);
-    if (prev && prev.number > x.number) { continue; }
+    if (prev && (own.get(x.headRefName) === mine ? prev.number > x.number : own.get(x.headRefName) === true)) { continue; }
+    own.set(x.headRefName, mine);
     m.set(x.headRefName, { number: x.number, title: cleanTitle(String(x.title ?? '')), draft: x.isDraft === true, review: String(x.reviewDecision ?? ''), url: safeUrl(x.url), sha: typeof x.headRefOid === 'string' && /^[0-9a-f]{7,64}$/i.test(x.headRefOid) ? x.headRefOid : undefined });
   }
   return m;
 }
+
+/** True when gh says none of the remotes is a GitHub host (it also mentions `gh auth login`, so this is tested before the sign-in rule). */
+export const isNotGithub = (r: ExecResult): boolean => /none of the git remotes|known github host|no git remotes/i.test(r.stderr);
 
 /** Short reason why gh gave no answer. */
 export function ghReason(r: ExecResult): string {
   if (r.timedOut) { return 'timed out'; }
   if (r.aborted) { return 'canceled'; }
   if (r.code === 'ENOENT') { return 'gh not installed'; }
+  if (isNotGithub(r)) { return 'not a GitHub repository'; }
   const e = r.stderr.toLowerCase();
   if (/auth|log ?in|token|credential/.test(e)) { return 'not signed in to gh'; }
   if (/connect|network|dial|resolve|offline|timeout/.test(e)) { return 'GitHub not reachable'; }
@@ -49,13 +70,17 @@ export function ghReason(r: ExecResult): string {
   return 'gh failed';
 }
 
-/** One gh call for a repository folder. */
+/** One gh call for a repository folder. The origin owner is read (one `git remote get-url origin`) only when a fork pull request is in the list. */
 export async function fetchPrs(c: Ctx, cwd: string): Promise<PrResult> {
   let r = await gh(c, cwd, PR_ARGS);
-  if (r.code !== 0 && /unknown json field/i.test(r.stderr)) { r = await gh(c, cwd, PR_ARGS_OLD); } // an older gh: ask without the two newer fields
-  if (r.code !== 0) { return { byBranch: new Map(), error: ghReason(r), missing: r.code === 'ENOENT' }; }
+  if (r.code !== 0 && /unknown json field/i.test(r.stderr)) { r = await gh(c, cwd, PR_ARGS_OLD); } // an older gh: ask without the newer fields
+  if (r.code !== 0) { return { byBranch: new Map(), error: ghReason(r), missing: r.code === 'ENOENT', notGithub: isNotGithub(r) }; }
   const m = parsePrs(r.stdout);
-  return m ? { byBranch: m, own: parsePrs(r.stdout, true) } : { byBranch: new Map(), error: 'unreadable gh answer' };
+  if (!m) { return { byBranch: new Map(), error: 'unreadable gh answer' }; }
+  const fork = /"isCrossRepository":\s*true/.test(r.stdout);
+  const o = fork ? await git(c, cwd, ['remote', 'get-url', 'origin']) : undefined;
+  const owner = o && o.code === 0 ? ownerOfRemote(o.stdout) : undefined;
+  return { byBranch: parsePrs(r.stdout, false, owner) ?? m, own: parsePrs(r.stdout, true, owner) };
 }
 
 interface Shared { p: Promise<PrResult>; ac: AbortController; waiters: number; }
@@ -77,7 +102,7 @@ export class PrCache {
   private start(c: Ctx, key: string, cwd: string, now: number): Shared {
     const ac = new AbortController();
     const p = fetchPrs({ ...c, signal: ac.signal }, cwd).catch((): PrResult => ({ byBranch: new Map(), error: 'gh failed' })).then((r) => {
-      if (!r.error || r.missing) { this.m.set(key, { at: now, r }); }
+      if (!r.error || r.missing || r.notGithub) { this.m.set(key, { at: now, r }); }
       return r;
     }).finally(() => { if (this.running.get(key) === e) { this.running.delete(key); } });
     const e: Shared = { p, ac, waiters: 0 };

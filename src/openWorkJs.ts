@@ -36,7 +36,7 @@ const acts=(wt?'':btn('open','Open chat: '+t,'Open','Open chat')+btn('handover',
 +prActs(r,t)
 +(c.retry?'<button type="button" class="ab" data-a="fretry" data-k="'+esc(c.retry)+'" aria-label="'+esc('Retry reading git: '+t)+'" data-tip="'+esc(retryTip(gs[c.retry])||'Read git again')+'">Retry</button>':'')
 +(pc.retry?'<button type="button" class="ab" data-a="fretry" data-k="'+esc(pc.retry)+'" aria-label="'+esc('Retry pull request lookup: '+t)+'" data-tip="Look up the pull request again">Retry</button>':'')
-+(ready&&w&&!w.main?'<button type="button" class="ab" data-a="rm" data-k="'+esc(w.k)+'" aria-label="'+esc('Copy remove command: '+t)+'" data-tip="Copy a command that removes this finished worktree. Nothing is run.">Copy remove command</button>':'');
++(ready&&w&&!w.main?'<button type="button" class="ab" data-a="rm" data-k="'+esc(w.k)+'" aria-label="'+esc('Copy '+cw()+'remove command: '+t)+'" data-tip="Copy a '+cw()+'command that removes this finished worktree. Nothing is run.">Copy '+cw()+'remove command</button>':'');
 return '<div class="row" role="listitem" data-id="'+esc(r.id)+'" aria-busy="'+(c.busy||pc.busy?'true':'false')+'"><div class="main"><button type="button" class="rb" data-a="row" tabindex="'+(tab?0:-1)+'" aria-expanded="'+isOpen+'" aria-label="'+esc(label)+'">'+dot
 +'<span class="t" data-tip="'+esc(t+(wt?'\nWorktree with no chat':'\n'+words))+'">'+(r.pinned?'<span class="pill">Pinned</span> ':'')+esc(t)+'</span>'
 +'<span class="meta"><span class="pj">'+esc(r.project||'')+'</span><span class="br">'+c.br+'</span><span class="fl">'+c.fl+'</span><span class="ah">'+esc(c.ah)+'</span>'+(prsOn?'<span class="pr">'+pc.pr+'</span><span class="kc">'+pc.ck+'</span>':'')+'<span class="cx '+(wt?'l0':ctxClass(r))+'">'+(!wt&&r.ctx?r.ctx.pct+'% full':'')+'</span><span class="st">'+esc(stTxt)+'</span><span class="tm">'+esc(age)+'</span></span></button>'
@@ -117,7 +117,7 @@ $('srm').addEventListener('change',e=>{setSort(e.target.value);pop.close('');});
 $('shb').addEventListener('click',()=>pop.toggle('shb','shm'));
 $('fq').addEventListener('input',()=>{clearTimeout(qT);qT=setTimeout(()=>applyQ($('fq').value),Q_DEBOUNCE_MS);});
 function focusStep(t,d){const all=Array.from(document.querySelectorAll('.rb')),i=all.indexOf(t)+d;if(all[i])all[i].focus();}
-document.addEventListener('keydown',e=>{if(viewKey(e))return;const t=e.target;if(!t||!t.classList||!t.classList.contains('rb'))return;const row=t.closest('.row'),id=row?row.dataset.id:'';if(!id)return;
+document.addEventListener('keydown',e=>{if(e.popClosed)return;if(pop.isOpen()&&e.key!=='?'){return;}if(viewKey(e))return;const t=e.target;if(!t||!t.classList||!t.classList.contains('rb'))return;const row=t.closest('.row'),id=row?row.dataset.id:'';if(!id)return;
 if(e.key==='ArrowDown'||e.key==='j'){e.preventDefault();focusStep(t,1);}
 else if(e.key==='ArrowUp'||e.key==='k'){e.preventDefault();focusStep(t,-1);}
 else if(e.key==='Home'||e.key==='End'){e.preventDefault();const all=Array.from(document.querySelectorAll('.rb'));const x=e.key==='Home'?all[0]:all[all.length-1];if(x)x.focus();}
@@ -133,7 +133,7 @@ document.addEventListener('focusout',()=>{if(moving)settle(HOLD_MS);});
 window.addEventListener('resize',layout);
 setInterval(updText,10000);
 window.addEventListener('message',e=>{const d=e.data;if(!d)return;
-if(d.type==='init'){days=d.days||14;if(GROUPS.some(g=>g[0]===d.group))group=d.group;hidden=Array.isArray(d.hidden)?d.hidden.filter(b=>BAND_ORDER.indexOf(b)>=0):[];wsOnly=!!d.wsOnly;wsN=Number(d.ws)||0;setPrsOn(d.prsOn);donemap=d.done&&typeof d.done==='object'?d.done:{};applyView(d.view);render();}
+if(d.type==='init'){days=d.days||14;if(GROUPS.some(g=>g[0]===d.group))group=d.group;hidden=Array.isArray(d.hidden)?d.hidden.filter(b=>BAND_ORDER.indexOf(b)>=0):[];wsOnly=!!d.wsOnly;wsN=Number(d.ws)||0;winCmd=d.win===true;setPrsOn(d.prsOn);donemap=d.done&&typeof d.done==='object'?d.done:{};applyView(d.view);render();}
 else if(d.type==='chats'){if(d.scan<scan)return;if(d.scan>scan){scanLive=!!d.scanning;prog=null;ended=false;resetBr();resetDetail();Object.keys(fwatch).forEach(k=>{clearTimeout(fwatch[k]);});fwatch={};touch();}scan=d.scan;rows=Array.isArray(d.rows)?d.rows:[];pend.clear();loaded=true;failed='';indexing=!!d.indexing;lastAt=Date.now();clearTimeout(watch);render();say(rows.length+' chats shown.');}
 else if(d.type==='chatsFailed'){if(d.scan<scan)return;failed=d.message||'Could not load chats';clearTimeout(watch);render();}
 else if(d.type==='dots'){dots=d.map||{};gotDots=true;sched();}

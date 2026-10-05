@@ -28,7 +28,7 @@ export function bandOf(dot: string, g?: any, last?: number, now?: number): strin
   if (dot === 'running') { return 'waiting'; }
   if (g && g.ok) {
     if (g.files > 0 || g.ahead > 0) { return 'finish'; }
-    if (p) { return p.review === 'changes requested' || (p.review === 'approved' && p.checks !== 'pending') ? 'finish' : 'waiting'; }
+    if (p) { return p.review === 'changes requested' || (p.review === 'approved' && (p.checks === 'passing' || p.checks === 'none')) ? 'finish' : 'waiting'; }
     const old = typeof last === 'number' && typeof now === 'number' && now - last >= 3 * 86400000;
     if (g.gone || g.ready || (g.merged && !g.isDef) || (old && (g.up || g.isDef || g.merged))) { return 'tidy'; }
   }
@@ -50,7 +50,7 @@ export function nextStep(dot: string, g?: any): string {
   if (g.files > 0) { todo.push('commit or discard ' + countWord(g.files, 'changed file')); }
   if (g.ahead > 0) { todo.push('push ' + countWord(g.ahead, 'commit')); }
   if (todo.length) { return 'Open work: ' + todo.join(', then ') + '.'; }
-  if (pr) { return g.pr.review === 'changes requested' ? 'Changes were requested on ' + pr + '. Make them and push.' : g.pr.review === 'approved' && g.pr.checks !== 'pending' ? 'The ' + pr + ' is approved. It is ready to merge.' : 'Waiting on ' + pr + ' (review or checks).'; }
+  if (pr) { return g.pr.review === 'changes requested' ? 'Changes were requested on ' + pr + '. Make them and push.' : g.pr.review === 'approved' && (g.pr.checks === 'passing' || g.pr.checks === 'none') ? 'The ' + pr + ' is approved. It is ready to merge.' : 'Waiting on ' + pr + ' (review or checks).'; }
   if (g.ready) { return 'This worktree is finished. You can remove it with the copied command.'; }
   if (g.gone) { return 'The remote branch is gone. The branch can be deleted and the chat archived.'; }
   if (g.merged && !g.isDef) { return 'This branch is merged. It can be deleted and the chat archived.'; }
@@ -161,7 +161,7 @@ export function flagPass(g: any, f: any): boolean {
  * Titles and names are cleaned: control characters and line breaks become spaces, links and long key-like strings are replaced, markdown characters escaped. No links are ever included.
  */
 export function summaryOf(items: any[], days: number): { text: string; n: number } {
-  const clean = (s: any): string => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/https?:\/\/\S+/gi, '[link]').replace(/[A-Za-z0-9_\-]{32,}/g, '[redacted]').replace(/\s+/g, ' ').trim().slice(0, 120).replace(/([\\`*_{}\[\]<>|#~])/g, '\\$1');
+  const clean = (s: any): string => String(s == null ? '' : s).replace(/[\u202a-\u202e\u2066-\u2069]/g, '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/https?:\/\/\S+/gi, '[link]').replace(/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, '[redacted]').replace(/[A-Za-z0-9_\-]{32,}/g, '[redacted]').replace(/[A-Za-z0-9+\/=_-]{20,}/g, (t: string) => (/[+\/=]/.test(t) && /[A-Z]/.test(t) && /[a-z]/.test(t) && /[0-9]/.test(t) ? '[redacted]' : t)).replace(/\s+/g, ' ').trim().slice(0, 120).replace(/([\\`*_{}\[\]<>|#~])/g, '\\$1');
   const order = ['needs', 'finish', 'waiting', 'tidy'];
   const labels: { [k: string]: string } = { needs: 'Needs you', finish: 'To finish', waiting: 'Waiting on others', tidy: 'Ready to tidy' };
   const open = items.filter((x) => order.indexOf(x.band) >= 0);

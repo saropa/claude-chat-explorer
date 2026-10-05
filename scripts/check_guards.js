@@ -33,13 +33,12 @@ if ((read('openWork.ts').match(/softRequest\(/g) || []).length < 1 || /this\.d\.
 
 // 2. The read-only git and gh allow-list is exactly what it was before the Open Work page.
 const ALLOW = [
-  "const GIT_OK = new Set(['rev-parse', 'symbolic-ref', 'status', 'worktree', 'for-each-ref', 'rev-list']);",
-  "const GH_OK = ['pr', 'list'];",
+  "const GIT_OK = new Set(['rev-parse', 'symbolic-ref', 'status', 'worktree', 'for-each-ref', 'rev-list', 'remote']);",
   "export const CHECKS_FIELDS = 'statusCheckRollup,headRefOid';",
   "const PR_NUMBER = /^[1-9][0-9]{0,8}$/;",
   "const isChecksView = (a: string[]): boolean => a.length === 5 && a[0] === 'pr' && a[1] === 'view' && PR_NUMBER.test(a[2]) && a[3] === '--json' && a[4] === CHECKS_FIELDS;",
-  "if (!GIT_OK.has(args[0]) || (args[0] === 'worktree' && args[1] !== 'list')) { throw new Error('git command not allowed: ' + args[0]); }",
-  "if (!(args[0] === GH_OK[0] && args[1] === GH_OK[1]) && !isChecksView(args)) { throw new Error('gh command not allowed: ' + args[0]); }",
+  "if (!GIT_OK.has(args[0]) || (args[0] === 'worktree' && args[1] !== 'list') || (args[0] === 'remote' && args.join(' ') !== 'remote get-url origin')) { throw new Error('git command not allowed: ' + args[0]); }",
+  "if (!isPrList(args) && !isChecksView(args)) { throw new Error('gh command not allowed: ' + args[0]); }",
 ];
 const wip = read('wipGit.ts');
 for (const line of ALLOW) { if (!wip.includes(line)) { bad('git/gh allow-list changed: missing ' + line.slice(0, 70)); } }
@@ -51,7 +50,13 @@ for (const line of ALLOW) { if (!wip.includes(line)) { bad('git/gh allow-list ch
   const tryGh = (args) => { try { g.gh(c, '/x', args); return true; } catch (e) { return false; } };
   for (const a of [['status'], ['rev-parse', 'HEAD'], ['symbolic-ref', 'HEAD'], ['worktree', 'list'], ['worktree', 'list', '--porcelain', '-z'], ['for-each-ref'], ['rev-list', 'HEAD']]) { if (!(await tryGit(a))) { bad('git must allow ' + a.join(' ')); } }
   for (const a of [['push'], ['commit'], ['checkout', 'x'], ['reset', '--hard'], ['clean', '-f'], ['stash'], ['fetch'], ['merge', 'x'], ['branch', '-D', 'x'], ['config', 'a', 'b'], ['worktree', 'remove', 'x'], ['worktree', 'add', 'x'], ['worktree'], ['worktree', 'prune'], ['worktree', 'lock', 'x'], ['restore', 'x']]) { if (await tryGit(a)) { bad('git must reject ' + a.join(' ')); } }
-  if (!tryGh(['pr', 'list', '--json', 'number'])) { bad('gh must allow pr list'); }
+  // pr list: exactly the argument list of wipPrs (current or older gh); nothing added, nothing changed.
+  const { PR_ARGS, PR_ARGS_OLD } = require(path.join(OUT, 'wipPrs.js'));
+  if (!tryGh(PR_ARGS) || !tryGh(PR_ARGS_OLD)) { bad('gh must allow the exact pr list argument lists'); }
+  for (const a of [['pr', 'list', '--json', 'number'], ['pr', 'list'], PR_ARGS.concat(['-R', 'x/y']), PR_ARGS.concat(['--web']), PR_ARGS.concat(['-q', '.']), PR_ARGS.concat(['--jq', '.']), ['-R', 'x/y'].concat(PR_ARGS), PR_ARGS.map((v) => (v === '100' ? '1000' : v)), PR_ARGS.map((v) => (v === 'open' ? 'all' : v)), PR_ARGS.slice(0, -1).concat([PR_ARGS[PR_ARGS.length - 1] + ',body'])]) { if (tryGh(a)) { bad('gh must reject a changed pr list: ' + a.join(' ').slice(0, 80)); } }
+  // git remote: only `remote get-url origin`.
+  if (!(await tryGit(['remote', 'get-url', 'origin']))) { bad('git must allow remote get-url origin'); }
+  for (const a of [['remote'], ['remote', '-v'], ['remote', 'add', 'x', 'y'], ['remote', 'set-url', 'origin', 'x'], ['remote', 'get-url', 'upstream'], ['remote', 'get-url', '--all', 'origin'], ['remote', 'remove', 'origin']]) { if (await tryGit(a)) { bad('git must reject ' + a.join(' ')); } }
   // The one added shape: pr view <digits> --json statusCheckRollup,headRefOid, exactly.
   if (!tryGh(['pr', 'view', '81', '--json', 'statusCheckRollup,headRefOid'])) { bad('gh must allow pr view <n> --json statusCheckRollup,headRefOid'); }
   const WRITES = [['pr', 'merge', '1'], ['pr', 'merge', '81', '--squash'], ['pr', 'checkout', '1'], ['pr', 'comment', '1', '--body', 'x'], ['pr', 'create'], ['pr', 'close', '1'], ['pr', 'review', '1', '--approve'], ['pr', 'edit', '1'], ['pr', 'ready', '1'],
@@ -62,7 +67,7 @@ for (const line of ALLOW) { if (!wip.includes(line)) { bad('git/gh allow-list ch
     ['pr', 'view', '01', '--json', 'statusCheckRollup,headRefOid'], ['pr', 'view', '1234567890', '--json', 'statusCheckRollup,headRefOid'], ['pr', 'view', 'https://example.com/pull/1', '--json', 'statusCheckRollup,headRefOid'], ['pr', 'view', '1', '--json', 'statusCheckRollup,headRefOid', '--repo', 'a/b'],
     ['pr', 'view', '1', '--jq', '.', '--json', 'statusCheckRollup,headRefOid']]) { if (tryGh(a)) { bad('gh must reject ' + a.join(' ')); } }
   // The gh limiter and the shared PR cache are wired the way the design says.
-  if (!/const ghLimiter = new Limiter\(2, 2\);/.test(ext) || !/const ghUiExec = ghLimiter\.wrap\(realExec, 'ui'\);/.test(ext) || !/limiter: ghLimiter, cache: prCache/.test(ext)) { bad('gh must run through a global limiter of 2 shared by the sidebar and the page, with one shared PR cache'); }
+  if (!/const ghLimiter = new Limiter\(2, 1\);/.test(ext) || !/const ghUiExec = ghLimiter\.wrap\(realExec, 'ui'\);/.test(ext) || !/limiter: ghLimiter, cache: prCache/.test(ext)) { bad('gh must run through a global limiter of 2 shared by the sidebar and the page, with one shared PR cache'); }
   if (!/prsOn, prs: new WorkPrs\(/.test(ext)) { bad('the Open Work scan must get the pull request layer and the lookupPullRequests switch'); }
 
   // 3. No agent name in the page sources or in what the host shows. The one allowed mention is the command id.

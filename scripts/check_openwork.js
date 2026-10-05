@@ -205,6 +205,10 @@ function gitScenario(W) {
   check(tag('worktree rows get no chat actions'), rowOf('w2') !== '' && !/data-a="(open|handover|find|arch|done)"/.test(rowOf('w2')));
   step('copy remove', () => click('rm', 0, { k: 'w2' }));
   check(tag('Copy remove command posts copyRemove with only the worktree key'), posted.some((p) => p.type === 'copyRemove' && p.key === 'w2' && Object.keys(p).length === 2));
+  step('init windows', () => { deliver({ type: 'init', v: 2, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 2, done: {}, win: true }); advance(300); });
+  check(tag('on Windows the button and its label say PowerShell'), /Copy PowerShell remove command<\/button>/.test(rowOf('w2')) && /aria-label="Copy PowerShell remove command: /.test(rowOf('w2')));
+  step('init not windows', () => { deliver({ type: 'init', v: 2, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 2, done: {} }); advance(300); });
+  check(tag('elsewhere the button stays Copy remove command'), />Copy remove command<\/button>/.test(rowOf('w2')) && !/PowerShell/.test(rowOf('w2')));
   step('f2 clean, idle 5 days', () => { deliver(fm(1, 'f2', 'ok', { facts: facts() })); advance(300); });
   check(tag('a clean, pushed chat idle for 5 days is Ready to tidy'), inBand('Ready to tidy', 2));
   check(tag('a chat on the main checkout is not given a remove button'), rowOf(id(2)) !== '' && !/data-a="rm"/.test(rowOf(id(2))));
@@ -223,7 +227,7 @@ function gitScenario(W) {
   check(tag('a retry for a key that is not f/r + digits is not sent'), !posted.some((p) => p.type === 'retry' && p.key === '../x'));
   // end lists keys that never finished.
   step('end', () => { deliver(fm(1, 'f3', 'ok', { facts: facts({ branch: 'topic', fileTotal: 0 }) })); deliver({ type: 'end', scan: 1, open: ['f4'], gitMissing: false }); advance(300); });
-  check(tag('end hides progress, announces and marks unfinished keys timed out with Retry'), prog.hidden === true && /Scan finished: \d+ items? open\./.test(els.get('live').textContent) && /data-a="fretry" data-k="f4"/.test(body.innerHTML));
+  check(tag('end hides progress, announces and marks unfinished keys timed out with Retry'), prog.hidden === true && /Scan finished, but some parts were not read: \d+ items? open so far\./.test(els.get('live').textContent) && /data-a="fretry" data-k="f4"/.test(body.innerHTML));
   // Idle watchdog on a second scan.
   step('second scan', () => { deliver({ type: 'chats', scan: 2, rows: rowsG, indexing: false, scanning: true }); deliver(fm(2, 'f1', 'queued')); deliver(fm(2, 'f2', 'queued')); advance(300); });
   check(tag('a new scan number starts progress again'), /class="q"/.test(body.innerHTML));
@@ -509,6 +513,13 @@ for (const W of [400, 760, 1400]) { prScenario(W); }
   if (model.doneHidden(fp(g({ branch: 'f', pr: pr('approved', 'passing') })), 'idle', 5, g({ branch: 'f' })) !== true) { bad('model: unknown PR facts never bring a done row back'); }
   if (model.doneHidden(fp(g({ branch: 'f', pr: pr('approved', 'passing') })), 'idle', 5, g({ branch: 'f', pr: { n: 8, review: 'approved', checks: 'passing' } })) !== false) { bad('model: another PR number brings a done row back'); }
   if (model.doneHidden(model.fingerprint('idle', 5, g({ branch: 'f' })), 'idle', 5, g({ branch: 'f' })) !== true || model.doneHidden('5|idle#', 'idle', 5, undefined) !== true) { bad('model: the older two-part fingerprint still works'); }
+  if (model.bandOf('idle', g({ branch: 'f', pr: pr('approved', 'unknown') }), 5, 6) !== 'waiting' || model.bandOf('idle', g({ branch: 'f', pr: pr('approved', 'unavailable') }), 5, 6) !== 'waiting') { bad('model: an approved PR with unknown checks never moves a row to To finish'); }
+  if (model.bandOf('idle', g({ branch: 'f', pr: pr('approved', 'passing') }), 5, 6) !== 'finish' || model.bandOf('idle', g({ branch: 'f', pr: pr('changes requested', 'unknown') }), 5, 6) !== 'finish') { bad('model: approved with passing checks, and changes requested, are To finish'); }
+  { const t = (title) => model.summaryOf([{ band: 'needs', title }], 14).text;
+    if (/\u202e/.test(t('fix\u202egnp.exe'))) { bad('summary: bidi control characters are stripped'); }
+    if (/AKIAIOSFODNN7EXAMPLE/.test(t('key AKIAIOSFODNN7EXAMPLE here'))) { bad('summary: AWS style keys are redacted'); }
+    if (/wJalrXUtnFEMI\/K7MDENG/.test(t('secret wJalrXUtnFEMI/K7MDENG+bPxRfiCY=='))) { bad('summary: base64 style strings with / + = are redacted'); }
+    if (!/src\/webview\/openWork\.ts/.test(t('fix src/webview/openWork.ts'))) { bad('summary: an ordinary path is kept'); } }
   if (!/nextStep/.test(model.WORK_MODEL_SRC) || model.nextStep('idle', g({ pr: pr('', 'failing') })).indexOf('A check is failing on pull request #7') !== 0) { bad('model: the next step names a failing check'); }
 }
 
@@ -611,6 +622,16 @@ function viewScenario(W) {
   check(tag('Escape in the filter box clears it'), fq.value === '');
   step('question', () => key('?', rbs[0])); check(tag('? opens the shortcuts list'), els.get('shm').hidden === false && /Go to the filter box/.test(page));
   step('escape closes', () => key('Escape', els.get('shb'))); check(tag('Escape closes the shortcuts list'), els.get('shm').hidden === true);
+  // A popover open: Escape closes it first and leaves the row expanded; j and k do not move rows behind it.
+  step('expand row', () => { key('ArrowRight', rbs[0]); advance(300); });
+  const exOpen = () => (body.innerHTML.match(/<div class="ex">/g) || []).length;
+  check(tag('a row can be expanded with Right'), exOpen() === 1);
+  step('question again', () => key('?', rbs[0]));
+  const j1 = rbs[1].focused;
+  step('j behind the popover', () => key('j', rbs[0])); check(tag('j does not move focus while the shortcuts list is open'), rbs[1].focused === j1 && els.get('shm').hidden === false);
+  step('escape with a popover', () => key('Escape', rbs[0])); advance(300);
+  check(tag('one Escape closes the popover and leaves the row expanded'), els.get('shm').hidden === true && exOpen() === 1);
+  step('second escape', () => { key('Escape', rbs[0]); advance(300); }); check(tag('the next Escape collapses the row'), exOpen() === 0);
   document.querySelectorAll = () => []; document.querySelector = () => null;
   // Branches without a worktree.
   check(tag('the branch section is collapsed and no branch read has been asked'), /aria-label="Branches without a worktree"/.test(body.innerHTML) && /data-a="brsec"[^>]*aria-expanded="false"/.test(body.innerHTML) && !/data-a="brx"/.test(body.innerHTML) && posts('branches').length === 0);
@@ -640,24 +661,31 @@ function viewScenario(W) {
 }
 for (const W of [400, 760, 1400]) { viewScenario(W); }
 
-// Empty states: All clear, no repositories, git missing.
+// Empty states: All clear, no repositories, git missing, and every way a scan can end with parts never read.
+const CLEAR_OK = ['clear', 'clearpr'], CLEAR_NO = ['clearmore', 'clearrepo', 'clearnofolder', 'clearprdown'];
 function emptyScenario(W, mode) {
   const E = createHarness({ page, name: 'openwork-empty-' + mode + '@' + W, width: W, popIds: VIEW_POPS });
   const { els, deliver, advance, check, step } = E;
   const body = els.get('body'), tag = (s) => s + ' (' + mode + ') at ' + W;
+  const git = mode !== 'none';
   E.start();
-  step('init', () => deliver({ type: 'init', v: 3, prsOn: false, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {}, view: {} }));
-  step('chats', () => { deliver({ type: 'chats', scan: 1, rows: [row(1, { fk: 'f1', last: NOW - H })], indexing: false, scanning: true }); advance(300); });
-  step('folder', () => deliver(mode === 'clear' || mode === 'gitmissing' ? { type: 'folder', scan: 1, key: 'f1', state: 'ok', facts: vfacts() } : { type: 'folder', scan: 1, key: 'f1', state: 'none', reason: 'Not a git folder' }));
-  if (mode !== 'none') { step('repo', () => deliver(vrepo(1, 'r1', 'alpha-repo', ['f1']))); }
+  step('init', () => deliver({ type: 'init', v: 3, prsOn: /^clearpr/.test(mode), days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {}, view: {} }));
+  const rs = [row(1, { fk: 'f1', last: NOW - H })].concat(mode === 'clearnofolder' ? [row(2, { fk: 'f2', last: NOW - H })] : []);
+  step('chats', () => { deliver({ type: 'chats', scan: 1, rows: rs, indexing: false, scanning: true }); advance(300); });
+  step('folder', () => deliver(git ? { type: 'folder', scan: 1, key: 'f1', state: 'ok', facts: vfacts() } : { type: 'folder', scan: 1, key: 'f1', state: 'none', reason: 'Not a git folder' }));
+  if (git) { step('repo', () => deliver(Object.assign(vrepo(1, 'r1', 'alpha-repo', ['f1']), mode === 'clearrepo' ? { state: 'timeout' } : {}))); }
+  if (mode === 'clearmore') { step('notes', () => deliver({ type: 'notes', scan: 1, gitMissing: false, more: 3, prsOn: false })); }
+  if (mode === 'clearpr') { step('prs', () => deliver({ type: 'prs', scan: 1, repo: 'r1', state: 'ok', by: {} })); }
+  if (mode === 'clearprdown') { step('prs', () => deliver({ type: 'prs', scan: 1, repo: 'r1', state: 'unavailable', reason: 'timed out' })); }
   check(tag('nothing is claimed before the scan ends'), !/All clear/.test(body.innerHTML) && !/No git repositories/.test(body.innerHTML));
   step('end', () => { deliver({ type: 'end', scan: 1, open: [], gitMissing: mode === 'gitmissing' }); advance(300); });
-  if (mode === 'clear') { check(tag('every chat clean: All clear with a calm message naming the days'), /All clear/.test(body.innerHTML) && /Nothing open\. Every chat in the last 14 days is committed, pushed and closed\./.test(body.innerHTML) && /role="status"/.test(body.innerHTML)); }
+  if (CLEAR_OK.includes(mode)) { check(tag('every chat clean: All clear with a calm message naming the days'), /All clear/.test(body.innerHTML) && /Nothing open\. Every chat in the last 14 days is committed, pushed and closed\./.test(body.innerHTML) && /role="status"/.test(body.innerHTML) && /Scan finished: 0 items open\./.test(els.get('live').textContent)); }
+  if (CLEAR_NO.includes(mode)) { check(tag('parts never read: no All clear and no "0 items open" claim'), !/All clear/.test(body.innerHTML) && !/Scan finished: 0 items open/.test(els.get('live').textContent) && /some parts were not read/.test(els.get('live').textContent)); }
   if (mode === 'none') { check(tag('no git repository found for the chats says so and never All clear'), /No git repositories were found for these chats/.test(body.innerHTML) && !/All clear/.test(body.innerHTML)); }
   if (mode === 'gitmissing') { check(tag('git missing never claims All clear'), !/All clear/.test(body.innerHTML)); }
   E.errors.forEach((e) => failures.push(e));
 }
-for (const W of [400, 1400]) { for (const m of ['clear', 'none', 'gitmissing']) { emptyScenario(W, m); } }
+for (const W of [400, 1400]) { for (const m of ['clear', 'none', 'gitmissing'].concat(CLEAR_OK.slice(1), CLEAR_NO)) { emptyScenario(W, m); } }
 
 // Resize on one page: layout class follows.
 {
@@ -799,7 +827,9 @@ function slowLoadCheck() {
   const base = fs.mkdtempSync(path.join(process.env.CCS_TMP || os.tmpdir(), 'ccs-ow-slow-'));
   fs.mkdirSync(path.join(base, 'projects'), { recursive: true });
   return new Promise((resolve) => {
-    const w = new Worker(path.join(OUT, 'worker.js'), { env: Object.assign({}, process.env, { CCS_TEST_LOAD_MS: '2500' }) });
+    // the slow disk read is injected here: a wrapper thread delays the index folder read, then loads the real worker file
+    const wrap = "const fs=require('fs');const o=fs.promises.readdir;fs.promises.readdir=async(...a)=>{await new Promise((r)=>setTimeout(r,2500));return o.apply(fs.promises,a);};require(" + JSON.stringify(path.join(OUT, 'worker.js')) + ");";
+    const w = new Worker(wrap, { eval: true });
     const t0 = Date.now();
     let answered = 0, changed = 0, done = false;
     const end = () => { if (done) { return; } done = true; clearTimeout(timer); w.terminate().then(() => { try { fs.rmSync(base, { recursive: true, force: true }); } catch (e) { /* scratch only */ } resolve(); }); };

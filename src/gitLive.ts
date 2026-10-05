@@ -5,7 +5,7 @@ import { Exec, realExec } from './wipExec';
 import { PrCache } from './wipPrs';
 import { FileChange, FolderFacts } from './wipTypes';
 
-const GIT_MS = 5000, GH_MS = 8000, DEADLINE_MS = 10000;
+const GIT_MS = 5000, GH_MS = 8000, DEADLINE_MS = 10000, QUEUE_GRACE_MS = 60000;
 
 /** Each part of a chat card is its own on-demand request: git (branch, ahead/behind, PR), wt (worktrees), unc (uncommitted files), unp (unpushed commits). */
 export type GitPart = 'git' | 'wt' | 'unc' | 'unp';
@@ -52,6 +52,34 @@ type Loaded = { live: GitLive; targets?: GitTargets };
 type Partial_ = (r: Loaded) => void;
 const fail = (why: string): Loaded => ({ live: blank('error', `Could not read git state: ${why}`) });
 
+/** The deadline of one card load. It counts only the time the load's own commands run: a command waiting for a slot in a limiter is covered by a long grace instead,
+ *  and the clock restarts (with what is left) when the limiter really starts it. An exec that never reports a start counts from the call. */
+class LoadClock {
+  private timer: NodeJS.Timeout | undefined;
+  private spent = 0;
+  private active = 0;
+  private since = 0;
+
+  constructor(private readonly expire: () => void) { this.set(DEADLINE_MS + QUEUE_GRACE_MS); }
+
+  private set(ms: number): void { clearTimeout(this.timer); this.timer = setTimeout(this.expire, Math.max(0, ms)); }
+
+  /** An exec that tells this clock when each command is called and when it ends; a runner that is not limiter-wrapped starts at once. */
+  wrap(exec: Exec): Exec {
+    const limited = (exec as Exec & { limited?: boolean }).limited === true;
+    return (cmd, args, o) => {
+      if (this.active++ === 0) { this.set(DEADLINE_MS + QUEUE_GRACE_MS - this.spent); }
+      const begin = (): void => { this.since = Date.now(); this.set(DEADLINE_MS - this.spent); };
+      if (!limited) { begin(); }
+      return exec(cmd, args, { ...o, onStart: () => { begin(); o.onStart?.(); } }).finally(() => {
+        if (--this.active === 0) { if (this.since) { this.spent += Date.now() - this.since; this.since = 0; } this.set(DEADLINE_MS + QUEUE_GRACE_MS - this.spent); }
+      });
+    };
+  }
+
+  stop(): void { clearTimeout(this.timer); }
+}
+
 /** Loads one part of a chat card on demand. One load per folder and part runs at a time and a deadline ends it. */
 export class GitLiveService {
   private readonly running = new Map<string, { p: Promise<Loaded>; subs: Set<Partial_> }>();
@@ -67,19 +95,20 @@ export class GitLiveService {
     if (hit) { if (onPartial) { hit.subs.add(onPartial); } return hit.p; }
     const subs = new Set<Partial_>(onPartial ? [onPartial] : []);
     const ac = new AbortController();
-    let timer: NodeJS.Timeout | undefined;
-    const late = new Promise<Loaded>((res) => { timer = setTimeout(() => { ac.abort(); res({ live: blank('timeout', 'Git info timed out') }); }, DEADLINE_MS); });
-    const p = Promise.race([this.run(cwd, part, prs, ac.signal, (r) => subs.forEach((f) => f(r))), late]).finally(() => {
-      if (timer) { clearTimeout(timer); }
+    const clock = new LoadClock(() => { ac.abort(); fire(); });
+    let fire: () => void = () => undefined;
+    const late = new Promise<Loaded>((res) => { fire = () => res({ live: blank('timeout', 'Git info timed out') }); });
+    const p = Promise.race([this.run(cwd, part, prs, ac.signal, (r) => subs.forEach((f) => f(r)), clock), late]).finally(() => {
+      clock.stop();
       this.running.delete(key);
     });
     this.running.set(key, { p, subs });
     return p;
   }
 
-  private async run(cwd: string, part: GitPart, prs: boolean, signal: AbortSignal, onPart: Partial_): Promise<Loaded> {
+  private async run(cwd: string, part: GitPart, prs: boolean, signal: AbortSignal, onPart: Partial_, clock: LoadClock): Promise<Loaded> {
     try {
-      const ctx: Ctx = { exec: this.exec, ghExec: this.ghExec, gitMs: GIT_MS, ghMs: GH_MS, flags: { gitMissing: false }, signal };
+      const ctx: Ctx = { exec: clock.wrap(this.exec), ghExec: clock.wrap(this.ghExec), gitMs: GIT_MS, ghMs: GH_MS, flags: { gitMissing: false }, signal };
       const f = await probe(ctx, cwd);
       if (ctx.flags.gitMissing) { return { live: blank('error', 'Git was not found on this computer') }; }
       if (f.state !== 'ok' || !f.top) { return { live: f.state === 'unavailable' ? blank('error', `Git is unavailable: ${f.reason ?? 'error'}`) : blank('none', NONE[f.state]) }; }

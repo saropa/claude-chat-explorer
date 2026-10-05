@@ -1,7 +1,8 @@
 import { ChildProcess, execFile } from 'child_process';
 
 export interface ExecResult { code: number | string | null; stdout: string; stderr: string; timedOut: boolean; aborted: boolean; }
-export interface ExecOpts { cwd: string; timeout: number; signal?: AbortSignal; }
+/** onStart is called by the limiter when the command really begins (not when it was queued). */
+export interface ExecOpts { cwd: string; timeout: number; signal?: AbortSignal; onStart?: () => void; }
 export type Exec = (cmd: string, args: string[], o: ExecOpts) => Promise<ExecResult>;
 
 const MAX_BUFFER = 4 * 1024 * 1024; // output read is capped; an overflow keeps the part read and kills the child

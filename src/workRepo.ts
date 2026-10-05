@@ -77,8 +77,8 @@ async function markMerged(c: Ctx, top: string, r: RepoOut, haveList: boolean): P
   });
 }
 
-/** Characters a Windows shell would still act on inside quotes ($ ` % " ! ^, smart quotes, control characters): no command is built for them. */
-const WIN_UNSAFE = /[$`%"!^\u0000-\u001f\u007f\u2018\u2019\u201a\u201b\u201c\u201d]/;
+/** Characters a Windows shell would still act on inside quotes ($ ` % " ! ^ & | < > ( ), smart quotes, control characters): no command is built for them. */
+const WIN_UNSAFE = /[$`%"!^&|<>()\u0000-\u001f\u007f\u2018\u2019\u201a\u201b\u201c\u201d]/;
 export const winUnsafe = (s: string): boolean => WIN_UNSAFE.test(s);
 
 /** Quote one argument for the user's shell: single quotes on macOS and Linux and in PowerShell (a quote inside is doubled there, escaped as '\'' on POSIX). Callers never pass a Windows argument that winUnsafe accepts. */

@@ -1,32 +1,36 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Exec, ExecResult, OVERFLOW } from './wipExec';
+import { PR_ARGS, PR_ARGS_OLD } from './wipPrsArgs';
 import { MAX_COMMITS, parseCommits, parseStatus, parseTrack, parseWorktrees, REF_FORMAT, StatusParts } from './wipParse';
 import { emptyFolder, FolderFacts, RepoFacts } from './wipTypes';
 
 /** Everything a scan needs: the runner, cancellation, timeouts and flags raised on the way. */
 /** ghExec runs gh when set (gh has its own limit, not the git slots); otherwise exec runs it. */
-export interface Ctx { exec: Exec; ghExec?: Exec; signal?: AbortSignal; gitMs: number; ghMs: number; flags: { gitMissing: boolean }; }
+export interface Ctx { exec: Exec; ghExec?: Exec; signal?: AbortSignal; gitMs: number; ghMs: number; flags: { gitMissing: boolean }; onStart?: () => void; }
 
-const GIT_OK = new Set(['rev-parse', 'symbolic-ref', 'status', 'worktree', 'for-each-ref', 'rev-list']);
-const GH_OK = ['pr', 'list'];
+const GIT_OK = new Set(['rev-parse', 'symbolic-ref', 'status', 'worktree', 'for-each-ref', 'rev-list', 'remote']);
 /** The one other gh shape: a read-only look at one pull request's checks; the number is digits only. */
 export const CHECKS_FIELDS = 'statusCheckRollup,headRefOid';
 const PR_NUMBER = /^[1-9][0-9]{0,8}$/;
+export const isPrNumber = (n: number): boolean => PR_NUMBER.test(String(n));
 const isChecksView = (a: string[]): boolean => a.length === 5 && a[0] === 'pr' && a[1] === 'view' && PR_NUMBER.test(a[2]) && a[3] === '--json' && a[4] === CHECKS_FIELDS;
+
+/** The only list shape: exactly the argument list of wipPrs (current or older gh), nothing added, no -R, --web or -q. */
+const isPrList = (a: string[]): boolean => [PR_ARGS, PR_ARGS_OLD].some((x) => x.length === a.length && x.every((v, i) => v === a[i]));
 
 /** Run one read-only git command; a command outside the allowed list throws before anything starts. */
 export async function git(c: Ctx, cwd: string, args: string[]): Promise<ExecResult> {
-  if (!GIT_OK.has(args[0]) || (args[0] === 'worktree' && args[1] !== 'list')) { throw new Error('git command not allowed: ' + args[0]); }
-  const r = await c.exec('git', ['--no-pager', '--no-optional-locks', ...args], { cwd, timeout: c.gitMs, signal: c.signal });
+  if (!GIT_OK.has(args[0]) || (args[0] === 'worktree' && args[1] !== 'list') || (args[0] === 'remote' && args.join(' ') !== 'remote get-url origin')) { throw new Error('git command not allowed: ' + args[0]); }
+  const r = await c.exec('git', ['--no-pager', '--no-optional-locks', ...args], { cwd, timeout: c.gitMs, signal: c.signal, onStart: c.onStart });
   if (r.code === 'ENOENT') { c.flags.gitMissing = true; }
   return r;
 }
 
 /** Run an allowed gh command: `pr list ...`, or `pr view <digits> --json statusCheckRollup,headRefOid`. Anything else throws before it starts. */
 export function gh(c: Ctx, cwd: string, args: string[]): Promise<ExecResult> {
-  if (!(args[0] === GH_OK[0] && args[1] === GH_OK[1]) && !isChecksView(args)) { throw new Error('gh command not allowed: ' + args[0]); }
-  return (c.ghExec ?? c.exec)('gh', args, { cwd, timeout: c.ghMs, signal: c.signal });
+  if (!isPrList(args) && !isChecksView(args)) { throw new Error('gh command not allowed: ' + args[0]); }
+  return (c.ghExec ?? c.exec)('gh', args, { cwd, timeout: c.ghMs, signal: c.signal, onStart: c.onStart });
 }
 
 /** Short reason for a failed command, never raw output. */
@@ -95,13 +99,16 @@ export async function defaultBranchOf(c: Ctx, cwd: string): Promise<string | und
   return r.code === 0 && v !== 'origin/HEAD' && REF_SAFE.test(v) ? v : undefined;
 }
 
-export const MAX_MERGED = 500;
+export const MAX_MERGED = 5000;
 
-/** Local branches already merged into def (one for-each-ref call); a failed call returns its reason. */
+/** Local branches already merged into def (one for-each-ref call, at most MAX_MERGED names); a failed call or a longer list returns its reason. */
 export async function mergedOf(c: Ctx, cwd: string, def: string): Promise<string[] | string> {
   if (!REF_SAFE.test(def)) { return 'default branch unknown'; }
-  const r = await git(c, cwd, ['for-each-ref', '--merged=' + def, '--format=%(refname:short)', 'refs/heads']);
-  return r.code === 0 ? r.stdout.split(/\r?\n/).filter(Boolean).slice(0, MAX_MERGED) : whyFailed(r);
+  const r = await git(c, cwd, ['for-each-ref', '--merged=' + def, '--format=%(refname:lstrip=2)', 'refs/heads']);
+  if (r.code === OVERFLOW) { return 'too many branches'; } // reported, never silently cut
+  if (r.code !== 0) { return whyFailed(r); }
+  const all = r.stdout.split(/\r?\n/).filter(Boolean);
+  return all.length > MAX_MERGED ? 'too many branches' : all;
 }
 
 /** True when the commit is already inside def (`rev-list --count def..sha` is 0); undefined when it cannot be told. */

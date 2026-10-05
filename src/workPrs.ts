@@ -3,8 +3,8 @@
  *  Streams `prs` and `checks` messages; never blocks the git facts. Pure node (no vscode import). */
 import { Limiter } from './execLimit';
 import { Exec } from './wipExec';
-import { CHECKS_FIELDS, Ctx, gh } from './wipGit';
-import { cleanTitle, ghReason, PrCache } from './wipPrs';
+import { CHECKS_FIELDS, Ctx, gh, isPrNumber } from './wipGit';
+import { cleanTitle, ghReason, PrCache, reviewWord } from './wipPrs';
 import { PrInfo } from './wipTypes';
 
 export const CHECKS_CACHE_MS = 2 * 60 * 1000;
@@ -177,7 +177,7 @@ export class PrRun {
 
   private matched(st: St): Array<[string, PrInfo]> {
     const out: Array<[string, PrInfo]> = [];
-    for (const b of st.branches) { const p = st.by?.get(b); if (p) { out.push([b, p]); } }
+    for (const b of st.branches) { const p = st.by?.get(b); if (p && isPrNumber(p.number)) { out.push([b, p]); } } // a number gh would never print is skipped, never fails the repository
     return out;
   }
   private todo(st: St): Array<[string, PrInfo]> { return this.matched(st).filter(([, p]) => !st.final.has(p.number)); }
@@ -212,7 +212,7 @@ export class PrRun {
     if (this.h.signal.aborted) { return false; }
     if (r === 'late' || lane.timedOut()) { this.fail(st, 'timed out'); return false; }
     if (r.error) { this.fail(st, r.error); return false; }
-    st.by = r.own ?? r.byBranch; // fork PRs never match a branch here
+    st.by = r.own ?? r.byBranch; // PRs from other owners never match a branch here
     this.w.setUrls(st.rk, st.by);
     return true;
   }
@@ -234,7 +234,7 @@ export class PrRun {
 
   private postList(st: St): void {
     const by: { [b: string]: object } = {};
-    for (const [b, p] of this.matched(st)) { by[b] = { n: p.number, title: p.title, draft: p.draft, review: p.review, link: !!p.url }; }
+    for (const [b, p] of this.matched(st)) { by[b] = { n: p.number, title: p.title, draft: p.draft, review: reviewWord(p.review), link: !!p.url }; }
     const sig = JSON.stringify(by);
     if (sig !== st.sent) { st.sent = sig; this.put({ type: 'prs', repo: st.rk, state: 'ok', by }); }
   }
