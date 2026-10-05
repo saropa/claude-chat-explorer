@@ -22,6 +22,9 @@ export const GIT_CSS = String.raw`
 .gp.pr{white-space:normal}
 .gmore{align-self:center;color:var(--vscode-descriptionForeground)}
 .gp:hover,.gp:focus-visible{outline:1px solid var(--vscode-focusBorder)}
+.ex .xh .pill{min-width:16px;padding:0 4px;font-size:calc(var(--vscode-font-size) - 2px);line-height:1.3}
+.ex .xh .pill.z{opacity:.45;background:transparent;color:var(--vscode-descriptionForeground)}
+.ex .xh .pill.w{background:transparent;color:var(--vscode-descriptionForeground);opacity:.6}
 `;
 
 export const GIT_JS = String.raw`
@@ -33,13 +36,23 @@ const t=(r.prs?r.prs+(r.prs===1?' PR':' PRs'):'')+(r.prs&&r.commits?', ':'')+(r.
 return '<button class="gi" data-a="git" data-tip="'+esc(t+' - show Git section')+'" aria-label="'+esc('Git activity: '+t)+'">'+GIT_SVG+'<span>'+n+'</span></button>';}
 function gitPill(cls,a,k,v,label,tip,br){return '<span class="gp'+cls+'" data-a="'+a+'" data-'+k+'="'+esc(v)+'" role="button" tabindex="0" aria-label="'+esc(tip)+'" data-tip="'+esc(tip)+'">'+esc(label)+(br?' <span class="br">on '+esc(br)+'</span>':'')+'</span>';}
 const LAZY=/^(git|unc|unp|wt|rel):/;
-const xo=new Set(),lz={};
+const xo=new Set(),lz={},cnt={};let cq=0;
+function cntAsk(id){cnt[id]={rq:++cq,v:{}};vs.postMessage({type:'counts',id:id,rq:cnt[id].rq});}
+function cnOf(part,id,exact){if(exact!==''&&exact!==undefined&&exact!==null)return exact;const c=cnt[id];if(!c)return '';const v=c.v[part];return v===undefined?'\u2026':v===null?'':v;}
+function cntSet(d){const c=cnt[d.id];if(!c||c.rq!==d.rq||!open.has(d.id)||!(d.part in {rel:1,unc:1,unp:1,wt:1,git:1}))return;
+c.v[d.part]=typeof d.n==='number'&&d.n>=0?d.n:null;cntPatch(d.part,d.id);}
+function cntPatch(part,id){const h=Array.from(document.querySelectorAll('[data-sec]')).find(x=>x.dataset.sec===part+':'+id);if(!h)return;
+const k=part+':'+id,e=(lz[k]&&lz[k].s==='done')?cntExact(part,lz[k].data):'',n=cnOf(part,id,e),old=h.querySelector('.pill');
+if(old)old.remove();h.insertAdjacentHTML('beforeend',pillBit(n));
+const l=h.querySelector('.sn');h.setAttribute('aria-label',(l?l.textContent:'')+(n===''||n==='\u2026'?'':', '+n));}
+function cntExact(part,d){if(part==='rel')return Array.isArray(d)?d.length:'';if(!d||(d.state&&d.state!=='ok'))return '';
+return part==='unc'?d.fileTotal:part==='unp'?d.ahead:part==='wt'?d.worktrees.length:'';}
 function lzLoad(key){const i=key.indexOf(':'),part=key.slice(0,i),id=key.slice(i+1);
 if(lz[key])return;lz[key]={s:'loading'};
 vs.postMessage(part==='rel'?{type:'related',id:id}:{type:'gitLive',id:id,part:part});}
 function lzToggle(key){if(xo.has(key))xo.delete(key);else{xo.add(key);lzLoad(key);}}
-function lzReset(id){['git','unc','unp','wt','rel'].forEach(p=>{const k=p+':'+id;xo.delete(k);delete lz[k];});}
-function lzClear(){xo.clear();Object.keys(lz).forEach(k=>{delete lz[k];});}
+function lzReset(id){delete cnt[id];['git','unc','unp','wt','rel'].forEach(p=>{const k=p+':'+id;xo.delete(k);delete lz[k];});}
+function lzClear(){Object.keys(cnt).forEach(k=>{delete cnt[k];});xo.clear();Object.keys(lz).forEach(k=>{delete lz[k];});}
 function lzData(key){const s=lz[key];return s&&s.s==='done'?s.data:null;}
 function lzFail(key,why,retry){return '<div class="none">'+esc(why||'Could not load')+(retry?'. <span class="gp" data-a="lretry" data-key="'+esc(key)+'" role="button" tabindex="0" aria-label="Retry loading" data-tip="Load this section again">Retry</span>':'')+'</div>';}
 function lzBody(key,fn){const s=lz[key];
@@ -74,11 +87,11 @@ function okN(key,fn){const d=lzData(key);return d&&(!d.state||d.state==='ok')?fn
 function relBody(rel){return rel.length?rel.map(relHtml).join(''):'<div class="none">No other chat touched the same files</div>';}
 function lazyHtml(r,e){const id=r.id;
 return safeSec('git',()=>{const k='git:'+id,g=(e&&e.full&&e.git)||{prs:[],commits:[],moreCommits:0};
-return lzSec(k,'Git',okN(k,d=>d.prs.length+g.prs.length+g.commits.length+g.moreCommits),d=>gitBody(d,e));})
-+safeSec('uncommitted',()=>lzSec('unc:'+id,'Uncommitted files',okN('unc:'+id,d=>d.fileTotal),uncBody))
-+safeSec('unpushed',()=>lzSec('unp:'+id,'Unpushed commits',okN('unp:'+id,d=>d.ahead),unpBody))
-+safeSec('worktrees',()=>lzSec('wt:'+id,'Worktrees',okN('wt:'+id,d=>d.worktrees.length),wtBody))
-+safeSec('related',()=>{const k='rel:'+id,rel=lzData(k);return lzSec(k,'Related chats',Array.isArray(rel)&&rel.length?rel.length:'',relBody);});}
+return lzSec(k,'Git',cnOf('git',id,okN(k,d=>d.prs.length+g.prs.length+g.commits.length+g.moreCommits)),d=>gitBody(d,e));})
++safeSec('uncommitted',()=>lzSec('unc:'+id,'Uncommitted files',cnOf('unc',id,okN('unc:'+id,d=>d.fileTotal)),uncBody))
++safeSec('unpushed',()=>lzSec('unp:'+id,'Unpushed commits',cnOf('unp',id,okN('unp:'+id,d=>d.ahead)),unpBody))
++safeSec('worktrees',()=>lzSec('wt:'+id,'Worktrees',cnOf('wt',id,okN('wt:'+id,d=>d.worktrees.length)),wtBody))
++safeSec('related',()=>{const k='rel:'+id,rel=lzData(k);return lzSec(k,'Related chats',cnOf('rel',id,Array.isArray(rel)?rel.length:''),relBody);});}
 function tokRewrite(v,t){const k=t.slice(0,t.indexOf(':')).toLowerCase();let r='',at=0;
 const re=/(?:^|\s)(?:(file|edited|cmd|tag|sha|pr|branch):(?:"[^"]*"?|\S*)|last:\d+(?=\s|$))|"[^"]*(?:"|$)|\S+/gi;
 for(const m of v.matchAll(re)){if(!m[1]||m[1].toLowerCase()!==k)continue;

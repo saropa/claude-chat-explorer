@@ -121,6 +121,32 @@ function drive() {
   check('no section request before it is opened', asked('gitLive', '', 1) === 0 && asked('related', '', 1) === 0);
   check('card open sends the expand request', posted.some((p) => p.type === 'expand' && p.id === id(1)));
   check('no pill before loading', parts.every((k) => !/class="pill"/.test(secOf(k))));
+  // Item: counts load by themselves when a card expands, bodies stay lazy.
+  const countPosts = () => posted.filter((p) => p.type === 'counts');
+  const rq1 = (countPosts().find((p) => p.id === id(1)) || {}).rq;
+  check('counts requested once on expand, only for the expanded card', countPosts().length === 1 && countPosts()[0].id === id(1) && typeof rq1 === 'number');
+  check('every section shows a reserved ... placeholder pill', parts.every((k) => /class="pill w"[^>]*>\u2026</.test(secOf(k))));
+  check('placeholder is not announced as a count', parts.every((k) => !/aria-label="[^"]*, \u2026/.test(secOf(k))));
+  const fake = {};
+  const hdr = (k) => (fake[k] = { dataset: { sec: k + ':' + id(1) }, ins: [], gone: 0, labels: [], querySelector(s) { return s === '.pill' ? { remove() { fake[k].gone++; } } : { textContent: 'Sec' }; }, insertAdjacentHTML(w, h) { this.ins.push(h); }, setAttribute(n, v) { this.labels.push(v); } });
+  document.querySelectorAll = (sel) => (/data-sec/.test(sel) ? parts.map(hdr) : []);
+  run('globalThis.RRN=0;{const r=rerender;rerender=function(){RRN++;return r();};}', 'count rerenders');
+  const cnt = (o) => deliver(Object.assign({ type: 'counts', id: id(1), rq: rq1 }, o));
+  step('count rel 3', () => cnt({ part: 'rel', n: 3 }));
+  check('Related pill filled in place with 3', fake.rel.ins.length === 1 && fake.rel.gone === 1 && /class="pill"[^>]*>3</.test(fake.rel.ins[0]) && /Sec, 3/.test(fake.rel.labels[0]));
+  step('count unc 0', () => cnt({ part: 'unc', n: 0 }));
+  check('zero count gets the dimmed class', /class="pill z"[^>]*>0</.test(fake.unc.ins[0]));
+  step('count unp null', () => cnt({ part: 'unp', n: null }));
+  check('failed count shows no pill', fake.unp.ins.length === 1 && fake.unp.ins[0] === '');
+  step('count wt 2', () => cnt({ part: 'wt', n: 2 }));
+  step('stale counts ignored', () => { deliver({ type: 'counts', id: id(1), rq: rq1 - 1, part: 'git', n: 9 }); deliver({ type: 'counts', id: id(2), rq: rq1, part: 'git', n: 9 }); });
+  check('stale or not-expanded counts change nothing', !fake.git || fake.git.ins.length === 0);
+  check('pills fill without redrawing the card', run('RRN', 'rr') === 0);
+  step('count git 1', () => cnt({ part: 'git', n: 1 }));
+  document.querySelectorAll = () => [];
+  check('Git pill filled', /class="pill"[^>]*>1</.test(fake.git.ins[0]));
+  step('rerender keeps counts', () => run('rerender();', 'rerender'));
+  check('counts survive a redraw (0 dimmed, 3 shown, failed has none)', /class="pill z"[^>]*>0</.test(secOf('unc')) && /class="pill"[^>]*>3</.test(secOf('rel')) && !/class="pill/.test(secOf('unp')));
   step('expanded for lazy test', () => deliver(expandReply(1)));
   step('open Uncommitted', () => run("toggleSec('unc:' + " + JSON.stringify(id(1)) + ');', 'toggle unc'));
   check('Uncommitted request sent once on open', asked('gitLive', 'unc', 1) === 1 && asked('gitLive', 'git', 1) === 0);
@@ -155,6 +181,7 @@ function drive() {
   check('failed card shows Retry', /data-a="xretry"/.test(list.innerHTML));
   step('git error', () => deliver({ type: 'gitLive', id: id(1), part: 'git', data: { state: 'error', reason: 'x' } }));
   step('second card opened', () => { run('openCard(' + JSON.stringify(id(3)) + ');rerender();', 'open card 2'); deliver(expandReply(3)); });
+  check('second expanded card asks once; collapsed rows never ask', countPosts().length === 2 && countPosts()[1].id === id(3) && !countPosts().some((p) => p.id === id(2)));
   step('live dots', () => deliver({ type: 'dots', map: { [id(1)]: { s: 'live' }, [id(3)]: { s: 'unread' } } }));
   step('index progress', () => { deliver({ type: 'indexing', done: 1, total: 5, subs: 0, first: false }); deliver({ type: 'indexed' }); });
   step('history', () => deliver({ type: 'history', history: [{ query: 'a', cs: false, ww: false, any: false, re: false, all: false, subs: true, when: 'any', last: 0 }] }));
@@ -260,7 +287,7 @@ function drive() {
   const fams = [...css.matchAll(/font-family:([^;}]*)/g)].map((x) => x[1].trim());
   check('every font-family is a VS Code variable or inherit (' + fams.filter((f) => !/^(var\(--vscode-(editor-)?font-family\)|inherit)$/.test(f)).join('|') + ')', fams.length > 0 && fams.every((f) => /^(var\(--vscode-(editor-)?font-family\)|inherit)$/.test(f)));
   const sizes = [...css.matchAll(/font-size:([^;}]*)/g)].map((x) => x[1].trim());
-  check('every font-size is a VS Code variable or inherit (' + sizes.filter((f) => !/^(var\(--vscode-(editor-)?font-size\)|inherit)$/.test(f)).join('|') + ')', sizes.every((f) => /^(var\(--vscode-(editor-)?font-size\)|inherit)$/.test(f)));
+  check('every font-size is a VS Code variable or inherit (' + sizes.filter((f) => !/^(var\(--vscode-(editor-)?font-size\)|calc\(var\(--vscode-font-size\) - \d+px\)|inherit)$/.test(f)).join('|') + ')', sizes.every((f) => /^(var\(--vscode-(editor-)?font-size\)|calc\(var\(--vscode-font-size\) - \d+px\)|inherit)$/.test(f)));
   check('no font shorthand other than inherit', [...css.matchAll(/[;{\s]font:([^;}]*)/g)].every((x) => x[1].trim() === 'inherit'));
 
   // Item 2: Up and Down in the search box walk the history (the list is only reached from the newest end).

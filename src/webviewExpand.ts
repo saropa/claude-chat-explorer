@@ -9,8 +9,9 @@ note:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentCol
 read:'<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.400" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.500l3 3 7-7"/></svg>'};
 let tagIn=null;
 function plur(n,w){return n+' '+w+(n===1?'':'s');}
-function xsec(key,label,n,body,k,pill,ov){const o=ov===undefined?!col.has(key):ov,c=n===''?'':pill?'<span class="pill" role="img" aria-label="'+n+'" data-tip="'+n+'">'+n+'</span>':'<span class="xc">'+n+'</span>';
-return '<section class="'+k+'"><div class="xh'+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'" aria-label="'+esc(label+(n===''?'':', '+n))+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+c+'</div>'+(o?'<div class="xb2">'+body+'</div>':'')+'</section>';}
+function pillBit(n){return n===''?'':n==='\u2026'?'<span class="pill w" aria-hidden="true">\u2026</span>':'<span class="pill'+(n===0?' z':'')+'" role="img" aria-label="'+n+'" data-tip="'+n+'">'+n+'</span>';}
+function xsec(key,label,n,body,k,pill,ov){const o=ov===undefined?!col.has(key):ov,c=n===''?'':pill?pillBit(n):'<span class="xc">'+n+'</span>',cn=n===''||n==='\u2026'?'':', '+n;
+return '<section class="'+k+'"><div class="xh'+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'" aria-label="'+esc(label+cn)+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+c+'</div>'+(o?'<div class="xb2">'+body+'</div>':'')+'</section>';}
 function xbtn(a,ic,label,txt,cls,extra,tip){return '<button class="xb'+(cls||'')+'" data-a="'+a+'"'+(extra||'')+' aria-label="'+label+'" data-tip="'+(tip||label)+'">'+ic+'<span class="xl'+(a==='read'||a==='copyid'||a==='handover'?' xo':'')+'">'+txt+'</span></button>';}
 function actHtml(r){const p=pins.has(r.id),ia=arch.has(r.id);
 return '<div class="xa" role="toolbar" aria-label="Chat actions"><button class="xb pri" data-a="resume" aria-label="Resume chat">'+XI.play+'<span>Resume</span></button>'

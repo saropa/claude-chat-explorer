@@ -61,7 +61,7 @@ when.addEventListener('change',go);
 msgSel.addEventListener('change',go);
 frm.addEventListener('change',go);
 function askExpand(id,offset,lite){vs.postMessage(Object.assign({type:'expand',id:id,offset:offset,lite:!!lite},cur()));}
-function openCard(id){open.add(id);lzReset(id);if(ex[id]){ex[id].full=false;ex[id].failed=false;}askExpand(id,0,false);}
+function openCard(id){open.add(id);lzReset(id);cntAsk(id);if(ex[id]){ex[id].full=false;ex[id].failed=false;}askExpand(id,0,false);}
 function exMerge(d){const n=ex[d.id]||{};
 if(d.offset>0)return Object.assign({},n,{items:(n.items||[]).concat(d.items),total:d.total});
 const items=n.items&&n.items.length>d.items.length?n.items:d.items;
@@ -75,7 +75,7 @@ if(e.target.closest('[data-a=import]')){vs.postMessage({type:'importArchived'});
 const rr=e.target.closest('.rr');if(rr){openId(rr.dataset.id);return;}
 const row=e.target.closest('.r');if(!row)return;const id=row.dataset.id;const a=e.target.closest('[data-a]');
 if(a){const k=a.dataset.a;e.stopPropagation();
-if(k==='exp'){if(open.has(id)){open.delete(id);vs.postMessage({type:'cardClosed',id:id});}else openCard(id);rerender();}
+if(k==='exp'){if(open.has(id)){open.delete(id);delete cnt[id];vs.postMessage({type:'cardClosed',id:id});}else openCard(id);rerender();}
 	else if(k==='mx')mxToggle(id);
 else if(k==='pin')vs.postMessage({type:'pin',id:id});
 else if(k==='resume')openId(id);
@@ -117,6 +117,7 @@ else if(d.type==='meta'){pins=new Set(d.pins);tags=d.tags||{};pinned=d.pinned||[
 else if(d.type==='expanded'){ex[d.id]=exMerge(d);rerender();}
 else if(d.type==='expandFailed'){if(!d.lite){ex[d.id]=Object.assign({items:[],total:0,files:[],commands:[],git:null},ex[d.id],{full:false,failed:true,reason:d.reason});rerender();}}
 else if(d.type==='gitLive'){const k=d.part+':'+d.id;if(lz[k]){lz[k]={s:'done',data:d.data};rerender();}}
+else if(d.type==='counts')cntSet(d);
 else if(d.type==='related'){const k='rel:'+d.id;if(lz[k]){lz[k]={s:'done',data:d.related||[]};rerender();}}
 else if(d.type==='relatedFailed'){const k='rel:'+d.id;if(lz[k]){lz[k]={s:'fail',reason:d.reason};rerender();}}
 else if(d.type==='indexing'){ix={done:d.done,total:d.total,subs:d.subs||0,first:!!d.first};showIx();}

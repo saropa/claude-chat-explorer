@@ -5,6 +5,7 @@ import * as path from 'path';
 import { TIMEOUT_MSG, WorkerClient } from './client';
 import { runExpand } from './expandRun';
 import { GIT_PARTS, GitLive, GitLiveService, GitPart, GitTargets, timedOutLive, withDeadline, TIMED_OUT, GIT_DEADLINE_MS } from './gitLive';
+import { CardCounts } from './cardCounts';
 import { IndexStatus } from './indexStatus';
 import { maxResults, pickTotals, Totals } from './maxResults';
 import { opts, sortOf } from './msgOpts';
@@ -44,6 +45,10 @@ class Provider implements vscode.WebviewViewProvider {
   watcher?: LiveWatcher; // live state of Claude sessions
   actions?: ArchiveActions;
   private readonly gitLive = new GitLiveService();
+  private readonly counts = new CardCounts({
+    request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), folders: folderPaths, log: logErr,
+    prsOn: () => vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false, post: (m) => this.post(m),
+  }, this.gitLive);
   private readonly gitTargets = new Map<string, GitTargets>(); // per chat: what a click in its Git section resolves against
 
   constructor(private readonly store: Store, private readonly client: WorkerClient,
@@ -184,6 +189,7 @@ class Provider implements vscode.WebviewViewProvider {
     else if (m.type === 'cardClosed') { this.gitTargets.delete(id); } // a closed card keeps no click targets
     else if (m.type === 'expand') { this.gitTargets.delete(id); await this.expand(id, m); } // a reopened card starts clean
     else if (m.type === 'gitLive' && GIT_PARTS.includes(m.part)) { await this.loadGit(id, m.part as GitPart); }
+    else if (m.type === 'counts') { void this.counts.run(id, Number(m.rq) || 0); } // fire and forget: never holds the message loop
     else if (m.type === 'related') { await this.loadRelated(id); }
     else if (m.type === 'gitFile') { await this.openGitFile(id, Number(m.i)); }
     else if (m.type === 'gitPr') { await this.openGitPr(id, Number(m.n)); }
