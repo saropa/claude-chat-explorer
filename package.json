@@ -249,7 +249,7 @@
     "package": "npx @vscode/vsce package --allow-missing-repository --skip-license"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^26.6.4",
     "@types/vscode": "^1.90.0",
     "typescript": "^5.4.0"
   }
