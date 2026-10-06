@@ -38,7 +38,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BRANCH = "main"
-ALLOWED_URL = "github.com/saropa/claude-chat-explorer"
+# Substrings a URL must contain one of (github.com/saropa/... is also Saropa, kept explicit).
+ALLOWED_URLS = ("github.com/saropa/claude-chat-explorer", "saropa.com")
 REQUIRED_IN_VSIX = {
     "extension/package.json": "package.json",
     "extension/images/icon.png": "images/icon.png",
@@ -237,7 +238,7 @@ def step_store_checks() -> None:
     url_re = re.compile(r"https?://[^\s\"')>\]]+")
     for name in ("package.json", "README.md", "CHANGELOG.md"):
         for url in url_re.findall((ROOT / name).read_text(encoding="utf-8")):
-            if ALLOWED_URL not in url:
+            if not any(a in url for a in ALLOWED_URLS):
                 errors.append(f"{name} has a non-Saropa URL: {url}")
     if errors:
         for e in errors:
