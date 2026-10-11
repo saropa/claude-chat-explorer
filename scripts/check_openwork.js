@@ -37,7 +37,7 @@ function scenario(W) {
   check(tag('empty state names the days'), /No chats in the last 14 days/.test(body.innerHTML) && body.getAttribute('aria-busy') === 'false');
   const rows = [row(1), row(2), row(3, { pinned: true }), row(4, { ctx: undefined }), row(5, { title: 'A <b>bold</b> "quoted" title' })];
   step('three bands', () => { deliver({ type: 'chats', scan: 2, rows, indexing: false }); deliver({ type: 'dots', map: { [id(1)]: { s: 'waiting' }, [id(2)]: { s: 'running' }, [id(4)]: { s: 'idle' } } }); advance(300); });
-  check(tag('bands Needs you, Waiting on others and Idle shown; empty bands not'), /Needs you/.test(body.innerHTML) && /Waiting on others/.test(body.innerHTML) && />Idle </.test(body.innerHTML) && !/To finish/.test(body.innerHTML.replace(/aria-label="[^"]*"/g, '')) && !/Ready to tidy/.test(body.innerHTML));
+  check(tag('bands Needs you, Waiting on others and Idle shown; empty bands not'), /Needs you/.test(body.innerHTML) && /Waiting on others/.test(body.innerHTML) && />Idle</.test(body.innerHTML) && !/To finish/.test(body.innerHTML.replace(/aria-label="[^"]*"/g, '')) && !/Ready to tidy/.test(body.innerHTML));
   check(tag('git bands are stubs: no chat lands in To finish or Ready to tidy'), model.bandOf('idle') === 'idle' && model.bandOf('running') === 'waiting' && model.bandOf('waiting') === 'needs' && model.bandOf('unread') === 'needs');
   const cnt = els.get('cnt').innerHTML;
   check(tag('band chips carry counts and toggle state'), /1 need you/.test(cnt) && /0 to finish/.test(cnt) && /1 waiting/.test(cnt) && /0 to tidy/.test(cnt) && /aria-pressed="true"/.test(cnt));
@@ -106,17 +106,17 @@ function scenario(W) {
   step('space expands, left collapses', () => { key(' ', 0); });
   check(tag('Space expands'), /aria-expanded="true"/.test(body.innerHTML));
   step('left', () => key('ArrowLeft', 0));
-  check(tag('ArrowLeft collapses'), !/aria-expanded="true"/.test(body.innerHTML));
+  check(tag('ArrowLeft collapses'), !/data-a="row"[^>]*aria-expanded="true"/.test(body.innerHTML));
   step('right and escape', () => { key('ArrowRight', 0); key('Escape', 0); });
-  check(tag('Escape collapses an open row'), !/aria-expanded="true"/.test(body.innerHTML));
+  check(tag('Escape collapses an open row'), !/data-a="row"[^>]*aria-expanded="true"/.test(body.innerHTML));
   step('focusin sets the roving stop', () => fire(document, 'focusin', { target: rbs[1] }));
   check(tag('focus moves the single tab stop'), rbs[1].tabIndex === 0 && rbs[0].tabIndex === -1);
   document.querySelectorAll = () => [];
   // Grouping and filters.
   step('group by chat', () => fire('grm', 'change', { target: { value: 'chat' } }));
   check(tag('By chat shows one flat list and saves the choice'), /All chats/.test(body.innerHTML) && posted.some((p) => p.type === 'prefs' && p.group === 'chat') && els.get('grm').hidden === true);
-  step('group by repository', () => fire('grm', 'change', { target: { value: 'repo' } }));
-  check(tag('By repository groups by project folder'), /aria-label="alpha"/.test(body.innerHTML) && /aria-label="beta"/.test(body.innerHTML));
+  step('group by repository is gone', () => fire('grm', 'change', { target: { value: 'repo' } }));
+  check(tag('By repository is not offered and is ignored'), !/By repository/.test(els.get('grm').innerHTML) && !/aria-label="alpha"/.test(body.innerHTML));
   step('bad group ignored', () => fire('grm', 'change', { target: { value: 'nope' } }));
   step('group by attention', () => fire('grm', 'change', { target: { value: 'attention' } }));
   step('hide the needs band', () => fire(els.get('body'), 'click', { target: target('band', '', { dataset: { a: 'band', b: 'needs' } }) }));
@@ -203,6 +203,7 @@ function gitScenario(W) {
   check(tag('a dirty worktree with no chat sits in To finish, not Ready to tidy'), /data-id="w4"/.test(body.innerHTML) && !/data-a="rm" data-k="w4"/.test(body.innerHTML) && /2 to finish/.test(els.get('cnt').innerHTML));
   check(tag('a worktree whose folder is missing is ready to prune'), /data-a="rm" data-k="w5"/.test(body.innerHTML) && /Folder missing/.test(body.innerHTML));
   check(tag('worktree rows get no chat actions'), rowOf('w2') !== '' && !/data-a="(open|handover|find|arch|done)"/.test(rowOf('w2')));
+  check(tag('a worktree row tooltip shows the full path (data-tip only; nothing is posted back)'), /data-tip="[^"]*\/p\/proj-wt-a/.test(rowOf('w2')));
   step('copy remove', () => click('rm', 0, { k: 'w2' }));
   check(tag('Copy remove command posts copyRemove with only the worktree key'), posted.some((p) => p.type === 'copyRemove' && p.key === 'w2' && Object.keys(p).length === 2));
   step('init windows', () => { deliver({ type: 'init', v: 2, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 2, done: {}, win: true }); advance(300); });
@@ -270,6 +271,7 @@ function gitScenario(W) {
   step('restored done map', () => { deliver({ type: 'init', v: 2, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 2, done: { [id(3)]: model.fingerprint('idle', rowsG[2].last, undefined) } }); advance(300); });
   check(tag('a stored done mark hides its row after a reload (git unknown does not un-hide it)'), !new RegExp('data-id="' + id(3) + '"').test(body.innerHTML));
   // This workspace only, scoped by repository.
+  check(tag('This workspace only defaults to on in the page, and a saved off from the host is kept'), /wsOnly=true,wsN=0/.test(page) && /wsOnly=!!d\.wsOnly/.test(page));
   step('workspace chip', () => click('ws'));
   check(tag('the workspace chip shows when a workspace is open and saves the choice'), els.get('wsb').hidden === false && posted.some((p) => p.type === 'prefs' && p.wsOnly === true));
   step('a sibling worktree folder in another repo', () => { deliver(fm(2, 'f4', 'ok', { facts: facts({ rk: 'r9', ws: false }) })); advance(300); });
@@ -730,6 +732,11 @@ function viewScenario(W) {
   check(tag('the branch section is collapsed and no branch read has been asked'), /aria-label="Branches without a worktree"/.test(body.innerHTML) && /data-a="brsec"[^>]*aria-expanded="false"/.test(body.innerHTML) && !/data-a="brx"/.test(body.innerHTML) && posts('branches').length === 0);
   step('open section', () => click('brsec')); advance(300);
   check(tag('opening the section lists the repositories and still asks for nothing'), /data-a="brx" data-k="r1"/.test(body.innerHTML) && /data-a="brx" data-k="r2"/.test(body.innerHTML) && posts('branches').length === 0 && /Nothing is deleted/.test(body.innerHTML));
+  const SK = (/data-a="sec" data-s="([a-z]+)"/.exec(body.innerHTML) || [])[1] || 'needs', secRe = (v) => new RegExp('data-a="sec" data-s="' + SK + '"[^>]*aria-expanded="' + v + '"');
+  step('collapse first band', () => click('sec', { s: SK }));
+  check(tag('a band header toggles: collapsed has aria-expanded false and the state is saved per workspace'), secRe(false).test(body.innerHTML) && posts('view').pop().sec[SK] === false);
+  step('expand needs band', () => click('sec', { s: SK }));
+  check(tag('a second click expands it again and saves'), secRe(true).test(body.innerHTML) && posts('view').pop().sec[SK] === true);
   step('open r1', () => click('brx', { k: 'r1' }));
   check(tag('opening a repository asks the host for its branches once and shows Loading'), posts('branches').length === 1 && posts('branches')[0].key === 'r1' && /Loading\.\.\./.test(body.innerHTML));
   step('answer', () => deliver({ type: 'branchList', key: 'r1', list: [{ name: 'stale', merged: false, gone: true }, { name: '<b>x</b>', merged: true, gone: false }], more: 4, reason: '' })); advance(300);
@@ -821,10 +828,14 @@ if (!/Content-Security-Policy[^>]*default-src 'none'/.test(page)) { bad('page ke
   if (g.map((x) => x.key).join() !== 'needs,waiting,idle') { bad('attention order is needs, waiting, idle: ' + g.map((x) => x.key).join()); }
   if (g[0].rows.map((r) => r.id).join() !== 'c,a') { bad('newest first inside a band'); }
   if (model.groupRows(rs, dots, 'attention', ['needs']).some((x) => x.key === 'needs')) { bad('a hidden band is left out'); }
-  const by = model.groupRows(rs, dots, 'repo', []);
-  if (by[0].label !== 'Unknown folder' || by.length !== 3) { bad('repository groups, newest group first, empty project is Unknown folder: ' + by.map((x) => x.label)); }
   if (model.groupRows(rs, dots, 'chat', ['idle'])[0].rows.length !== 3) { bad('chat mode honors hidden bands'); }
   if (model.groupRows([], dots, 'chat', []).length !== 0) { bad('no rows, no groups'); }
+  {
+    const wr = rs.concat([{ id: 'w1', last: 0, project: 'p', kind: 'wt' }]);
+    const gi = model.groupRows(wr, dots, 'attention', ['idle']).find((x) => x.key === 'idle');
+    if (!gi || gi.rows.map((r) => r.id).join() !== 'w1') { bad('with idle hidden, idle worktrees still show and idle chats do not'); }
+    if (model.groupRows(wr, dots, 'chat', ['idle'])[0].rows.map((r) => r.id).indexOf('w1') < 0) { bad('chat mode keeps idle worktrees when idle is hidden'); }
+  }
   if (!/BAND_ORDER/.test(model.WORK_MODEL_SRC) || !/function bandOf/.test(model.WORK_MODEL_SRC)) { bad('the page embeds the model source'); }
 }
 

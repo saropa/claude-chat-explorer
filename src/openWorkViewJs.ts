@@ -7,7 +7,7 @@ function ico(n){return '<svg class="ic" viewBox="0 0 16 16" width="16" height="1
 function ibtn(a,label,icon,tip,extra){return '<button type="button" class="ab ib" data-a="'+a+'"'+(extra||'')+' aria-label="'+esc(label)+'" title="'+esc(tip||label)+'">'+ico(icon)+'</button>';}
 function pctClass(p){return p>80?'cr':p>=50?'cy':'cg';}
 const Q_DEBOUNCE_MS=200,BR_WATCH_MS=15000,SUM_WATCH_MS=5000,SUM_DONE_MS=2000;
-let winCmd=false,fq='',flt={pr:false,fail:false,dirty:false,push:false},sortMode='recent',sm={st:'',n:0},smT=0,smW=0,brs={},brOpen=false,brx={},bwatch={},qT=0,ended=false,refocus='';
+let winCmd=false,fq='',flt={pr:false,fail:false,dirty:false,push:false},sortMode='recent',sm={st:'',n:0},smT=0,smW=0,brs={},sec={},brx={},bwatch={},qT=0,ended=false,refocus='';
 function cw(){return winCmd?'PowerShell ':'';}
 function filtering(){return fq!==''||flt.pr||flt.fail||flt.dirty||flt.push;}
 function rowHay(r){const wt=r.kind==='wt',e=wt?null:fOf(r),f=wt?(r.w.facts&&r.w.facts.ok?r.w.facts:null):e&&e.f,rp=repos[wt?r.rk:f&&f.rk]||{};
@@ -15,13 +15,15 @@ const br=wt?(r.w.detached?'':r.w.branch||''):f?(f.detached?'':f.branch||''):'',p
 return [r.title,r.project,br,rp.name,f&&f.files?f.files.map(x=>x.p).join(' '):'',pr].join(' ');}
 function filterOk(r){if(fq&&!filterMatch(rowHay(r),fq))return false;return flagPass(viewOf(r),flt);}
 function filtered(v){return filtering()?v.filter(filterOk):v;}
-function saveView(){vs.postMessage({type:'view',q:fq,f:{pr:flt.pr,fail:flt.fail,dirty:flt.dirty,push:flt.push},sort:sortMode});}
+function saveView(){vs.postMessage({type:'view',q:fq,f:{pr:flt.pr,fail:flt.fail,dirty:flt.dirty,push:flt.push},sort:sortMode,sec:sec});}
 function applyQ(v){fq=String(v==null?'':v).trim().slice(0,80);saveView();render();}
 function clearFilters(){fq='';$('fq').value='';flt={pr:false,fail:false,dirty:false,push:false};saveView();render();}
 function toggleFlag(k){if(!(k in flt))return;flt[k]=!flt[k];refocus='[data-f="'+k+'"]';saveView();render();}
 function setSort(v){if(!SORTS.some(s=>s[0]===v))return;sortMode=v;saveView();render();}
 function sortLabel(){return SORTS.find(s=>s[0]===sortMode)[1];}
-function applyView(v){v=v&&typeof v==='object'?v:{};fq=typeof v.q==='string'?v.q.slice(0,80):'';$('fq').value=fq;const f=v.f&&typeof v.f==='object'?v.f:{};flt={pr:f.pr===true,fail:f.fail===true,dirty:f.dirty===true,push:f.push===true};sortMode=SORTS.some(s=>s[0]===v.sort)?v.sort:'recent';}
+function applyView(v){v=v&&typeof v==='object'?v:{};fq=typeof v.q==='string'?v.q.slice(0,80):'';$('fq').value=fq;const f=v.f&&typeof v.f==='object'?v.f:{};flt={pr:f.pr===true,fail:f.fail===true,dirty:f.dirty===true,push:f.push===true};sortMode=SORTS.some(s=>s[0]===v.sort)?v.sort:'recent';sec={};if(v.sec&&typeof v.sec==='object')Object.keys(v.sec).forEach(k=>{if(typeof v.sec[k]==='boolean')sec[k]=v.sec[k];});}
+function secOpen(k){return sec[k]!==undefined?sec[k]:k!=='br';}
+function toggleSec(k){if(!k||k.length>80)return;sec[k]=!secOpen(k);refocus='[data-a="sec"][data-s="'+k.replace(/[^A-Za-z0-9:_-]/g,'')+'"]';saveView();render();}
 function viewUi(){const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.f&&(ae.dataset.f in flt)&&!refocus)refocus='[data-f="'+ae.dataset.f+'"]';const flags=FLAGS.filter(f=>!f[3]||prsOn);
 $('fch').innerHTML=flags.map(f=>'<button type="button" class="chip" data-a="flt" data-f="'+f[0]+'" aria-pressed="'+flt[f[0]]+'" data-tip="'+esc(f[2])+'">'+esc(f[1])+'</button>').join('')+(filtering()?'<button type="button" class="ab" data-a="clearf" aria-label="Clear all filters" data-tip="Clear the filter box and the state filters">Clear filters</button>':'');
 $('srm').querySelectorAll('input').forEach(i=>{i.checked=i.value===sortMode;});$('srt').textContent='Sort: '+sortLabel();$('srb').setAttribute('aria-label','Sort rows by: '+sortLabel());smUi();}
@@ -49,11 +51,11 @@ function brRepo(k){const rp=repos[k],b=brs[k],open=!!brx[k];let h='<div class="b
 if(open){if(!b||b.st==='loading')h+='<div class="gw">Loading...</div>';
 else if(b.st==='error')h+='<div class="gw">'+esc(b.reason)+' '+ibtn('brx2','Read the branches again','retry','Read the branches again',' data-k="'+k+'"')+'</div>';
 else if(!b.list.length)h+='<div class="gw gmore">No leftover branches.</div>';
-else h+=b.list.map((x,i)=>'<div class="gw"><code title="'+esc(x.name)+'">'+esc(x.name)+'</code> <span class="q">'+(x.merged?'merged':'remote branch gone, not merged here')+'</span> '+ibtn('brcopy','Copy '+cw()+'delete command for branch '+x.name,'trash','Copy a '+cw()+'command that deletes this branch. Nothing is run.',' data-k="'+k+'" data-i="'+i+'"')+'</div>').join('')+(b.more>0?'<div class="gw gmore">+'+b.more+' more</div>':'');}
+else h+=b.list.map((x,i)=>'<div class="gw"><code title="'+esc(x.name)+'">'+esc(x.name)+'</code> <span class="q">'+(x.merged?'merged':x.gone?'remote branch gone, not merged here':'not merged')+'</span> '+ibtn('brcopy','Copy '+cw()+'delete command for branch '+x.name,'trash','Copy a '+cw()+'command that deletes this branch. Nothing is run.',' data-k="'+k+'" data-i="'+i+'"')+'</div>').join('')+(b.more>0?'<div class="gw gmore">+'+b.more+' more</div>':'');}
 return h+'</div>';}
 function brHtml(){if(!loaded)return'';const ks=Object.keys(repos).filter(k=>{const rp=repos[k];return rp.st==='ok'&&rp.name&&(!wsOnly||!wsN||rp.ws);}).sort((a,b)=>repos[a].name.localeCompare(repos[b].name));if(!ks.length)return'';
-return '<section class="band" aria-label="Branches without a worktree"><h2 class="bh" role="heading" aria-level="2"><button type="button" class="ab" data-a="brsec" aria-expanded="'+brOpen+'" aria-controls="brbody" data-tip="Local branches with no chat and no worktree, merged or with their remote branch gone. Read only: nothing is deleted.">Branches without a worktree</button></h2>'
-+(brOpen?'<div id="brbody"><p class="sub">Local branches with no chat and no worktree that are merged or whose remote branch is gone. Nothing is deleted: copy a command and run it yourself.</p>'+ks.map(brRepo).join('')+'</div>':'')+'</section>';}
+return '<section class="band" aria-label="Branches without a worktree"><h2 class="bh" role="heading" aria-level="2"><button type="button" class="ab" data-a="brsec" aria-expanded="'+secOpen('br')+'" aria-controls="brbody" data-tip="'+(secOpen('br')?'Collapse':'Expand')+' this section. Every local branch with no chat and no worktree. Read only: nothing is deleted.">Branches without a worktree</button></h2>'
++(secOpen('br')?'<div id="brbody"><p class="sub">Local branches with no chat and no worktree (merged, remote gone, or not merged yet). Nothing is deleted: copy a command and run it yourself.</p>'+ks.map(brRepo).join('')+'</div>':'')+'</section>';}
 function viewKey(e){const t=e.target||{},typing=t.id==='fq'||/^(INPUT|TEXTAREA|SELECT)$/.test(String(t.tagName||''));if(e.ctrlKey||e.metaKey||e.altKey)return false;
 if(typing){if(t.id==='fq'&&e.key==='Escape'){e.preventDefault();if($('fq').value){$('fq').value='';clearTimeout(qT);applyQ('');}else $('fq').blur();return true;}
 if(t.id==='fq'&&e.key==='ArrowDown'){const b=document.querySelector('.rb');if(b){e.preventDefault();b.focus();}return true;}return true;}

@@ -10,7 +10,7 @@ const CORE = String.raw`
 const vs=acquireVsCodeApi();const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const WIDE_PX=1080,WIDE_PR_PX=1360,THROTTLE_MS=250,WATCHDOG_MS=20000;
-const GROUPS=[['attention','By attention'],['chat','By chat'],['repo','By repository']];
+const GROUPS=[['attention','By attention'],['chat','By chat']];
 let rows=[],dots={},days=14,group='attention',hidden=[],open=new Set(),hv={},pend=new Set(),loaded=false,failed='',indexing=false,scan=0,lastAt=0,askedAt=0,watch=0,rtimer=0,lastRender=0,focusId='';
 const DONE_TIP='Hide this row until its git or chat state changes';
 const body=$('body'),grm=$('grm');
@@ -39,7 +39,7 @@ const acts=(wt?'':btn('open','Open chat: '+t,'open','Open chat')+btn('handover',
 +(pc.retry?ibtn('fretry','Retry pull request lookup: '+t,'retry','Look up the pull request again',' data-k="'+esc(pc.retry)+'"'):'')
 +(ready&&w&&!w.main?ibtn('rm','Copy '+cw()+'remove command: '+t,'trash','Copy a '+cw()+'command that removes this finished worktree. Nothing is run.',' data-k="'+esc(w.k)+'"'):'');
 return '<div class="row" role="listitem" data-id="'+esc(r.id)+'" aria-busy="'+(c.busy||pc.busy?'true':'false')+'"><div class="main"><button type="button" class="rb" data-a="row" tabindex="'+(tab?0:-1)+'" aria-expanded="'+isOpen+'" aria-label="'+esc(label)+'">'+dot
-+'<span class="t" data-tip="'+esc(t+(wt?(r.w.prOnly?'\nOpen pull request, no chat or worktree':'\nWorktree with no chat'):'\n'+words))+'">'+(r.pinned?'<span class="pill">Pinned</span> ':'')+esc(t)+'</span>'
++'<span class="t" data-tip="'+esc(t+(wt?(r.w.prOnly?'\nOpen pull request, no chat or worktree':'\nWorktree with no chat'+(r.w.path?'\n'+r.w.path:'')):'\n'+words))+'">'+(r.pinned?'<span class="pill">Pinned</span> ':'')+(wt&&!r.w.prOnly?'<span class="pill wtp">worktree</span> ':'')+esc(t)+'</span>'
 +'<span class="meta"><span class="pj" title="'+esc(r.project||'')+'">'+esc(r.project||'')+'</span><span class="br" title="'+(c.br?'Branch: '+c.br:'No branch')+'">'+brCell(r,c)+'</span><span class="fl">'+c.fl+'</span><span class="ah">'+esc(c.ah)+'</span>'+(prsOn?'<span class="pr">'+pc.pr+'</span><span class="kc">'+pc.ck+'</span>':'')+'<span class="cx '+(!wt&&r.ctx?pctClass(r.ctx.pct):'')+'"'+(!wt&&r.ctx?' title="Context window used: '+esc(r.ctx.pct)+'%"':'')+'>'+(!wt&&r.ctx?r.ctx.pct+'%':'')+'</span><span class="st'+(stTxt?' b-'+(bnd==='idle'?(s==='running'?'waiting':'tidy'):bnd):'')+'">'+esc(stTxt)+'</span><span class="tm">'+esc(age)+'</span></span></button>'
 +'<div class="acts">'+acts+'</div></div>'
 +(isOpen?exHtml(r,words,g):'')+'</div>';}
@@ -64,7 +64,7 @@ const gr=groupRows(vis,dots,group,hidden,bandHeld,sortMode),clr=allClear(vis);
 if(!gr.length)return err+(clr?clearHtml()+'<p class="msg"><button type="button" class="ab" data-a="idle">Show idle</button></p>':'<p class="msg">Nothing to show with these filters. <button type="button" class="ab" data-a="idle">Show idle</button></p>')+brHtml();
 let tabId=gr.some(g=>g.rows.some(r=>r.id===focusId))?focusId:gr[0].rows[0].id;
 const th='<div class="th" aria-hidden="true"><div class="a"><span></span><span>Chat</span><span>Folder</span><span>Branch</span><span>Files</span><span>Ahead</span>'+(prsOn?'<span>PR</span><span>Checks</span>':'')+'<span>Ctx</span><span>State</span><span>Active</span></div><div class="b"></div></div>';
-return err+noRepoNote()+(clr?clearHtml():'')+th+gr.map(g=>'<section class="band" aria-label="'+esc(g.label)+'"><h2 class="bh g-'+esc(g.key)+'" role="heading" aria-level="2">'+esc(g.label)+' <span class="pill">'+g.rows.length+'</span></h2><div role="list">'+g.rows.map(r=>rowHtml(r,r.id===tabId)).join('')+'</div></section>').join('')+brHtml();}
+return err+noRepoNote()+(clr?clearHtml():'')+th+gr.map(g=>'<section class="band" aria-label="'+esc(g.label)+'"><h2 class="bh g-'+esc(g.key)+'" role="heading" aria-level="2">'+'<button type="button" class="ab" data-a="sec" data-s="'+esc(g.key)+'" aria-expanded="'+secOpen(g.key)+'" data-tip="'+(secOpen(g.key)?'Collapse':'Expand')+' '+esc(g.label)+'">'+esc(g.label)+'</button> <span class="pill">'+g.rows.length+'</span></h2>'+(secOpen(g.key)?'<div role="list">'+g.rows.map(r=>rowHtml(r,r.id===tabId)).join('')+'</div>':'')+'</section>').join('')+brHtml();}
 function layout(){const w=document.documentElement.clientWidth||window.innerWidth||400;$('wrap').classList.toggle('wide',w>=(prsOn?WIDE_PR_PX:WIDE_PX));prsUi();}
 function ago(ms){const s=Math.floor(ms/1000);return s<10?'just now':s<60?s+' s ago':s<3600?Math.floor(s/60)+' min ago':Math.floor(s/3600)+' h ago';}
 function updText(){ghUi();$('upd').textContent=lastAt?'Updated '+ago(Date.now()-lastAt):'';$('updw').hidden=!lastAt;}
@@ -107,7 +107,8 @@ else if(k==='showdone'){showDone=!showDone;render();}
 else if(k==='flt'){toggleFlag(a.dataset.f||'');}
 else if(k==='clearf'){clearFilters();}
 else if(k==='summary'){copySummary();}
-else if(k==='brsec'){brOpen=!brOpen;refocus='[data-a="brsec"]';render();}
+else if(k==='brsec'){toggleSec('br');refocus='[data-a="brsec"]';}
+else if(k==='sec'){toggleSec(a.dataset.s||'');}
 else if(k==='brx'){toggleBr(a.dataset.k||'');}
 else if(k==='brx2'){if(/^r\d+$/.test(a.dataset.k||'')){askBr(a.dataset.k);sched();}}
 else if(k==='brcopy'){const n=Number(a.dataset.i);if(/^r\d+$/.test(a.dataset.k||'')&&n>=0)vs.postMessage({type:'copyBranch',key:a.dataset.k,i:n});}

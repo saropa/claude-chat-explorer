@@ -103,7 +103,7 @@ export function removeCommand(r: { main: string; defLocal?: string }, w: { path:
 }
 
 export const MAX_BRANCH_ROWS = 50;
-/** A local branch nothing uses: no worktree, no chat, not the default branch; merged into the default branch or its remote branch is gone. */
+/** A local branch nothing uses: no worktree, no chat, not the default branch. merged and gone say whether it is safe to delete; neither means it has unmerged work. */
 export interface BranchOut { name: string; merged: boolean; gone: boolean; }
 
 /** Leftover local branches of one repository (one read-only for-each-ref call). inUse holds the branches of chats in scope. A failed call returns its reason. */
@@ -116,7 +116,7 @@ export async function branchesOf(c: Ctx, r: RepoOut, inUse: Set<string>): Promis
   if (r.defLocal) { used.add(r.defLocal); }
   const merged = new Set(r.merged);
   const all = parseLocalBranches(res.stdout)
-    .filter((b) => !b.name.startsWith('-') && !used.has(b.name) && (merged.has(b.name) || b.gone))
+    .filter((b) => !b.name.startsWith('-') && !used.has(b.name))
     .map((b) => ({ name: b.name, merged: merged.has(b.name), gone: b.gone }));
   return { list: all.slice(0, MAX_BRANCH_ROWS), more: Math.max(0, all.length - MAX_BRANCH_ROWS) };
 }

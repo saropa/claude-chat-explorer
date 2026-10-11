@@ -262,7 +262,7 @@ export class WorkScan {
     if (!r || !st) { this.put(run, { type: 'repo', key: rk, state, reason, worktrees: [], merged: [] }); return; }
     const fks = [...st.fks];
     const worktrees = r.worktrees.map((w) => ({
-      k: this.wkeyOf(rk, w.real), name: path.basename(w.path), branch: w.branch, detached: w.detached, sha: w.head.slice(0, 7), main: w.main, missing: w.missing,
+      k: this.wkeyOf(rk, w.real), name: path.basename(w.path), path: w.path, branch: w.branch, detached: w.detached, sha: w.head.slice(0, 7), main: w.main, missing: w.missing,
       locked: w.locked, lockReason: w.lockReason, prunable: w.prunable, merged: w.merged, facts: w.facts, ws: this.ws.reals.has(w.real) || this.ws.paths.some((p) => path.resolve(p) === w.path),
       fks: fks.filter((k) => this.byKey.get(k)?.topReal === w.real),
     }));

@@ -2,6 +2,15 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.27.1 - 2026-10-11
+- Added: branches with no chat and no worktree are listed, labelled merged, remote gone, or not merged.
+- Added: every git worktree of a repository is listed, including idle ones. Worktree rows have a "worktree" label and show the full path as a tooltip.
+- Added: every section header (bands and "Branches without a worktree") expands and collapses. The state is remembered per workspace.
+- Changed: "This workspace only" is on by default.
+- Changed: the "By repository" grouping is removed.
+- Changed: tighter layout. Action icons sit beside the title on wide windows; narrow windows use a grid.
+- Fixed: idle worktrees disappeared when the idle filter was on.
+
 ## 0.27.0
 - Changed: Info (search tips), Sort and Status filter icons moved from the search row to the view title bar, next to Open Work. Each opens a quick pick (the current sort and the number of hidden statuses show in its placeholder). The search box now uses the full row width.
 - Removed: the in-panel tips, sort and filter popovers, and the "changed" dots on the sort and filter buttons.

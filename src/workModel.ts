@@ -78,19 +78,21 @@ export function bandRows(rows: Array<{ id: string; last: number }>, dots: { [id:
   return out;
 }
 
-/** Display groups for a mode: attention (bands), chat (one flat list) or repo (by project folder, newest group first). hidden lists bands whose rows are left out. */
+/** Display groups for a mode: attention (bands) or chat (one flat list). hidden lists bands whose rows are left out. */
 export function groupRows(rows: Array<{ id: string; last: number; project: string }>, dots: { [id: string]: { s: string } }, mode: string, hidden: string[], bandFn?: (r: any, dot: string) => string, sort?: string): Array<{ key: string; label: string; rows: any[] }> {
   const place = bandFn || function (r: any, dot: string): string { return bandOf(dot); };
   const by = bandRows(rows, dots, place, sort);
-  if (mode === 'chat' || mode === 'repo') {
-    const shown = rows.filter((r) => hidden.indexOf(place(r, dots[r.id] ? dots[r.id].s : 'idle')) < 0).sort(rowCmp(sort));
-    if (mode === 'chat') { return shown.length ? [{ key: 'all', label: 'All chats', rows: shown }] : []; }
-    const g: { [p: string]: any[] } = {};
-    for (const r of shown) { (g[r.project || 'Unknown folder'] = g[r.project || 'Unknown folder'] || []).push(r); }
-    return Object.keys(g).sort((a, b) => (sort === 'name' || sort === 'repo' ? a.toLowerCase().localeCompare(b.toLowerCase()) : g[b].reduce((m: number, x: any) => Math.max(m, x.last), 0) - g[a].reduce((m: number, x: any) => Math.max(m, x.last), 0))).map((p) => ({ key: 'repo:' + p, label: p, rows: g[p] }));
+  if (mode === 'chat') {
+    const shown = rows.filter((r) => { const b = place(r, dots[r.id] ? dots[r.id].s : 'idle'); return hidden.indexOf(b) < 0 || (b === 'idle' && (r as any).kind === 'wt'); }).sort(rowCmp(sort)); // a worktree is never hidden with the idle chats
+    return shown.length ? [{ key: 'all', label: 'All chats', rows: shown }] : [];
   }
   const labels: { [k: string]: string } = { needs: 'Needs you', finish: 'To finish', waiting: 'Waiting on others', tidy: 'Ready to tidy', idle: 'Idle' };
-  return ['needs', 'finish', 'waiting', 'tidy', 'idle'].filter((b) => hidden.indexOf(b) < 0 && by[b].length).map((b) => ({ key: b, label: labels[b], rows: by[b] }));
+  const out: Array<{ key: string; label: string; rows: any[] }> = [];
+  for (const b of ['needs', 'finish', 'waiting', 'tidy', 'idle']) {
+    if (hidden.indexOf(b) < 0) { if (by[b].length) { out.push({ key: b, label: labels[b], rows: by[b] }); } }
+    else if (b === 'idle') { const w = by[b].filter((r: any) => r.kind === 'wt'); if (w.length) { out.push({ key: b, label: 'Idle worktrees', rows: w }); } } // idle chats stay hidden, worktrees do not
+  }
+  return out;
 }
 
 /**

@@ -2,7 +2,7 @@
  *  Shares the page's top-level scope (CORE runs after it); nothing here touches the page at load. */
 export const OW_GIT_JS = String.raw`
 const WATCH_FOLDER_MS=15000,WATCH_SCAN_MS=45000,WATCH_DETAIL_MS=15000,HOLD_MS=2000,SPIN='<span class="spin" role="img" aria-label="Reading git"></span>';
-let gs={},repos={},prog=null,scanLive=false,notes={},wsOnly=false,wsN=0,donemap={},showDone=false,gotDots=false,placed={},hoverId='',settleT=0,moving=false,detail={},asked={},staleDone={},staleT=0,fwatch={},swatch=0;
+let gs={},repos={},prog=null,scanLive=false,notes={},wsOnly=true,wsN=0,donemap={},showDone=false,gotDots=false,placed={},hoverId='',settleT=0,moving=false,detail={},asked={},staleDone={},staleT=0,fwatch={},swatch=0;
 function fOf(r){return r&&r.fk?gs[r.fk]:undefined;}
 function gitView(r){const e=fOf(r);if(!e||!e.f)return undefined;const f=e.f,rp=repos[f.rk]||{},def=rp.defLocal||'';
 return{ok:true,files:f.fileTotal||0,ahead:f.ahead||0,behind:f.behind||0,gone:!!f.gone,branch:f.branch||'',detached:!!f.detached,up:!!f.upstream,merged:!!(f.branch&&rp.mset&&rp.mset[f.branch]&&f.branch!==def),isDef:!!def&&f.branch===def,pr:prFact(r)};}

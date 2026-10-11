@@ -178,9 +178,14 @@ async function scanTests() {
     const rk = c.of('repo').pop().key;
     const pre = g.calls.filter((x) => /upstream:track/.test(x.a)).length;
     check('branches: the repository layer reads the local branch names once per repository (' + pre + ' reads for ' + c.of('repo').filter((m) => m.state === 'ok').map((m) => m.key).filter((k, i, a) => a.indexOf(k) === i).length + ' repositories), the leftover list is not read until the page asks', pre === c.of('repo').filter((m) => m.state === 'ok').map((m) => m.key).filter((k, i, a) => a.indexOf(k) === i).length);
+    {
+      const wtm = c.of('repo').pop().worktrees;
+      check('worktrees: every git worktree of the repository is posted with its branch (no chat needed): ' + wtm.map((w) => w.name + ':' + (w.branch || '')).join('|'), wtm.length === 4 && wtm.some((w) => w.branch === 'feat' && !w.main && w.fks.length === 0) && wtm.some((w) => w.main));
+    }
     const r = await scan.branches(rk);
     const names = (r.list || []).map((b) => b.name);
-    check('branches: only merged or upstream-gone branches with no worktree, no chat and not default (' + names.join('|') + ')', names.join('|') === "stale|merged1|it's-done");
+    check('branches: every local branch with no worktree, no chat and not default, including unmerged ones (' + names.join('|') + ')', names.join('|') === "stale|merged1|it's-done|live");
+    check('branches: an unmerged branch with a live remote is flagged neither merged nor gone', r.list[3].merged === false && r.list[3].gone === false);
     check('branches: merged and gone flags', r.list[0].gone === true && r.list[0].merged === false && r.list[1].merged === true && r.more === 0);
     check('branches: the read is one for-each-ref call', g.calls.filter((x) => /upstream:track/.test(x.a)).length === pre + 1 && g.calls.every((x) => x.cmd === 'git'));
     {

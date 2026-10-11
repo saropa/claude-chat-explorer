@@ -16,7 +16,7 @@ const VIEW_KEY = 'saropaChatExplorer.openWorkView'; // filter text, state filter
 const SORTS = ['recent', 'name', 'repo'];
 const SUMMARY_MAX_CHARS = 100000;
 const BANDS = ['needs', 'finish', 'waiting', 'tidy', 'idle'];
-const GROUPS = ['attention', 'chat', 'repo'];
+const GROUPS = ['attention', 'chat'];
 const REFRESH_DEBOUNCE_MS = 1000;
 const FIND_MAX_CHARS = 80;
 const DONE_MAX = 500;
@@ -41,7 +41,7 @@ export interface OpenWorkDeps {
   prsOn: () => boolean; // the setting lookupPullRequests; off means no gh call and no pull request state
 }
 interface Prefs { group: string; hidden: string[]; wsOnly: boolean; }
-interface View { q: string; f: { pr: boolean; fail: boolean; dirty: boolean; push: boolean }; sort: string; }
+interface View { q: string; f: { pr: boolean; fail: boolean; dirty: boolean; push: boolean }; sort: string; sec: { [k: string]: boolean }; }
 interface Model { gh?: object; chats?: object; notes?: object; progress?: object; end?: object; folder: Map<string, object>; repo: Map<string, object>; prs: Map<string, object>; checks: Map<string, object>; }
 const newModel = (): Model => ({ folder: new Map(), repo: new Map(), prs: new Map(), checks: new Map() });
 
@@ -70,7 +70,7 @@ export class OpenWork {
 
   private get prefs(): Prefs {
     const p = this.ctx.globalState.get<Partial<Prefs>>(PREFS_KEY) ?? {};
-    return { group: GROUPS.includes(String(p.group)) ? String(p.group) : 'attention', hidden: Array.isArray(p.hidden) ? p.hidden.filter((b) => BANDS.includes(b)) : [], wsOnly: p.wsOnly === true };
+    return { group: GROUPS.includes(String(p.group)) ? String(p.group) : 'attention', hidden: Array.isArray(p.hidden) ? p.hidden.filter((b) => BANDS.includes(b)) : [], wsOnly: p.wsOnly !== false }; // on unless the owner saved it off
   }
 
   /** The page's filter box, state filters and sort order for this workspace; anything unexpected falls back to the default. */
@@ -162,7 +162,7 @@ export class OpenWork {
       const r = await this.d.softRequest({ t: 'openWork', days: openWorkDays(), pins: this.d.pins(), archived: this.d.archived(), live: Object.keys(dots), folders: this.d.workspace() });
       if (req !== this.reqNo) { return; } // a newer refresh owns the page
       const raw: OpenWorkRowOut[] = Array.isArray(r?.rows) ? r.rows : [];
-      const all = [...new Set(raw.map((x) => String(x.cwd ?? '')).filter(Boolean))];
+      const all = [...new Set([...this.d.workspace().slice(0, 10), ...raw.map((x) => String(x.cwd ?? '')).filter(Boolean)])]; // open workspace folders are scanned even when no chat ran in them, so their worktrees and branches are listed
       const wanted = all.slice(0, this.cap);
       const same = !o.force && !o.restart && this.scanned.size > 0 && wanted.every((c) => this.scanned.has(c));
       const rows = this.rowsOut(raw);
@@ -341,9 +341,16 @@ export class OpenWork {
 }
 
 /** A stored or posted view, cleaned: text up to 80 characters, booleans for the four state filters, a known sort. */
+/** Open or closed state the user chose per section (band key or 'br'); at most 30 entries, boolean values only. */
+function secOf(x: any): { [k: string]: boolean } {
+  const o: { [k: string]: boolean } = {};
+  if (x && typeof x === 'object') { for (const k of Object.keys(x).slice(0, 30)) { if (k.length <= 80 && typeof x[k] === 'boolean') { o[k] = x[k]; } } }
+  return o;
+}
+
 export function cleanView(v: any): View {
   const f = v && typeof v.f === 'object' && v.f ? v.f : {};
-  return { q: typeof v?.q === 'string' ? v.q.slice(0, FIND_MAX_CHARS) : '', f: { pr: f.pr === true, fail: f.fail === true, dirty: f.dirty === true, push: f.push === true }, sort: SORTS.includes(String(v?.sort)) ? String(v.sort) : 'recent' };
+  return { q: typeof v?.q === 'string' ? v.q.slice(0, FIND_MAX_CHARS) : '', f: { pr: f.pr === true, fail: f.fail === true, dirty: f.dirty === true, push: f.push === true }, sort: SORTS.includes(String(v?.sort)) ? String(v.sort) : 'recent', sec: secOf(v?.sec) };
 }
 
 /** Register the command that opens the page. */
