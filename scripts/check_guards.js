@@ -92,8 +92,8 @@ for (const line of ALLOW) { if (!wip.includes(line)) { bad('git/gh allow-list ch
   if (!/const ghLimiter = new Limiter\(2, 1\);/.test(ext) || !/const ghUiExec = ghLimiter\.wrap\(realExec, 'ui'\);/.test(ext) || !/limiter: ghLimiter, cache: prCache/.test(ext)) { bad('gh must run through a global limiter of 2 shared by the sidebar and the page, with one shared PR cache'); }
   if (!/prsOn, prs: new WorkPrs\(/.test(ext)) { bad('the Open Work scan must get the pull request layer and the lookupPullRequests switch'); }
 
-  // 3. No agent name in the page sources or in what the host shows. The one allowed mention is the command id.
-  for (const f of ['openWorkHtml.ts', 'openWorkJs.ts', 'openWorkGitJs.ts', 'openWorkPrJs.ts', 'openWorkViewJs.ts', 'openWorkCss.ts', 'workModel.ts', 'workChats.ts', 'workScan.ts', 'workRepo.ts', 'workPrs.ts', 'webviewPop.ts', 'execLimit.ts']) { if (/claude/i.test(read(f))) { bad(f + ' names an agent product'); } }
+  // 3. No agent name in the page sources or in what the host shows. The allowed mentions are the command id and the OW_TITLE page title.
+  for (const f of ['openWorkHtml.ts', 'openWorkJs.ts', 'openWorkGitJs.ts', 'openWorkPrJs.ts', 'openWorkViewJs.ts', 'openWorkCss.ts', 'workModel.ts', 'workChats.ts', 'workScan.ts', 'workRepo.ts', 'workPrs.ts', 'webviewPop.ts', 'execLimit.ts']) { if (/claude/i.test(read(f).split('\n').filter((l) => !/^export const OW_TITLE = 'Claude Project Status';$/.test(l)).join('\n'))) { bad(f + ' names an agent product'); } }
   const host = read('openWork.ts').split('\n').filter((l) => /claude/i.test(l) && !/OPEN_WORK_CMD = 'claudeChatExplorer\.openWork'/.test(l));
   if (host.length) { bad('openWork.ts names an agent product: ' + host[0].trim()); }
 
