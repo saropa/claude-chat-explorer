@@ -35,7 +35,7 @@ const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
 
 // 1. Open Work sources never import the worker client, and every .request( they make is soft.
 const own = fs.readdirSync(SRC).filter((f) => /^(openWork|work)[A-Za-z]*\.ts$/.test(f));
-for (const must of ['openWork.ts', 'workChats.ts', 'workScan.ts', 'workRepo.ts', 'workPrs.ts', 'openWorkGitJs.ts', 'openWorkPrJs.ts', 'openWorkViewJs.ts']) { if (!own.includes(must)) { bad('guard cannot see ' + must); } }
+for (const must of ['openWork.ts', 'workChats.ts', 'workScan.ts', 'workRepo.ts', 'workPrs.ts', 'openWorkGitJs.ts', 'openWorkPrJs.ts', 'openWorkViewJs.ts', 'workMatch.ts', 'workMade.ts', 'workCreated.ts']) { if (!own.includes(must)) { bad('guard cannot see ' + must); } }
 if (!own.includes('openWork.ts')) { bad('guard cannot see the Open Work sources: ' + own.join(',')); }
 for (const f of own) {
   const t = read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"])\/\/.*$/gm, '$1'); // comments are not code

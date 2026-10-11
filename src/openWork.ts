@@ -41,8 +41,9 @@ export interface OpenWorkDeps {
 }
 interface Prefs { hidden: string[]; }
 interface View { q: string; f: { pr: boolean; fail: boolean; dirty: boolean; push: boolean }; sort: string; sec: { [k: string]: boolean }; }
-interface Model { gh?: object; chats?: object; notes?: object; progress?: object; end?: object; folder: Map<string, object>; repo: Map<string, object>; prs: Map<string, object>; checks: Map<string, object>; }
-const newModel = (): Model => ({ folder: new Map(), repo: new Map(), prs: new Map(), checks: new Map() });
+interface Model { gh?: object; chats?: object; notes?: object; progress?: object; end?: object; folder: Map<string, object>; repo: Map<string, object>; prs: Map<string, object>; checks: Map<string, object>; rel: Map<string, object>; }
+const newModel = (): Model => ({ folder: new Map(), repo: new Map(), prs: new Map(), checks: new Map(), rel: new Map() });
+const REL_DEBOUNCE_MS = 300;
 
 /** Days of history shown, from the setting (1 to 90, default 14). */
 export function openWorkDays(): number {
@@ -60,6 +61,9 @@ export class OpenWork {
   private lastEnd = 0;
   private model: Model = newModel();
   private chatFk = new Map<string, string>();
+  private rowIds: string[] = [];
+  private readonly relKeys = new Set<string>(); // workspace repository keys whose layer ended
+  private relTimer?: NodeJS.Timeout;
   private prevRunning = new Set<string>();
   private titles = new Map<string, string>();
   private timer?: NodeJS.Timeout;
@@ -111,6 +115,9 @@ export class OpenWork {
     this.scanning = false;
     this.scanned = new Set();
     this.model = newModel();
+    clearTimeout(this.relTimer);
+    this.relTimer = undefined;
+    this.relKeys.clear();
     this.reqNo++;
   }
 
@@ -122,12 +129,32 @@ export class OpenWork {
   private postScan(m: any): void {
     const k = this.model;
     if (m.type === 'folder' || m.type === 'repo') { (m.type === 'folder' ? k.folder : k.repo).set(String(m.key), m); }
+    else if (m.type === 'rel') { k.rel.set(String(m.rk), m); }
     else if (m.type === 'prs') { k.prs.set(String(m.repo), m); }
     else if (m.type === 'gh') { k.gh = m; }
     else if (m.type === 'checks') { k.checks.set(m.repo + '|' + m.n, m); }
     else if (m.type === 'progress') { k.progress = m; }
     else if (m.type === 'end') { k.end = m; }
     this.post(m);
+    if (m.type === 'repo' && m.state === 'ok' && m.ws === true) { this.relKeys.add(String(m.key)); this.relSoon(); }
+  }
+
+  /** The chats that relate to each worktree and branch: asked once the repository layer ended, and again when the chat list changes. One request at a time, 300 ms after the last trigger. */
+  private relSoon(): void {
+    clearTimeout(this.relTimer);
+    this.relTimer = setTimeout(() => { this.relTimer = undefined; this.relKeys.forEach((rk) => { void this.relRun(rk, this.scanNo); }); }, REL_DEBOUNCE_MS);
+  }
+
+  private async relRun(rk: string, scan: number): Promise<void> {
+    const base = this.d.scan.relInput(rk);
+    if (!base || !this.panel) { return; }
+    let msg: { [k: string]: unknown } = { type: 'rel', scan, rk, ok: false };
+    try {
+      const r = await this.d.softRequest({ t: 'openWorkRel', ids: this.rowIds, ...base });
+      if (r?.ok === true) { msg = { type: 'rel', scan, rk, ok: true, w: r.w ?? {}, b: r.b ?? {} }; }
+      else if (r?.indexing === true) { msg = { type: 'rel', scan, rk, ok: false, indexing: true }; }
+    } catch (e) { this.d.log('open work chat match', e); }
+    if (scan === this.scanNo && this.panel) { this.postScan(msg); }
   }
 
   /** Index events come in bursts: one refresh a second at most. */
@@ -166,11 +193,12 @@ export class OpenWork {
       const same = !o.force && !o.restart && this.scanned.size > 0 && wanted.every((c) => this.scanned.has(c));
       const rows = this.rowsOut(raw);
       this.titles = new Map(rows.map((x) => [x.id, String(x.title ?? '')]));
+      this.rowIds = rows.map((x) => x.id);
       if (!same) { this.scanNo++; this.model = newModel(); }
       const msg = { type: 'chats', scan: this.scanNo, rows, indexing: r?.indexing === true, scanning: !same };
       this.model.chats = msg;
       this.post(msg);
-      if (!same) { this.begin(raw, wanted, all.length - wanted.length, o.force === true); }
+      if (!same) { this.begin(raw, wanted, all.length - wanted.length, o.force === true); } else { this.relSoon(); }
     } catch (e) {
       this.d.log('open work chats', e);
       if (req === this.reqNo) { this.post({ type: 'chatsFailed', scan: this.scanNo, message: 'Could not load chats' }); }
@@ -205,7 +233,7 @@ export class OpenWork {
     this.post({ type: 'dots', map: this.d.dots() });
     const k = this.model;
     if (!k.chats) { void this.refresh(); return; }
-    [k.chats, k.notes, k.gh, ...k.folder.values(), ...k.repo.values(), ...k.prs.values(), ...k.checks.values(), k.progress, k.end].forEach((m) => { if (m) { this.post(m); } });
+    [k.chats, k.notes, k.gh, ...k.folder.values(), ...k.repo.values(), ...k.rel.values(), ...k.prs.values(), ...k.checks.values(), k.progress, k.end].forEach((m) => { if (m) { this.post(m); } });
   }
 
   private async onMessage(m: any): Promise<void> {
@@ -349,10 +377,10 @@ export class OpenWork {
 }
 
 /** A stored or posted view, cleaned: text up to 80 characters, booleans for the four state filters, a known sort. */
-/** Open or closed state the user chose per section (band key or 'br'); at most 30 entries, boolean values only. */
+/** Open or closed state the user chose per section (band key or 'br'); at most 120 entries, boolean values only. */
 function secOf(x: any): { [k: string]: boolean } {
   const o: { [k: string]: boolean } = {};
-  if (x && typeof x === 'object') { for (const k of Object.keys(x).slice(0, 30)) { if (k.length <= 80 && typeof x[k] === 'boolean') { o[k] = x[k]; } } }
+  if (x && typeof x === 'object') { for (const k of Object.keys(x).slice(0, 120)) { if (k.length <= 80 && typeof x[k] === 'boolean') { o[k] = x[k]; } } }
   return o;
 }
 

@@ -20,7 +20,7 @@ const base = fs.realpathSync(fs.mkdtempSync(path.join(process.env.CCS_TMP || os.
 const OKRES = (stdout) => ({ code: 0, stdout, stderr: '', timedOut: false, aborted: false });
 const ABORTED = { code: null, stdout: '', stderr: '', timedOut: false, aborted: true };
 
-const { fakeGit, collect, mkWorld: mkWorldIn } = require('./fake_world');
+const { fakeGit, collect, chatFolders, mkWorld: mkWorldIn, contactsWorld } = require('./fake_world');
 const mkWorld = (n) => mkWorldIn(base, n);
 
 async function limiterTests() {
@@ -438,10 +438,103 @@ async function projectStatusTests() {
   const r3 = await run(world);
   check('status: a remote that is not github.com gives no repository link', r3.c.of('repo').filter((r) => r.state === 'ok').pop().gh === false && r3.scan.repoUrl(r3.c.of('folder').find((f) => f.facts).facts.rk) === undefined);
   world.remote = undefined;
+  // Branch creation time: the first reflog line of the branch, read as a plain file (no git command).
+  const logs = path.join(e.repo.common, 'logs', 'refs', 'heads');
+  fs.mkdirSync(logs, { recursive: true });
+  fs.writeFileSync(path.join(logs, 'feat'), '0000000000000000000000000000000000000000 aaaaaaa1aaaaaaa1aaaaaaa1aaaaaaa1aaaaaaa1 Ada <a@x> 1700000150 +0100\tbranch: Created from origin/main\n' + 'aaaaaaa1 bbbbbbb2 Ada <a@x> 1700000160 +0100\tcommit: more\n');
+  fs.writeFileSync(path.join(logs, 'old'), '0000000000000000000000000000000000000000 aaaaaaa1aaaaaaa1aaaaaaa1aaaaaaa1aaaaaaa1 Ada <a@x> 1700000050 +0100\tbranch: Reset to x\n');
+  const r4 = await run(world), repo4 = r4.c.of('repo').filter((r) => r.state === 'ok').pop();
+  check('status: a branch with a Created line in its reflog carries the creation time (unix seconds)', repo4.branches.find((b) => b.n === 'feat').cr === 1700000150);
+  check('status: a branch with no reflog, or a first line that is not a Created line, has creation time 0, and the read ran no extra git command', repo4.branches.find((b) => b.n === 'old').cr === 0 && repo4.branches.find((b) => b.n === 'main').cr === 0 && r4.g.calls.every((x) => !/reflog/.test(x.a)));
+  const ri = r4.scan.relInput(repo4.key);
+  check('status: relInput names the main folder, every worktree with key, folder and branch, and the branches with creation and tip times', !!ri && ri.roots[0] === e.repo.main && ri.wts.length === 4 && ri.wts.find((w) => w.branch === 'feat').k === repo4.worktrees.find((w) => w.branch === 'feat').k && ri.wts[0].main === true && ri.brs.find((b) => b.n === 'feat').cr === 1700000150 && ri.brs.find((b) => b.n === 'feat').ts === 1700000200 && ri.def === 'main' && !r4.scan.relInput('r999'));
+  check('status: the matcher input stays on the host (nothing of it in a posted message but the creation time)', !JSON.stringify(r4.c.msgs.map((x) => x.m)).includes('"roots"') && !JSON.stringify(r4.c.msgs.map((x) => x.m)).includes('"real"'));
+}
+
+/** Which chats belong to which worktree or branch: the shell parser, the matcher on a world modelled on the owner's agent-made repository, the request check, and a real parse of a transcript. */
+async function chatMatchTests() {
+  const { madeOf, madeByTool } = require(path.join(OUT, 'workMade.js'));
+  const { relOf, relInOf, MAX_HITS } = require(path.join(OUT, 'workMatch.js'));
+  const { createdOf, createdOfLine } = require(path.join(OUT, 'workCreated.js'));
+  const m = (c) => JSON.stringify(madeOf(c));
+  check('made: git worktree add <path> -b <branch> <start> names the worktree and the branch', m('git fetch origin 2>&1 | tail -2; git worktree add ../contacts-wt-connection-icon -b feat/saropa-connection-cloud-icon-search origin/main 2>&1 | tail -2') === '[["b","feat/saropa-connection-cloud-icon-search"],["w","../contacts-wt-connection-icon"]]');
+  check('made: git -C <path> branch <name> HEAD and quoted names', m('git -C /Users/me/contacts branch backup/main-before-merge-20261010_2142 HEAD') === '[["b","backup/main-before-merge-20261010_2142"]]' && m('git worktree add "/tmp/my wt" -B \'fix/x\'') === '[["b","fix/x"],["w","/tmp/my wt"]]');
+  check('made: checkout -b, switch -c and --create, in a chain', m('cd x && git checkout -b feat/a && git switch -c feat/b; git switch --create feat/c main') === '[["b","feat/a"],["b","feat/b"],["b","feat/c"]]');
+  check('made: nothing for delete, list, rename, plain checkout, a variable, a substitution or a non-git command', ['git branch -d old', 'git branch -D old', 'git branch --list', 'git branch -m a b', 'git branch', 'git checkout main', 'git switch main', 'git worktree list', 'git worktree remove ../x', 'git worktree add $WT -b $B', 'git branch $(date)', 'echo git branch nope', 'git branch -a'].every((c) => m(c) === '[]'));
+  check('made: the EnterWorktree tool names a worktree, other tools and shapes name nothing', JSON.stringify(madeByTool('EnterWorktree', { name: 'fix-x' })) === '[["w","fix-x"]]' && madeByTool('Bash', { name: 'x' }).length === 0 && madeByTool('EnterWorktree', null).length === 0);
+  // Reflog first line.
+  check('created: only a Created line counts, with its seconds', createdOfLine('0000 1111 Ada <a@x> 1700000150 +0100\tbranch: Created from HEAD') === 1700000150 && createdOfLine('0000 1111 Ada <a@x> 1700000150 +0100\tbranch: Reset to x') === 0 && createdOfLine('') === 0);
+  const cdir = path.join(base, 'created'); fs.mkdirSync(path.join(cdir, 'logs', 'refs', 'heads', 'feat'), { recursive: true });
+  fs.writeFileSync(path.join(cdir, 'logs', 'refs', 'heads', 'feat', 'x'), '0 1 Ada <a@x> 1700000999 -0400\tbranch: Created from main\n');
+  const got = await createdOf(cdir, ['feat/x', 'feat/missing', '../escape', '-d', 'feat//y']);
+  check('created: a branch with a slash is read from its folder, a missing log gives nothing, an escaping or option-like name is never read', got.get('feat/x') === 1700000999 && got.size === 1);
+
+  // The matcher on the contacts-like world.
+  const W = contactsWorld(), out = relOf(W.ix, W.input), id = W.id;
+  const ids = (l) => (l || []).map((h) => h.id).sort().join();
+  const only = (l, n, why, conf) => l && l.length === 1 && l[0].id === id(n) && l[0].why === why && l[0].conf === conf;
+  check('match: a worktree made by a subagent of a chat belongs to that chat (reason subagent, certain), and so does its branch', only(out.w.w2, 1, 'subagent', 'certain') && only(out.b['feat/saropa-connection-cloud-icon-search'], 1, 'subagent', 'certain') && /created/.test(out.w.w2[0].note));
+  check('match: a chat that ran in the worktree folder is a cwd match, and its gitBranch field names the branch (both reasons kept)', out.w.w3.length === 1 && out.w.w3[0].why === 'cwd' && out.w.w3[0].more.join() === 'git-branch-field' && out.b['fix/login-reminder-dot-fires-once'][0].why === 'cwd');
+  check('match: a chat that ran git worktree add and git checkout -b itself is created-by-tool-call, certain', only(out.w.w4, 3, 'created-by-tool-call', 'certain') && only(out.b['feat/pro-pill-gaps'], 3, 'created-by-tool-call', 'certain'));
+  check('match: a subagent whose rows record the branch or ran in the worktree ties its parent chat (subagent)', only(out.w.w5, 4, 'subagent', 'certain') && only(out.b['unused-arb-keys'], 4, 'subagent', 'certain'));
+  check('match: an agent-<id> worktree matches the subagent with that id, and so does its worktree-agent-<id> branch', only(out.w.w6, 5, 'subagent', 'certain') && /owns this worktree|ran in/.test(out.w.w6[0].note) && only(out.b['worktree-agent-' + W.AG], 5, 'subagent', 'certain'));
+  check('match: a branch made by a subagent with no worktree is tied to the parent chat', only(out.b['backup/main-before-merge-20261010_2142'], 1, 'subagent', 'certain'));
+  check('match: a chat that merely mentions a branch that has a certain chat is not listed (probable signals only when nothing is certain)', !out.b['feat/pro-pill-gaps'].some((h) => h.id === id(6)) && out.b['feat/pro-pill-gaps'].every((h) => h.conf === 'certain'));
+  check('match: with no certain chat the name in a chat is a probable name-in-text match', only(out.b['bahai-mojibake'], 6, 'name-in-text', 'probable'));
+  check('match: with no name either, a chat active when the branch was made is a probable time-window match', only(out.b['orphan-spike-branch'], 7, 'time-window', 'probable') && out.b['orphan-spike-branch'][0].near === undefined);
+  const far = out.b['ancient-nothing-branch'];
+  check('match: a branch nothing links to gets the nearest chat by time, flagged with the gap and probable', far.length === 1 && far[0].why === 'time-window' && far[0].conf === 'probable' && typeof far[0].near === 'number' && far[0].near > 0 && far[0].id === id(1));
+  check('match: a branch with no time and no link gets no chat (the page then shows the evidence line)', out.b['no-time-branch'].length === 0);
+  check('match: chats of another project never match a row by time', Object.values(out.b).concat(Object.values(out.w)).every((l) => l.every((h) => h.id !== id(8))));
+  check('match: the main worktree and the default branch list the chats that ran in the main folder (capped), every other worktree has its own chats', ids(out.w.w1) === [1, 2, 3, 4, 5, 6, 7].map(id).sort().join() && ids(out.b.main) === ids(out.w.w1) && out.w.w1.length <= MAX_HITS);
+  const rows = Object.entries(out.w).concat(Object.entries(out.b));
+  check('match: every worktree and every branch with a time ends with a chat (' + rows.filter(([, l]) => !l.length).map(([k]) => k).join(',') + ' has none)', rows.filter(([, l]) => !l.length).map(([k]) => k).join() === 'no-time-branch');
+  check('match: every hit has a known reason, a conf and an id', rows.every(([, l]) => l.every((h) => ['cwd', 'git-branch-field', 'created-by-tool-call', 'subagent', 'name-in-text', 'files-touched', 'time-window'].includes(h.why) && (h.conf === 'certain' || h.conf === 'probable') && /^0{8}-/.test(h.id))));
+  // files-touched: a chat that edited files under a worktree folder (nothing else links it).
+  const W2 = contactsWorld(); const p = W2.chats[3]; p.files = [{ path: W2.C + '-wt-nudge-once/lib/x.dart', edited: true }]; W2.input.brs = W2.input.brs.concat([]);
+  const none = W2.input.wts.find((w) => w.k === 'w3'); none.branch = 'nudge-unknown'; W2.chats[1].seen = ['main']; W2.chats[1].cwds = [W2.C]; W2.chats[1].cwd = W2.C;
+  const o2 = relOf(W2.ix, W2.input);
+  check('match: files touched under a worktree folder are a probable files-touched match when nothing is certain', only(o2.w.w3, 4, 'files-touched', 'probable'));
+  // The request body is checked and capped.
+  check('match: a request without worktrees or with the wrong shape is refused or cleaned', relInOf(null) === undefined && relInOf({ wts: [] }) === undefined && relInOf({ wts: [{ k: 'w1', name: 5, path: '/a', main: 'yes' }], ids: ['a', 3], brs: [{ n: 'b', cr: 'x', ts: 5 }, 7] }).wts[0].main === false && relInOf({ wts: [{ k: 'w1' }], ids: ['a', 3], brs: [{ n: 'b', cr: 'x', ts: 5 }, 7] }).ids.length === 1 && relInOf({ wts: [{ k: 'w1' }], brs: [{ n: 'b', cr: 'x', ts: 5 }, 7] }).brs.length === 1);
+  const big = contactsWorld(); big.input.brs = Array.from({ length: 5000 }, (_, i) => ({ n: 'b' + i, cr: 0, ts: 0 }));
+  check('match: a request is capped at 3000 branches', relInOf(big.input).brs.length === 3000);
+
+  // A real parse: the transcript of a subagent that creates a worktree and a branch, rows with gitBranch and changing cwd.
+  const { parseFile } = require(path.join(OUT, 'parse.js'));
+  const row = (o) => JSON.stringify(Object.assign({ cwd: '/w/contacts', gitBranch: 'main', timestamp: '2026-10-11T01:00:00.000Z' }, o));
+  const tool = (cmd, extra) => row({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'ok' }, { type: 'tool_use', id: 't', name: 'Bash', input: { command: cmd } }] } }) + '\n' + row(Object.assign({ type: 'user', message: { role: 'user', content: 'go' } }, extra || {})) ;
+  const f = path.join(base, 'parse.jsonl');
+  fs.writeFileSync(f, [tool('git worktree add ../contacts-wt-x -b feat/x origin/main'), row({ type: 'assistant', cwd: '/w/contacts-wt-x', gitBranch: 'feat/x', message: { role: 'assistant', content: [{ type: 'text', text: 'in the worktree' }] } }), tool('git -C /w/contacts branch backup/y HEAD')].join('\n') + '\n');
+  const pr = await parseFile(f, Date.now(), 20000, 0);
+  check('parse: a transcript yields every distinct cwd, every gitBranch seen (most used first) and the worktrees and branches its tool calls made', JSON.stringify(pr.cwds) === '["/w/contacts","/w/contacts-wt-x"]' && pr.cwd === '/w/contacts' && pr.seen.includes('feat/x') && pr.seen.includes('main') && JSON.stringify(pr.made) === '[["b","feat/x"],["w","../contacts-wt-x"],["b","backup/y"]]');
+  const f2 = path.join(base, 'parse2.jsonl'); fs.writeFileSync(f2, row({ type: 'user', message: { role: 'user', content: 'hello' } }) + '\n');
+  const p2 = await parseFile(f2, Date.now(), 20000, 0);
+  check('parse: a plain chat adds no cwds list (one folder), no created list', p2.cwds === undefined && p2.made === undefined && p2.cwd === '/w/contacts');
+}
+
+// Chat placement: a chat run in a worktree folder, on main, in a detached worktree or outside git; the repository message names each worktree's chat folders.
+async function placementTests() {
+  const world = mkWorld(1);
+  const g = fakeGit(world, { delay: 1 });
+  const scan = new WorkScan({ exec: g.exec, limiter: new Limiter(6, 3), workspace: () => [world.repos[0].top], gitMs: 1000 });
+  const c = collect();
+  const f = chatFolders(world.repos[0], base);
+  const keys = { main: scan.keyOf(f.main), feat: scan.keyOf(f.feat), detached: scan.keyOf(f.detached), outside: scan.keyOf(f.outside) };
+  await scan.start(1, Object.values(f).map((cwd, i) => ({ cwd, last: 10 - i })), false, c.post);
+  const repo = c.of('repo').filter((r) => r.state === 'ok').pop();
+  const wt = (name) => repo.worktrees.find((w) => w.branch === name);
+  check('placement: a chat run in the main checkout is listed on the main worktree', repo.worktrees.find((w) => w.main).fks.join() === keys.main);
+  check('placement: a chat run in a linked worktree folder is listed on that worktree', wt('feat').fks.join() === keys.feat && repo.worktrees.filter((w) => w.fks.indexOf(keys.feat) >= 0).length === 1);
+  check('placement: a chat in a detached worktree is listed on it', repo.worktrees.find((w) => w.detached).fks.join() === keys.detached);
+  check('placement: a chat outside git is on no worktree and its folder ends as none (it goes under Chats without a branch)', repo.worktrees.every((w) => w.fks.indexOf(keys.outside) < 0) && c.finals.get(keys.outside)[0].state === 'none');
+  check('placement: the folder facts carry the repository key and the branch the page matches a chat to a branch row by', c.finals.get(keys.feat)[0].facts.branch === 'feat' && c.finals.get(keys.feat)[0].facts.rk === repo.key && c.finals.get(keys.main)[0].facts.branch === 'main');
 }
 
 (async () => {
   try {
+    await placementTests();
+    await chatMatchTests();
     await projectStatusTests();
     await mergedTests();
     await limiterTests();

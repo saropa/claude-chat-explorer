@@ -35,8 +35,8 @@ const acts=btn('open','Open chat: '+t,'open','Open chat')+btn('handover','Copy h
 +(c.retry?ibtn('fretry','Retry reading git: '+t,'retry',retryTip(gs[c.retry])||'Read git again',' data-k="'+esc(c.retry)+'"'):'')
 +(pc.retry?ibtn('fretry','Retry pull request lookup: '+t,'retry','Look up the pull request again',' data-k="'+esc(pc.retry)+'"'):'')
 +(ready&&w&&!w.main?ibtn('rm','Copy '+cw()+'remove command: '+t,'trash','Copy a '+cw()+'command that removes this finished worktree. Nothing is run.',' data-k="'+esc(w.k)+'"'):'');
-return '<div class="row" role="listitem" data-id="'+esc(r.id)+'" aria-busy="'+(c.busy||pc.busy?'true':'false')+'"><div class="main"><button type="button" class="rb" data-a="row" tabindex="'+(tab?0:-1)+'" aria-expanded="'+isOpen+'" aria-label="'+esc(label)+'">'+dot
-+'<span class="t" data-tip="'+esc(t+'\n'+words)+'">'+(r.pinned?'<span class="pill">Pinned</span> ':'')+esc(t)+'</span>'
+return '<div class="row" role="listitem" data-id="'+esc(r.id)+'"'+(curAnn?' data-rel="'+esc(curAnn.c==='probable'?'p':'c')+'"':'')+' aria-busy="'+(c.busy||pc.busy?'true':'false')+'"><div class="main"><button type="button" class="rb" data-a="row" tabindex="'+(tab?0:-1)+'" aria-expanded="'+isOpen+'" aria-label="'+esc(label)+'">'+dot
++'<span class="t" data-tip="'+esc(t+'\n'+words+(curAnn?'\n'+relTip(curAnn):''))+'">'+(r.pinned?'<span class="pill">Pinned</span> ':'')+relBadge(curAnn)+esc(t)+'</span>'
 +'<span class="meta"><span class="pj" title="'+esc(r.project||'')+'">'+esc(r.project||'')+'</span><span class="br" title="'+(c.br?'Branch: '+c.br:'No branch')+'">'+brCell(r,c)+'</span><span class="fl">'+c.fl+'</span><span class="ah">'+esc(c.ah)+'</span>'+(prsOn?'<span class="pr">'+pc.pr+'</span><span class="kc">'+pc.ck+'</span>':'')+'<span class="cx '+(r.ctx?pctClass(r.ctx.pct):'')+'"'+(r.ctx?' title="Context window used: '+esc(r.ctx.pct)+'%"':'')+'>'+(r.ctx?r.ctx.pct+'%':'')+'</span><span class="st'+(stTxt?' b-'+(bnd==='idle'?(s==='running'?'waiting':'tidy'):bnd):'')+'">'+esc(stTxt)+'</span><span class="tm">'+esc(age)+'</span></span></button>'
 +'<div class="acts">'+acts+'</div></div>'
 +(isOpen?exHtml(r,words,g):'')+'</div>';}
@@ -100,7 +100,8 @@ else if(k==='flt'){toggleFlag(a.dataset.f||'');}
 else if(k==='clearf'){clearFilters();}
 else if(k==='summary'){copySummary();}
 else if(k==='sec'){toggleSec(a.dataset.s||'');}
-else if(k==='hx'){const x=String(a.dataset.x||'');if(x&&x.length<=120){hx[x]=a.dataset.on!=='1';refocus='[data-a="hx"][data-x="'+x.replace(/[^A-Za-z0-9:_-]/g,'')+'"]';render();}}
+else if(k==='hx'){const x=String(a.dataset.x||'');if(x&&x.length<=120){hxSet(x,a.dataset.on!=='1');}}
+else if(k==='showall'){hidden=[];savePrefs();clearFilters();}
 else if(k==='row'&&id){toggleRow(id);}
 else if(id){act(k,id);}});
 $('srb').addEventListener('click',()=>pop.toggle('srb','srm'));
@@ -125,11 +126,12 @@ window.addEventListener('resize',layout);
 setInterval(updText,10000);
 window.addEventListener('message',e=>{const d=e.data;if(!d)return;
 if(d.type==='init'){days=d.days||14;hidden=Array.isArray(d.hidden)?d.hidden.filter(b=>BAND_ORDER.indexOf(b)>=0):[];wsN=Number(d.ws)||0;winCmd=d.win===true;setPrsOn(d.prsOn);donemap=d.done&&typeof d.done==='object'?d.done:{};applyView(d.view);render();}
-else if(d.type==='chats'){if(d.scan<scan)return;if(d.scan>scan){scanLive=!!d.scanning;prog=null;ended=false;resetDetail();Object.keys(fwatch).forEach(k=>{clearTimeout(fwatch[k]);});fwatch={};touch();}scan=d.scan;rows=Array.isArray(d.rows)?d.rows:[];pend.clear();loaded=true;failed='';indexing=!!d.indexing;lastAt=Date.now();clearTimeout(watch);render();say(rows.length+' chats shown.');}
+else if(d.type==='chats'){if(d.scan<scan)return;if(d.scan>scan){scanLive=!!d.scanning;prog=null;ended=false;resetDetail();Object.keys(fwatch).forEach(k=>{clearTimeout(fwatch[k]);});fwatch={};touch();}if(d.scan>scan)rels={};scan=d.scan;rows=Array.isArray(d.rows)?d.rows:[];pend.clear();loaded=true;failed='';indexing=!!d.indexing;lastAt=Date.now();clearTimeout(watch);render();say(rows.length+' chats shown.');}
 else if(d.type==='chatsFailed'){if(d.scan<scan)return;failed=d.message||'Could not load chats';clearTimeout(watch);render();}
 else if(d.type==='dots'){dots=d.map||{};gotDots=true;sched();}
 else if(d.type==='folder'){onFolder(d);}
 else if(d.type==='repo'){onRepo(d);}
+else if(d.type==='rel'){onRel(d);}
 else if(d.type==='progress'){onProgress(d);}
 else if(d.type==='prs'){onPrs(d);}
 else if(d.type==='gh'){onGh(d);}

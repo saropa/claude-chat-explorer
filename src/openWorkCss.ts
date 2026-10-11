@@ -152,7 +152,7 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .psb{padding:4px 4px 0}
 .pst-w{overflow-x:auto}
 .pst{width:100%;border-collapse:collapse;font-size:calc(var(--vscode-font-size) - 1px)}
-.pst th{padding:2px 8px 2px 0;text-align:start;font-weight:normal;white-space:nowrap;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-widget-border,transparent)}
+.pst th{vertical-align:bottom;padding:2px 8px 2px 0;text-align:start;font-weight:normal;white-space:nowrap;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-widget-border,transparent)}
 .pst td{padding:2px 8px 2px 0;white-space:nowrap;vertical-align:middle;border-bottom:1px solid var(--vscode-widget-border,transparent)}
 .pst tr:hover td{background:var(--vscode-list-hoverBackground)}
 .pst td.ttl{max-width:260px;overflow:hidden;text-overflow:ellipsis}
@@ -171,8 +171,10 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .hxb{display:inline-flex;align-items:center;gap:4px;padding:0 6px;line-height:18px}
 .car{display:inline-block;width:0;height:0;border-style:solid;border-width:4px 0 4px 6px;border-color:transparent transparent transparent currentColor}
 .hxb[aria-expanded=true] .car{border-width:6px 4px 0 4px;border-color:currentColor transparent transparent transparent}
-.pst tr.hxr td{padding:0 0 4px 12px;white-space:normal;border-bottom:1px solid var(--vscode-widget-border,transparent)}
+.pst tr.hxr td{max-width:0;overflow:hidden;padding:0 0 4px 12px;white-space:normal;border-bottom:1px solid var(--vscode-widget-border,transparent)}
 .pst tr.hxr:hover td,.pst tr:hover+tr.hxr td{background:transparent}
+.row[data-rel="p"] .t,.row[data-rel="p"] .tm{opacity:.7}
+.row[data-rel] .t .bd{margin-right:4px}
 .nest{margin:2px 0 2px 8px;border-left:2px solid var(--vscode-widget-border,var(--vscode-contrastBorder,transparent))}
 .nest .meta>.pj,.nest .meta>.br,.nest .meta>.fl,.nest .meta>.ah,.nest .meta>.pr,.nest .meta>.kc{display:none}
 .wide .nest .rb{grid-template-columns:14px minmax(0,1fr) 6ch 15ch 7ch}

@@ -3,9 +3,32 @@
  *  Shares the page's top-level scope (GIT_JS, PR_JS and VIEW_JS run before it, CORE after); nothing here touches the page at load. */
 export const OW_STATUS_JS = String.raw`
 const BAND_RANK=['needs','finish','waiting','tidy','idle'];
-let hx={},nbAuto=false;
+let tabDone={},curAnn=null,rels={};
 function attn(r){return bandHeld(r,dotOf(r.id))!=='idle';}
-function hxOn(it){return hx[it.hk]!==undefined?hx[it.hk]:it.vis.some(attn);}
+function hxKeyS(x){return 'x:'+String(x).slice(0,60);}
+function hxOn(it){const v=sec[hxKeyS(it.hk)];return v!==undefined?v:true;}
+function hxSet(x,on){sec[hxKeyS(x)]=on;refocus='[data-a="hx"][data-x="'+x.replace(/[^A-Za-z0-9:_-]/g,'')+'"]';saveView();render();}
+function psRow(r,it){const t=r.id===tabId&&!tabDone[r.id];if(t)tabDone[r.id]=1;curAnn=it&&it.an?it.an[r.id]||null:null;const h=rowHtml(r,t);curAnn=null;return h;}
+const REL_NAME={'cwd':'ran in the folder','git-branch-field':'its rows record the branch','created-by-tool-call':'created it','subagent':'via a subagent','name-in-text':'name in the chat','files-touched':'touched its files','time-window':'active at that time'};
+const REL_SHORT={'cwd':'folder','git-branch-field':'branch','created-by-tool-call':'created','subagent':'subagent','name-in-text':'name','files-touched':'files','time-window':'time'};
+function relBadge(a){if(!a)return '';const nr=a.n!==undefined;return '<span class="bd '+(a.c==='certain'?'bd-info':'bd-muted')+'" data-rel="'+esc(a.c)+'">'+esc(nr?'nearest by time (probable)':(a.c==='probable'?'probable: ':'')+(REL_SHORT[a.y]||a.y))+'</span> ';}
+function relTip(a){if(!a)return '';const o=a.n!==undefined?[]:['Related by: '+(REL_NAME[a.y]||a.y)+' ('+a.c+')'];if(a.m&&a.m.length)o.push('Also: '+a.m.map(x=>REL_NAME[x]||x).join(', '));if(a.t&&a.n===undefined)o.push(a.t);
+if(a.n!==undefined){const h=Math.round(Math.abs(a.n)/3600000);o.push('Nearest by time (probable): '+(a.n===0?'overlaps':a.n<0?'ended '+(h<48?h+' h':Math.round(h/24)+' days')+' before the branch was made':'started '+(h<48?h+' h':Math.round(h/24)+' days')+' after the branch was last changed'));}
+if(a.c==='probable')o.push('Probable: no chat is certain for this row');return o.join('\n');}
+function relAnn(h){return{y:h.why,c:h.conf,m:h.more,t:h.note,n:h.near};}
+/** The chats of one row: those the folder or branch logic found (certain), merged with the matcher's hits. Probable hits are used only when nothing is certain. */
+function psMerge(rl,kind,key,base,byId,shown,sort){const hits=rl&&rl[kind]&&Array.isArray(rl[kind][key])?rl[kind][key]:[],have={},rows=[],an={},near=[];let relN=0;
+base.forEach(r=>{have[r.id]=1;rows.push(r);an[r.id]={y:'cwd',c:'certain',t:kind==='w'?'The chat ran in this worktree':'The chat folder has this branch checked out'};});
+hits.forEach(h=>{if(base.length&&h.conf!=='certain')return;const r=byId[h.id];if(h.near!==undefined){if(r&&shown(r))near.push(r),an[r.id]=relAnn(h);return;}
+if(!r){relN++;return;}if(have[h.id]){an[h.id]=relAnn(h);return;}have[h.id]=1;rows.push(r);an[h.id]=relAnn(h);});
+rows.sort(sort);return{rows:rows,an:an,near:near,relN:relN};}
+function psEvid(k,rp,info,w,hasNear){const rl=rels[k],busy=rp.st==='running'||rp.st==='queued'||scanLive;
+const d=info&&(info.cr||info.ts)?new Date((info.cr||info.ts)*1000).toLocaleDateString():'',parts=[];
+if(d)parts.push((info.cr?'created ':'last commit ')+d+(info.au?' by '+info.au:''));else if(w&&w.detached)parts.push('detached at '+(w.sha||'?'));
+if(!rl&&busy)return (parts.length?'<span class="q">'+esc(parts.join(', ')+', ')+'</span>':'')+SPINP+' <span class="q">Matching chats...</span>';
+parts.push(!rl?'chat matching not finished':!rl.ok?(rl.indexing?'chats are still being indexed':'chat matching unavailable'):'no matching chat found');
+return '<span class="q" data-tip="'+esc('No chat has a certain or probable link to this row'+(hasNear?'. The nearest chat by time is listed below.':'.'))+'">'+esc(parts.join(', ')+(hasNear?'; nearest by time (probable):':''))+'</span>';}
+function psShow(it,own){return it.vis.length>0||(own.ok&&(it.band==='idle'||hidden.indexOf(it.band)<0));}
 function psKey(){return Object.keys(repos).filter(k=>{const rp=repos[k];return rp&&rp.name&&rp.ws;}).sort()[0]||'';}
 function psHit(hay){return !fq||filterMatch(hay,fq);}
 function hxKey(p,n){return p+':'+String(n).replace(/[^A-Za-z0-9_-]/g,'_');}
@@ -47,9 +70,10 @@ function psWhen(ts){return ts?'<span data-tip="'+esc(new Date(ts*1000).toLocaleS
 function psRv(v){return v?'<span class="rv rv-'+esc(v.replace(/ /g,'-'))+'">'+esc(v)+'</span>':'<span class="nb">—</span>';}
 function psCk(c,p){if(!c)return p&&p.st==='ok'?'<span class="q" data-tip="Checks are looked up for the first pull requests only">—</span>':'';if(c.st==='checking')return SPINP;if(c.st==='unavailable')return '<span class="q" data-tip="'+esc(c.reason||'')+'">unavailable</span>';if(c.st==='none')return '<span class="nb">none</span>';return '<span class="ck '+(c.st==='failing'?'fail':c.st==='pending'?'pend':'pass')+'" data-tip="'+esc(ckTip(c))+'">'+esc(ckText(c))+'</span>';}
 function psTable(cls,head,body,empty){return body.length?'<div class="pst-w"><table class="pst '+cls+'"><thead><tr>'+head.map(h=>'<th scope="col">'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+body.join('')+'</tbody></table></div>':'<p class="sub">'+esc(empty)+'</p>';}
-function psChatsCell(it){const n=it.vis.length,x=it.hk;if(!n&&!it.other)return '';if(!n)return '<span class="pill" data-tip="'+esc(countWord(it.other,'chat')+' on this branch, listed under its worktree')+'">'+it.other+'</span>';
-const on=hxOn(it);return '<button type="button" class="ab hxb" data-a="hx" data-x="'+esc(x)+'" data-on="'+(on?1:0)+'" aria-expanded="'+on+'" aria-label="'+esc(countWord(n,'chat')+' in '+it.name)+'" data-tip="'+esc((on?'Hide ':'Show ')+countWord(n,'chat')+' in '+it.name)+'"><span class="car" aria-hidden="true"></span>'+n+'</button>';}
-function psChatRow(it,cols){return it.vis.length&&hxOn(it)?'<tr class="hxr"><td colspan="'+cols+'"><div class="nest" role="list" aria-label="'+esc('Chats in '+it.name)+'">'+it.vis.map(r=>rowHtml(r,r.id===tabId)).join('')+'</div></td></tr>':'';}
+function psChatsCell(it){const nr=it.nr||[],n=it.vis.length+nr.length,hid=it.chatsAll.length-it.vis.length,x=it.hk,hs=hid>0?' <span class="q hid" data-tip="'+esc(countWord(hid,'chat')+' hidden by the Show idle toggle and the state chips')+'">'+hid+' hidden</span>':'';
+if(!n){if(hid>0)return hs;if(it.relN>0)return '<span class="nb">0</span> <span class="q hid" data-tip="'+esc(countWord(it.relN,'chat')+' relate to this row but are hidden by the filters or are older than the days shown')+'">'+it.relN+' not shown</span>';return it.ev||'<span class="q">no matching chat found</span>';}
+const on=hxOn(it);return '<button type="button" class="ab hxb" data-a="hx" data-x="'+esc(x)+'" data-on="'+(on?1:0)+'" aria-expanded="'+on+'" aria-label="'+esc(countWord(n,'chat')+' in '+it.name)+'" data-tip="'+esc((on?'Hide ':'Show ')+countWord(n,'chat')+' in '+it.name)+'"><span class="car" aria-hidden="true"></span>'+n+'</button>'+hs+(nr.length&&!it.vis.length?' '+it.ev:'');}
+function psChatRow(it,cols){const l=it.vis.concat(it.nr||[]);return l.length&&hxOn(it)?'<tr class="hxr"><td colspan="'+cols+'"><div class="nest" role="list" aria-label="'+esc('Chats in '+it.name)+'">'+l.map(r=>psRow(r,it)).join('')+'</div></td></tr>':'';}
 function psWtRows(k,B){const rp=B.rp;let out=[];B.wl.forEach(it=>{const w=it.w,f=psWFacts(w);
 const files=w.missing?'<span class="q">folder missing</span>':f&&f.ok?(f.fileTotal>0?'<span class="ah">'+f.fileTotal+'</span>':'0'):f?'<span class="q">error</span>':rp.st==='timeout'||rp.st==='error'?'<span class="q">'+(rp.st==='timeout'?'timed out':'error')+'</span>':rp.st==='running'?SPIN:'<span class="nb">—</span>';
 const ready=it.g.ready;
@@ -57,42 +81,52 @@ out.push('<tr data-w="'+esc(w.k)+'"><td><span class="pn" data-tip="'+esc(w.path|
 function psBrRows(k,B){const rp=B.rp,out=[];B.bl.forEach(it=>{const r=it.r,i=r.info,pr=r.pr;
 const where=r.wt?'<span class="pn" data-tip="'+esc(r.wt.path||'')+'">'+esc(r.wt.name)+'</span>':r.local?'<span class="q">no worktree</span>':'<span class="q" data-tip="No local branch: only on the remote">remote only</span>';
 out.push('<tr data-b="'+esc(r.name)+'"><td>'+psBr(k,rp,r.name,pr&&pr.link?pr.n:0)+(r.name===rp.defLocal?' <span class="q">default</span>':'')+'</td><td>'+where+'</td><td>'+(r.local&&r.name!==rp.defLocal?psAb(i?i.a:undefined,i?i.b:undefined):'<span class="nb">—</span>')+'</td><td>'+(i?psWhen(i.ts):'<span class="nb">—</span>')+'</td><td>'+(i&&i.au?esc(i.au):'<span class="nb">—</span>')+'</td>'+(prsOn?'<td>'+(pr?prB({draft:pr.draft},'#'+pr.n):'<span class="nb">—</span>')+'</td>':'')+'<td>'+psBadges(rp,it)+'</td><td>'+psChatsCell(it)+'</td></tr>'+psChatRow(it,prsOn?8:7));});return out;}
-function psPrRows(k,B){const rp=B.rp,p=B.p;return B.pl.map(it=>{const x=it.pr,r=it.r;
-return '<tr data-n="'+x.n+'"><td>'+prB({draft:x.draft},'#'+x.n+(x.draft?' draft':''))+'</td><td class="ttl" data-tip="'+esc(x.title)+'">'+esc(x.title)+'</td><td>'+psBr(k,rp,r.name,x.link?x.n:0)+'</td><td>'+psRv(x.review)+'</td><td>'+psCk(x.c,p)+'</td><td>'+psPrBd(x).join(' ')+'</td><td>'+(r.wt?'<span class="pn">'+esc(r.wt.name)+'</span>':r.local?'<span class="q">local branch</span>':'<span class="q">no local branch</span>')+'</td><td class="acts2">'+(x.link?ibtn('pr','Open pull request #'+x.n,'pr','Open pull request #'+x.n,' data-k="'+esc(k)+'" data-n="'+x.n+'"')+ibtn('prc','Copy the link of pull request #'+x.n,'link','Copy the pull request link',' data-k="'+esc(k)+'" data-n="'+x.n+'"'):'')+'</td></tr>';});}
+function psPrRows(k,B){const rp=B.rp,p=B.p;let out=[];B.pl.forEach(it=>{const x=it.pr,r=it.r;
+out.push('<tr data-n="'+x.n+'"><td>'+prB({draft:x.draft},'#'+x.n+(x.draft?' draft':''))+'</td><td class="ttl" data-tip="'+esc(x.title)+'">'+esc(x.title)+'</td><td>'+psBr(k,rp,r.name,x.link?x.n:0)+'</td><td>'+psRv(x.review)+'</td><td>'+psCk(x.c,p)+'</td><td>'+psPrBd(x).join(' ')+'</td><td>'+(r.wt?'<span class="pn">'+esc(r.wt.name)+'</span>':r.local?'<span class="q">local branch</span>':'<span class="q">no local branch</span>')+'</td><td>'+psChatsCell(it)+'</td><td class="acts2">'+(x.link?ibtn('pr','Open pull request #'+x.n,'pr','Open pull request #'+x.n,' data-k="'+esc(k)+'" data-n="'+x.n+'"')+ibtn('prc','Copy the link of pull request #'+x.n,'link','Copy the pull request link',' data-k="'+esc(k)+'" data-n="'+x.n+'"'):'')+'</td></tr>'+psChatRow(it,9));});return out;}
 function psPrNote(k,M){if(!prsOn)return '<p class="sub">'+esc(PRS_OFF)+'</p>';const p=M.p;if(!p||p.st==='queued'||p.st==='checking')return '<p class="sub">'+SPINP+' Looking up pull requests...</p>';
 if(p.st==='unavailable'){const rt=prRetryKey({p:p,rk:k});return '<p class="sub">'+prUnk(p.reason)+(rt?' '+ibtn('fretry','Retry the pull request lookup','retry','Look up the pull requests again',' data-k="'+esc(rt)+'"'):'')+'</p>';}return '';}
 function psBand(rp,it){let b=it.own;it.chatsAll.forEach(r=>{const c=bandHeld(r,dotOf(r.id));if(hidden.indexOf(c)<0)b=psBest(b,c);});return b;}
 function psSort(a,b){if(sortMode==='name')return a.name.localeCompare(b.name);return b.ts-a.ts||a.name.localeCompare(b.name);}
 /** Everything the three tables and the bottom section show, from the repository, the pull requests and the chats that passed the filter box and state filters. */
-function psBuild(k,vis){const M=psModel(k),rp=M.rp,chats=vis.filter(r=>r.kind!=='wt'),byW={},byB={},nb=[];
-chats.slice().sort(rowCmp(sortMode)).forEach(r=>{const e=fOf(r),f=e&&e.f,w=(r.fk&&M.wts.find(x=>x.fks&&x.fks.indexOf(r.fk)>=0))||null;
-if(w){(byW[w.k]=byW[w.k]||[]).push(r);}else if(f&&f.rk===k&&f.branch&&!f.detached&&M.byName.get(f.branch)){(byB[f.branch]=byB[f.branch]||[]).push(r);}else nb.push(r);});
-const shown=r=>hidden.indexOf(bandHeld(r,dotOf(r.id)))<0,own=(g,hay,name,w)=>{const o=psOwnBand(rp,g,name,w);return{o:o,ok:!filtering()||(psHit(hay)&&flagPass(g,flt))};};
-const wl=[],bl=[],pl=[],def=rp.defLocal||'';
-M.wts.forEach(w=>{const br=w.detached?null:M.byName.get(w.branch),pr=br?br.pr:null,g=psWView(rp,w,pr),o=own(g,[w.name,w.branch,w.path,pr?'#'+pr.n+' '+pr.title:''].join(' '),w.branch),ca=byW[w.k]||[];
-const it={w:w,r:br,pr:pr,g:g,name:w.name,hk:hxKey('w',w.k),chatsAll:ca,vis:ca.filter(shown),other:0,own:o.o,ts:(br&&br.info?br.info.ts:0)};
-it.band=psBand(rp,it);if((hidden.indexOf(it.band)<0&&o.ok)||it.vis.length)wl.push(it);});
+function psBuild(k,vis){tabDone={};const M=psModel(k),rp=M.rp,chats=vis.filter(r=>r.kind!=='wt'),byW={},byB={},byP={},nb=[];
+/* A chat attaches by folder to its worktree, by branch to the worktree that has the branch checked out (a branch is checked out in one worktree only), by branch to its branch row and to the pull request row of that branch. */
+chats.slice().sort(rowCmp(sortMode)).forEach(r=>{const e=fOf(r),f=e&&e.f,inR=!!(f&&f.rk===k&&f.branch&&!f.detached),br=inR?M.byName.get(f.branch):null,
+w=(r.fk&&M.wts.find(x=>x.fks&&x.fks.indexOf(r.fk)>=0))||(inR?M.wts.find(x=>!x.detached&&x.branch===f.branch):null)||null;
+if(w)(byW[w.k]=byW[w.k]||[]).push(r);
+if(br){(byB[br.name]=byB[br.name]||[]).push(r);if(br.pr)(byP[br.pr.n]=byP[br.pr.n]||[]).push(r);}
+if(!w&&!br)nb.push(r);});
+const rl=rels[k]&&rels[k].ok?rels[k]:null,byId={},used={},srt=rowCmp(sortMode);chats.forEach(r=>{byId[r.id]=r;});
+const shown=r=>hidden.indexOf(bandHeld(r,dotOf(r.id)))<0,mg=(kind,key,base)=>{const m=psMerge(rl,kind,key,base,byId,shown,srt);m.rows.concat(m.near).forEach(r=>{used[r.id]=1;});return m;},own=(g,hay,name,w)=>{const o=psOwnBand(rp,g,name,w);return{o:o,ok:!filtering()||(psHit(hay)&&flagPass(g,flt))};};
+const wl=[],bl=[],pl=[],bm={},def=rp.defLocal||'';
+M.wts.forEach(w=>{const br=w.detached?null:M.byName.get(w.branch),pr=br?br.pr:null,g=psWView(rp,w,pr),o=own(g,[w.name,w.branch,w.path,pr?'#'+pr.n+' '+pr.title:''].join(' '),w.branch),m=mg('w',w.k,byW[w.k]||[]),ca=m.rows;
+const it={w:w,r:br,pr:pr,g:g,name:w.name,hk:hxKey('w',w.k),chatsAll:ca,vis:ca.filter(shown),nr:m.near,an:m.an,relN:m.relN,other:0,own:o.o,ts:(br&&br.info?br.info.ts:0)};it.ev=psEvid(k,rp,br&&br.info,w,m.near.length>0);
+it.band=psBand(rp,it);if(psShow(it,o))wl.push(it);});
 wl.sort((a,b)=>(a.w.main?-1:0)-(b.w.main?-1:0)||psSort(a,b));
 M.list.forEach(r=>{const g=psBView(rp,r),o=own(g,[r.name,r.info?r.info.au:'',r.pr?'#'+r.pr.n+' '+r.pr.title:'',r.wt?r.wt.name:''].join(' '),r.name);
-const ca=byB[r.name]||[],oth=r.wt?(byW[r.wt.k]||[]).filter(c=>{const e=fOf(c),f=e&&e.f;return f&&f.branch===r.name;}).filter(shown).length:0;
-const it={w:null,r:r,pr:r.pr,g:g,name:r.name,hk:hxKey('b',r.name),chatsAll:ca,vis:ca.filter(shown),other:oth,own:o.o,ts:r.info?r.info.ts:0};
-it.band=psBand(rp,it);if((hidden.indexOf(it.band)<0&&o.ok)||it.vis.length)bl.push(it);});
+const m=mg('b',r.name,byB[r.name]||[]),ca=m.rows;bm[r.name]=m;
+const it={w:null,r:r,pr:r.pr,g:g,name:r.name,hk:hxKey('b',r.name),chatsAll:ca,vis:ca.filter(shown),nr:m.near,an:m.an,relN:m.relN,other:0,own:o.o,ts:r.info?r.info.ts:0};it.ev=psEvid(k,rp,r.info,r.wt,m.near.length>0);
+it.band=psBand(rp,it);if(psShow(it,o))bl.push(it);});
 bl.sort((a,b)=>(a.name===def?-1:0)-(b.name===def?-1:0)||psSort(a,b));
-M.list.filter(r=>r.pr).forEach(r=>{const g=psBView(rp,r),o=own(g,[r.name,'#'+r.pr.n,r.pr.n,r.pr.title].join(' '),r.name);const b=psOwnBand(rp,{wt:true,prOnly:true,ok:true,pr:psPrFact(r.pr)},r.name);
-if(hidden.indexOf(b)<0&&o.ok)pl.push({r:r,pr:r.pr,name:r.pr.title||r.name,ts:r.pr.n});});
-pl.sort((a,b)=>sortMode==='name'?a.name.localeCompare(b.name):b.pr.n-a.pr.n);
-return{M:M,rp:rp,p:M.p,wl:wl,bl:bl,pl:pl,nb:nb.filter(shown)};}
-function psOrder(B){nbAuto=B.nb.some(attn);const o=[];[B.wl,B.bl].forEach(l=>l.forEach(it=>{if(hxOn(it))it.vis.forEach(r=>o.push(r.id));}));if(secOpen('nb'))B.nb.forEach(r=>o.push(r.id));return o;}
+M.list.filter(r=>r.pr).forEach(r=>{const g=psBView(rp,r),o=own(g,[r.name,'#'+r.pr.n,r.pr.n,r.pr.title].join(' '),r.name),bq=bm[r.name]||mg('b',r.name,byB[r.name]||[]),ca=bq.rows;
+const it={r:r,pr:r.pr,name:'pull request #'+r.pr.n,sortName:r.pr.title||r.name,hk:hxKey('p',r.pr.n),chatsAll:ca,vis:ca.filter(shown),nr:bq.near,an:bq.an,relN:bq.relN,other:0,ts:r.pr.n};it.ev=psEvid(k,rp,r.info,r.wt,bq.near.length>0);
+it.band=psOwnBand(rp,{wt:true,prOnly:true,ok:true,pr:psPrFact(r.pr)},r.name);ca.forEach(c=>{const b=bandHeld(c,dotOf(c.id));if(hidden.indexOf(b)<0)it.band=psBest(it.band,b);});
+if(psShow(it,o))pl.push(it);});
+pl.sort((a,b)=>sortMode==='name'?a.sortName.localeCompare(b.sortName):b.pr.n-a.pr.n);
+const nb2=nb.filter(r=>!used[r.id]);
+return{M:M,rp:rp,p:M.p,wl:wl,bl:bl,pl:pl,nb:nb2.filter(shown),nbAll:nb2.length,tot:{wt:M.wts.length,br:M.list.length,pr:M.list.filter(r=>r.pr).length}};}
+function psOrder(B){const o=[],seen={},add=r=>{if(!seen[r.id]){seen[r.id]=1;o.push(r.id);}};[B.wl,B.bl,B.pl].forEach(l=>l.forEach(it=>{if(hxOn(it))it.vis.concat(it.nr||[]).forEach(add);}));if(secOpen('nb'))B.nb.forEach(add);return o;}
+function psPill(n,t,one,many){return '<span class="pill" data-tip="'+esc(t)+'">'+esc(n.shown===n.total?countWord(n.total,one,many):n.shown+' of '+countWord(n.total,one,many))+'</span>';}
+function psHidNote(n,what,many){return n.shown<n.total?'<p class="sub psh" role="status">'+esc(countWord(n.total-n.shown,what,many)+' hidden by the filters or state chips.')+' <button type="button" class="ab" data-a="showall">Show all</button></p>':'';}
 function psRepo(k,B){const rp=B.rp,busy=rp.st==='running'||rp.st==='queued',bad=rp.st==='timeout'||rp.st==='error',M=B.M;
 let h='<div class="psl" data-rk="'+esc(k)+'"><span class="pn psn">'+esc(rp.name)+'</span>'+(rp.gh?ibtn('repolink','Open '+rp.name+' on GitHub','open','Open the repository on GitHub',' data-k="'+esc(k)+'"'):'')
-+'<span class="pill" data-tip="Worktrees, including the main checkout">'+esc(countWord(M.wts.length,'worktree'))+'</span><span class="pill">'+esc(countWord(M.list.length,'branch','branches'))+'</span><span class="pill">'+esc(countWord(M.list.filter(r=>r.pr).length,'pull request'))+'</span>'
++psPill({shown:B.wl.length,total:B.tot.wt},'Worktrees, including the main checkout','worktree')+psPill({shown:B.bl.length,total:B.tot.br},'Local branches and branches with an open pull request','branch','branches')+psPill({shown:B.pl.length,total:B.tot.pr},'Open pull requests','pull request')
 +(busy?' '+SPIN:'')+(bad?' <span class="q">'+esc(rp.st==='timeout'?'timed out':'error')+'</span> '+ibtn('fretry','Retry reading '+rp.name,'retry','Read this repository again',' data-k="'+esc(k)+'"'):'')+'</div>';
 if(!M.wts.length&&busy)return h+'<p class="sub">Reading git...</p>';
 const sec=(s,t,tip,body)=>'<section class="band ps" aria-label="'+esc(t)+'"><h2 class="bh g-ps" role="heading" aria-level="2"><button type="button" class="ab" data-a="sec" data-s="'+s+'" aria-expanded="'+secOpen(s)+'" data-tip="'+esc((secOpen(s)?'Collapse ':'Expand ')+t+'. '+tip)+'">'+esc(t)+'</button></h2>'+(secOpen(s)?'<div class="psb">'+body+'</div>':'')+'</section>';
-h+=sec('wt','Worktrees','Every worktree of the repository, with its state and its chats.',psTable('pw',['Worktree','Branch','Files','vs default'].concat(prsOn?['PR']:[],['Health','Chats','']),psWtRows(k,B),'No worktrees match.'));
-h+=sec('bs','Branches','Every local branch, and any branch with an open pull request.',psTable('pb',['Branch','Worktree','vs default','Last commit','Author'].concat(prsOn?['PR']:[],['Health','Chats']),psBrRows(k,B),'No branches match.')+(rp.bmore>0?'<p class="sub">+'+rp.bmore+' older branches not listed.</p>':''));
-h+=sec('prs','Pull requests','Open pull requests with review and check state.',psPrNote(k,M)+psTable('pp',['PR','Title','Branch','Review','Checks','Health','Local',''],psPrRows(k,B),prsOn&&M.p&&M.p.st==='ok'?'No open pull requests match.':'')+'<p class="sub">Pull request author is not shown: the read-only pull request list does not return it.</p>');
-if(B.nb.length)h+='<section class="band ps" aria-label="Chats without a branch"><h2 class="bh g-ps" role="heading" aria-level="2"><button type="button" class="ab" data-a="sec" data-s="nb" aria-expanded="'+secOpen('nb')+'" data-tip="'+(secOpen('nb')?'Collapse':'Expand')+' Chats without a branch. Chats whose folder is not in this repository, is not a git folder, or whose branch was not found.">Chats without a branch</button> <span class="pill">'+B.nb.length+'</span></h2>'+(secOpen('nb')?'<div class="nest" role="list">'+B.nb.map(r=>rowHtml(r,r.id===tabId)).join('')+'</div>':'')+'</section>';
+h+=sec('wt','Worktrees','Every worktree of the repository, with its state and its chats.',psTable('pw',['Worktree','Branch','Files','vs default'].concat(prsOn?['PR']:[],['Health','Chats','']),psWtRows(k,B),'No worktrees match.')+psHidNote({shown:B.wl.length,total:B.tot.wt},'worktree'));
+h+=sec('bs','Branches','Every local branch, and any branch with an open pull request.',psTable('pb',['Branch','Worktree','vs default','Last commit','Author'].concat(prsOn?['PR']:[],['Health','Chats']),psBrRows(k,B),'No branches match.')+psHidNote({shown:B.bl.length,total:B.tot.br},'branch','branches')+(rp.bmore>0?'<p class="sub">+'+rp.bmore+' older branches not listed.</p>':''));
+h+=sec('prs','Pull requests','Open pull requests with review and check state.',psPrNote(k,M)+psTable('pp',['PR','Title','Branch','Review','Checks','Health','Local','Chats',''],psPrRows(k,B),prsOn&&M.p&&M.p.st==='ok'?'No open pull requests match.':'')+psHidNote({shown:B.pl.length,total:B.tot.pr},'pull request')+'<p class="sub">Pull request author is not shown: the read-only pull request list does not return it.</p>');
+if(B.nbAll>0)h+='<section class="band ps" aria-label="Chats without a branch"><h2 class="bh g-ps" role="heading" aria-level="2"><button type="button" class="ab" data-a="sec" data-s="nb" aria-expanded="'+secOpen('nb')+'" data-tip="'+(secOpen('nb')?'Collapse':'Expand')+' Chats without a branch. Chats whose folder is not in this repository, is not a git folder, or whose branch was not found.">Chats without a branch</button> <span class="pill">'+B.nb.length+(B.nb.length<B.nbAll?' of '+B.nbAll:'')+'</span>'+(B.nb.length<B.nbAll?' <span class="q hid">'+(B.nbAll-B.nb.length)+' hidden</span>':'')+'</h2>'+(secOpen('nb')?'<div class="nest" role="list">'+B.nb.map(psRow).join('')+'</div>':'')+'</section>';
 return h;}
 function noRepoHtml(){return wsN===0||(ended&&!scanLive)||notes.gitMissing?'<p class="msg" role="status">Open a git repository folder.</p>':'<p class="msg" role="status">Reading git...</p>';}
 `;

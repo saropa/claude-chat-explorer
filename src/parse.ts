@@ -2,6 +2,7 @@ import { FileRef, Cost, Git, Usage } from './types';
 import { finishExtras, GitAcc, newGitAcc, takeExtra } from './gitInfo';
 import { scanLines } from './scan';
 import { takeCwd } from './cwdInfo';
+import { Made, madeByTool, madeOf } from './workMade';
 import { finishUsage, newUseAcc, takeOther, takeUsage, UseAcc } from './contextUsage';
 
 export const MSG_CAP = 20000; // chars of text kept per message of a top-level chat
@@ -11,6 +12,8 @@ export const SEP = '\u0001'; // separates packed messages and commands in a stor
 export const CMD_SEP = '\u0002'; // separates a command from its message index inside a record
 const TITLE_LINE_MAX = 100000; // longer lines that merely mention a title key are not title rows
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+const MAX_CWDS = 12;
+const MAX_MADE = 24;
 const READ_TOOLS = new Set(['Read', 'Glob', 'Grep']);
 
 const B = (s: string) => Buffer.from(s);
@@ -25,12 +28,15 @@ export interface Parsed {
   lines: number[]; // 1-based JSONL line of each kept message
   cost?: Cost; git?: Git; use?: Usage;
   cwd?: string; // last non-empty cwd of the rows
+  cwds?: string[]; // every distinct cwd of the rows (capped)
+  seen?: string[]; // every distinct gitBranch of the rows, most used first (capped)
+  made?: Made[]; // worktrees and branches its tool calls created (capped)
 }
 
 interface Acc {
   custom: string; ai: string; lastPrompt: string; summary: string; firstUser: string;
   lastTs: number; firstTs: number; count: number; cap: number; before: number; mtime: number; line: number;
-  lines: number[]; ts: number[]; roles: number[]; texts: string[]; files: Map<string, boolean>; cmds: Map<string, number>; x: GitAcc; u: UseAcc; cwd: string;
+  lines: number[]; ts: number[]; roles: number[]; texts: string[]; files: Map<string, boolean>; cmds: Map<string, number>; x: GitAcc; u: UseAcc; cwd: string; cwds: Set<string>; made: Map<string, Made>;
 }
 
 /** Joined text blocks of a message content value (tool results, images and thinking are skipped). */
@@ -46,6 +52,10 @@ export function textOf(content: unknown): string {
 
 function toolUse(b: any, a: Acc): void {
   const inp = b.input ?? {};
+  if (a.made.size < MAX_MADE) {
+    const list = b.name === 'Bash' && typeof inp.command === 'string' ? madeOf(inp.command) : madeByTool(String(b.name), inp);
+    for (const m of list) { if (a.made.size < MAX_MADE) { a.made.set(m[0] + '\0' + m[1], m); } }
+  }
   if (EDIT_TOOLS.has(b.name)) {
     const p = inp.file_path ?? inp.notebook_path;
     if (typeof p === 'string' && p) { a.files.set(p, true); }
@@ -113,6 +123,7 @@ function takeLine(b: Buffer, s: number, e: number, a: Acc): void {
   }
   takeExtra(line, a.x);
   a.cwd = takeCwd(line, a.cwd);
+  if (a.cwd && a.cwds.size < MAX_CWDS) { a.cwds.add(a.cwd); }
   if (!wanted(line)) { takeOther(line, a.u); return; }
   let row: any;
   try { row = JSON.parse(line.toString('utf8')); } catch { return; }
@@ -125,7 +136,7 @@ function takeLine(b: Buffer, s: number, e: number, a: Acc): void {
 /** Parse one chat file. Messages older than before are counted but their text is dropped. */
 export async function parseFile(file: string, mtime: number, cap: number, before = 0): Promise<Parsed> {
   const a: Acc = { custom: '', ai: '', lastPrompt: '', summary: '', firstUser: '', lastTs: 0, firstTs: 0,
-    count: 0, cap, before, mtime, line: 0, lines: [], ts: [], roles: [], texts: [], files: new Map(), cmds: new Map(), x: newGitAcc(), u: newUseAcc(), cwd: '' };
+    count: 0, cap, before, mtime, line: 0, lines: [], ts: [], roles: [], texts: [], files: new Map(), cmds: new Map(), x: newGitAcc(), u: newUseAcc(), cwd: '', cwds: new Set(), made: new Map() };
   await scanLines(file, (b, s, e, n) => { a.line = n; takeLine(b, s, e, a); });
   const flat = (x: string) => x.replace(/\s+/g, ' ');
   const title = flat(a.custom || a.ai || a.lastPrompt || a.summary || flat(a.firstUser).slice(0, 80) || '(untitled)');
@@ -133,5 +144,6 @@ export async function parseFile(file: string, mtime: number, cap: number, before
     title, last: a.lastTs || mtime, first: a.firstTs || a.lastTs || mtime, count: a.count,
     files: Array.from(a.files, ([path, edited]) => ({ path, edited })), cmds: [...a.cmds.keys()], cmdAt: [...a.cmds.values()],
     ts: a.ts, roles: a.roles, texts: a.texts, lines: a.lines, ...finishExtras(a.x), use: finishUsage(a.u), cwd: a.cwd || undefined,
+    cwds: a.cwds.size > 1 ? [...a.cwds] : undefined, made: a.made.size ? [...a.made.values()] : undefined,
   };
 }

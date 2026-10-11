@@ -15,6 +15,9 @@ export function chatOf(p: Parsed, rec: string): Chat {
   if (h.git) { c.git = h.git; }
   if (h.use) { c.use = h.use; }
   if (h.cwd) { c.cwd = h.cwd; }
+  if (h.cwds) { c.cwds = h.cwds; }
+  if (h.seen) { c.seen = h.seen; }
+  if (h.made) { c.made = h.made; }
   return c;
 }
 
@@ -26,6 +29,9 @@ export function headerOf(c: Chat, src: string): RecHeader {
   if (c.git) { h.git = c.git; }
   if (c.use) { h.use = c.use; }
   if (c.cwd) { h.cwd = c.cwd; }
+  if (c.cwds) { h.cwds = c.cwds; }
+  if (c.seen) { h.seen = c.seen; }
+  if (c.made) { h.made = c.made; }
   return h;
 }
 

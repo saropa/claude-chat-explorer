@@ -1,12 +1,14 @@
 /** Repository layer of the Open Work scan: worktrees, default branch, merged branches, and the text of the remove command. Read-only. */
 import * as fs from 'fs';
 import * as path from 'path';
+import { createdOf } from './workCreated';
 import { aheadBehindAll, commitMergedOf, Ctx, defaultBranchOf, divergeOf, git, mergedOf, statusOf, whyFailed } from './wipGit';
 import { BRANCH_FORMAT, BranchInfo, parseBranchInfo, parseLocalBranches, parseWorktrees, REF_FORMAT, StatusParts } from './wipParse';
 import { WorktreeInfo } from './wipTypes';
 
 export const MAX_WT_STATUS = 20;
 export const MAX_LOCALS = 3000;
+export const MAX_CREATED = 400; // branches (newest first) whose reflog file is read for the creation time
 export const MAX_DIVERGE = 80; // branches whose distance from the default branch is read (worktree branches first, then the newest)
 export const REPO_GIT_SLOTS = 2; // the page lane has 3 git slots: 2 for folders, the repository layer keeps to its own share so it cannot starve them or itself
 
@@ -20,7 +22,7 @@ export interface WtOut extends WorktreeInfo {
 }
 
 /** A local branch of the project status: upstream facts, last commit date and author, and its distance from the default branch (undefined when not read). */
-export interface BranchRow extends BranchInfo { ahead?: number; behind?: number; }
+export interface BranchRow extends BranchInfo { ahead?: number; behind?: number; cr?: number; } // cr: creation time, unix seconds (reflog), when known
 
 /** What the repository layer found. */
 export interface RepoOut {
@@ -70,10 +72,18 @@ export async function readRepo(c: Ctx, common: string, top: string, onPartial?: 
   const gh = ro.code === 0 ? githubRepoOf(ro.stdout) : undefined;
   if (gh) { out.ghUrl = 'https://github.com/' + gh.owner + '/' + gh.repo; }
   onPartial?.(out);
+  await created(c, common, out);
   await diverge(c, top, out);
   const linked = worktrees.filter((w) => !w.missing).slice(0, MAX_WT_STATUS); // the main checkout too: the project status lists every worktree with its changed-file count
   await capped(c, linked, async (w) => { const f = factsOf(await statusOf(c, w.path)); if (!c.signal?.aborted) { w.facts = f; } }); // after a timeout the finished worktrees keep their facts; the rest stay unread
   return out;
+}
+
+/** Fill the creation time of each branch from its reflog file (plain file reads, capped at MAX_LOCALS branches). */
+async function created(c: Ctx, common: string, r: RepoOut): Promise<void> {
+  if (!r.info) { return; }
+  const at = await createdOf(common, r.info.slice(0, MAX_CREATED).map((b) => b.name), c.signal);
+  for (const b of r.info) { const t = at.get(b.name); if (t) { b.cr = t; } }
 }
 
 /** Fill ahead and behind (against the default branch) on the branches: one for-each-ref call, or, when git cannot do that, one rev-list per branch (worktree branches first, then the newest, up to MAX_DIVERGE). */

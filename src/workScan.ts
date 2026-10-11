@@ -7,6 +7,7 @@ import { Exec, pool } from './wipExec';
 import { Ctx, git, probe, statusOf, unpushedOf } from './wipGit';
 import { FileChange } from './wipTypes';
 import { PrRun, WorkPrs } from './workPrs';
+import { RelIn } from './workMatch';
 import { BranchOut, branchCommand, branchesOf, githubBranchUrl, readRepo, removeCommand, RepoOut, WtOut } from './workRepo';
 
 export const MAX_FOLDERS = 60;
@@ -259,8 +260,17 @@ export class WorkScan {
       fks: fks.filter((k) => this.byKey.get(k)?.topReal === w.real),
       da: w.branch ? dv.get(w.branch)?.ahead : undefined, db: w.branch ? dv.get(w.branch)?.behind : undefined, // ahead and behind the default branch
     }));
-    const branches = (r.info ?? []).slice(0, MAX_BRANCH_POST).map((b) => ({ n: b.name, ts: b.ts, au: b.author, up: !!b.upstream, gone: b.gone, a: b.ahead, b: b.behind }));
+    const branches = (r.info ?? []).slice(0, MAX_BRANCH_POST).map((b) => ({ n: b.name, ts: b.ts, au: b.author, cr: b.cr || 0, up: !!b.upstream, gone: b.gone, a: b.ahead, b: b.behind }));
     this.put(run, { type: 'repo', key: rk, state, reason, name: r.name, def: r.def ?? '', defLocal: r.defLocal ?? '', merged: r.merged, worktrees, ws: this.ws.commons.has(r.common), gh: !!r.ghUrl, branches, bmore: Math.max(0, (r.info?.length ?? 0) - branches.length) });
+  }
+
+  /** What the chat matcher needs of a repository key: the folders, worktrees and branches of the last answer (never posted to the page). ids are filled by the caller. */
+  relInput(rk: string): Omit<RelIn, 'ids'> | undefined {
+    const r = this.repos.get(rk);
+    if (!r) { return undefined; }
+    const wts = r.worktrees.map((w) => ({ k: this.wkeyOf(rk, w.real), name: path.basename(w.path), path: w.path, real: w.real, branch: w.branch, main: w.main, detached: w.detached }));
+    const brs = (r.info ?? []).slice(0, MAX_BRANCH_POST).map((b) => ({ n: b.name, cr: b.cr ?? 0, ts: b.ts }));
+    return { roots: [r.main], wts, brs, def: r.defLocal ?? '' };
   }
 
   private wkeyOf(rk: string, real: string): string {

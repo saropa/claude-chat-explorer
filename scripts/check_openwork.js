@@ -654,7 +654,7 @@ function viewScenario(W) {
   const body = els.get('body'), fq = els.get('fq'), tag = (s) => s + ' at ' + W;
   const fm = (key, state, o) => Object.assign({ type: 'folder', scan: 1, key, state }, o || {});
   const click = (a, data) => fire(body, 'click', { target: target(a, '', data ? { dataset: Object.assign({ a }, data) } : undefined) });
-  const count = () => { advance(300); openAll(V); advance(300); return (body.innerHTML.match(/class="row"/g) || []).length; };
+  const count = () => { advance(300); openAll(V); advance(300); return new Set([...body.innerHTML.matchAll(/class="row" role="listitem" data-id="([^"]+)"/g)].map((m) => m[1])).size; };
   const has = (n) => body.innerHTML.indexOf('data-id="' + id(n) + '"') >= 0;
   const only = (...ns) => count() === ns.length && ns.every(has);
   const typeQ = (v) => { fq.value = v; fire(fq, 'input'); advance(250); };
@@ -682,7 +682,7 @@ function viewScenario(W) {
   check(tag('the filter box is a labelled search field'), /role="search"/.test(page) && /id="fq"[^>]*aria-label="[^"]+"/.test(page) && fq.value === '');
   // Text filter with debounce.
   step('typing', () => { fq.value = 'login'; fire(fq, 'input'); advance(100); });
-  check(tag('the filter waits for the debounce'), (body.innerHTML.match(/class="row"/g) || []).length === 4 && posts('view').every((p) => p.q === ''));
+  check(tag('the filter waits for the debounce'), new Set([...body.innerHTML.matchAll(/class="row" role="listitem" data-id="([^"]+)"/g)].map((m) => m[1])).size === 4 && posts('view').every((p) => p.q === ''));
   step('debounce ends', () => advance(200));
   check(tag('after the debounce only the matching row shows, and the filter is saved'), only(1) && posts('view').some((p) => p.q === 'login'));
   for (const [q, ns, what] of [['readme', [1], 'a file name'], ['feat-search', [2], 'a branch'], ['#81', [2], 'a pull request number with #'], ['81', [2], 'a pull request number'], ['search box', [2], 'a pull request title'], ['proj', [1, 2, 3], 'the repository name'], ['ALPHA', [1, 3], 'a project, any case'], ['alpha login', [1], 'several words']]) {
@@ -748,12 +748,12 @@ function viewScenario(W) {
   // A popover open: Escape closes it first and leaves the row expanded; j and k do not move rows behind it.
   step('expand row', () => { key('ArrowRight', rbs[0]); advance(300); });
   const exOpen = () => (body.innerHTML.match(/<div class="ex">/g) || []).length;
-  check(tag('a row can be expanded with Right'), exOpen() === 1);
+  check(tag('a row can be expanded with Right'), exOpen() >= 1);
   step('question again', () => key('?', rbs[0]));
   const j1 = rbs[1].focused;
   step('j behind the popover', () => key('j', rbs[0])); check(tag('j does not move focus while the shortcuts list is open'), rbs[1].focused === j1 && els.get('shm').hidden === false);
   step('escape with a popover', () => key('Escape', rbs[0])); advance(300);
-  check(tag('one Escape closes the popover and leaves the row expanded'), els.get('shm').hidden === true && exOpen() === 1);
+  check(tag('one Escape closes the popover and leaves the row expanded'), els.get('shm').hidden === true && exOpen() >= 1);
   step('second escape', () => { key('Escape', rbs[0]); advance(300); }); check(tag('the next Escape collapses the row'), exOpen() === 0);
   document.querySelectorAll = () => []; document.querySelector = () => null;
   // Sections: three tables and Chats without a branch collapse, and the choice is saved per workspace.
@@ -771,8 +771,10 @@ function viewScenario(W) {
   step('expand worktrees', () => click('sec', { s: 'wt' }));
   // A chat list inside a row expands and collapses; the count stays.
   const hxBtn = () => /data-a="hx" data-x="([^"]*)" data-on="(\d)"/.exec(body.innerHTML);
-  step('collapse a chat list', () => { const m = hxBtn(); click('hx', { x: m[1], on: m[2] }); });
-  check(tag('collapsing the chats of a row hides them and keeps the count button'), (body.innerHTML.match(/class="row"/g) || []).length < 4 && /data-on="0"/.test(body.innerHTML));
+  const rowsBefore = () => (body.innerHTML.match(/class="row"/g) || []).length;
+  let nBefore = 0;
+  step('collapse a chat list', () => { nBefore = rowsBefore(); const m = hxBtn(); click('hx', { x: m[1], on: m[2] }); });
+  check(tag('collapsing the chats of a row hides them and keeps the count button'), rowsBefore() < nBefore && /data-on="0"/.test(body.innerHTML));
   step('new scan', () => { deliver({ type: 'chats', scan: 2, rows: rowsV, indexing: false, scanning: false }); advance(300); });
   // Status line.
   step('time', () => advance(125000));
@@ -831,6 +833,53 @@ function statusScenario(W) {
 }
 for (const W of [400, 760, 1400]) { statusScenario(W); }
 
+// Related chats: every worktree and branch ends with chats or the evidence line, certain ones in the normal style with a reason badge and tooltip, probable ones muted and labelled.
+function relatedScenario(W) {
+  const { contactsWorld } = require('./fake_world');
+  const { relOf } = require(path.join(OUT, 'workMatch.js'));
+  const world = contactsWorld(), out = relOf(world.ix, world.input);
+  const R = createHarness({ page, name: 'openwork-related@' + W, width: W, popIds: VIEW_POPS });
+  const { els, posted, fire, deliver, advance, check, step } = R;
+  const body = els.get('body'), tag = (s) => s + ' at ' + W;
+  const T = 1791000000;
+  const prow = world.chats.filter((c) => !c.parent && c.dir === '-w-contacts').map((c, i) => ({ id: c.id, title: c.title, project: 'contacts', last: c.last, pinned: false, ctx: undefined }));
+  const wtp = world.input.wts.map((w) => vwt(w.k, w.name, w.branch, { path: w.path, main: w.main, facts: { ok: true, fileTotal: 0, ahead: 0, behind: 0, gone: false, files: [] }, da: 0, db: 0 }));
+  const brs = world.input.brs.map((b) => ({ n: b.n, ts: b.ts, cr: b.cr, au: b.n === 'ancient-nothing-branch' ? 'Grace <x>' : 'Ada', up: true, gone: false, a: 0, b: 0 }));
+  R.start();
+  step('init', () => deliver({ type: 'init', v: 3, prsOn: false, days: 14, hidden: [], ws: 1, done: {}, view: { q: '', f: {}, sort: 'recent' } }));
+  step('chats and repository, before the matcher answers', () => {
+    deliver({ type: 'chats', scan: 1, rows: prow, indexing: false, scanning: true });
+    deliver({ type: 'repo', scan: 1, key: 'r1', state: 'ok', name: 'contacts', def: 'origin/main', defLocal: 'main', merged: [], ws: true, gh: false, worktrees: wtp, branches: brs, bmore: 0 });
+    advance(300);
+  });
+  check(tag('before the matcher answers a row with no chat says it is matching, not blank'), /Matching chats/.test(trSlice(body, 'b', 'ancient-nothing-branch')) && /created|last commit/.test(trSlice(body, 'b', 'ancient-nothing-branch')));
+  step('matcher answers', () => { deliver({ type: 'rel', scan: 1, rk: 'r1', ok: true, w: out.w, b: out.b }); deliver({ type: 'end', scan: 1, open: [], gitMissing: false }); advance(300); });
+  const h = body.innerHTML;
+  const wtRows = world.input.wts.map((w) => trSlice(body, 'w', w.k)), brRows = world.input.brs.map((b) => trSlice(body, 'b', b.n));
+  check(tag('all ' + wtRows.length + ' worktrees and ' + brRows.length + ' branches are listed'), wtRows.every(Boolean) && brRows.every(Boolean));
+  const blank = wtRows.concat(brRows).filter((t) => !/class="ab hxb"/.test(t) && !/no matching chat found/.test(t));
+  check(tag('no Chats cell is blank: each has a chat count or the evidence line (' + blank.length + ' blank)'), blank.length === 0);
+  check(tag('the chats cell never reads a bare 0'), wtRows.concat(brRows).every((t) => !/<td><span class="nb">0<\/span><\/td>/.test(t)));
+  check(tag('a worktree made by a subagent shows its chat count, and the chat sits in the worktree row, open'), /class="ab hxb"[^>]*>[^]*?<\/span>1<\/button>/.test(trSlice(body, 'w', 'w2')) && /Pro rollout/.test(h) && /aria-label="Chats in contacts-wt-connection-icon"/.test(h));
+  const sub = (name) => { const i = h.indexOf('aria-label="Chats in ' + name + '"'); const j = h.indexOf('</div></td></tr>', i); return i < 0 ? '' : h.slice(i, j); };
+  check(tag('a certain chat has the normal style and a reason badge with its tooltip (reason and confidence)'), (() => { const t = sub('contacts-wt-connection-icon'); return /data-rel="c"/.test(t) && /class="bd bd-info" data-rel="certain">subagent</.test(t) && /Related by: via a subagent \(certain\)/.test(t) && /created contacts-wt-connection-icon/.test(t) && !/data-rel="p"/.test(t); })());
+  check(tag('the chat that ran in a worktree folder says folder, and keeps the second reason in its tooltip'), (() => { const t = sub('contacts-wt-nudge-once'); return />folder</.test(t) && /Also: its rows record the branch/.test(t); })());
+  check(tag('a chat that ran git worktree add itself says created'), />created</.test(sub('contacts-wt-pro-pill-gaps')) && />created</.test(sub('feat/pro-pill-gaps')));
+  check(tag('a probable chat is muted and labelled probable with its reason'), (() => { const t = sub('bahai-mojibake'); return /data-rel="p"/.test(t) && /bd-muted" data-rel="probable">probable: name</.test(t) && /Related by: name in the chat \(probable\)/.test(t) && /Probable: no chat is certain for this row/.test(t); })());
+  check(tag('a time-window chat is labelled probable: time'), /probable: time</.test(sub('orphan-spike-branch')));
+  const far = trSlice(body, 'b', 'ancient-nothing-branch');
+  check(tag('a branch nothing links to shows the evidence with date and author, no matching chat found, and the nearest chat by time labelled probable'), /created \S+ by Grace &lt;x&gt;, no matching chat found; nearest by time \(probable\):/.test(far) && /nearest by time \(probable\)</.test(sub('ancient-nothing-branch')) && /Nearest by time \(probable\): started \d+ days after/.test(sub('ancient-nothing-branch')) && !/Related by/.test(sub('ancient-nothing-branch')));
+  const none = trSlice(body, 'b', 'no-time-branch');
+  check(tag('a branch with no time and no chat still shows an evidence line, not an empty cell'), /no matching chat found/.test(none) && !/class="ab hxb"/.test(none));
+  check(tag('a chat the matcher placed is not also listed under Chats without a branch'), !/aria-label="Chats without a branch"/.test(h) || !/Pro rollout/.test(h.slice(h.indexOf('aria-label="Chats without a branch"'))));
+  step('the matcher fails', () => { deliver({ type: 'rel', scan: 1, rk: 'r1', ok: false }); advance(300); });
+  check(tag('when the matcher fails the evidence says so, still not blank'), /chat matching unavailable/.test(trSlice(body, 'b', 'no-time-branch')));
+  step('a new scan clears the old matches', () => { deliver({ type: 'chats', scan: 2, rows: prow, indexing: false, scanning: true }); advance(300); });
+  check(tag('a new scan forgets the matches and shows the matching state again'), /Matching chats/.test(trSlice(body, 'b', 'no-time-branch')) || /chat matching not finished|Matching chats/.test(trSlice(body, 'b', 'no-time-branch')));
+  R.errors.forEach((e) => failures.push(e));
+}
+for (const W of [400, 760, 1400]) { relatedScenario(W); }
+
 
 // Page structure: chats live in the worktree or branch row they belong to; attention chips filter the rows; row badges.
 function structureScenario(W) {
@@ -840,7 +889,7 @@ function structureScenario(W) {
   const click = (a, data) => fire(body, 'click', { target: target(a, '', { dataset: Object.assign({ a }, data || {}) }) });
   const T = 1700000000, DAY = 86400;
   const fct = (o) => Object.assign({ name: 'proj', branch: 'main', detached: false, upstream: 'origin/main', ahead: 0, behind: 0, gone: false, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], rk: 'r1', ws: true }, o || {});
-  const rowsS = [row(1, { title: 'On the worktree', fk: 'f1' }), row(2, { title: 'On a lone branch', fk: 'f2' }), row(3, { title: 'No git here', fk: 'f3' }), row(4, { title: 'Idle one', fk: 'f1' })];
+  const rowsS = [row(1, { title: 'On the worktree', fk: 'f1' }), row(2, { title: 'On a lone branch', fk: 'f2' }), row(3, { title: 'No git here', fk: 'f3' }), row(4, { title: 'Idle one', fk: 'f1' }), row(5, { title: 'On main', fk: 'f4' }), row(6, { title: 'Folder not matched', fk: 'f5' })];
   S.start();
   step('init', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, hidden: [], ws: 1, done: {}, view: {} }));
   step('dots', () => deliver({ type: 'dots', map: { [id(1)]: { s: 'waiting' } } }));
@@ -849,22 +898,39 @@ function structureScenario(W) {
     deliver({ type: 'folder', scan: 1, key: 'f1', state: 'ok', facts: fct({ branch: 'feat', fileTotal: 1, files: [{ s: 'M', p: 'a.ts' }] }) });
     deliver({ type: 'folder', scan: 1, key: 'f2', state: 'ok', facts: fct({ branch: 'solo' }) });
     deliver({ type: 'folder', scan: 1, key: 'f3', state: 'none', reason: 'Not a git folder' });
+    deliver({ type: 'folder', scan: 1, key: 'f4', state: 'ok', facts: fct({ branch: 'main' }) });
+    deliver({ type: 'folder', scan: 1, key: 'f5', state: 'ok', facts: fct({ branch: 'feat', fileTotal: 1, files: [{ s: 'M', p: 'a.ts' }] }) }); // a folder the worktree list does not name (a path that differs in spelling): the branch still places the chat
     deliver({ type: 'repo', scan: 1, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: ['done-br'], ws: true, gh: true,
       branches: [{ n: 'main', ts: T, au: 'A', up: true, gone: false, a: 0, b: 0 }, { n: 'feat', ts: T - DAY, au: 'A', up: true, gone: false, a: 1, b: 2 }, { n: 'solo', ts: T - 2 * DAY, au: 'A', up: true, gone: false, a: 0, b: 0 }, { n: 'done-br', ts: T - 9 * DAY, au: 'A', up: true, gone: false, a: 0, b: 0 }, { n: 'lost', ts: T - 9 * DAY, au: 'A', up: true, gone: true, a: 1, b: 0 }],
-      worktrees: [wtm('w1', 'proj', 'main', { main: true, fks: [] }), wtm('w2', 'proj-feat', 'feat', { fks: ['f1'], facts: { ok: true, fileTotal: 1, ahead: 0, behind: 0, gone: false, files: [] }, db: 2 })] });
+      worktrees: [wtm('w1', 'proj', 'main', { main: true, fks: ['f4'] }), wtm('w2', 'proj-feat', 'feat', { fks: ['f1'], facts: { ok: true, fileTotal: 1, ahead: 0, behind: 0, gone: false, files: [] }, db: 2 })] });
     deliver({ type: 'prs', scan: 1, repo: 'r1', state: 'ok', by: { feat: { n: 5, title: 'Feat', draft: false, review: 'review requested', link: true } } });
     deliver({ type: 'end', scan: 1, open: [], gitMissing: false }); advance(300);
   });
   const h = () => body.innerHTML;
-  check(tag('a chat is listed once, inside the worktree row of its folder'), (h().match(new RegExp('data-id="' + id(1) + '"', 'g')) || []).length === 1 && new RegExp('<tr data-w="w2">[^]*?data-x="w:w2"[^]*?</tr><tr class="hxr">[^]*?data-id="' + id(1) + '"').test(h()));
-  check(tag('a chat that needs attention is open by default, an idle chat list is not'), /data-x="w:w2" data-on="1"/.test(h()) && !/data-x="b:solo" data-on="1"/.test(h()));
-  check(tag('a chat on a branch with no worktree sits in that branch row with a count button'), /<tr data-b="solo">[^]*?data-a="hx" data-x="b:solo" data-on="0"[^]*?<\/span>1<\/button>/.test(h()) && !new RegExp('data-id="' + id(2) + '"').test(h()));
-  step('open the lone branch chats', () => click('hx', { x: 'b:solo', on: '0' }));
-  check(tag('the expander shows the chat with title, age, context percent and its icon actions'), new RegExp('data-id="' + id(2) + '"').test(h()) && /data-a="open"[^>]*aria-label="Open chat: On a lone branch"[^>]*title="Open chat"/.test(h()) && />61%</.test(rowSlice(body, id(2))) && /data-a="handover"/.test(rowSlice(body, id(2))) && /data-a="find"/.test(rowSlice(body, id(2))) && /data-a="arch"/.test(rowSlice(body, id(2))) && /data-a="done"/.test(rowSlice(body, id(2))));
-  step('collapse it again', () => click('hx', { x: 'b:solo', on: '1' }));
-  check(tag('collapsing a chat list hides the chats and keeps the count'), !new RegExp('data-id="' + id(2) + '"').test(h()) && /data-x="b:solo" data-on="0"/.test(h()));
-  check(tag('the branch row of a worktree shows the chat count and points to the worktree'), /<tr data-b="feat">[^]*?listed under its worktree/.test(h()));
-  check(tag('a chat outside git goes in the one section Chats without a branch'), /aria-label="Chats without a branch"/.test(h()) && /class="pill">1</.test(/aria-label="Chats without a branch"[^]*/.exec(h())[0]));
+  const inTr = (tr, n) => tr.indexOf('data-id="' + id(n) + '"') >= 0;
+  const after = (attr, val) => { const i = h().indexOf('<tr data-' + attr + '="' + val + '">'); const j = h().indexOf('<tr data-', i + 1); return i < 0 ? '' : h().slice(i, j < 0 ? undefined : j); }; // the table row and the chat sub-row that follows it
+  check(tag('a chat run in a worktree folder is a sub-row of that worktree row, with title, age, context, state and the icon actions'), inTr(after('w', 'w2'), 1) && inTr(after('w', 'w2'), 4) && />61%</.test(rowSlice(body, id(1))) && /class="st b-needs"/.test(rowSlice(body, id(1))) && ['open', 'handover', 'find', 'arch', 'done'].every((a) => new RegExp('data-a="' + a + '"').test(rowSlice(body, id(1)))));
+  check(tag('a chat whose folder the worktree list does not name is placed by its branch, on that worktree'), inTr(after('w', 'w2'), 6));
+  check(tag('a chat whose recorded branch is a branch is under that branch row, also when a worktree has it'), inTr(after('b', 'feat'), 1) && inTr(after('b', 'feat'), 6) && inTr(after('b', 'solo'), 2));
+  check(tag('a chat on the head branch of a pull request is under that pull request row'), inTr(after('n', '5'), 1) && inTr(after('n', '5'), 4) && inTr(after('n', '5'), 6) && !inTr(after('n', '5'), 2));
+  check(tag('a chat run in the main checkout on main is under the main worktree row and the main branch row'), inTr(after('w', 'w1'), 5) && inTr(after('b', 'main'), 5) && !inTr(after('w', 'w2'), 5));
+  check(tag('chat lists are open by default, whatever the state of their chats, with a count link'), ['w:w1', 'w:w2', 'b:solo', 'b:main', 'b:feat', 'p:5'].every((x) => new RegExp('data-x="' + x + '" data-on="1"').test(h())) && /<tr data-b="solo">[^]*?data-a="hx" data-x="b:solo"[^]*?<\/span>1<\/button>/.test(h()));
+  check(tag('every chat of the repository is visible somewhere: the six chats are all on the page'), [1, 2, 3, 4, 5, 6].every((n) => new RegExp('data-id="' + id(n) + '"').test(h())));
+  step('collapse the lone branch chats', () => click('hx', { x: 'b:solo', on: '1' }));
+  check(tag('a row can collapse its chats: the count link stays and the choice is saved with the view'), !new RegExp('data-id="' + id(2) + '"').test(h()) && /data-x="b:solo" data-on="0"/.test(h()) && posted.filter((p) => p.type === 'view').pop().sec['x:b:solo'] === false);
+  step('saved view comes back', () => { deliver({ type: 'init', v: 3, prsOn: true, days: 14, hidden: [], ws: 1, done: {}, view: { sec: { 'x:b:solo': false } } }); advance(300); });
+  check(tag('the saved collapse is restored'), /data-x="b:solo" data-on="0"/.test(h()));
+  step('open it again', () => click('hx', { x: 'b:solo', on: '0' }));
+  check(tag('and opens again'), new RegExp('data-id="' + id(2) + '"').test(h()) && /data-x="b:solo" data-on="1"/.test(h()));
+  check(tag('counts in the header equal the rows shown: 2 worktrees, 5 branches, 1 pull request, and no hidden note'), (h().match(/<tr data-w=/g) || []).length === 2 && (h().match(/<tr data-b=/g) || []).length === 5 && (h().match(/<tr data-n=/g) || []).length === 1 && /2 worktrees/.test(h()) && /5 branches/.test(h()) && /1 pull request/.test(h()) && !/class="sub psh"/.test(h()));
+  step('hide idle', () => click('idle'));
+  check(tag('with idle hidden every worktree and branch row stays, and the hidden chat is counted next to its row'), (h().match(/<tr data-w=/g) || []).length === 2 && (h().match(/<tr data-b=/g) || []).length === 5 && /<tr data-w="w1">[^]*?class="q hid"[^>]*>1 hidden</.test(h()) && !new RegExp('data-id="' + id(5) + '"').test(h()));
+  step('show idle', () => click('idle'));
+  step('hide the tidy chip', () => click('band', { b: 'tidy' }));
+  check(tag('a state chip that is off removes those rows and the page says how many are hidden, with Show all'), /3 of 5 branches/.test(h()) && /2 branches hidden by the filters/.test(h()) && /data-a="showall"/.test(h()) && (h().match(/<tr data-b=/g) || []).length === 3 && !/<tr data-b="lost"/.test(h()));
+  step('show all', () => click('showall'));
+  check(tag('Show all brings every row back'), (h().match(/<tr data-b=/g) || []).length === 5 && !/class="sub psh"/.test(h()) && !/aria-pressed="false"[^>]*aria-label="[^"]*, hidden"/.test(els.get('cnt').innerHTML));
+  check(tag('a chat outside git is in the section Chats without a branch, open, with its count'), /aria-label="Chats without a branch"/.test(h()) && /data-s="nb" aria-expanded="true"/.test(h()) && /class="pill">1</.test(/aria-label="Chats without a branch"[^]*/.exec(h())[0]) && inTr(/aria-label="Chats without a branch"[^]*/.exec(h())[0], 3));
   check(tag('state badges: dirty, behind, needs review on the worktree; remote gone and safe to remove on branches'), /dirty: 1 file/.test(trSlice(body, 'w', 'w2')) && /behind 2/.test(trSlice(body, 'w', 'w2')) && /needs review/.test(trSlice(body, 'w', 'w2')) && /remote gone/.test(trSlice(body, 'b', 'lost')) && /safe to remove/.test(trSlice(body, 'b', 'done-br')));
   check(tag('the default branch and a plain branch get no state badge'), !/class="bd/.test(trSlice(body, 'b', 'main')) && !/class="bd/.test(trSlice(body, 'b', 'solo')));
   check(tag('the page has no chat bands and no Project status block: the title is Project status'), !/class="band"[^>]*aria-label="(Needs you|To finish|Waiting on others|Ready to tidy|Idle)"/.test(h()) && /<h1 id="ttl">Project status<\/h1>/.test(page) && !/aria-label="Project status"/.test(h()));
@@ -1019,7 +1085,18 @@ function workerCheck() {
     let done = false;
     const end = (why) => { if (done) { return; } done = true; clearTimeout(timer); w.terminate().then(() => { try { fs.rmSync(base, { recursive: true, force: true }); } catch (e) { /* scratch only */ } resolve(why); }); };
     const timer = setTimeout(() => { bad('worker openWork did not answer within 3 s (the soft request must not wait for the index build)'); end('timeout'); }, 3000);
+    let relSent = false;
+    const askRel = () => { if (relSent) { return; } relSent = true; w.postMessage({ t: 'openWorkRel', req: 2, ids: Array.from({ length: N }, (_, i) => id(900 + i)), roots: ['/tmp/proj'], wts: [{ k: 'w1', name: 'proj', path: '/tmp/proj', real: '/tmp/proj', branch: 'main', main: true, detached: false }], brs: [{ n: 'main', cr: 0, ts: 0 }], def: 'main' }); };
     w.on('message', (m) => {
+      if (m.t === 'indexed') { askRel(); return; }
+      if (m.t === 'reply' && m.req === 2) { // the chat matcher request: soft like the chat list, never waits for the index
+        const v = m.value;
+        if (!v || typeof v.ok !== 'boolean') { bad('worker openWorkRel reply shape: ' + JSON.stringify(v).slice(0, 120)); }
+        else if (v.ok && !(v.w && v.b && Array.isArray(v.w.w1) && v.w.w1.length > 0 && v.w.w1.every((h) => h.why === 'cwd' && h.conf === 'certain' && /^[0-9a-f-]{36}$/.test(h.id)))) { bad('worker openWorkRel: chats that ran in the main folder are cwd matches: ' + JSON.stringify(v).slice(0, 160)); }
+        else if (!v.ok) { bad('worker openWorkRel: after the index build the matcher must answer ok: ' + JSON.stringify(v).slice(0, 120)); }
+        end('answered');
+        return;
+      }
       if (m.t !== 'reply' || m.req !== 1) { return; }
       const v = m.value;
       if (!v || typeof v.indexing !== 'boolean' || !Array.isArray(v.rows) || typeof v.total !== 'number') { bad('worker openWork reply shape: ' + JSON.stringify(v).slice(0, 120)); }
@@ -1027,7 +1104,8 @@ function workerCheck() {
       else if (v.rows.length > N) { bad('worker openWork returned more rows than exist'); }
       else if (v.rows.some((r) => !/^[0-9a-f-]{36}$/.test(r.id) || typeof r.title !== 'string')) { bad('worker rows carry id and title'); }
       if (Date.now() - t0 > 2500) { bad('worker openWork answered too late'); }
-      end('answered');
+      if (v && v.indexing === true && !relSent) { return; } // wait for the index build, then ask the matcher
+      askRel();
     });
     w.on('error', (e) => { bad('worker error', e); end('error'); });
     w.postMessage({ t: 'init', dir: path.join(base, 'store'), root: path.join(base, 'projects') });

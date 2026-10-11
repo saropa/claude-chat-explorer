@@ -9,6 +9,7 @@ const HEAD = 32;
 const MAX_COMMITS = 300;
 const MAX_BRANCHES = 40;
 const MAX_PRS = 100;
+const MAX_SEEN = 20;
 const MERGE_MAX = 2000; // cap on commits and PRs of one merged chat-plus-subagents view
 const BRANCH = /^[\p{L}\p{N}_.\/+@#-]{1,200}$/u;
 
@@ -117,14 +118,15 @@ export function takeExtra(line: Buffer, a: GitAcc): void {
 }
 
 /** Cost (absent when it holds nothing) and git facts (absent when empty) of the finished tally. */
-export function finishExtras(a: GitAcc): { cost?: Cost; git?: Git } {
+export function finishExtras(a: GitAcc): { cost?: Cost; git?: Git; seen?: string[] } {
   const top = [...a.seen].sort((x, y) => y[1] - x[1])[0];
   if (top) { addBranch(a, top[0]); }
   const c = a.cost;
   const cost = c && (c.usd || c.add || c.rem || c.models.length) ? c : undefined;
+  const seen = [...a.seen].sort((x, y) => y[1] - x[1]).map((x) => x[0]).filter((b) => branchOf(b)).slice(0, MAX_SEEN);
   const git = a.commits.size || a.branches.size || a.prs.size
     ? { commits: [...a.commits], branches: [...a.branches], prs: [...a.prs.values()] } : undefined;
-  return { cost, git };
+  return { cost, git, seen: seen.length ? seen : undefined };
 }
 
 /** Git facts of a chat plus its subagents (commits merged by id prefix, PRs by repository and number; a commit keeps the first branch seen). */

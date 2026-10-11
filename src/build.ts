@@ -18,5 +18,8 @@ export async function buildChat(f: FileStat, before: number): Promise<{ chat: Ch
   else { if (p.cost) { c.cost = p.cost; } if (p.use) { c.use = p.use; } } // context usage is the parent's own, never a subagent's
   if (p.git) { c.git = p.git; }
   if (p.cwd) { c.cwd = p.cwd; }
+  if (p.cwds) { c.cwds = p.cwds; }
+  if (p.seen) { c.seen = p.seen; }
+  if (p.made) { c.made = p.made; }
   return { chat: c, body };
 }

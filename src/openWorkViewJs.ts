@@ -22,7 +22,7 @@ function toggleFlag(k){if(!(k in flt))return;flt[k]=!flt[k];refocus='[data-f="'+
 function setSort(v){if(!SORTS.some(s=>s[0]===v))return;sortMode=v;saveView();render();}
 function sortLabel(){return SORTS.find(s=>s[0]===sortMode)[1];}
 function applyView(v){v=v&&typeof v==='object'?v:{};fq=typeof v.q==='string'?v.q.slice(0,80):'';$('fq').value=fq;const f=v.f&&typeof v.f==='object'?v.f:{};flt={pr:f.pr===true,fail:f.fail===true,dirty:f.dirty===true,push:f.push===true};sortMode=SORTS.some(s=>s[0]===v.sort)?v.sort:'recent';sec={};if(v.sec&&typeof v.sec==='object')Object.keys(v.sec).forEach(k=>{if(typeof v.sec[k]==='boolean')sec[k]=v.sec[k];});}
-function secOpen(k){return sec[k]!==undefined?sec[k]:k==='nb'?nbAuto:true;}
+function secOpen(k){return sec[k]!==undefined?sec[k]:true;}
 function toggleSec(k){if(!k||k.length>80)return;sec[k]=!secOpen(k);refocus='[data-a="sec"][data-s="'+k.replace(/[^A-Za-z0-9:_-]/g,'')+'"]';saveView();render();}
 function viewUi(){const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.f&&(ae.dataset.f in flt)&&!refocus)refocus='[data-f="'+ae.dataset.f+'"]';const flags=FLAGS.filter(f=>!f[3]||prsOn);
 $('fch').innerHTML=flags.map(f=>'<button type="button" class="chip" data-a="flt" data-f="'+f[0]+'" aria-pressed="'+flt[f[0]]+'" data-tip="'+esc(f[2])+'">'+esc(f[1])+'</button>').join('')+(filtering()?'<button type="button" class="ab" data-a="clearf" aria-label="Clear all filters" data-tip="Clear the filter box and the state filters">Clear filters</button>':'');

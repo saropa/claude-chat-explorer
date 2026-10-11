@@ -7,6 +7,7 @@ import { fileSessionsOf, FileSessionsReply } from './fileSessions';
 import { handoverData } from './handover';
 import { chatCwd } from './wipChats';
 import { openWorkRows } from './workChats';
+import { relInOf, relOf } from './workMatch';
 import { clampMax, Tally, totalsOf } from './limits';
 import { expandChat, searchIndex } from './search';
 import { ctxReply } from './contextWarn';
@@ -146,6 +147,13 @@ async function openWork(m: any): Promise<unknown> {
   return { indexing: ix.building || (!passed && ix.size === 0), ...openWorkRows(ix, { days, now: Date.now(), live: ids(m.live), archived: ids(m.archived), pins: ids(m.pins), folders: Array.isArray(m.folders) ? m.folders.filter((x: unknown) => typeof x === 'string') : [] }) };
 }
 
+/** Chats related to each worktree and branch of one repository (Project status). Soft like openWork: it never waits for the disk read. ok false asks the host to try again later. */
+async function openWorkRel(m: any): Promise<unknown> {
+  const i = relInOf(m);
+  if (loading || !ix || !i) { return { ok: false, indexing: true }; }
+  return { ok: true, ...relOf(ix, i) };
+}
+
 /** Facts for one chat's hand-over note; null when the chat is not indexed. */
 async function handover(m: any): Promise<unknown> {
   await loaded;
@@ -168,6 +176,7 @@ async function request(m: any): Promise<unknown> {
   if (m.t === 'fileSessions') { return fileSessions(m); }
   if (m.t === 'handover') { return handover(m); }
   if (m.t === 'openWork') { return openWork(m); }
+  if (m.t === 'openWorkRel') { return openWorkRel(m); }
   if (m.t === 'ctx') { await loaded; return ctxReply((id) => ix?.find(id), Array.isArray(m.ids) ? m.ids.filter((x: unknown) => typeof x === 'string') : []); }
   if (m.t === 'pinned') { return pinned(m.ids ?? [], m.subs !== false); }
   if (m.t === 'stats') { return { chats: ix?.size ?? 0, heap: process.memoryUsage().heapUsed, rss: process.memoryUsage().rss, buf: process.memoryUsage().arrayBuffers }; }

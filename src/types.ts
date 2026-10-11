@@ -23,6 +23,9 @@ export interface Chat {
   rec: string; len: number; // record file name, and body length in bytes
   cost?: Cost; git?: Git; use?: Usage;
   cwd?: string; // working folder of the chat: the last cwd recorded in its rows
+  cwds?: string[]; // every distinct cwd (only when it changed during the chat)
+  seen?: string[]; // every distinct gitBranch of its rows, most used first
+  made?: Array<[string, string]>; // worktrees ('w', folder) and branches ('b', name) its tool calls created
   bloom: Uint8Array; // trigram prefilter over lowercased text and commands
 }
 
