@@ -3,23 +3,18 @@
 """Saropa Chat Explorer: publish pipeline (VS Code Marketplace + Open VSX).
 
 Mirrors the Saropa publish scripts (same step order, flag style, exit codes).
-SAFE BY DEFAULT: with no flags it runs preflight, build and package only.
-Stores, tag push and GitHub release run only with --publish.
+Running with no flags PUBLISHES: stores, tag push and GitHub release.
+GitHub is treated as safe: a dirty tree is committed and pushed, and local
+commits ahead of origin/main are pushed, without prompting.
 
 Usage:
-  python3 scripts/publish.py                  # dry run: preflight + build + package
-  python3 scripts/publish.py --publish        # real publish (needs tokens)
-  python3 scripts/publish.py --publish --skip-openvsx --skip-release
-  python3 scripts/publish.py --allow-dirty    # dry run on a dirty tree (never with --publish)
+  python3 scripts/publish.py              # real publish (needs tokens)
+  python3 scripts/publish.py --dry-run    # preflight + build + package only
 
-Prompts (interactive terminal only; non-TTY runs fail with the exit code instead):
-  - tsc missing: offers to run `npm ci` (default yes).
-  - dirty tree on a --publish run: shows `git status --short`, then asks
-    "Check in now? ([yes]/n/retry)". Yes asks for a commit message, then runs
-    git add -A, git commit and git push origin main. Dry runs never prompt.
+Prompts (interactive terminal only): tsc missing offers `npm ci` (default yes).
 
-Flags: --publish, --skip-marketplace, --skip-openvsx, --skip-tag, --skip-release,
-       --allow-dirty, --no-color.
+Flags: --dry-run, --skip-marketplace, --skip-openvsx, --skip-tag, --skip-release,
+       --allow-dirty (dry run only), --no-color.
 Environment: VSCE_PAT (Marketplace), OVSX_PAT (Open VSX). Values are never printed.
 
 Exit codes:
@@ -59,11 +54,12 @@ FORBIDDEN_IN_VSIX = ("extension/plans/", "extension/scripts/", "extension/src/")
 
 EXIT = dict(
     PREREQUISITE=1, TREE_DIRTY=2, REMOTE_SYNC=3, VERSION_MISMATCH=4, BUILD_FAILED=5,
-    STORE_CHECK_FAILED=6, PACKAGE_FAILED=7, CONTENT_FAILED=8, TOKEN_MISSING=9,
+    STORE_CHECK_FAILED=6, PACKAGE_FAILED=7, CONTENT_FAILED=8, TOKEN_MISSING=9,  # unused: a missing token now means manual upload,
     TAG_EXISTS=10, GIT_FAILED=11, PUBLISH_FAILED=12, RELEASE_FAILED=13,
 )
 
 _color = sys.stdout.isatty()
+MANUAL: list = []  # (store, upload URL, .vsix) for stores skipped for lack of a token
 
 
 def _c(code: str, text: str) -> str:
@@ -127,7 +123,7 @@ def step_prereqs(args) -> None:
         ok("gh authenticated")
     elif not args.publish and not args.skip_release:
         if run(["gh", "--version"]).returncode != 0:
-            warn("gh not found on PATH; a --publish run would need it for the GitHub release")
+            warn("gh not found on PATH; a real run would need it for the GitHub release")
     check_tsc()
 
 
@@ -174,38 +170,28 @@ def step_tokens(args) -> dict:
         elif os.environ.get(var, "").strip():
             ok(f"{var} is set ({key})")
             plan[key] = True
-        elif args.publish:
-            die("TOKEN_MISSING", f"{var} is not set; cannot publish to {key} (or pass --skip-{key})")
         else:
-            warn(f"{var} is not set; {key} would be skipped (a --publish run would fail)")
+            warn(f"{var} is not set; {key}: upload the .vsix by hand (URL shown after packaging)")
             plan[key] = False
     return plan
 
 
 def step_tree(args) -> None:
     heading("Step 3: Working tree, branch, remote sync")
-    interactive = args.publish and sys.stdin.isatty()
-    while True:
-        dirty = run(["git", "status", "--porcelain"]).stdout.strip()
-        if not dirty or args.allow_dirty:
-            break
+    dirty = run(["git", "status", "--porcelain"]).stdout.strip()
+    if dirty and args.publish:
         n = len(dirty.splitlines())
-        if not interactive:
-            die("TREE_DIRTY", f"working tree is not clean ({n} changed paths)")
-        print(run(["git", "status", "--short"]).stdout)
-        answer = ask(f"Working tree is not clean ({n} changed paths). Check in now? ([yes]/n/retry)", "yes")
-        if answer == "retry":
-            continue
-        if answer not in ("y", "yes"):
-            die("TREE_DIRTY", f"working tree is not clean ({n} changed paths)")
-        msg = ask('Commit message [chore: release prep]:', "chore: release prep", lower=False)
-        msg += "\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
-        for cmd in (["git", "add", "-A"], ["git", "commit", "-m", msg], ["git", "push", "origin", BRANCH]):
+        info(f"{n} changed path(s); committing and pushing")
+        msg = "chore: release prep\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+        for cmd in (["git", "add", "-A"], ["git", "commit", "-m", msg]):
             res = run(cmd)
             if res.returncode != 0:
                 print(tail(res))
-                die("GIT_FAILED", f"'{' '.join(cmd[:3])}' failed")
-        ok("checked in and pushed")
+                die("GIT_FAILED", f"'{' '.join(cmd[:2])}' failed")
+        ok("committed")
+        dirty = ""
+    elif dirty and not args.allow_dirty:
+        die("TREE_DIRTY", f"working tree is not clean ({len(dirty.splitlines())} changed paths)")
     if dirty:
         warn("tree is dirty; allowed for this dry run (--allow-dirty)")
     else:
@@ -220,6 +206,14 @@ def step_tree(args) -> None:
     if len(counts) != 2:
         die("REMOTE_SYNC", f"cannot compare HEAD with origin/{BRANCH}")
     ahead, behind = int(counts[0]), int(counts[1])
+    if ahead and not behind and args.publish:
+        info(f"{ahead} local commit(s) not on origin/{BRANCH}; pushing")
+        res = run(["git", "push", "origin", BRANCH])
+        if res.returncode != 0:
+            print(tail(res))
+            die("GIT_FAILED", f"'git push origin {BRANCH}' failed")
+        ok(f"pushed {ahead} commit(s) to origin/{BRANCH}")
+        return
     if ahead or behind:
         msg = f"not in sync with origin/{BRANCH} (ahead {ahead}, behind {behind})"
         if args.allow_dirty and not args.publish:
@@ -242,10 +236,59 @@ def changelog_version() -> str:
     return ""
 
 
+def next_version(version: str) -> str:
+    """Next minor: major.minor+1.0."""
+    major, minor = (int(x) for x in version.split(".")[:2])
+    return f"{major}.{minor + 1}.0"
+
+
+def fold_unreleased(args, version: str) -> str:
+    """Turn '## Unreleased' into the newest entry; return the version to publish.
+
+    The package.json version is bumped to the next minor (n.m+1.0) via npm
+    version, and the bullets become the new entry. A real run commits and pushes.
+    """
+    path = ROOT / "CHANGELOG.md"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    start = next((i for i, ln in enumerate(lines) if re.match(r"^##\s+\[?unreleased", ln, re.I)), None)
+    if start is None:
+        return version
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    bullets = [ln for ln in lines[start + 1:end] if ln.strip()]
+    rest = lines[:start] + lines[end:]
+    target = next_version(version) if bullets else version
+    if bullets:
+        head = next((i for i, ln in enumerate(rest) if re.match(rf"^##\s+\[?{re.escape(target)}(?![\d.])", ln)), None)
+        if head is None:
+            head = start
+            rest[head:head] = [f"## {target}", ""]
+        rest[head + 1:head + 1] = bullets
+    if not args.publish:
+        warn(f"CHANGELOG has an Unreleased section; a real run publishes it as {target}")
+        return target
+    path.write_text("\n".join(rest) + "\n", encoding="utf-8")
+    cmds = []
+    if target != version:
+        cmds.append(["npm", "version", target, "--no-git-tag-version"])
+    cmds += [
+        ["git", "add", "-A"],
+        ["git", "commit", "-m", f"chore: release {target}\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"],
+        ["git", "push", "origin", BRANCH],
+    ]
+    for cmd in cmds:
+        res = run(cmd)
+        if res.returncode != 0:
+            print(tail(res))
+            die("GIT_FAILED", f"'{' '.join(cmd[:3])}' failed")
+    ok(f"Unreleased published as {target}" + (f" (bumped from {version})" if target != version else "") + "; committed and pushed")
+    return target
+
+
 def step_version(args) -> str:
     heading("Step 4: Version, CHANGELOG, tag")
     version = read_pkg().get("version", "")
-    top = changelog_version()
+    version = fold_unreleased(args, version)
+    top = changelog_version() if args.publish else version  # dry run only announces the fold
     if not version or version != top:
         die("VERSION_MISMATCH", f"package.json version '{version}' != top CHANGELOG heading '{top}'")
     ok(f"package.json and CHANGELOG agree on {version}")
@@ -359,10 +402,24 @@ def store_publish(label: str, cmd: list[str]) -> None:
     ok(f"published to {label}")
 
 
+def manual_urls(plan: dict, args, vsix: Path) -> None:
+    """Print upload pages for stores skipped for lack of a token."""
+    pub = read_pkg().get("publisher", "")
+    pages = (
+        ("marketplace", args.skip_marketplace, f"https://marketplace.visualstudio.com/manage/publishers/{pub}"),
+        ("openvsx", args.skip_openvsx, "https://open-vsx.org/user-settings/extensions"),
+    )
+    for key, skipped, url in pages:
+        if not plan[key] and not skipped:
+            info(f"{key}: upload {vsix} at {url}")
+            MANUAL.append((key, url, vsix))
+
+
 def step_publish(args, plan: dict, version: str, vsix: Path) -> None:
     tag = f"v{version}"
     heading("Step 8: Publish" if args.publish else "Step 8: Publish (dry run, nothing sent)")
     cmds = []
+    manual_urls(plan, args, vsix)
     if plan["marketplace"] or not args.publish:
         cmds.append(("VS Code Marketplace", not args.skip_marketplace, ["npx", "@vscode/vsce", "publish", "--packagePath", str(vsix)], plan["marketplace"]))
     if plan["openvsx"] or not args.publish:
@@ -407,7 +464,7 @@ def step_publish(args, plan: dict, version: str, vsix: Path) -> None:
 def main() -> None:
     global _color
     ap = argparse.ArgumentParser(description="Preflight, build, package and (with --publish) publish.")
-    ap.add_argument("--publish", action="store_true", help="Really publish, push the tag and create the release.")
+    ap.add_argument("--dry-run", action="store_true", help="Preflight, build and package only; send nothing.")
     ap.add_argument("--skip-marketplace", action="store_true", help="Skip the VS Code Marketplace.")
     ap.add_argument("--skip-openvsx", action="store_true", help="Skip Open VSX.")
     ap.add_argument("--skip-tag", action="store_true", help="Do not create or push the git tag (also skips the release).")
@@ -415,10 +472,11 @@ def main() -> None:
     ap.add_argument("--allow-dirty", action="store_true", help="Dry run only: tolerate a dirty or unsynced tree.")
     ap.add_argument("--no-color", action="store_true", help="Plain output.")
     args = ap.parse_args()
+    args.publish = not args.dry_run
     if args.no_color:
         _color = False
-    if args.publish and args.allow_dirty:
-        die("PREREQUISITE", "--allow-dirty cannot be combined with --publish")
+    if args.allow_dirty and not args.dry_run:
+        die("PREREQUISITE", "--allow-dirty only works with --dry-run")
     print(f"Saropa Chat Explorer publish: {'PUBLISH' if args.publish else 'DRY RUN (nothing will be published)'}")
     step_prereqs(args)
     plan = step_tokens(args)
@@ -429,6 +487,10 @@ def main() -> None:
     vsix = step_package(version)
     step_publish(args, plan, version, vsix)
     heading("Done")
+    if MANUAL:
+        print("  UPLOAD BY HAND:")
+        for key, url, vsix in MANUAL:
+            print(f"    {key}: {url}\n      file: {vsix}")
     ok("published" if args.publish else "dry run complete; nothing was published, tagged or released")
 
 
