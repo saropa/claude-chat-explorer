@@ -33,30 +33,30 @@ async function limiterTests() {
   for (let i = 0; i < 12; i++) { tasks.push(bg('git', ['bg' + i], { cwd: '/', timeout: 1000 })); }
   await sleep(5);
   check('limiter: the page lane runs at most 3 commands', lim.load.bgRunning === 3 && lim.load.running === 3);
-  const t0 = Date.now();
+  let pageDone = 0; tasks.forEach((t) => t.then(() => { pageDone++; }));
   const u = ui('git', ['ui0'], { cwd: '/', timeout: 1000 });
   await sleep(5);
   check('limiter: a sidebar command starts at once while 3 page commands run (the 4th slot is the sidebar)', lim.load.running === 4 && log.order.includes('ui0'));
   await u;
-  check('limiter: the sidebar command did not wait for the page queue', Date.now() - t0 < 80);
+  check('limiter: the sidebar command did not wait for the page queue (' + pageDone + ' of 12 page commands done)', pageDone < 12);
   await Promise.all(tasks);
   check('limiter: never more than 4 running', log.max <= 4);
   // Sidebar first, and it waits for at most one running command.
   const order = [];
-  const slow = (cmd, args) => new Promise((res) => { order.push('start ' + args[0]); setTimeout(() => res(OKRES('')), 40); });
+  let finished = 0;
+  const slow = (cmd, args) => new Promise((res) => { order.push('start ' + args[0] + ' @' + finished); setTimeout(() => { finished++; res(OKRES('')); }, 40); });
   const l2 = new Limiter(4, 3);
   const bg2 = l2.wrap(slow, 'bg'), ui2 = l2.wrap(slow, 'ui');
   const all = [bg2('git', ['b0'], { cwd: '/', timeout: 1 }), bg2('git', ['b1'], { cwd: '/', timeout: 1 }), bg2('git', ['b2'], { cwd: '/', timeout: 1 }), ui2('git', ['u0'], { cwd: '/', timeout: 1 })];
   all.push(bg2('git', ['b3'], { cwd: '/', timeout: 1 }), bg2('git', ['b4'], { cwd: '/', timeout: 1 }));
   await sleep(5);
-  const tA = Date.now();
   const late = ui2('git', ['u1'], { cwd: '/', timeout: 1 }); // all 4 slots busy: it waits for one running command only
   all.push(late);
   await late;
-  const waited = Date.now() - tA;
+  const waited = +(order.find((x) => x.startsWith('start u1')) || '@99').split('@')[1]; // commands finished before u1 started
   await Promise.all(all);
-  check('limiter: a sidebar command waits for at most one running command (' + waited + ' ms)', waited < 40 + 45);
-  check('limiter: the sidebar command starts before queued page commands', order.indexOf('start u1') < order.indexOf('start b3') && order.indexOf('start u1') < order.indexOf('start b4'));
+  check('limiter: a sidebar command waits for at most one running command (' + waited + ' finished before it started)', waited === 1);
+  check('limiter: the sidebar command starts before queued page commands', order.findIndex((x) => x.startsWith('start u1')) < order.findIndex((x) => x.startsWith('start b3')) && order.findIndex((x) => x.startsWith('start u1')) < order.findIndex((x) => x.startsWith('start b4')));
   // Abort while queued: never starts. onStart runs when the command begins, not when queued.
   const l3 = new Limiter(1, 1);
   let started = 0, begun = 0;
@@ -144,7 +144,7 @@ async function scanTests() {
   {
     const g = fakeGit(world, { delay: 60 }), scan = mk(g), c = collect();
     const p = scan.start(1, world.repos.map((r) => ({ cwd: r.top, last: 1 })), false, c.post);
-    await sleep(30);
+    while (g.running < 1) { await sleep(1); } // cancel the moment a command is running, however slow the machine is
     const n = c.msgs.length;
     scan.cancel();
     await p;
@@ -332,7 +332,9 @@ async function repoLayerTests() {
   {
     const g = fakeGit(world, { delay: 60 }), ac = new AbortController(), { ctx } = mkCtx(g, ac.signal);
     const partial = [];
-    setTimeout(() => ac.abort(), 330);
+    // Event-driven abort: when the 5th status starts, abort 30 ms later (statuses start in pairs, so about 4 finish and the rest stay unread).
+    const inner = ctx.exec; let statuses = 0;
+    ctx.exec = (cmd, args, o) => { if (args.slice(2)[0] === 'status' && ++statuses === 5) { setTimeout(() => ac.abort(), 30); } return inner(cmd, args, o); };
     const out = await readRepo(ctx, repo.common, main, (r) => partial.push(r));
     const done = out.worktrees.filter((w) => w.facts && w.facts.ok).length, errs = out.worktrees.filter((w) => w.facts && !w.facts.ok).length, unread = out.worktrees.filter((w) => !w.main && !w.facts).length;
     check('repo layer: after a timeout the finished worktrees keep their facts (' + done + ' done, ' + unread + ' unread, ' + errs + ' errors)', done >= 2 && done < 12 && unread >= 1 && errs === 0);
@@ -340,7 +342,10 @@ async function repoLayerTests() {
   }
   // Through the scan: a short deadline ends the repository as timeout, and the posted repository still carries the finished worktrees.
   {
-    const g = fakeGit(world, { delay: 40 }), scan = new WorkScan({ exec: g.exec, limiter: new Limiter(4, 3), deadlineMs: 300, gitMs: 200, workspace: () => [] }), c = collect();
+    // Event-driven: the first 4 statuses answer normally, every later one hangs until aborted, so the deadline (not timing luck) ends the repository.
+    const g = fakeGit(world, { delay: 40 }); let statuses = 0;
+    const exec = (cmd, args, o) => { if (args.slice(2)[0] === 'status' && ++statuses > 4) { return new Promise((res) => { if (o.signal) { if (o.signal.aborted) { res(ABORTED); } else { o.signal.addEventListener('abort', () => res(ABORTED), { once: true }); } } }); } return g.exec(cmd, args, o); };
+    const scan = new WorkScan({ exec, limiter: new Limiter(4, 3), deadlineMs: 800, gitMs: 700, workspace: () => [] }), c = collect();
     await scan.start(1, [{ cwd: main, last: 1 }], false, c.post);
     const fin = c.of('repo').filter((m) => m.state !== 'running' && m.state !== 'queued').pop();
     const withFacts = fin ? fin.worktrees.filter((w) => w.facts && w.facts.ok).length : -1;
