@@ -4,10 +4,10 @@
 import * as path from 'path';
 import { Limiter } from './execLimit';
 import { Exec, pool } from './wipExec';
-import { Ctx, probe, statusOf, unpushedOf } from './wipGit';
+import { Ctx, git, probe, statusOf, unpushedOf } from './wipGit';
 import { FileChange } from './wipTypes';
 import { PrRun, WorkPrs } from './workPrs';
-import { BranchOut, branchCommand, branchesOf, readRepo, removeCommand, RepoOut, WtOut } from './workRepo';
+import { BranchOut, branchCommand, branchesOf, githubBranchUrl, readRepo, removeCommand, RepoOut, WtOut } from './workRepo';
 
 export const MAX_FOLDERS = 60;
 export const FOLDER_DEADLINE_MS = 10000;
@@ -254,7 +254,7 @@ export class WorkScan {
     st.done = true;
     run.unfinished.delete(rk);
     this.postRepo(run, rk, state, reason);
-    if (out) { run.prs?.addBranches(rk, out.worktrees.filter((w) => !w.detached).map((w) => w.branch)); }
+    if (out) { run.prs?.addBranches(rk, [...out.worktrees.filter((w) => !w.detached).map((w) => w.branch), ...(out.locals ?? [])]); }
   }
 
   private postRepo(run: Run, rk: string, state: string, reason?: string): void {
@@ -295,6 +295,31 @@ export class WorkScan {
 
   /** The https link of a pull request listed for a repository key (from the last answer), for Open and Copy PR link. */
   prUrl(rk: string, n: number): string | undefined { return this.o.prs?.url(rk, n); }
+
+  /** The page to open for a branch of a repository key: the pull request link gh gave when a number is named and known, else the github.com page of the branch built from the origin remote.
+   *  The branch must be one this scan knows for the repository (a worktree, a local branch or a chat folder); the page never sends a link. */
+  async branchLink(rk: string, branch: string, n?: number): Promise<{ url?: string; reason?: string }> {
+    const r = /^r\d{1,6}$/.test(rk) ? this.repos.get(rk) : undefined;
+    if (!r) { return { reason: 'Repository is not loaded' }; }
+    const known = new Set<string>([...r.worktrees.map((w) => w.branch), ...(r.locals ?? [])]);
+    for (const e of this.byKey.values()) { const o = e.out; if (o?.state === 'ok' && o.common === r.common && typeof o.facts?.branch === 'string') { known.add(o.facts.branch); } }
+    if (typeof branch !== 'string' || !branch || !known.has(branch)) { return { reason: 'That branch is not known. Refresh and try again.' }; }
+    const pr = Number.isInteger(n) && (n as number) > 0 ? this.prUrl(rk, n as number) : undefined;
+    if (pr) { return { url: pr }; }
+    const top = r.worktrees.find((w) => !w.missing)?.path;
+    if (!top) { return { reason: 'The repository folder is missing' }; }
+    const ac = new AbortController();
+    this.details.add(ac);
+    const timer = setTimeout(() => ac.abort(), DETAIL_MS);
+    try {
+      const ctx: Ctx = { exec: this.o.limiter.wrap(this.o.exec, 'ui'), signal: ac.signal, gitMs: this.gitMs, ghMs: this.gitMs, flags: { gitMissing: false } };
+      const res = await git(ctx, top, ['remote', 'get-url', 'origin']);
+      if (res.code !== 0) { return { reason: 'This repository has no origin remote' }; }
+      const url = githubBranchUrl(res.stdout, branch);
+      return url ? { url } : { reason: 'The origin remote is not on github.com' };
+    } catch (e) { this.log('open work branch link', e); return { reason: 'git error' }; }
+    finally { clearTimeout(timer); this.details.delete(ac); }
+  }
 
   /** The files a click resolves against: the folder key (or worktree key) the page names, never a path the page sent. */
   fileOf(key: string, i: number): { top: string; file: FileChange } | undefined {

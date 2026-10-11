@@ -6,6 +6,7 @@ import { parseLocalBranches, parseWorktrees, REF_FORMAT, StatusParts } from './w
 import { WorktreeInfo } from './wipTypes';
 
 export const MAX_WT_STATUS = 20;
+export const MAX_LOCALS = 3000;
 export const REPO_GIT_SLOTS = 2; // the page lane has 3 git slots: 2 for folders, the repository layer keeps to its own share so it cannot starve them or itself
 
 /** Git facts of one worktree as the page needs them. */
@@ -20,6 +21,7 @@ export interface WtOut extends WorktreeInfo {
 /** What the repository layer found. */
 export interface RepoOut {
   common: string; name: string; main: string; def?: string; defLocal?: string; merged: string[]; worktrees: WtOut[]; reason?: string;
+  locals?: string[]; // names of the local branches (capped), so the pull request layer can match branches that have no worktree
 }
 
 const real = async (p: string): Promise<string> => { try { return await fs.promises.realpath(p); } catch { return p; } };
@@ -54,6 +56,8 @@ export async function readRepo(c: Ctx, common: string, top: string, onPartial?: 
     await markMerged(c, top, out, typeof m !== 'string');
   }
   onPartial?.(out);
+  const lb = await git(c, top, ['for-each-ref', '--format=' + REF_FORMAT, 'refs/heads']);
+  if (lb.code === 0) { out.locals = parseLocalBranches(lb.stdout).map((b) => b.name).filter((n) => !n.startsWith('-')).slice(0, MAX_LOCALS); }
   const linked = worktrees.filter((w) => !w.main && !w.missing).slice(0, MAX_WT_STATUS);
   await capped(c, linked, async (w) => { const f = factsOf(await statusOf(c, w.path)); if (!c.signal?.aborted) { w.facts = f; } }); // after a timeout the finished worktrees keep their facts; the rest stay unread
   return out;
@@ -122,4 +126,22 @@ export function branchCommand(r: { main: string; defLocal?: string }, branch: st
   if (!branch || branch.startsWith('-') || branch === r.defLocal) { return ''; }
   if (win && (winUnsafe(r.main) || winUnsafe(branch))) { return 'manual'; }
   return 'git -C ' + quoteArg(r.main, win) + ' branch -d ' + quoteArg(branch, win);
+}
+
+const GH_NAME = /^[A-Za-z0-9_.-]+$/;
+/** Owner and repository of a github.com remote address (https, ssh:// or scp style); undefined for any other host, so no link is built for it. */
+export function githubRepoOf(remote: string): { owner: string; repo: string } | undefined {
+  const t = String(remote || '').trim();
+  const m = /^(?:https?|ssh|git):\/\/(?:[^@\/\s]+@)?github\.com(?::\d+)?\/([^\/\s]+)\/([^\/\s]+?)(?:\.git)?\/?$/i.exec(t) ?? /^(?:[^@\s\/:]+@)?github\.com:([^\/\s]+)\/([^\/\s]+?)(?:\.git)?\/?$/i.exec(t);
+  if (!m || !GH_NAME.test(m[1]) || !GH_NAME.test(m[2]) || /^\.+$/.test(m[1]) || /^\.+$/.test(m[2])) { return undefined; }
+  return { owner: m[1], repo: m[2] };
+}
+
+/** The github.com page of a branch (https only, host github.com, every path segment encoded); undefined when the remote is not on github.com or the branch name is unusual. */
+export function githubBranchUrl(remote: string, branch: string): string | undefined {
+  const r = githubRepoOf(remote);
+  if (!r || typeof branch !== 'string' || !branch || branch.length > 250 || /[\u0000-\u001f\u007f]/.test(branch)) { return undefined; }
+  const segs = branch.split('/');
+  if (segs.some((x) => !x || x === '.' || x === '..')) { return undefined; }
+  return 'https://github.com/' + r.owner + '/' + r.repo + '/tree/' + segs.map(encodeURIComponent).join('/');
 }

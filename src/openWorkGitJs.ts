@@ -9,9 +9,13 @@ return{ok:true,files:f.fileTotal||0,ahead:f.ahead||0,behind:f.behind||0,gone:!!f
 function wtOf(r){const e=fOf(r);if(!e||!e.f)return null;const rp=repos[e.f.rk];if(!rp||!rp.worktrees)return null;return rp.worktrees.find(w=>w.fks.indexOf(r.fk)>=0)||null;}
 function wtOpen(w){return rows.some(r=>w.fks.indexOf(r.fk)>=0&&!!dots[r.id]);}
 function wtFacts(w,pr){const f=w.facts;return f&&f.ok?{ok:true,files:f.fileTotal,ahead:f.ahead,gone:!!f.gone,pr:pr}:undefined;}
-function wtView(r){const w=r.w,pr=prFact(r),g=wtFacts(w,pr)||{ok:false,files:0,ahead:0,gone:false};return{wt:true,ok:g.ok,files:g.files,ahead:g.ahead,gone:g.gone,locked:!!w.locked,pr:pr,ready:wtReady(w,wtFacts(w,pr),wtOpen(w))};}
+function wtView(r){const w=r.w,pr=prFact(r);if(w.prOnly)return{wt:true,prOnly:true,ok:true,files:0,ahead:0,gone:false,locked:false,pr:pr,ready:false};const g=wtFacts(w,pr)||{ok:false,files:0,ahead:0,gone:false};return{wt:true,ok:g.ok,files:g.files,ahead:g.ahead,gone:g.gone,locked:!!w.locked,pr:pr,ready:wtReady(w,wtFacts(w,pr),wtOpen(w))};}
 function viewOf(r){if(r.kind==='wt')return wtView(r);const g=gitView(r);if(!g)return g;const w=wtOf(r);if(w&&wtReady(w,g,wtOpen(w)))g.ready=true;return g;}
-function wtRows(){const out=[];Object.keys(repos).forEach(k=>{const rp=repos[k];(rp.worktrees||[]).forEach(w=>{if(w.main||!w.fks||w.fks.length)return;if(wsOnly&&wsN&&!rp.ws)return;out.push({id:w.k,kind:'wt',title:w.name,project:rp.name||'',last:0,w:w,rk:k});});});return out;}
+function wtRows(){const out=[];Object.keys(repos).forEach(k=>{const rp=repos[k];(rp.worktrees||[]).forEach(w=>{if(w.main||!w.fks||w.fks.length)return;if(wsOnly&&wsN&&!rp.ws)return;out.push({id:w.k,kind:'wt',title:w.name,project:rp.name||'',last:0,w:w,rk:k});});});return out.concat(prOnlyRows());}
+/** Open pull requests on a local branch that has no chat row and no worktree: one row each in the repository, from the pull request layer's list. */
+function prOnlyRows(){const out=[];if(!prsOn)return out;Object.keys(prs).forEach(rk=>{const p=prs[rk],rp=repos[rk];if(!p||p.st!=='ok'||!rp||!rp.worktrees||!rp.worktrees.length)return;if(wsOnly&&wsN&&!rp.ws)return;
+const used={};rp.worktrees.forEach(w=>{if(!w.detached&&w.branch)used[w.branch]=1;});rows.forEach(c=>{const e=c.fk&&gs[c.fk];if(e&&e.f&&e.f.rk===rk&&e.f.branch)used[e.f.branch]=1;});
+Object.keys(p.by).forEach(b=>{if(used[b]||b===rp.defLocal)return;const x=p.by[b];out.push({id:'pb:'+rk+':'+encodeURIComponent(b),kind:'wt',title:x.title||b,project:rp.name||'',last:0,rk:rk,w:{k:'pb:'+rk,name:b,branch:b,detached:false,main:false,missing:false,locked:false,prOnly:true,fks:[],facts:null}});});});return out;}
 function doneOf(r){const s=donemap[r.id];if(s===undefined||r.kind==='wt')return false;if(!gotDots||doneHidden(s,dotOf(r.id),r.last,gitView(r)))return true;
 staleDone[r.id]=1;if(!staleT)staleT=setTimeout(flushDone,0);return false;}
 function flushDone(){staleT=0;const ids=Object.keys(staleDone);staleDone={};ids.forEach(id=>{if(donemap[id]===undefined)return;delete donemap[id];vs.postMessage({type:'done',id:id,on:false});});sched();}
@@ -54,6 +58,7 @@ if(notes.more>0)h+=' '+esc(notes.more+' more folders not scanned.')+' <button ty
 function retryKey(k){if(/^p\d+$/.test(k)){const p=prs['r'+k.slice(1)];if(p){p.st='queued';p.reason='';}pwatchKey('r'+k.slice(1));vs.postMessage({type:'retry',key:k});sched();return;}if(!/^[fr]\d+$/.test(k))return;const e=gs[k];if(e){e.st='queued';e.reason='';}const r=repos[k];if(r){r.st='queued';r.reason='';}if(!r)watchKey(k,WATCH_FOLDER_MS+5000);vs.postMessage({type:'retry',key:k});sched();}
 function cellsOf(r){
 if(r.kind==='wt'){const w=r.w,rp=repos[r.rk]||{},f=w.facts;let fl='',busy=false,retry='';
+if(w.prOnly)return{br:esc(w.branch),fl:'',ah:'',busy:false,retry:''};
 if(w.missing)fl='folder missing';else if(f&&f.ok){if(f.fileTotal>0)fl=countWord(f.fileTotal,'file');}else if(f){fl='error';retry=r.rk;}
 else if(rp.st==='timeout'||rp.st==='error'){fl=rp.st==='timeout'?'timed out':'error';retry=r.rk;}else if(rp.st==='running'||rp.st==='queued'){fl=rp.st==='running'?SPIN:'…';busy=true;}else fl='—';
 return{br:esc(w.detached?'detached '+(w.sha||''):w.branch||''),fl:fl,ah:f&&f.ok?aheadText(f):'',busy:busy,retry:retry};}
@@ -79,7 +84,7 @@ if(e.age>=1)kv.push(['Checked',esc(e.age>=60?Math.floor(e.age/60)+' min ago (kep
 const w=wtOf(r);if(w&&wtReady(w,g,wtOpen(w)))kv.push(['Worktree','Ready to remove. The extension never removes anything: use Copy remove command.']);
 exPr(r).forEach(x=>kv.push(x));
 return kv;}
-function exWt(r){const w=r.w,f=w.facts,kv=[['Branch',esc(w.detached?'detached at '+(w.sha||''):w.branch||'(none)')],['Folder',esc(w.path||w.name)]];
+function exWt(r){if(r.w.prOnly){const k=[['Branch',esc(r.w.branch)],['State','Open pull request on a local branch with no chat and no worktree.']];exPr(r).forEach(x=>k.push(x));return k;}const w=r.w,f=w.facts,kv=[['Branch',esc(w.detached?'detached at '+(w.sha||''):w.branch||'(none)')],['Folder',esc(w.path||w.name)]];
 if(w.locked)kv.push(['State',esc('Locked'+(w.lockReason?': '+w.lockReason:'')+'. Not removable until unlocked.')]);else if(w.missing)kv.push(['State','The folder is missing. Prune the worktree record.']);
 else if(f&&f.ok){const s=[];if(f.fileTotal>0)s.push(countWord(f.fileTotal,'changed file'));if(f.ahead>0)s.push(countWord(f.ahead,'commit')+' not pushed');if(f.gone)s.push('remote branch gone');if(w.merged===true)s.push('merged');kv.push(['State',esc(s.length?s.join(', '):'clean')]);}
 else kv.push(['State',esc((repos[r.rk]||{}).st==='running'?'Reading git...':(repos[r.rk]||{}).st==='queued'?'Waiting to read git':'Not read')]);
@@ -88,7 +93,7 @@ return kv;}
 function exLists(r){let h='';const e=r.kind==='wt'?{f:r.w.facts&&r.w.facts.ok?{files:r.w.facts.files,fileTotal:r.w.facts.fileTotal,ahead:r.w.facts.ahead}:null,key:r.id}:{f:(fOf(r)||{}).f,key:r.fk};
 const f=e.f;if(f&&f.files&&f.files.length){h+='<div class="xh">Uncommitted files ('+f.fileTotal+')</div><div class="gfs">'+f.files.map((x,i)=>'<button type="button" class="gf" data-a="file" data-k="'+esc(e.key)+'" data-i="'+i+'" aria-label="'+esc('Open file '+x.p)+'" data-tip="'+esc(x.p)+'"><span class="fs">'+esc(x.s)+'</span> '+esc(x.p)+'</button>').join('')+(f.fileTotal>f.files.length?'<span class="gmore">+'+(f.fileTotal-f.files.length)+' more</span>':'')+'</div>';}
 if(f&&f.ahead>0){const d=detail[r.id];h+='<div class="xh">Unpushed commits ('+f.ahead+')</div>';
-if(!d)h+='<div class="gw">Loading...</div>';else if(!d.commits)h+='<div class="gw">'+esc(d.reason||'Could not read the commits')+' <button type="button" class="ab" data-a="dretry" aria-label="Retry reading the unpushed commits" data-tip="Read the commits again">Retry</button></div>';
+if(!d)h+='<div class="gw">Loading...</div>';else if(!d.commits)h+='<div class="gw">'+esc(d.reason||'Could not read the commits')+' '+ibtn('dretry','Retry reading the unpushed commits','retry','Read the commits again')+'</div>';
 else h+=d.commits.map(c=>'<div class="gw"><code>'+esc(c.sha)+'</code> '+esc(c.subject)+'</div>').join('')+(f.ahead>d.commits.length?'<div class="gw gmore">+'+(f.ahead-d.commits.length)+' more</div>':'');}
 const rk=r.kind==='wt'?r.rk:(f&&f.rk),rp=rk?repos[rk]:null;
 if(rp&&rp.worktrees&&rp.worktrees.length>1){const mine=r.kind==='wt'?r.w.k:(wtOf(r)||{}).k;h+='<div class="xh">Worktrees ('+rp.worktrees.length+')</div>'+rp.worktrees.map(w=>'<div class="gw'+(w.k===mine?' here':'')+'">'+esc(w.name)+' <span class="br">'+esc(w.detached?'detached':w.branch||'')+'</span>'+(w.main?' main':'')+(w.locked?' locked':'')+(w.missing?' missing':'')+(w.k===mine?' (this one)':'')+'</div>').join('');}

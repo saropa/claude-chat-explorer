@@ -42,7 +42,7 @@ export interface OpenWorkDeps {
 }
 interface Prefs { group: string; hidden: string[]; wsOnly: boolean; }
 interface View { q: string; f: { pr: boolean; fail: boolean; dirty: boolean; push: boolean }; sort: string; }
-interface Model { chats?: object; notes?: object; progress?: object; end?: object; folder: Map<string, object>; repo: Map<string, object>; prs: Map<string, object>; checks: Map<string, object>; }
+interface Model { gh?: object; chats?: object; notes?: object; progress?: object; end?: object; folder: Map<string, object>; repo: Map<string, object>; prs: Map<string, object>; checks: Map<string, object>; }
 const newModel = (): Model => ({ folder: new Map(), repo: new Map(), prs: new Map(), checks: new Map() });
 
 /** Days of history shown, from the setting (1 to 90, default 14). */
@@ -124,6 +124,7 @@ export class OpenWork {
     const k = this.model;
     if (m.type === 'folder' || m.type === 'repo') { (m.type === 'folder' ? k.folder : k.repo).set(String(m.key), m); }
     else if (m.type === 'prs') { k.prs.set(String(m.repo), m); }
+    else if (m.type === 'gh') { k.gh = m; }
     else if (m.type === 'checks') { k.checks.set(m.repo + '|' + m.n, m); }
     else if (m.type === 'progress') { k.progress = m; }
     else if (m.type === 'end') { k.end = m; }
@@ -205,7 +206,7 @@ export class OpenWork {
     this.post({ type: 'dots', map: this.d.dots() });
     const k = this.model;
     if (!k.chats) { void this.refresh(); return; }
-    [k.chats, k.notes, ...k.folder.values(), ...k.repo.values(), ...k.prs.values(), ...k.checks.values(), k.progress, k.end].forEach((m) => { if (m) { this.post(m); } });
+    [k.chats, k.notes, k.gh, ...k.folder.values(), ...k.repo.values(), ...k.prs.values(), ...k.checks.values(), k.progress, k.end].forEach((m) => { if (m) { this.post(m); } });
   }
 
   private async onMessage(m: any): Promise<void> {
@@ -216,6 +217,8 @@ export class OpenWork {
       else if (t === 'refresh') { this.d.poke(); await this.refresh({ force: m.force !== false }); }
       else if (t === 'retry') { if (typeof m.key === 'string' && /^[frp]\d{1,6}$/.test(m.key)) { this.d.scan.retry(m.key); } }
       else if (t === 'openPr' || t === 'copyPr') { await this.prLink(t === 'copyPr', String(m.repo), Number(m.n)); }
+      else if (t === 'openBranch') { await this.branchLink(String(m.repo), String(m.branch), Number(m.n)); }
+      else if (t === 'prsSetting') { await vscode.commands.executeCommand('workbench.action.openSettings', 'saropaChatExplorer.lookupPullRequests'); }
       else if (t === 'scanMore') { this.cap += MAX_FOLDERS; await this.refresh({ restart: true }); }
       else if (t === 'prefs') { void this.savePrefs(m); }
       else if (t === 'openFile') { await this.openFile(String(m.key), Number(m.i)); }
@@ -276,6 +279,16 @@ export class OpenWork {
     if (!url || !/^https:\/\/[^\s]+$/.test(url)) { void vscode.window.showInformationMessage('That pull request link is not available. Refresh and try again.'); return; }
     if (copy) { await vscode.env.clipboard.writeText(url); void vscode.window.showInformationMessage(`Copied the link to pull request #${n}.`); return; }
     await vscode.env.openExternal(vscode.Uri.parse(url));
+  }
+
+  /** Open a branch on github.com (or its pull request). The host builds the link from the origin remote and checks it: https only, host github.com for a built link; the page sends only a repository key, a branch name and a number. */
+  private async branchLink(rk: string, branch: string, n: number): Promise<void> {
+    if (!/^r\d{1,6}$/.test(rk) || branch.length > 250) { return; }
+    const r = await this.d.scan.branchLink(rk, branch, Number.isInteger(n) && n > 0 ? n : undefined);
+    let ok = false;
+    try { const u = r.url ? new URL(r.url) : undefined; ok = !!u && u.protocol === 'https:' && !u.username && !u.password; } catch { ok = false; }
+    if (!r.url || !ok) { void vscode.window.showInformationMessage(r.reason || 'That link is not available.'); return; }
+    await vscode.env.openExternal(vscode.Uri.parse(r.url));
   }
 
   /** Copy the remove command of a finished worktree. Nothing is run: the user pastes it in a terminal. */

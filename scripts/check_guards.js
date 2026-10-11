@@ -36,9 +36,11 @@ const ALLOW = [
   "const GIT_OK = new Set(['rev-parse', 'symbolic-ref', 'status', 'worktree', 'for-each-ref', 'rev-list', 'remote']);",
   "export const CHECKS_FIELDS = 'statusCheckRollup,headRefOid';",
   "const PR_NUMBER = /^[1-9][0-9]{0,8}$/;",
+  "export const AUTH_ARGS = ['auth', 'status'];",
+  "const isAuthStatus = (a: string[]): boolean => a.length === AUTH_ARGS.length && a.every((v, i) => v === AUTH_ARGS[i]);",
   "const isChecksView = (a: string[]): boolean => a.length === 5 && a[0] === 'pr' && a[1] === 'view' && PR_NUMBER.test(a[2]) && a[3] === '--json' && a[4] === CHECKS_FIELDS;",
   "if (!GIT_OK.has(args[0]) || (args[0] === 'worktree' && args[1] !== 'list') || (args[0] === 'remote' && args.join(' ') !== 'remote get-url origin')) { throw new Error('git command not allowed: ' + args[0]); }",
-  "if (!isPrList(args) && !isChecksView(args)) { throw new Error('gh command not allowed: ' + args[0]); }",
+  "if (!isPrList(args) && !isChecksView(args) && !isAuthStatus(args)) { throw new Error('gh command not allowed: ' + args[0]); }",
 ];
 const wip = read('wipGit.ts');
 for (const line of ALLOW) { if (!wip.includes(line)) { bad('git/gh allow-list changed: missing ' + line.slice(0, 70)); } }

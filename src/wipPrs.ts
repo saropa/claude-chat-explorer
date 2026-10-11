@@ -1,5 +1,5 @@
 import { ExecResult } from './wipExec';
-import { Ctx, gh, git } from './wipGit';
+import { AUTH_ARGS, Ctx, gh, git } from './wipGit';
 import { PrInfo } from './wipTypes';
 import { PR_ARGS, PR_ARGS_OLD } from './wipPrsArgs';
 
@@ -64,10 +64,29 @@ export function ghReason(r: ExecResult): string {
   if (r.code === 'ENOENT') { return 'gh not installed'; }
   if (isNotGithub(r)) { return 'not a GitHub repository'; }
   const e = r.stderr.toLowerCase();
+  if (/rate limit/.test(e)) { return 'GitHub rate limit reached'; } // before the sign-in rule: the rate limit text also says "authenticated"
   if (/auth|log ?in|token|credential/.test(e)) { return 'not signed in to gh'; }
   if (/connect|network|dial|resolve|offline|timeout/.test(e)) { return 'GitHub not reachable'; }
   if (/remote|github host|repository/.test(e)) { return 'not a GitHub repository'; }
   return 'gh failed';
+}
+
+/** Whether gh is installed and signed in, from `gh auth status`. The reason is a short word, never raw output. */
+export interface GhAuth { state: 'ok' | 'missing' | 'unauth' | 'error'; reason: string; }
+export function authState(r: ExecResult): GhAuth {
+  if (r.code === 'ENOENT') { return { state: 'missing', reason: 'gh not installed' }; }
+  if (r.timedOut) { return { state: 'error', reason: 'timed out' }; }
+  if (r.aborted) { return { state: 'error', reason: 'canceled' }; }
+  const t = (r.stdout + '\n' + r.stderr).toLowerCase();
+  if (r.code === 0 || /logged in to github\.com/.test(t)) { return { state: 'ok', reason: '' }; }
+  if (/rate limit/.test(t)) { return { state: 'error', reason: 'GitHub rate limit reached' }; }
+  if (/connect|network|dial|resolve|offline/.test(t)) { return { state: 'error', reason: 'GitHub not reachable' }; }
+  return { state: 'unauth', reason: 'not signed in to gh' };
+}
+
+/** One `gh auth status` call (read-only). */
+export async function fetchAuth(c: Ctx, cwd: string): Promise<GhAuth> {
+  try { return authState(await gh(c, cwd, AUTH_ARGS)); } catch { return { state: 'error', reason: 'gh failed' }; }
 }
 
 /** One gh call for a repository folder. The origin owner is read (one `git remote get-url origin`) only when a fork pull request is in the list. */

@@ -9,7 +9,7 @@ import { WORK_MODEL_SRC } from './workModel';
 const CORE = String.raw`
 const vs=acquireVsCodeApi();const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-const WIDE_PX=760,THROTTLE_MS=250,WATCHDOG_MS=20000;
+const WIDE_PX=1080,WIDE_PR_PX=1360,THROTTLE_MS=250,WATCHDOG_MS=20000;
 const GROUPS=[['attention','By attention'],['chat','By chat'],['repo','By repository']];
 let rows=[],dots={},days=14,group='attention',hidden=[],open=new Set(),hv={},pend=new Set(),loaded=false,failed='',indexing=false,scan=0,lastAt=0,askedAt=0,watch=0,rtimer=0,lastRender=0,focusId='';
 const DONE_TIP='Hide this row until its git or chat state changes';
@@ -23,23 +23,24 @@ function groupUi(){grm.querySelectorAll('input').forEach(i=>{i.checked=i.value==
 function savePrefs(){vs.postMessage({type:'prefs',group:group,hidden:hidden.slice(),wsOnly:wsOnly});}
 function dotOf(id){return dots[id]?dots[id].s:'idle';}
 function ctxClass(r){return r.ctx?'l'+ctxLevel(r.ctx.pct):'l0';}
-function btn(a,label,txt,tip){return '<button type="button" class="ab" data-a="'+a+'" aria-label="'+esc(label)+'" data-tip="'+esc(tip||label)+'">'+txt+'</button>';}
+function btn(a,label,icon,tip){return ibtn(a,label,icon,tip);}
 function rowHtml(r,tab){const wt=r.kind==='wt',d=wt?null:dots[r.id],s=wt?'idle':dotOf(r.id),words=dotText(d||{s:'idle'}),age=wt?'':shortAgo(r.last,Date.now()),isOpen=open.has(r.id),t=r.title||(wt?'Worktree':'Untitled chat');
 const c=cellsOf(r),pc=prCells(r),g=viewOf(r),w=wt?r.w:wtOf(r),ready=!!(g&&g.ready),locked=!!(w&&w.locked&&!w.main);
-const stTxt=s==='waiting'?'Waiting for you':s==='unread'?'Unread':s==='running'?'Running':ready?(w&&w.missing?'Folder missing':'Ready to remove'):locked?'Locked':'';
-const label=t+', '+(r.project||'no folder')+(wt?', worktree':'')+(stTxt?', '+stTxt:'')+(age?', active '+age+(age==='now'?'':' ago'):'')+(r.pinned?', pinned':'')+(c.busy?', reading git':'')+(pc.busy?', checking pull requests':'');
+const bnd=bandHeld(r,s);let stTxt=s==='waiting'?'Waiting for you':s==='unread'?'Unread':s==='running'?'Running':ready?(w&&w.missing?'Folder missing':'Ready to remove'):locked?'Locked':'';
+if(!stTxt&&!wt&&bnd!=='idle'&&BAND_CHIP[bnd])stTxt=BAND_CHIP[bnd][0].toUpperCase()+BAND_CHIP[bnd].slice(1);
+const label=t+', '+(r.project||'no folder')+(wt?(r.w.prOnly?', pull request branch':', worktree'):'')+(stTxt?', '+stTxt:'')+(age?', active '+age+(age==='now'?'':' ago'):'')+(r.pinned?', pinned':'')+(c.busy?', reading git':'')+(pc.busy?', checking pull requests':'');
 const hvT=hv[r.id]==='busy'?'Copying...':hv[r.id]==='done'?'Copied':'Copy note';
 const dot=wt?'<span class="dot none" aria-hidden="true"></span>':d?'<span class="dot '+esc(s)+'" role="img" aria-label="'+esc(words)+'"></span>':'<span class="dot none" aria-hidden="true"></span>';
 const isDone=!wt&&donemap[r.id]!==undefined;
-const acts=(wt?'':btn('open','Open chat: '+t,'Open','Open chat')+btn('handover','Copy hand-over note: '+t,esc(hvT),'Copy hand-over note')+btn('find','Find in the sidebar search: '+t,'Find','Find in the sidebar search')+btn('arch','Archive chat: '+t,'Archive','Archive chat')
-+(isDone?btn('undone','Show again: '+t,'Undo done','Show this row again'):btn('done','Mark done: '+t,'Done',DONE_TIP)))
-+prActs(r,t)
-+(c.retry?'<button type="button" class="ab" data-a="fretry" data-k="'+esc(c.retry)+'" aria-label="'+esc('Retry reading git: '+t)+'" data-tip="'+esc(retryTip(gs[c.retry])||'Read git again')+'">Retry</button>':'')
-+(pc.retry?'<button type="button" class="ab" data-a="fretry" data-k="'+esc(pc.retry)+'" aria-label="'+esc('Retry pull request lookup: '+t)+'" data-tip="Look up the pull request again">Retry</button>':'')
-+(ready&&w&&!w.main?'<button type="button" class="ab" data-a="rm" data-k="'+esc(w.k)+'" aria-label="'+esc('Copy '+cw()+'remove command: '+t)+'" data-tip="Copy a '+cw()+'command that removes this finished worktree. Nothing is run.">Copy '+cw()+'remove command</button>':'');
+const acts=(wt?'':btn('open','Open chat: '+t,'open','Open chat')+btn('handover','Copy hand-over note: '+t,hv[r.id]==='done'?'check':'copy',hvT==='Copy note'?'Copy hand-over note':hvT)+btn('find','Find in the sidebar search: '+t,'find','Find in the sidebar search')+btn('arch','Archive chat: '+t,'archive','Archive chat')
++(isDone?btn('undone','Show again: '+t,'undone','Show this row again'):btn('done','Mark done: '+t,'done',DONE_TIP)))
++prActs(r,t)+brAct(r,t)
++(c.retry?ibtn('fretry','Retry reading git: '+t,'retry',retryTip(gs[c.retry])||'Read git again',' data-k="'+esc(c.retry)+'"'):'')
++(pc.retry?ibtn('fretry','Retry pull request lookup: '+t,'retry','Look up the pull request again',' data-k="'+esc(pc.retry)+'"'):'')
++(ready&&w&&!w.main?ibtn('rm','Copy '+cw()+'remove command: '+t,'trash','Copy a '+cw()+'command that removes this finished worktree. Nothing is run.',' data-k="'+esc(w.k)+'"'):'');
 return '<div class="row" role="listitem" data-id="'+esc(r.id)+'" aria-busy="'+(c.busy||pc.busy?'true':'false')+'"><div class="main"><button type="button" class="rb" data-a="row" tabindex="'+(tab?0:-1)+'" aria-expanded="'+isOpen+'" aria-label="'+esc(label)+'">'+dot
-+'<span class="t" data-tip="'+esc(t+(wt?'\nWorktree with no chat':'\n'+words))+'">'+(r.pinned?'<span class="pill">Pinned</span> ':'')+esc(t)+'</span>'
-+'<span class="meta"><span class="pj">'+esc(r.project||'')+'</span><span class="br">'+c.br+'</span><span class="fl">'+c.fl+'</span><span class="ah">'+esc(c.ah)+'</span>'+(prsOn?'<span class="pr">'+pc.pr+'</span><span class="kc">'+pc.ck+'</span>':'')+'<span class="cx '+(wt?'l0':ctxClass(r))+'">'+(!wt&&r.ctx?r.ctx.pct+'% full':'')+'</span><span class="st">'+esc(stTxt)+'</span><span class="tm">'+esc(age)+'</span></span></button>'
++'<span class="t" data-tip="'+esc(t+(wt?(r.w.prOnly?'\nOpen pull request, no chat or worktree':'\nWorktree with no chat'):'\n'+words))+'">'+(r.pinned?'<span class="pill">Pinned</span> ':'')+esc(t)+'</span>'
++'<span class="meta"><span class="pj" title="'+esc(r.project||'')+'">'+esc(r.project||'')+'</span><span class="br" title="'+(c.br?'Branch: '+c.br:'No branch')+'">'+brCell(r,c)+'</span><span class="fl">'+c.fl+'</span><span class="ah">'+esc(c.ah)+'</span>'+(prsOn?'<span class="pr">'+pc.pr+'</span><span class="kc">'+pc.ck+'</span>':'')+'<span class="cx '+(!wt&&r.ctx?pctClass(r.ctx.pct):'')+'"'+(!wt&&r.ctx?' title="Context window used: '+esc(r.ctx.pct)+'%"':'')+'>'+(!wt&&r.ctx?r.ctx.pct+'%':'')+'</span><span class="st'+(stTxt?' b-'+(bnd==='idle'?(s==='running'?'waiting':'tidy'):bnd):'')+'">'+esc(stTxt)+'</span><span class="tm">'+esc(age)+'</span></span></button>'
 +'<div class="acts">'+acts+'</div></div>'
 +(isOpen?exHtml(r,words,g):'')+'</div>';}
 function exHtml(r,words,g){const wt=r.kind==='wt',kv=wt?[['Worktree',esc(r.title||'')],['Repository',esc(r.project||'')]]:[['Chat',esc(r.title||'Untitled chat')],['Folder',esc(r.project||'')],['Last active',esc(new Date(r.last).toLocaleString())],['Context',r.ctx?esc(ctxStat(r.ctx)):''],['State',esc(words)]];
@@ -49,24 +50,24 @@ function visibleRows(){return rows.filter(r=>!pend.has(r.id)).concat(wtRows()).f
 function doneCount(){return rows.filter(r=>!pend.has(r.id)&&wsOk(r)&&donemap[r.id]!==undefined&&doneOf(r)).length;}
 function chips(vis){const by=bandRows(vis,dots,bandHeld);
 $('cnt').innerHTML=['needs','finish','waiting','tidy'].map(b=>{const n=by[b].length,t=n+' '+BAND_CHIP[b],on=hidden.indexOf(b)<0;
-return '<button type="button" class="chip" data-a="band" data-b="'+b+'" aria-pressed="'+on+'" aria-label="'+esc(t+(on?', shown':', hidden'))+'">'+esc(t)+'</button>';}).join('');
+return '<button type="button" class="chip bc b-'+b+'" data-a="band" data-b="'+b+'" aria-pressed="'+on+'" data-tip="'+esc(on?'Click to hide these rows':'Click to show these rows')+'" aria-label="'+esc(t+(on?', shown':', hidden'))+'">'+esc(t)+'</button>';}).join('');
 const idle=hidden.indexOf('idle')<0;$('idl').setAttribute('aria-pressed',String(idle));$('idl').textContent='Show idle ('+by.idle.length+')';
 const dn=doneCount();$('dnb').setAttribute('aria-pressed',String(showDone));$('dnb').textContent='Show done ('+dn+')';$('dnb').hidden=!dn&&!showDone;
 $('wsb').setAttribute('aria-pressed',String(wsOnly));$('wsb').hidden=!wsN;}
 function bodyHtml(vis,total){
-if(failed&&!loaded)return '<p class="msg err" role="alert">Could not load chats. <button type="button" class="ab" data-a="retry">Retry</button></p>';
+if(failed&&!loaded)return '<p class="msg err" role="alert">Could not load chats. '+ibtn('retry','Retry loading the chat list','retry','Retry loading the chat list')+'</p>';
 if(!loaded)return '<p class="msg" role="status">Loading chats...</p>';
-const err=failed?'<p class="msg err" role="alert">Could not load chats. <button type="button" class="ab" data-a="retry">Retry</button></p>':'';
+const err=failed?'<p class="msg err" role="alert">Could not load chats. '+ibtn('retry','Retry loading the chat list','retry','Retry loading the chat list')+'</p>':'';
 if(!total)return err+'<p class="msg">No chats in the last '+days+' days.</p>';
 if(!vis.length)return err+'<p class="msg">No chats match these filters. <button type="button" class="ab" data-a="clearf">Clear filters</button></p>'+brHtml();
 const gr=groupRows(vis,dots,group,hidden,bandHeld,sortMode),clr=allClear(vis);
 if(!gr.length)return err+(clr?clearHtml()+'<p class="msg"><button type="button" class="ab" data-a="idle">Show idle</button></p>':'<p class="msg">Nothing to show with these filters. <button type="button" class="ab" data-a="idle">Show idle</button></p>')+brHtml();
 let tabId=gr.some(g=>g.rows.some(r=>r.id===focusId))?focusId:gr[0].rows[0].id;
-const th='<div class="th" aria-hidden="true"><div class="a"><span></span><span>Chat</span><span>Folder</span><span>Branch</span><span>Files</span><span>Ahead</span>'+(prsOn?'<span>PR</span><span>Checks</span>':'')+'<span>Context</span><span>State</span><span>Active</span></div><div class="b"></div></div>';
-return err+noRepoNote()+(clr?clearHtml():'')+th+gr.map(g=>'<section class="band" aria-label="'+esc(g.label)+'"><h2 class="bh" role="heading" aria-level="2">'+esc(g.label)+' <span class="pill">'+g.rows.length+'</span></h2><div role="list">'+g.rows.map(r=>rowHtml(r,r.id===tabId)).join('')+'</div></section>').join('')+brHtml();}
-function layout(){const w=document.documentElement.clientWidth||window.innerWidth||400;$('wrap').classList.toggle('wide',w>=WIDE_PX);prsUi();}
+const th='<div class="th" aria-hidden="true"><div class="a"><span></span><span>Chat</span><span>Folder</span><span>Branch</span><span>Files</span><span>Ahead</span>'+(prsOn?'<span>PR</span><span>Checks</span>':'')+'<span>Ctx</span><span>State</span><span>Active</span></div><div class="b"></div></div>';
+return err+noRepoNote()+(clr?clearHtml():'')+th+gr.map(g=>'<section class="band" aria-label="'+esc(g.label)+'"><h2 class="bh g-'+esc(g.key)+'" role="heading" aria-level="2">'+esc(g.label)+' <span class="pill">'+g.rows.length+'</span></h2><div role="list">'+g.rows.map(r=>rowHtml(r,r.id===tabId)).join('')+'</div></section>').join('')+brHtml();}
+function layout(){const w=document.documentElement.clientWidth||window.innerWidth||400;$('wrap').classList.toggle('wide',w>=(prsOn?WIDE_PR_PX:WIDE_PX));prsUi();}
 function ago(ms){const s=Math.floor(ms/1000);return s<10?'just now':s<60?s+' s ago':s<3600?Math.floor(s/60)+' min ago':Math.floor(s/3600)+' h ago';}
-function updText(){$('upd').textContent=lastAt?'Updated '+ago(Date.now()-lastAt):'';$('updw').hidden=!lastAt;}
+function updText(){ghUi();$('upd').textContent=lastAt?'Updated '+ago(Date.now()-lastAt):'';$('updw').hidden=!lastAt;}
 function render(){lastRender=Date.now();
 try{const ae=document.activeElement,had=ae&&ae.classList&&ae.classList.contains('rb');moving=false;const all=visibleRows(),vis=filtered(all);layout();chips(vis);viewUi();progUi();noteUi();
 $('ixs').hidden=!indexing;body.setAttribute('aria-busy',String(!loaded&&!failed));groupUi();updText();
@@ -95,6 +96,8 @@ else if(k==='idle'){toggleBand('idle');}
 else if(k==='band'){toggleBand(a.dataset.b);}
 else if(k==='fretry'){retryKey(a.dataset.k);}
 else if(k==='pr'||k==='prc'){const n=Number(a.dataset.n);if(/^r\d+$/.test(a.dataset.k||'')&&n>0)vs.postMessage({type:k==='pr'?'openPr':'copyPr',repo:a.dataset.k,n:n});}
+else if(k==='brl'){const n=Number(a.dataset.n)||0,b=String(a.dataset.b||'');if(/^r\d+$/.test(a.dataset.k||'')&&b&&b.length<=250)vs.postMessage({type:'openBranch',repo:a.dataset.k,branch:b,n:n});}
+else if(k==='ghs'){ghClick();}
 else if(k==='dretry'){if(id)retryDetail(id);}
 else if(k==='file'){vs.postMessage({type:'openFile',key:a.dataset.k,i:Number(a.dataset.i)});}
 else if(k==='rm'){vs.postMessage({type:'copyRemove',key:a.dataset.k});}
@@ -141,6 +144,7 @@ else if(d.type==='folder'){onFolder(d);}
 else if(d.type==='repo'){onRepo(d);}
 else if(d.type==='progress'){onProgress(d);}
 else if(d.type==='prs'){onPrs(d);}
+else if(d.type==='gh'){onGh(d);}
 else if(d.type==='checks'){onChecks(d);}
 else if(d.type==='end'){onEnd(d);}
 else if(d.type==='notes'){onNotes(d);}

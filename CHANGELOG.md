@@ -2,6 +2,14 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.26.0 - 2026-10-10
+- Added: a GitHub status indicator in the Open Work top bar: lookup off, gh missing, not signed in, rate limited, failed, or OK with repo count and lookup age. The tooltip gives the next step. `gh auth status` joins the read-only allow-list (cached 60 seconds). SECURITY.
+- Added: a branch with an open pull request but no chat or worktree gets its own row, with PR, checks and PR buttons.
+- Added: the branch name opens its pull request, or the branch on github.com (github.com remotes only, built by the host).
+- Changed: all action buttons are icon buttons with tooltips. State badges, PR status and context percent are colored. Context shows only the percent.
+- Changed: the PR cell says "unknown" plus the reason when a repository's lookup failed. "no PR" now means the lookup worked and found none.
+- Fixed: Open Work header columns overlapped and cells truncated to one or two characters. The wide layout now starts at 1080px (1360px with PR lookups on) and the action column is 260px.
+
 ## 0.25.1 - 2026-10-05
 - Fixed: pull request review state was never recognized on the Open Work page. GitHub's words (APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED) reached the page unconverted, so approved and changes-requested pull requests never landed in "To finish" and the summary showed raw codes. They now show as "approved", "changes requested" and "review requested". The 0.24.0 note below that said approved pull requests moved to "To finish" was not true until this release.
 - Fixed: "All clear" and "Scan finished: 0 items open" appeared when parts of the scan had not been read. They now need the whole scan to have finished: no "more folders not scanned", no repository timed out or failed, every chat folder read, and the pull request lookup answered (a repository that is simply not on GitHub does not block it). Otherwise the page says "Scan finished, but some parts were not read".

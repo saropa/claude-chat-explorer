@@ -17,6 +17,11 @@ export const BAND_CHIP: { [k: string]: string } = { needs: 'need you', finish: '
  */
 export function bandOf(dot: string, g?: any, last?: number, now?: number): string {
   if (g && g.wt) {
+    if (g.prOnly) { // an open pull request on a branch with no chat and no worktree: placed from the pull request alone
+      const q = g.pr;
+      if (!q) { return 'idle'; }
+      return q.checks === 'failing' || q.review === 'changes requested' || (q.review === 'approved' && (q.checks === 'passing' || q.checks === 'none')) ? 'finish' : 'waiting';
+    }
     if (g.locked || !g.ok) { return 'idle'; }
     if (g.pr && g.pr.checks === 'failing') { return 'finish'; }
     if (g.files > 0 || g.ahead > 0) { return 'finish'; }
@@ -174,7 +179,8 @@ export function summaryOf(items: any[], days: number): { text: string; n: number
     for (const x of list) {
       const where = [clean(x.project), clean(x.branch)].filter(Boolean).join(', ');
       const facts: string[] = [];
-      if (x.wt) { facts.push(x.locked ? 'worktree, locked' : x.ready ? 'worktree, ready to remove' : 'worktree'); }
+      if (x.prOnly) { facts.push('pull request branch, no worktree'); }
+      else if (x.wt) { facts.push(x.locked ? 'worktree, locked' : x.ready ? 'worktree, ready to remove' : 'worktree'); }
       if (x.state) { facts.push(clean(x.state)); }
       if (x.files > 0) { facts.push(countWord(x.files, 'uncommitted file')); }
       if (x.ahead > 0) { facts.push(countWord(x.ahead, 'unpushed commit')); }
@@ -186,6 +192,34 @@ export function summaryOf(items: any[], days: number): { text: string; n: number
   return { text: out.join('\n') + '\n', n: open.length };
 }
 
+/**
+ * The GitHub connection indicator of the top bar from what the page knows: the lookup setting (on), the `gh auth status` answer (gh: st ok, missing, unauth or error, with reason),
+ * the per-repository pull request states (st queued, checking, ok, unavailable; reason; at, the time of the last good answer) and the clock (now).
+ * Returns kind (off, missing, unauth, limit, error, partial, wait, ok), cls (off, ok, warn, bad), short text, tooltip with the next step, and click (setting or refresh).
+ * Repositories that are simply not on GitHub are neither failures nor counted as checked.
+ */
+export function ghStatus(i: { on: boolean; gh?: { st: string; reason?: string } | null; repos: Array<{ st: string; reason?: string; at?: number }>; now: number }): { kind: string; cls: string; text: string; tip: string; click: string } {
+  const out = (kind: string, cls: string, text: string, tip: string, click: string) => ({ kind, cls, text, tip, click });
+  const age = (ms: number): string => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 10 ? 'just now' : s < 60 ? s + ' s ago' : s < 3600 ? Math.floor(s / 60) + ' min ago' : Math.floor(s / 3600) + ' h ago'; };
+  if (!i.on) { return out('off', 'off', 'GitHub off', 'Pull request lookup is off, so pull requests and checks are not shown. To turn it on, enable the setting "Look Up Pull Requests". Click to open that setting.', 'setting'); }
+  const g = i.gh, rs = i.repos || [];
+  const failed = rs.filter((r) => r.st === 'unavailable' && r.reason !== 'not a GitHub repository');
+  const why = (re: RegExp): boolean => (g ? re.test(String(g.reason || '')) && g.st !== 'ok' : false) || failed.some((r) => re.test(String(r.reason || '')));
+  if ((g && g.st === 'missing') || why(/gh not installed/)) { return out('missing', 'bad', 'gh not installed', 'The GitHub command line tool (gh) was not found, so pull requests cannot be looked up. Install it from cli.github.com, then click to check again.', 'refresh'); }
+  if ((g && g.st === 'unauth') || why(/not signed in/)) { return out('unauth', 'bad', 'gh not signed in', 'gh is installed but not signed in. Run "gh auth login" in a terminal, then click to check again.', 'refresh'); }
+  if (why(/rate limit/)) { return out('limit', 'warn', 'GitHub rate limited', 'GitHub says too many requests were made (rate limit reached). Wait a few minutes, then click to try again.', 'refresh'); }
+  if (g && g.st === 'error') { return out('error', 'warn', 'GitHub problem', 'gh could not be checked: ' + (g.reason || 'unknown reason') + '. Click to check again.', 'refresh'); }
+  const ok = rs.filter((r) => r.st === 'ok'), pending = rs.filter((r) => r.st === 'queued' || r.st === 'checking');
+  if (failed.length) {
+    const reasons = failed.map((r) => r.reason || 'unknown reason').filter((x, k, a) => a.indexOf(x) === k).slice(0, 3).join('; ');
+    const all = !ok.length && !pending.length;
+    return out(all ? 'error' : 'partial', all ? 'bad' : 'warn', all ? 'GitHub failed' : 'GitHub partly failed', 'Pull request lookup failed for ' + failed.length + ' of ' + rs.length + (rs.length === 1 ? ' repository' : ' repositories') + ': ' + reasons + '. Click to try again.', 'refresh');
+  }
+  if (!ok.length) { return out('wait', 'off', 'GitHub checking', 'Waiting for the first pull request lookup. Click to refresh.', 'refresh'); }
+  const at = ok.reduce((m, r) => Math.max(m, r.at || 0), 0);
+  return out('ok', 'ok', 'GitHub OK', 'GitHub lookup works. Checked ' + ok.length + (ok.length === 1 ? ' repository' : ' repositories') + (at ? ', last lookup ' + age(i.now - at) : '') + (pending.length ? ', ' + pending.length + ' still checking' : '') + '. Click to refresh.', 'refresh');
+}
+
 /** Source of the functions and constants above, for the page script. */
-export const WORK_MODEL_SRC = [bandOf, countWord, nextStep, rowCmp, bandRows, groupRows, wtReady, fingerprint, doneHidden, filterMatch, flagPass, summaryOf].map((f) => f.toString()).join('\n')
+export const WORK_MODEL_SRC = [bandOf, countWord, nextStep, rowCmp, bandRows, groupRows, wtReady, fingerprint, doneHidden, filterMatch, flagPass, summaryOf, ghStatus].map((f) => f.toString()).join('\n')
   + '\nconst BAND_ORDER=' + JSON.stringify(BAND_ORDER) + ',BAND_LABEL=' + JSON.stringify(BAND_LABEL) + ',BAND_CHIP=' + JSON.stringify(BAND_CHIP) + ';\n';

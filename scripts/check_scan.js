@@ -176,12 +176,26 @@ async function scanTests() {
     const g = fakeGit(w2), scan = mk(g), c = collect();
     await scan.start(1, [{ cwd: r0.top, last: 1 }, { cwd: extra, last: 1 }], false, c.post);
     const rk = c.of('repo').pop().key;
-    check('branches: nothing is read until the page asks (lazy)', !g.calls.some((x) => /upstream:track/.test(x.a)));
+    const pre = g.calls.filter((x) => /upstream:track/.test(x.a)).length;
+    check('branches: the repository layer reads the local branch names once per repository (' + pre + ' reads for ' + c.of('repo').filter((m) => m.state === 'ok').map((m) => m.key).filter((k, i, a) => a.indexOf(k) === i).length + ' repositories), the leftover list is not read until the page asks', pre === c.of('repo').filter((m) => m.state === 'ok').map((m) => m.key).filter((k, i, a) => a.indexOf(k) === i).length);
     const r = await scan.branches(rk);
     const names = (r.list || []).map((b) => b.name);
     check('branches: only merged or upstream-gone branches with no worktree, no chat and not default (' + names.join('|') + ')', names.join('|') === "stale|merged1|it's-done");
     check('branches: merged and gone flags', r.list[0].gone === true && r.list[0].merged === false && r.list[1].merged === true && r.more === 0);
-    check('branches: the read is one for-each-ref call', g.calls.filter((x) => /upstream:track/.test(x.a)).length === 1 && g.calls.every((x) => x.cmd === 'git'));
+    check('branches: the read is one for-each-ref call', g.calls.filter((x) => /upstream:track/.test(x.a)).length === pre + 1 && g.calls.every((x) => x.cmd === 'git'));
+    {
+      const bl = await scan.branchLink(rk, 'feat'), bl2 = await scan.branchLink(rk, 'stale');
+      check('branch link: a known branch becomes its github.com tree page, built by the host from the origin remote (' + bl.url + ')', bl.url === 'https://github.com/acme/repo0/tree/feat' && bl2.url === 'https://github.com/acme/repo0/tree/stale');
+      check('branch link: a name the scan does not know, an odd key and a non-string give a reason, never a link', !!(await scan.branchLink(rk, 'nope')).reason && !(await scan.branchLink(rk, 'nope')).url && !!(await scan.branchLink('r999', 'feat')).reason && !!(await scan.branchLink('x', 'feat')).reason && !!(await scan.branchLink(rk, undefined)).reason);
+      check('branch link: a chat folder branch is known too', (await scan.branchLink(rk, 'chatbr')).url === 'https://github.com/acme/repo0/tree/chatbr');
+      const g2 = fakeGit({ ...w2, remote: 'https://gitlab.com/o/r.git\n' }), s2 = mk(g2), c2 = collect();
+      await s2.start(1, [{ cwd: r0.top, last: 1 }], false, c2.post);
+      const rk2 = c2.of('repo').pop().key;
+      check('branch link: a remote that is not github.com gives a reason and no link', (await s2.branchLink(rk2, 'feat')).url === undefined && /not on github/i.test((await s2.branchLink(rk2, 'feat')).reason));
+      const g3 = fakeGit({ ...w2, remote: '' }), s3 = mk(g3), c3 = collect();
+      await s3.start(1, [{ cwd: r0.top, last: 1 }], false, c3.post);
+      check('branch link: an empty remote gives a reason and no link', (await s3.branchLink(c3.of('repo').pop().key, 'feat')).url === undefined);
+    }
     const t = scan.branchText(rk, 1, false);
     check('branches: the copy text is git -C <main> branch -d <name>, quoted, never --force or -D', t && t.text === "git -C '" + r0.repo.main + "' branch -d 'merged1'" && !/--force| -D/.test(t.text));
     const q = scan.branchText(rk, 2, false);

@@ -10,11 +10,13 @@ const { fakeGit, collect, mkWorld } = require('./fake_world');
 
 const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
 const { Limiter } = require(path.join(OUT, 'execLimit.js'));
-const { PrCache, parsePrs, fetchPrs, ownerOfRemote, ghReason } = require(path.join(OUT, 'wipPrs.js'));
+const { PrCache, parsePrs, fetchPrs, ownerOfRemote, ghReason, authState } = require(path.join(OUT, 'wipPrs.js'));
 const { GitLiveService } = require(path.join(OUT, 'gitLive.js'));
 const FIX = (f) => fs.readFileSync(path.join(__dirname, 'fixtures', 'gh', f), 'utf8'); // real gh output recorded from a public repository
 const { rollupChecks, parseView, WorkPrs, CHECKS_CACHE_MS } = require(path.join(OUT, 'workPrs.js'));
 const { WorkScan } = require(path.join(OUT, 'workScan.js'));
+const { gh: ghRun, AUTH_ARGS } = require(path.join(OUT, 'wipGit.js'));
+const { githubBranchUrl, githubRepoOf } = require(path.join(OUT, 'workRepo.js'));
 const failures = [];
 const check = (what, cond) => { if (!cond) { failures.push(what); } };
 
@@ -55,6 +57,7 @@ function mkGh(world) {
   f.exec = (cmd, args, opt) => new Promise((resolve) => {
     if (opt.signal && opt.signal.aborted) { resolve(ABORTED); return; }
     if (cmd === 'git') { f.remotes = (f.remotes || 0) + 1; resolve(ok(world.origin || '')); return; } // `git remote get-url origin`, the fork owner lookup
+    if (args[0] === 'auth') { f.auths = (f.auths || 0) + 1; f.authArgs = args.join(' '); resolve(world.auth ? world.auth : ok('Logged in to github.com account me')); return; } // `gh auth status`: instant, not a PR lookup
     f.calls.push({ cmd, args: args.join(' '), cwd: opt.cwd, at: Date.now() });
     f.running++; f.max = Math.max(f.max, f.running);
     let fin = false, t = 0;
@@ -139,7 +142,7 @@ async function main() {
     r.run.join('r1', '/c/.git', '/c', 'a'); r.run.join('r1', '/c/.git', '/c', 'b'); r.run.join('r1', '/c/.git', '/c', 'forkb'); r.run.join('r1', '/c/.git', '/c', undefined);
     check('stream: the layer starts queued before any gh call', r.of('prs')[0].state === 'queued' && g.calls.length <= 1);
     check('stream: settles', await settle(r));
-    const kinds = r.msgs.map((x) => x.m.type + ':' + (x.m.state || '') + (x.m.n ? '#' + x.m.n : ''));
+    const kinds = r.msgs.filter((x) => x.m.type !== 'gh').map((x) => x.m.type + ':' + (x.m.state || '') + (x.m.n ? '#' + x.m.n : ''));
     check('stream: order is queued, checking, ok, checking per matched PR, then results one at a time (' + kinds.join(' ') + ')', kinds.join(' ') === 'prs:queued prs:checking prs:ok checks:checking#1 checks:checking#2 checks:failing#1 checks:passing#2');
     check('stream: the list posts only the matched PRs by branch, forks and unmatched never', (() => { const by = r.of('prs').find((m) => m.state === 'ok').by; return Object.keys(by).sort().join() === 'a,b' && by.a.n === 1 && by.a.link === true && !('forkb' in by); })());
     check('stream: PR 3 (branch c) and the fork PR get no check lookup', g.views.join() === '1,2');
@@ -154,6 +157,47 @@ async function main() {
     r.run.join('r1', '/c/.git', '/c', 'c'); await settle(r);
     check('late branch: PR 3 is looked up and its none result is posted', g.views.join() === '1,2,3' && r.of('checks').some((m) => m.n === 3 && m.state === 'none'));
     check('late branch: the list is not fetched again', g.lists === 1);
+  }
+
+  // ---- GitHub connection: gh auth status, rate limit, remote links, PR-only branches ----
+  {
+    const R = (code, stderr, o) => Object.assign({ code, stdout: '', stderr: stderr || '', timedOut: false, aborted: false }, o || {});
+    check('auth: exit 0 is ok', authState(R(0)).state === 'ok');
+    check('auth: gh missing', authState(R('ENOENT')).state === 'missing' && authState(R('ENOENT')).reason === 'gh not installed');
+    check('auth: not logged in', authState(R(1, 'You are not logged into any GitHub hosts. To log in, run: gh auth login')).state === 'unauth');
+    check('auth: timeout and network failures are errors with a reason, not sign-out', authState(R(null, '', { timedOut: true })).reason === 'timed out' && authState(R(1, 'dial tcp: lookup api.github.com: no such host')).state === 'error');
+    check('auth: rate limit is an error that says so', authState(R(1, 'API rate limit exceeded. Authenticated requests get a higher rate limit')).reason === 'GitHub rate limit reached');
+    check('reason: a rate limit is named before the sign-in rule', ghReason(R(1, 'HTTP 403: API rate limit exceeded; authenticated requests get a higher rate limit')) === 'GitHub rate limit reached');
+    let threw = 0;
+    for (const bad of [['auth', 'status', '--show-token'], ['auth', 'login'], ['auth'], ['auth', 'token']]) { try { ghRun({ exec: async () => R(0), gitMs: 1, ghMs: 1, flags: { gitMissing: false } }, '/x', bad); } catch { threw++; } }
+    check('allow-list: gh auth status only as exactly [auth, status]; --show-token, login, token and a bare auth are refused', threw === 4 && AUTH_ARGS.join(' ') === 'auth status');
+    const world = { lists: { '*': [pr(1, 'a')] }, views: { 1: [] } };
+    const g = mkGh(world), e = env(g), r = e.begin();
+    r.run.join('r1', '/c/.git', '/c', 'a'); r.run.join('r2', '/d/.git', '/d', 'a');
+    check('gh message: one gh auth status per scan, posted as a gh message with state ok', await settle(r) && g.auths === 1 && r.of('gh').length === 1 && r.of('gh')[0].state === 'ok' && g.authArgs === 'auth status');
+    const r2 = e.begin(); r2.run.join('r1', '/c/.git', '/c', 'a'); await settle(r2);
+    check('gh message: a second scan inside 60 s uses the cached answer (no second call), and still posts it', g.auths === 1 && r2.of('gh').length === 1);
+    await advance(61000);
+    const r3 = e.begin(); r3.run.join('r1', '/c/.git', '/c', 'a'); await settle(r3);
+    check('gh message: after 60 s it asks again', g.auths === 2);
+    const r4 = e.begin(true); r4.run.join('r1', '/c/.git', '/c', 'a'); await settle(r4);
+    check('gh message: a forced scan asks again', g.auths === 3);
+    const gm = mkGh({ lists: { '*': [] }, views: {}, auth: R('ENOENT') }), em = env(gm), rm = em.begin();
+    rm.run.join('r1', '/c/.git', '/c', 'a'); await settle(rm);
+    check('gh message: a missing gh is posted as missing', rm.of('gh')[0].state === 'missing' && rm.of('gh')[0].reason === 'gh not installed');
+    const gu = mkGh({ lists: { '*': [] }, views: {}, auth: R(1, 'You are not logged into any GitHub hosts. To log in, run: gh auth login') }), eu = env(gu), ru = eu.begin();
+    ru.run.join('r1', '/c/.git', '/c', 'a'); await settle(ru);
+    check('gh message: a signed-out gh is posted as unauth', ru.of('gh')[0].state === 'unauth');
+    // A local branch that has an open PR but no chat or worktree is matched through addBranches, and posted in the list.
+    const wp = mkGh({ lists: { '*': [pr(1, 'a'), pr(5, 'lonely'), pr(6, 'remoteonly')] }, views: { 1: [], 5: [run1('t', 'COMPLETED', 'FAILURE')] } }), ep = env(wp), rp = ep.begin();
+    rp.run.join('r1', '/c/.git', '/c', 'a'); rp.run.addBranches('r1', ['a', 'lonely', 'plain']); await settle(rp);
+    const by = rp.of('prs').filter((m) => m.state === 'ok').pop().by;
+    check('PR-only branch: a local branch with an open PR is in the list with its checks; a PR whose branch is not local is not', Object.keys(by).sort().join() === 'a,lonely' && wp.views.join() === '1,5' && rp.of('checks').some((m) => m.n === 5 && m.state === 'failing'));
+    // Remote links: github.com only, https only, branch segments encoded.
+    check('remote: https, scp and ssh forms of github.com give the owner and repository', ['https://github.com/o/r.git', 'https://user@github.com/o/r', 'git@github.com:o/r.git', 'ssh://git@github.com/o/r.git', 'git://github.com/o/r/'].every((u) => { const x = githubRepoOf(u + '\n'); return x && x.owner === 'o' && x.repo === 'r'; }));
+    check('remote: other hosts, look-alike hosts, odd names and local paths give nothing', ['https://gitlab.com/o/r.git', 'https://github.com.evil.example/o/r', 'https://github.com@evil.example/o/r', 'git@github.com:o/..', 'https://github.com/o/r/extra', '/home/me/repo', 'file:///x/github.com/o/r', 'https://github.com/o%2Fx/r', ''].every((u) => githubRepoOf(u) === undefined));
+    check('branch url: the branch is encoded per segment and the host is fixed', githubBranchUrl('git@github.com:o/r.git', 'feat/a b#1?x') === 'https://github.com/o/r/tree/feat/a%20b%231%3Fx' && githubBranchUrl('https://github.com/o/r', 'main') === 'https://github.com/o/r/tree/main');
+    check('branch url: unusual branch names and non-GitHub remotes give nothing', githubBranchUrl('https://github.com/o/r', '') === undefined && githubBranchUrl('https://github.com/o/r', 'a/../b') === undefined && githubBranchUrl('https://github.com/o/r', 'a//b') === undefined && githubBranchUrl('https://github.com/o/r', 'a\u0001b') === undefined && githubBranchUrl('https://gitlab.com/o/r', 'main') === undefined);
   }
 
   // ---- 8 s kill, layer deadline, retry ----

@@ -32,7 +32,7 @@ function scenario(W) {
   check(tag('page says ready'), posted.some((p) => p.type === 'ready'));
   step('init', () => deliver({ type: 'init', v: 1, days: 14, group: 'attention', hidden: [] }));
   check(tag('loading state before the list'), /Loading chats/.test(body.innerHTML) && body.getAttribute('aria-busy') === 'true');
-  check(tag('layout follows width'), els.get('wrap').classList.contains('wide') === (W >= 760));
+  check(tag('layout follows width'), els.get('wrap').classList.contains('wide') === (W >= 1080));
   step('empty list', () => deliver({ type: 'chats', scan: 1, rows: [], indexing: false }));
   check(tag('empty state names the days'), /No chats in the last 14 days/.test(body.innerHTML) && body.getAttribute('aria-busy') === 'false');
   const rows = [row(1), row(2), row(3, { pinned: true }), row(4, { ctx: undefined }), row(5, { title: 'A <b>bold</b> "quoted" title' })];
@@ -41,7 +41,7 @@ function scenario(W) {
   check(tag('git bands are stubs: no chat lands in To finish or Ready to tidy'), model.bandOf('idle') === 'idle' && model.bandOf('running') === 'waiting' && model.bandOf('waiting') === 'needs' && model.bandOf('unread') === 'needs');
   const cnt = els.get('cnt').innerHTML;
   check(tag('band chips carry counts and toggle state'), /1 need you/.test(cnt) && /0 to finish/.test(cnt) && /1 waiting/.test(cnt) && /0 to tidy/.test(cnt) && /aria-pressed="true"/.test(cnt));
-  check(tag('every row has a dot with words, a title, a context percent and an age'), (body.innerHTML.match(/class="row"/g) || []).length === 5 && /role="img" aria-label="Waiting for you"/.test(body.innerHTML) && /61% full/.test(body.innerHTML));
+  check(tag('every row has a dot with words, a title, a context percent and an age'), (body.innerHTML.match(/class="row"/g) || []).length === 5 && /role="img" aria-label="Waiting for you"/.test(body.innerHTML) && />61%</.test(body.innerHTML));
   check(tag('titles are escaped'), !/<b>bold<\/b>/.test(body.innerHTML) && /&lt;b&gt;bold/.test(body.innerHTML));
   check(tag('pinned chat shows a Pinned label'), /Pinned/.test(body.innerHTML));
   check(tag('exactly one row is in the tab order'), (body.innerHTML.match(/class="rb"[^>]*tabindex="0"/g) || []).length === 1);
@@ -81,9 +81,9 @@ function scenario(W) {
   check(tag('Copy note posts handover and shows Copying'), sent('handover', 3) && /Copying\.\.\./.test(body.innerHTML));
   step('handover done', () => deliver({ type: 'handoverState', id: id(3), state: 'done' }));
   advance(300);
-  check(tag('Copied shows after done'), />Copied</.test(body.innerHTML));
+  check(tag('Copied shows after done'), /title="Copied"/.test(body.innerHTML));
   step('copied clears', () => advance(2100));
-  check(tag('Copied clears back to Copy note'), !/>Copied</.test(body.innerHTML) && />Copy note</.test(body.innerHTML));
+  check(tag('Copied clears back to Copy note'), !/title="Copied"/.test(body.innerHTML) && /title="Copy hand-over note"/.test(body.innerHTML));
   step('archive', () => act('arch', 4));
   check(tag('Archive posts archive on and the row leaves'), sent('archive', 4, { on: true }) && !new RegExp('data-id="' + id(4) + '"').test(body.innerHTML));
   step('row click expands', () => act('row', 3));
@@ -206,9 +206,9 @@ function gitScenario(W) {
   step('copy remove', () => click('rm', 0, { k: 'w2' }));
   check(tag('Copy remove command posts copyRemove with only the worktree key'), posted.some((p) => p.type === 'copyRemove' && p.key === 'w2' && Object.keys(p).length === 2));
   step('init windows', () => { deliver({ type: 'init', v: 2, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 2, done: {}, win: true }); advance(300); });
-  check(tag('on Windows the button and its label say PowerShell'), /Copy PowerShell remove command<\/button>/.test(rowOf('w2')) && /aria-label="Copy PowerShell remove command: /.test(rowOf('w2')));
+  check(tag('on Windows the button and its label say PowerShell'), /title="Copy a PowerShell command that removes/.test(rowOf('w2')) && /aria-label="Copy PowerShell remove command: /.test(rowOf('w2')));
   step('init not windows', () => { deliver({ type: 'init', v: 2, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 2, done: {} }); advance(300); });
-  check(tag('elsewhere the button stays Copy remove command'), />Copy remove command<\/button>/.test(rowOf('w2')) && !/PowerShell/.test(rowOf('w2')));
+  check(tag('elsewhere the button stays Copy remove command'), /aria-label="Copy remove command: /.test(rowOf('w2')) && !/PowerShell/.test(rowOf('w2')));
   step('f2 clean, idle 5 days', () => { deliver(fm(1, 'f2', 'ok', { facts: facts() })); advance(300); });
   check(tag('a clean, pushed chat idle for 5 days is Ready to tidy'), inBand('Ready to tidy', 2));
   check(tag('a chat on the main checkout is not given a remove button'), rowOf(id(2)) !== '' && !/data-a="rm"/.test(rowOf(id(2))));
@@ -263,7 +263,7 @@ function gitScenario(W) {
   step('same state again', () => { deliver(fm(2, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 1, fileTotal: 1, files: [{ s: 'M', p: 'q.ts' }] }) })); advance(300); });
   check(tag('a done row stays hidden while nothing changed'), !new RegExp('data-id="' + id(1) + '"').test(body.innerHTML));
   step('show done', () => click('showdone'));
-  check(tag('Show done brings it back with Undo done'), new RegExp('data-id="' + id(1) + '"').test(body.innerHTML) && /Undo done/.test(body.innerHTML));
+  check(tag('Show done brings it back with Undo done'), new RegExp('data-id="' + id(1) + '"').test(body.innerHTML) && /aria-label="Show again: /.test(body.innerHTML));
   step('hide done again', () => click('showdone'));
   step('git changes', () => { deliver(fm(2, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 1, fileTotal: 2, files: [{ s: 'M', p: 'q.ts' }, { s: 'M', p: 'r.ts' }] }) })); advance(300); });
   check(tag('a git change brings a done row back and clears the stored mark'), new RegExp('data-id="' + id(1) + '"').test(body.innerHTML) && posted.some((p) => p.type === 'done' && p.id === id(1) && p.on === false));
@@ -456,15 +456,15 @@ function prScenario(W) {
   advance(300);
   check(tag('Retry posts retry with the p key and shows the repository as waiting'), posted.some((p) => p.type === 'retry' && p.key === 'p1') && /data-tip="Waiting to look up pull requests"/.test(rowOf(id(2))));
   step('retry watchdog', () => advance(25500));
-  check(tag('a PR layer left on queued or checking ends as unavailable with Retry after the watchdog (never an endless spinner)'), !/class="spin"/.test(rowOf(id(2))) && /PR info unavailable/.test(rowOf(id(2))) && /data-a="fretry" data-k="p1"/.test(rowOf(id(2))));
+  check(tag('a PR layer left on queued or checking ends as unavailable with Retry after the watchdog (never an endless spinner)'), !/class="spin"/.test(rowOf(id(2))) && /class="q unk"[^>]*>timed out</.test(rowOf(id(2))) && /data-a="fretry" data-k="p1"/.test(rowOf(id(2))));
   step('good again', () => { deliver(prs('ok', { by: BY })); deliver(chk(81, 'passing', { total: 1, failing: 0, pending: 0, names: [] })); advance(300); });
   step('layer unavailable', () => { deliver(prs('unavailable', { reason: 'not a GitHub repository' })); advance(300); });
-  check(tag('a permanent reason (not a GitHub repository) shows no per-row text or Retry, only a header note'), !/PR info unavailable/.test(rowOf(id(2))) && !/data-k="p1"/.test(rowOf(id(2))) && /Pull requests unavailable for 1 repository: not a GitHub repository\./.test(els.get('note').innerHTML));
+  check(tag('a permanent reason (not a GitHub repository) shows "not on GitHub" (unknown, not "no PR") and no Retry, plus a header note'), /class="q unk"[^>]*>not on GitHub</.test(rowOf(id(2))) && !/no PR/.test(rowOf(id(2))) && !/data-k="p1"/.test(rowOf(id(2))) && /Pull requests unavailable for 1 repository: not a GitHub repository\./.test(els.get('note').innerHTML));
   step('layer transient', () => { deliver(prs('unavailable', { reason: 'GitHub not reachable' })); advance(300); });
-  check(tag('a transient reason shows PR info unavailable with Retry on each row of the repository'), /PR info unavailable/.test(rowOf(id(2))) && /data-k="p1"/.test(rowOf(id(2))));
+  check(tag('a transient reason shows the reason in the PR cell (not "no PR") with Retry on each row of the repository'), /class="q unk"[^>]*>offline</.test(rowOf(id(2))) && !/no PR/.test(rowOf(id(2))) && /data-k="p1"/.test(rowOf(id(2))));
   // end lists unfinished PR keys; stale scans are dropped.
   step('stale', () => { deliver(prs('ok', { scan: 0, by: {} })); deliver(chk(81, 'failing', { scan: 5, total: 1, failing: 1, names: [] })); advance(300); });
-  check(tag('PR and check messages of another scan are dropped'), /PR info unavailable/.test(rowOf(id(2))));
+  check(tag('PR and check messages of another scan are dropped'), /class="q unk"[^>]*>offline</.test(rowOf(id(2))));
   step('2nd scan', () => { deliver({ type: 'chats', scan: 2, rows: rowsP, indexing: false, scanning: true }); deliver(prs('queued', { scan: 2 })); deliver(prs('checking', { scan: 2 })); advance(300); });
   step('end with p1', () => { deliver({ type: 'end', scan: 2, open: ['p1'] }); advance(300); });
   check(tag('end listing p1 turns a checking layer into unavailable with Retry'), !/class="spin"/.test(rowOf(id(2))) && /data-k="p1"/.test(rowOf(id(2))) && prog.hidden === true);
@@ -479,12 +479,84 @@ function prScenario(W) {
   check(tag('lookups off: the header tooltip says so quietly'), els.get('ttl').dataset.tip === 'Pull requests are off (setting Look Up Pull Requests).' && !/Pull requests/.test(els.get('note').innerHTML));
   step('off messages', () => { deliver({ type: 'chats', scan: 4, rows: rowsP, indexing: false, scanning: true }); deliver(prs('ok', { scan: 4, by: BY })); deliver(chk(81, 'failing', { scan: 4, total: 1, failing: 1, names: ['x'] })); deliver({ type: 'progress', scan: 4, git: { done: 1, total: 2 }, prs: { done: 0, total: 3 } }); advance(300); });
   check(tag('lookups off: PR messages are ignored, no PR band move, no PR progress text'), !/checks failing/.test(body.innerHTML) && !/#81/.test(body.innerHTML) && !/pull requests/i.test(prog.textContent) && !/data-a="pr"/.test(body.innerHTML));
+  check(tag('indicator: lookups off shows the grey off state whose click opens the setting'), els.get('ghs').dataset.g === 'off' && /g-off/.test(els.get('ghs').className) && els.get('ght').textContent === 'GitHub off' && /Look Up Pull Requests/.test(els.get('ghs').dataset.tip) && (() => { fire(body, 'click', { target: target('ghs') }); return posted.some((p) => p.type === 'prsSetting'); })());
   step('on again', () => { deliver({ type: 'notes', scan: 4, more: 0, prsOn: true }); advance(300); });
   check(tag('turning lookups back on restores the columns and clears the tooltip'), /class="pr"/.test(body.innerHTML) && !els.get('ttl').dataset.tip);
   check(tag('no agent name in the PR cells'), !/claude/i.test(body.innerHTML));
   P.errors.forEach((e) => failures.push(e));
 }
 for (const W of [400, 760, 1400]) { prScenario(W); }
+
+// GitHub connection indicator, PR-only rows and branch links.
+function ghScenario(W) {
+  const P = createHarness({ page, name: 'openwork-gh@' + W, width: W, popIds: ['grb', 'grm'] });
+  const { els, posted, fire, deliver, advance, check, step } = P;
+  const body = els.get('body'), tag = (s) => s + ' at ' + W;
+  const facts = (o) => Object.assign({ name: 'proj', branch: 'feat', detached: false, upstream: 'origin/feat', ahead: 0, behind: 0, gone: false, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], rk: 'r1', ws: true }, o || {});
+  const fm = (sc, key, state, o) => Object.assign({ type: 'folder', scan: sc, key, state }, o || {});
+  const click = (a, n, data) => fire(body, 'click', { target: target(a, n ? id(n) : '', data ? { dataset: Object.assign({ a }, data) } : undefined) });
+  const rowsP = [row(1, { fk: 'f1', last: NOW - 1 * H }), row(2, { fk: 'f2', last: NOW - 2 * H })];
+  const rowOf = (key) => { const i = body.innerHTML.indexOf('data-id="' + key + '"'); if (i < 0) { return ''; } const j = body.innerHTML.indexOf('class="row"', i); return body.innerHTML.slice(i, j < 0 ? undefined : j); };
+  const prs = (state, o) => Object.assign({ type: 'prs', scan: 1, repo: 'r1', state }, o || {});
+  const chk = (n, state, o) => Object.assign({ type: 'checks', scan: 1, repo: 'r1', n, state }, o || {});
+  const BY = { feat: { n: 81, title: 'Fix it', draft: false, review: 'approved', link: true }, other: { n: 82, title: 'Draft one', draft: true, review: '', link: true } };
+  P.start();
+  step('init', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {} }));
+  step('chats', () => { deliver({ type: 'chats', scan: 1, rows: rowsP, indexing: false, scanning: true }); deliver(fm(1, 'f1', 'ok', { facts: facts() })); deliver(fm(1, 'f2', 'ok', { facts: facts({ branch: 'other' }) })); advance(300); });
+  // GitHub connection indicator, PR-only branch rows and branch links.
+  const gb = els.get('ghs'), gt = els.get('ght'), ghk = () => gb.dataset.g;
+  check(tag('indicator: before any answer it waits (checking), it is not green'), ghk() === 'wait' && !/g-ok/.test(gb.className));
+  step('gh ok state', () => { deliver(prs('ok', { by: BY })); advance(300); });
+  check(tag('indicator: lookups on and one repository answered shows OK, green, with the repository count and the age of the lookup'), ghk() === 'ok' && /g-ok/.test(gb.className) && gt.textContent === 'GitHub OK' && /Checked 1 repository, last lookup just now/.test(gb.dataset.tip) && /GitHub connection: GitHub OK/.test(gb.getAttribute('aria-label')));
+  step('gh unauth', () => { deliver({ type: 'gh', scan: 1, state: 'unauth', reason: 'not signed in to gh' }); advance(300); });
+  check(tag('indicator: gh not signed in is red, says gh auth login in the tooltip'), ghk() === 'unauth' && /g-bad/.test(gb.className) && /gh auth login/.test(gb.dataset.tip) && gt.textContent === 'gh not signed in');
+  step('click unauth', () => fire(body, 'click', { target: target('ghs') }));
+  check(tag('indicator: clicking when gh is signed out checks again (a refresh), it opens no setting'), posted.some((p) => p.type === 'refresh') && !posted.some((p) => p.type === 'prsSetting'));
+  step('gh missing', () => { deliver({ type: 'gh', scan: 1, state: 'missing', reason: 'gh not installed' }); advance(300); });
+  check(tag('indicator: gh not installed is red and names the install'), ghk() === 'missing' && /g-bad/.test(gb.className) && /Install it/.test(gb.dataset.tip));
+  step('gh limit', () => { deliver({ type: 'gh', scan: 1, state: 'error', reason: 'GitHub rate limit reached' }); advance(300); });
+  check(tag('indicator: a rate limit is amber and says so'), ghk() === 'limit' && /g-warn/.test(gb.className) && /rate limit/.test(gb.dataset.tip));
+  step('gh other', () => { deliver({ type: 'gh', scan: 1, state: 'error', reason: 'timed out' }); advance(300); });
+  check(tag('indicator: any other gh failure is amber with its reason'), ghk() === 'error' && /g-warn/.test(gb.className) && /timed out/.test(gb.dataset.tip));
+  step('gh ok again', () => { deliver({ type: 'gh', scan: 1, state: 'ok', reason: '' }); advance(300); });
+  step('repo failed', () => { deliver(prs('ok', { repo: 'r9', by: {} })); deliver(prs('unavailable', { reason: 'timed out' })); advance(300); });
+  check(tag('indicator: one repository failing while another works is a partial failure with the reason'), ghk() === 'partial' && /1 of 2 repositories: timed out/.test(gb.dataset.tip) && /g-warn/.test(gb.className));
+  check(tag('rows of the failed repository show the reason as unknown in the PR cell, never "no PR"'), /class="q unk"[^>]*>timed out</.test(rowOf(id(1))) && !/no PR/.test(rowOf(id(1))));
+  step('repo not github', () => { deliver(prs('unavailable', { reason: 'not a GitHub repository' })); advance(300); });
+  check(tag('indicator: a repository that is not on GitHub is not a failure'), ghk() === 'ok' && !/data-a="brl"/.test(rowOf(id(1))));
+  step('repo ok again', () => { deliver(prs('ok', { by: BY })); advance(300); });
+  check(tag('a repository looked up with no PR on the branch says "no PR" (lookup worked)'), /class="q"[^>]*>no PR</.test(rowOf(id(2))) === false && /#82 draft/.test(rowOf(id(2))));
+  step('no pr branch', () => { deliver(prs('ok', { by: { feat: BY.feat } })); advance(300); });
+  check(tag('"no PR" only after a lookup that worked and found none'), />no PR</.test(rowOf(id(2))));
+  step('restore by', () => { deliver(prs('ok', { by: BY })); advance(300); });
+  // PR-only rows: an open PR on a local branch that has no chat row and no worktree.
+  const wtl = (k, name, branch, o) => Object.assign({ k, name, branch, detached: false, sha: 'abc1234', main: false, missing: false, locked: false, merged: false, facts: null, ws: true, fks: [] }, o || {});
+  step('repo layer', () => { deliver({ type: 'repo', scan: 1, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: [], ws: true, worktrees: [wtl('w1', 'proj', 'main', { main: true, fks: ['f1', 'f2'] })] }); advance(300); });
+  const LONELY = Object.assign({}, BY, { lonely: { n: 90, title: 'Lonely <b>work</b>', draft: false, review: '', link: true }, main: { n: 91, title: 'on default', draft: false, review: '', link: true } });
+  step('lonely pr', () => { deliver(prs('ok', { by: LONELY })); deliver(chk(90, 'failing', { total: 3, failing: 1, pending: 0, names: ['unit'] })); advance(300); });
+  const pbId = 'pb:r1:lonely', pbRow = () => rowOf(pbId);
+  check(tag('PR-only: a local branch with an open PR and no row becomes its own row in the repository, titled by the PR, escaped'), pbRow() !== '' && /Lonely &lt;b&gt;work&lt;\/b&gt;/.test(pbRow()) && !/<b>work<\/b>/.test(pbRow()) && />proj</.test(pbRow()));
+  check(tag('PR-only: branches that already have a chat row, and the default branch, are not duplicated'), (body.innerHTML.match(/data-id="pb:/g) || []).length === 1);
+  check(tag('PR-only: failing checks put it in To finish; the PR and checks cells and the Open PR and Copy PR link buttons are on the row'), (() => { const i = body.innerHTML.indexOf('aria-label="To finish"'), j = body.innerHTML.indexOf('data-id="' + pbId + '"'); return i >= 0 && j > i; })() && /#90/.test(pbRow()) && /checks failing/.test(pbRow()) && /data-a="pr" data-k="r1" data-n="90"/.test(pbRow()) && /data-a="prc" data-k="r1" data-n="90"/.test(pbRow()) && !/data-a="open"/.test(pbRow()) && !/data-a="arch"/.test(pbRow()));
+  step('pb passing', () => { deliver(chk(90, 'passing', { total: 3, failing: 0, pending: 0, names: [] })); advance(300); });
+  check(tag('PR-only: passing checks with no review is Waiting on others'), (() => { const i = body.innerHTML.indexOf('aria-label="Waiting on others"'), j = body.innerHTML.indexOf('data-id="' + pbId + '"'); return i >= 0 && j > i; })());
+  step('pb open pr', () => click('pr', 0, { k: 'r1', n: '90' }));
+  check(tag('PR-only: Open PR posts the key and number only'), posted.some((p) => p.type === 'openPr' && p.repo === 'r1' && p.n === 90 && Object.keys(p).length === 3));
+  step('pb filter', () => { deliver({ type: 'init', v: 3, prsOn: true, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {}, view: { q: 'lonely', f: {}, sort: 'recent' } }); advance(300); });
+  check(tag('PR-only: the filter box finds it by PR title and the Has open PR filter keeps it'), pbRow() !== '');
+  step('pb clear', () => { deliver({ type: 'init', v: 3, prsOn: true, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {}, view: { q: '', f: {}, sort: 'recent' } }); advance(300); });
+  // Branch links: the page sends a repository key, a branch name and a number, never a link.
+  check(tag('branch link: the branch cell is a link and a keyboard button with the key, branch and PR number'), /class="lk" role="link" data-a="brl" data-k="r1" data-b="feat" data-n="81"/.test(rowOf(id(1))) && /<button[^>]*data-a="brl" data-k="r1" data-b="feat" data-n="81"[^>]*aria-label="Open pull request #81 on GitHub: Chat 1"/.test(rowOf(id(1))));
+  step('branch click', () => click('brl', 1, { k: 'r1', b: 'feat', n: '81' }));
+  check(tag('branch link: the click posts openBranch with repo, branch and n only, no link'), posted.some((p) => p.type === 'openBranch' && p.repo === 'r1' && p.branch === 'feat' && p.n === 81 && Object.keys(p).length === 4));
+  step('branch bad', () => { click('brl', 1, { k: '../x', b: 'feat', n: '1' }); click('brl', 1, { k: 'r1', b: '', n: '1' }); click('brl', 1, { k: 'r1', b: 'x'.repeat(300), n: '1' }); });
+  check(tag('branch link: a bad key, an empty branch and an over-long branch post nothing'), posted.filter((p) => p.type === 'openBranch').length === 1);
+  step('pb branch', () => click('brl', 0, { k: 'r1', b: 'lonely', n: '90' }));
+  check(tag('branch link: the PR-only row links the branch too'), /data-a="brl" data-k="r1" data-b="lonely" data-n="90"/.test(pbRow()) && posted.some((p) => p.type === 'openBranch' && p.branch === 'lonely' && p.n === 90));
+
+  P.errors.forEach((e) => failures.push(e));
+}
+for (const W of [400, 760, 1400]) { ghScenario(W); }
 
 // Pull request rules of the model.
 {
@@ -498,6 +570,27 @@ for (const W of [400, 760, 1400]) { prScenario(W); }
   if (b('idle', g({ pr: pr('', 'passing', true) })) !== 'waiting') { bad('model: a draft PR is Waiting on others'); }
   if (b('idle', g({ pr: pr('approved', 'pending') })) !== 'waiting') { bad('model: approved with checks pending is Waiting on others'); }
   if (b('idle', g({ pr: pr('approved', 'passing') })) !== 'finish' || b('idle', g({ pr: pr('approved', 'none') })) !== 'finish') { bad('model: approved with checks passing or none is To finish'); }
+  const po = (p) => ({ wt: true, prOnly: true, ok: true, files: 0, ahead: 0, gone: false, locked: false, pr: p, ready: false });
+  if (b('idle', po(pr('', 'failing'))) !== 'finish' || b('idle', po(pr('changes requested', 'passing'))) !== 'finish' || b('idle', po(pr('approved', 'passing'))) !== 'finish' || b('idle', po(pr('approved', 'none'))) !== 'finish') { bad('model: a PR-only row with failing checks, requested changes or an approved clean PR is To finish'); }
+  if (b('idle', po(pr('', 'pending'))) !== 'waiting' || b('idle', po(pr('', 'passing'))) !== 'waiting' || b('idle', po(pr('approved', 'pending'))) !== 'waiting' || b('idle', po(pr('', 'unknown'))) !== 'waiting' || b('idle', po(pr('', 'passing', true))) !== 'waiting') { bad('model: a PR-only row in review, pending, unknown or draft is Waiting on others'); }
+  if (b('idle', po(undefined)) !== 'idle') { bad('model: a PR-only row without PR facts stays idle'); }
+  if (!/pull request branch, no worktree/.test(model.summaryOf([{ band: 'waiting', title: 'T', project: 'p', branch: 'x', wt: true, prOnly: true, pr: { n: 3, checks: 'passing' } }], 14).text)) { bad('model: the summary names a PR-only row'); }
+  {
+    const rp = (st, o) => Object.assign({ st }, o || {});
+    const gs = (o) => model.ghStatus(Object.assign({ on: true, gh: null, repos: [], now: NOW }, o));
+    const t = (what, c) => { if (!c) { bad('ghStatus: ' + what); } };
+    const off = gs({ on: false });
+    t('off names the setting and clicks to open it', off.kind === 'off' && off.cls === 'off' && off.click === 'setting' && /Look Up Pull Requests/.test(off.tip));
+    t('before any answer it waits', gs({}).kind === 'wait' && gs({ repos: [rp('queued')] }).kind === 'wait');
+    t('gh missing, from the auth answer or from a repository reason', gs({ gh: { st: 'missing', reason: 'gh not installed' } }).kind === 'missing' && gs({ repos: [rp('unavailable', { reason: 'gh not installed' })] }).kind === 'missing' && gs({ gh: { st: 'missing' } }).cls === 'bad');
+    t('gh signed out, from the auth answer or from a repository reason, with the login command', gs({ gh: { st: 'unauth' } }).kind === 'unauth' && gs({ repos: [rp('unavailable', { reason: 'not signed in to gh' })] }).kind === 'unauth' && /gh auth login/.test(gs({ gh: { st: 'unauth' } }).tip));
+    t('rate limit from either source is amber', gs({ gh: { st: 'error', reason: 'GitHub rate limit reached' } }).kind === 'limit' && gs({ repos: [rp('unavailable', { reason: 'GitHub rate limit reached' })] }).cls === 'warn');
+    t('another gh failure is amber with the reason', gs({ gh: { st: 'error', reason: 'timed out' } }).kind === 'error' && /timed out/.test(gs({ gh: { st: 'error', reason: 'timed out' } }).tip));
+    t('every repository failing is red; some failing is partial amber; reasons are listed once', gs({ repos: [rp('unavailable', { reason: 'timed out' }), rp('unavailable', { reason: 'timed out' })] }).cls === 'bad' && gs({ repos: [rp('unavailable', { reason: 'timed out' }), rp('ok', { at: NOW })] }).kind === 'partial' && /2 of 2 repositories: timed out\./.test(gs({ repos: [rp('unavailable', { reason: 'timed out' }), rp('unavailable', { reason: 'timed out' })] }).tip));
+    t('not a GitHub repository is not a failure and is not counted as checked', gs({ repos: [rp('unavailable', { reason: 'not a GitHub repository' }), rp('ok', { at: NOW })] }).kind === 'ok' && /Checked 1 repository,/.test(gs({ repos: [rp('unavailable', { reason: 'not a GitHub repository' }), rp('ok', { at: NOW })] }).tip));
+    t('ok shows the count and the age of the newest lookup', /Checked 2 repositories, last lookup 5 min ago/.test(gs({ gh: { st: 'ok' }, repos: [rp('ok', { at: NOW - 300000 }), rp('ok', { at: NOW - 900000 })] }).tip) && /last lookup just now/.test(gs({ repos: [rp('ok', { at: NOW })] }).tip));
+    t('signed-out beats a repository failure and a working gh with failed repositories is not signed out', gs({ gh: { st: 'unauth' }, repos: [rp('ok', { at: NOW })] }).kind === 'unauth' && gs({ gh: { st: 'ok' }, repos: [rp('unavailable', { reason: 'GitHub not reachable' })] }).kind === 'error');
+  }
   if (b('idle', g({ pr: pr('changes requested', 'passing') })) !== 'finish') { bad('model: changes requested is To finish'); }
   if (b('idle', g({ ahead: 1, pr: pr('', 'pending') })) !== 'finish') { bad('model: unpushed commits still make To finish with a PR open'); }
   if (b('idle', g({ pr: undefined })) !== 'idle' || b('idle', undefined) !== 'idle') { bad('model: no PR facts do not move a row'); }
@@ -600,12 +693,12 @@ function viewScenario(W) {
   check(tag('Copy summary posts the text and the item count (3 open items: two to finish, one to tidy; the idle one is left out)'), sum && sum.n === 3 && /^# Open work: 3 items/.test(sum.text) && /## To finish \(2\)/.test(sum.text) && /## Ready to tidy \(1\)/.test(sum.text) && !/Refactor/.test(sum.text));
   check(tag('the summary names state: files, unpushed commits, pull request and checks'), sum && /Fix login\*\* \(alpha, fix-login\): 2 uncommitted files/.test(sum.text) && /3 unpushed commits; PR #81, checks failing/.test(sum.text) && /Needs you 0, To finish 2, Waiting on others 0, Ready to tidy 1\./.test(sum.text));
   check(tag('the summary holds no link'), sum && !/https?:/.test(sum.text));
-  check(tag('the button says Copying while the host works'), els.get('smb').textContent === 'Copying...');
+  check(tag('the button says Copying while the host works'), els.get('smb').getAttribute('aria-label') === 'Copying...');
   step('host done', () => deliver({ type: 'summaryState', state: 'done', n: 3 }));
-  check(tag('a visible Copied confirmation with the item count'), els.get('smb').textContent === 'Copied 3 items' && /Copied the summary of 3 items/.test(els.get('live').textContent));
-  step('confirm fades', () => advance(2100)); check(tag('the confirmation goes back to Copy summary'), els.get('smb').textContent === 'Copy summary');
+  check(tag('a visible Copied confirmation with the item count'), els.get('smb').getAttribute('aria-label') === 'Copied 3 items' && /Copied the summary of 3 items/.test(els.get('live').textContent));
+  step('confirm fades', () => advance(2100)); check(tag('the confirmation goes back to Copy summary'), els.get('smb').getAttribute('aria-label') === 'Copy summary');
   step('copy again, no answer', () => click('summary')); step('wait', () => advance(5100));
-  check(tag('a copy the host never answers does not stay on Copying'), els.get('smb').textContent === 'Copy summary');
+  check(tag('a copy the host never answers does not stay on Copying'), els.get('smb').getAttribute('aria-label') === 'Copy summary');
   // Keyboard.
   const mkRb = (n) => { const r = Object.assign(V.mkEl(''), { dataset: { a: 'row' }, tabIndex: -1 }); r.classList.add('rb'); r.closest = (sel) => (sel === '.row' ? { dataset: { id: id(n) } } : null); return r; };
   const rbs = [mkRb(1), mkRb(2), mkRb(3)];
@@ -640,11 +733,11 @@ function viewScenario(W) {
   step('open r1', () => click('brx', { k: 'r1' }));
   check(tag('opening a repository asks the host for its branches once and shows Loading'), posts('branches').length === 1 && posts('branches')[0].key === 'r1' && /Loading\.\.\./.test(body.innerHTML));
   step('answer', () => deliver({ type: 'branchList', key: 'r1', list: [{ name: 'stale', merged: false, gone: true }, { name: '<b>x</b>', merged: true, gone: false }], more: 4, reason: '' })); advance(300);
-  check(tag('branches show with merged or gone, escaped names, a copy button each and a more count'), /<code>stale<\/code>/.test(body.innerHTML) && /<code>&lt;b&gt;x&lt;\/b&gt;<\/code>/.test(body.innerHTML) && /remote branch gone/.test(body.innerHTML) && (body.innerHTML.match(/data-a="brcopy"/g) || []).length === 2 && /\+4 more/.test(body.innerHTML));
+  check(tag('branches show with merged or gone, escaped names, a copy button each and a more count'), /<code[^>]*>stale<\/code>/.test(body.innerHTML) && /<code[^>]*>&lt;b&gt;x&lt;\/b&gt;<\/code>/.test(body.innerHTML) && /remote branch gone/.test(body.innerHTML) && (body.innerHTML.match(/data-a="brcopy"/g) || []).length === 2 && /\+4 more/.test(body.innerHTML));
   step('copy branch', () => click('brcopy', { k: 'r1', i: '1' }));
   check(tag('Copy delete command posts the repository key and the index only'), posts('copyBranch').some((p) => p.key === 'r1' && p.i === 1 && Object.keys(p).length === 3));
   step('collapse and reopen r1', () => { click('brx', { k: 'r1' }); click('brx', { k: 'r1' }); });
-  check(tag('reopening shows the kept answer without asking again'), posts('branches').length === 1 && /<code>stale<\/code>/.test(body.innerHTML));
+  check(tag('reopening shows the kept answer without asking again'), posts('branches').length === 1 && /<code[^>]*>stale<\/code>/.test(body.innerHTML));
   step('open r2', () => click('brx', { k: 'r2' })); step('fail r2', () => { deliver({ type: 'branchList', key: 'r2', list: null, reason: 'git error' }); advance(300); });
   check(tag('a failed read shows the reason and a Retry button'), /git error/.test(body.innerHTML) && /data-a="brx2" data-k="r2"/.test(body.innerHTML));
   step('retry r2', () => click('brx2', { k: 'r2' })); check(tag('Retry asks again'), posts('branches').filter((p) => p.key === 'r2').length === 2);
@@ -652,7 +745,7 @@ function viewScenario(W) {
   check(tag('a read nobody answers ends as timed out with Retry'), /timed out/.test(body.innerHTML));
   step('bad key', () => click('brx', { k: 'x1;rm' })); check(tag('a malformed repository key is ignored'), posts('branches').every((p) => /^r\d+$/.test(p.key)));
   step('new scan', () => { deliver({ type: 'chats', scan: 2, rows: rowsV, indexing: false, scanning: false }); advance(300); });
-  check(tag('a new scan collapses the repositories and drops the old answers'), !/<code>stale<\/code>/.test(body.innerHTML));
+  check(tag('a new scan collapses the repositories and drops the old answers'), !/<code[^>]*>stale<\/code>/.test(body.innerHTML));
   // Status line.
   step('time', () => advance(125000));
   check(tag('the status line reads Updated 2 min ago with a Refresh link'), /Updated 2 min ago/.test(els.get('upd').textContent) && els.get('updw').hidden === false && /data-a="refresh"/.test(page.slice(page.indexOf('id="updw"'), page.indexOf('id="updw"') + 400)));

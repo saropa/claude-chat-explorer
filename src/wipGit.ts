@@ -14,6 +14,9 @@ const GIT_OK = new Set(['rev-parse', 'symbolic-ref', 'status', 'worktree', 'for-
 export const CHECKS_FIELDS = 'statusCheckRollup,headRefOid';
 const PR_NUMBER = /^[1-9][0-9]{0,8}$/;
 export const isPrNumber = (n: number): boolean => PR_NUMBER.test(String(n));
+/** The one auth shape: `gh auth status`, read-only, never with --show-token or any other flag. */
+export const AUTH_ARGS = ['auth', 'status'];
+const isAuthStatus = (a: string[]): boolean => a.length === AUTH_ARGS.length && a.every((v, i) => v === AUTH_ARGS[i]);
 const isChecksView = (a: string[]): boolean => a.length === 5 && a[0] === 'pr' && a[1] === 'view' && PR_NUMBER.test(a[2]) && a[3] === '--json' && a[4] === CHECKS_FIELDS;
 
 /** The only list shape: exactly the argument list of wipPrs (current or older gh), nothing added, no -R, --web or -q. */
@@ -27,9 +30,9 @@ export async function git(c: Ctx, cwd: string, args: string[]): Promise<ExecResu
   return r;
 }
 
-/** Run an allowed gh command: `pr list ...`, or `pr view <digits> --json statusCheckRollup,headRefOid`. Anything else throws before it starts. */
+/** Run an allowed gh command: `auth status`, `pr list ...`, or `pr view <digits> --json statusCheckRollup,headRefOid`. Anything else throws before it starts. */
 export function gh(c: Ctx, cwd: string, args: string[]): Promise<ExecResult> {
-  if (!isPrList(args) && !isChecksView(args)) { throw new Error('gh command not allowed: ' + args[0]); }
+  if (!isPrList(args) && !isChecksView(args) && !isAuthStatus(args)) { throw new Error('gh command not allowed: ' + args[0]); }
   return (c.ghExec ?? c.exec)('gh', args, { cwd, timeout: c.ghMs, signal: c.signal, onStart: c.onStart });
 }
 

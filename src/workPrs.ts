@@ -4,13 +4,14 @@
 import { Limiter } from './execLimit';
 import { Exec } from './wipExec';
 import { CHECKS_FIELDS, Ctx, gh, isPrNumber } from './wipGit';
-import { cleanTitle, ghReason, PrCache, reviewWord } from './wipPrs';
+import { cleanTitle, fetchAuth, GhAuth, ghReason, PrCache, reviewWord } from './wipPrs';
 import { PrInfo } from './wipTypes';
 
 export const CHECKS_CACHE_MS = 2 * 60 * 1000;
 export const PR_LAYER_MS = 20000; // per repository: the time its own gh commands may run
 export const GH_MS = 8000;
 export const MAX_NAMES = 5;
+export const AUTH_CACHE_MS = 60 * 1000;
 const QUEUE_GRACE_MS = 60000;
 const NAME_MAX = 80;
 
@@ -76,11 +77,21 @@ export const prKey = (rk: string): string => 'p' + rk.slice(1);
 export class WorkPrs {
   private readonly checks = new Map<string, { at: number; r: CheckRoll }>();
   private readonly urls = new Map<string, Map<number, string>>();
+  private auth?: { at: number; p: Promise<GhAuth>; done: boolean };
 
   constructor(readonly o: PrOpts) {}
 
   /** The https link of a pull request listed in the last answer for a repository key; never a link the page sent. */
   url(rk: string, n: number): string | undefined { return this.urls.get(rk)?.get(n); }
+
+  /** `gh auth status`, kept 60 seconds (a forced scan asks again; a failure to ask, such as a timeout, is never kept). */
+  authStatus(c: Ctx, cwd: string, force: boolean, now: number): Promise<GhAuth> {
+    const a = this.auth;
+    if (a && !force && now - a.at < AUTH_CACHE_MS) { return a.p; }
+    const e = { at: now, done: false, p: fetchAuth(c, cwd).then((r) => { e.done = true; if (r.state === 'error' && this.auth === e) { this.auth = undefined; } return r; }) };
+    this.auth = e;
+    return e.p;
+  }
 
   begin(h: PrHost): PrRun { return new PrRun(this, h); }
 
@@ -100,6 +111,7 @@ export class WorkPrs {
 /** One scan's pull request work. */
 export class PrRun {
   private readonly repos = new Map<string, St>();
+  private authP?: Promise<void>;
 
   constructor(private readonly w: WorkPrs, private readonly h: PrHost) {}
 
@@ -112,10 +124,19 @@ export class PrRun {
   /** Page keys of layers without a final state. */
   open(): string[] { return [...this.repos.values()].filter((s) => !s.done).map((s) => prKey(s.rk)); }
 
+  /** The first repository starts the one `gh auth status` check of this scan; its answer is posted as a `gh` message. */
+  private checkAuth(cwd: string): void {
+    const ms = this.w.o.ghMs ?? GH_MS;
+    const exec = this.w.o.limiter.wrap(this.w.o.exec, 'bg');
+    const ctx: Ctx = { exec, ghExec: exec, signal: this.h.signal, gitMs: ms, ghMs: ms, flags: { gitMissing: false } };
+    this.authP = this.w.authStatus(ctx, cwd, this.h.force, this.now).then((r) => { this.put({ type: 'gh', state: r.state, reason: r.reason }); }).catch((e) => this.w.o.log?.('open work gh auth', e));
+  }
+
   /** A folder of repository rk ended on a branch (or none): start the layer the first time, and match that branch. */
   join(rk: string, common: string, cwd: string, branch?: string): void {
     let st = this.repos.get(rk);
     if (!st) {
+      if (!this.authP) { this.checkAuth(cwd); }
       st = { rk, common, cwd, branches: new Set(), final: new Set(), chain: Promise.resolve(), done: false, failed: false, force: this.h.force, sent: '' };
       this.repos.set(rk, st);
       this.put({ type: 'prs', repo: rk, state: 'queued' });
@@ -144,6 +165,7 @@ export class PrRun {
 
   /** Resolves when every repository's work, including work queued while waiting, has ended. */
   async settled(): Promise<void> {
+    await this.authP;
     for (;;) {
       const snap = [...this.repos.values()].map((s) => [s, s.chain] as const);
       await Promise.all(snap.map(([, c]) => c));

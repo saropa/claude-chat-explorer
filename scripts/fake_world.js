@@ -24,6 +24,7 @@ function fakeGit(world, o) {
     if (cmd !== 'git') { return { code: 1, stdout: '', stderr: 'no gh', timedOut: false, aborted: false }; }
     const r = world.byCwd(cwd);
     if (a.startsWith('rev-parse --show-toplevel')) { return r ? OKRES(r.top + '\n' + r.common + '\nrefs/heads/' + r.branch + '\n') : { code: 128, stdout: '', stderr: 'fatal: not a git repository', timedOut: false, aborted: false }; }
+    if (a.startsWith('remote get-url origin')) { return OKRES(world.remote !== undefined ? world.remote : 'git@github.com:acme/' + path.basename(r.repo.main) + '.git\n'); }
     if (a.startsWith('status')) { return OKRES(r.status); }
     if (a.startsWith('worktree list')) { return OKRES(r.repo.worktree); }
     if (a.startsWith('rev-parse --abbrev-ref origin/HEAD')) { return OKRES('origin/main\n'); }
