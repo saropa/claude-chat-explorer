@@ -77,7 +77,7 @@ async function limiterTests() {
 
 async function scanTests() {
   const world = mkWorld(3);
-  const mk = (g, extra) => new WorkScan(Object.assign({ exec: g.exec, limiter: new Limiter(4, 3), deadlineMs: 200, gitMs: 150, workspace: () => [] }, extra || {}));
+  const mk = (g, extra) => new WorkScan(Object.assign({ exec: g.exec, limiter: new Limiter(4, 3), deadlineMs: 400, gitMs: 150, workspace: () => [world.repos[0].top] }, extra || {}));
   // Streaming, one final state per folder, shared folder and repository work.
   {
     const g = fakeGit(world), scan = mk(g), c = collect();
@@ -93,9 +93,9 @@ async function scanTests() {
     check('scan: end is posted once with no open keys', c.of('end').length === 1 && c.of('end')[0].open.length === 0 && c.msgs[c.msgs.length - 1].m.type === 'end');
     const ok = c.finals.get(scan.keyOf(cwds[0]))[0];
     check('scan: facts carry branch, ahead, files and the first files', ok.facts.branch === 'main' && ok.facts.ahead === 1 && ok.facts.fileTotal === 2 && ok.facts.files.length === 2 && ok.facts.files[0].p === 'a.txt');
-    check('scan: worktree list ran once per repository (3 repositories)', g.calls.filter((x) => x.a.startsWith('worktree list')).length === 3);
+    check('scan: worktree list ran once, for the workspace repository only (3 folders in 3 repositories)', g.calls.filter((x) => x.a.startsWith('worktree list')).length === 1);
     check('scan: never more than 3 commands at once for the page', g.max <= 3);
-    check('scan: only allowed read-only git commands ran', g.calls.every((x) => x.cmd === 'git' && /^(rev-parse|status|worktree list|for-each-ref|rev-list)/.test(x.a)));
+    check('scan: only allowed read-only git commands ran', g.calls.every((x) => x.cmd === 'git' && /^(rev-parse|status|worktree list|for-each-ref|rev-list|remote get-url origin)/.test(x.a)));
     const repo = c.of('repo').filter((r) => r.state === 'ok' && r.key === ok.facts.rk).pop();
     check('scan: repository layer lists linked worktrees with locked and prunable parsed', repo && repo.worktrees.length === 4 && repo.worktrees.some((w) => w.locked && w.lockReason === 'reason here') && repo.worktrees.some((w) => w.prunable && w.missing));
     check('scan: standalone worktrees (no chat folder) are listed with no folder key and with their own git facts', repo.worktrees.filter((w) => !w.main && w.fks.length === 0).length === 3 && repo.worktrees.find((w) => w.branch === 'feat').facts.ok === true);
@@ -104,13 +104,13 @@ async function scanTests() {
     // Cache: a second scan makes no commands and reports the age; force bypasses it.
     const before = g.calls.length, c2 = collect();
     await scan.start(2, cwds.map((cwd) => ({ cwd, last: 1 })), false, c2.post);
-    check('scan: the second scan is served from the cache (no commands)', g.calls.length === before && c2.of('folder').every((m) => m.state !== 'queued') && c2.of('folder').some((m) => m.age !== undefined));
+    check('scan: the second scan is served from the cache (only the workspace folder is probed again)', g.calls.slice(before).every((x) => x.a.startsWith('rev-parse --show-toplevel') && x.cwd === world.repos[0].top) && c2.of('folder').every((m) => m.state !== 'queued') && c2.of('folder').some((m) => m.age !== undefined));
     await scan.start(3, cwds.map((cwd) => ({ cwd, last: 1 })), true, collect().post);
     check('scan: force bypasses the cache', g.calls.length > before);
   }
   // Folder deadline: a folder whose git never answers ends as timeout within deadline + 50 ms of its first command.
   {
-    const g = fakeGit(world), scan = mk(g), c = collect();
+    const g = fakeGit(world), scan = mk(g, { deadlineMs: 200 }), c = collect();
     g.hang.add(world.repos[1].top);
     await scan.start(1, [world.repos[0].top, world.repos[1].top].map((cwd) => ({ cwd, last: 1 })), false, c.post);
     const k = scan.keyOf(world.repos[1].top);
@@ -121,7 +121,7 @@ async function scanTests() {
   }
   // Deadline starts at the first command: queued behind busy sidebar commands, the folder still gets its full time.
   {
-    const g = fakeGit(world), lim = new Limiter(4, 3), scan = new WorkScan({ exec: g.exec, limiter: lim, deadlineMs: 100, gitMs: 150, workspace: () => [] }), c = collect();
+    const g = fakeGit(world), lim = new Limiter(4, 3), scan = new WorkScan({ exec: g.exec, limiter: lim, deadlineMs: 100, gitMs: 150, workspace: () => [world.repos[0].top] }), c = collect();
     const hog = lim.wrap((cmd, args) => new Promise((r) => setTimeout(() => r(OKRES('')), 150)), 'ui');
     const hogs = [0, 1, 2, 3].map((i) => hog('git', ['hog'], { cwd: '/', timeout: 1000 }));
     await scan.start(1, [{ cwd: world.repos[0].top, last: 1 }], false, c.post);
@@ -330,7 +330,7 @@ async function repoLayerTests() {
   {
     const g = fakeGit(world, { delay: 15 }), { t, ctx } = mkCtx(g);
     const out = await readRepo(ctx, repo.common, main);
-    check('repo layer: 12 worktrees are read with at most 2 status calls at once (saw ' + t.max + ')', t.max >= 1 && t.max <= 2 && typeof out !== 'string' && out.worktrees.filter((w) => w.facts && w.facts.ok).length === 12);
+    check('repo layer: 12 worktrees are read with at most 2 status calls at once (saw ' + t.max + ')', t.max >= 1 && t.max <= 2 && typeof out !== 'string' && out.worktrees.filter((w) => w.facts && w.facts.ok).length === 13); // 12 linked worktrees and the main checkout
     check('repo layer: the worktree list is asked with --porcelain -z', t.wl.length === 1 && t.wl[0] === 'worktree list --porcelain -z');
   }
   // A timeout mid-way: the finished worktrees keep their facts, the rest stay unread (no canceled error is stored), nothing new starts after the abort.
@@ -350,22 +350,21 @@ async function repoLayerTests() {
     // Event-driven: the first 4 statuses answer normally, every later one hangs until aborted, so the deadline (not timing luck) ends the repository.
     const g = fakeGit(world, { delay: 40 }); let statuses = 0;
     const exec = (cmd, args, o) => { if (args.slice(2)[0] === 'status' && ++statuses > 4) { return new Promise((res) => { if (o.signal) { if (o.signal.aborted) { res(ABORTED); } else { o.signal.addEventListener('abort', () => res(ABORTED), { once: true }); } } }); } return g.exec(cmd, args, o); };
-    const scan = new WorkScan({ exec, limiter: new Limiter(4, 3), deadlineMs: 800, gitMs: 700, workspace: () => [] }), c = collect();
+    const scan = new WorkScan({ exec, limiter: new Limiter(4, 3), deadlineMs: 800, gitMs: 700, workspace: () => [main] }), c = collect();
     await scan.start(1, [{ cwd: main, last: 1 }], false, c.post);
     const fin = c.of('repo').filter((m) => m.state !== 'running' && m.state !== 'queued').pop();
     const withFacts = fin ? fin.worktrees.filter((w) => w.facts && w.facts.ok).length : -1;
     check('scan: a timed-out repository still renders its finished worktrees (' + (fin && fin.state) + ', ' + withFacts + ' with facts)', fin && fin.state === 'timeout' && withFacts >= 1 && withFacts < 12);
   }
-  // queued, then running when the repository lane starts; each repository waits its turn on the chain.
+  // queued, then running when the repository lane starts; only the workspace repository gets a layer, and a folder of another repository is posted outside the workspace.
   {
-    const w3 = mkWorld(3), g = fakeGit(w3, { delay: 30 }), scan = new WorkScan({ exec: g.exec, limiter: new Limiter(4, 3), deadlineMs: 400, gitMs: 200, workspace: () => [] }), c = collect();
+    const w3 = mkWorld(3), g = fakeGit(w3, { delay: 30 }), scan = new WorkScan({ exec: g.exec, limiter: new Limiter(4, 3), deadlineMs: 400, gitMs: 200, workspace: () => [w3.repos[0].top] }), c = collect();
     await scan.start(1, w3.repos.map((r, i) => ({ cwd: r.top, last: 10 - i })), false, c.post);
     const by = new Map();
     c.msgs.filter((x) => x.m.type === 'repo').forEach((x) => { by.set(x.m.key, (by.get(x.m.key) || []).concat({ s: x.m.state, at: x.at })); });
     const keys = [...by.keys()];
-    check('scan: a repository is posted queued first, then running (' + keys.map((k) => by.get(k).map((v) => v.s).join('>')).join(' | ') + ')', keys.length === 3 && keys.every((k) => by.get(k)[0].s === 'queued' && by.get(k).some((v) => v.s === 'running') && by.get(k).findIndex((v) => v.s === 'running') > 0));
-    const lastKey = keys[2], prevOk = by.get(keys[1]).find((v) => v.s === 'ok');
-    check('scan: a repository waiting on the chain is not running before the repository ahead of it ended', prevOk && by.get(lastKey).find((v) => v.s === 'running').at >= prevOk.at);
+    check('scan: a repository is posted queued first, then running (' + keys.map((k) => by.get(k).map((v) => v.s).join('>')).join(' | ') + ')', keys.length === 1 && keys.every((k) => by.get(k)[0].s === 'queued' && by.get(k).some((v) => v.s === 'running') && by.get(k).findIndex((v) => v.s === 'running') > 0));
+    check('scan: folders of the other repositories get ws false and no repository layer', c.of('folder').filter((m) => m.state === 'ok' && m.facts && m.facts.ws === false).length === 2);
   }
 }
 
@@ -415,8 +414,35 @@ async function prTests() {
   }
 }
 
+// Project status: a repository with worktrees, an unmerged branch and a backup branch but no chat is read from the workspace folder alone.
+async function projectStatusTests() {
+  const world = mkWorld(1), e = world.repos[0];
+  e.repo.branches = 'main\torigin/main\t\t1700000300\tAda Lovelace\nfeat\torigin/feat\t\t1700000200\tGrace Hopper\nold\t\t\t1700000100\tAda Lovelace\nbackup-2026\t\t\t1700000000\tLinus T\tTorvalds\n';
+  e.repo.diverge = { feat: [2, 1], 'backup-2026': [5, 0], old: [0, 3] };
+  const run = async (w) => { const g = fakeGit(w), scan = new WorkScan({ exec: g.exec, limiter: new Limiter(4, 3), deadlineMs: 600, gitMs: 300, workspace: () => [e.top] }), c = collect(); await scan.start(1, [{ cwd: e.top, last: 0 }], false, c.post); return { g, c, scan }; };
+  const { g, c, scan } = await run(world);
+  const repo = c.of('repo').filter((r) => r.state === 'ok').pop();
+  check('status: a repo with worktrees and no chat is found from the workspace folder', !!repo && repo.worktrees.length === 4 && repo.ws === true);
+  check('status: every local branch is listed with date, author, upstream and gone', repo && repo.branches.length === 4 && repo.branches[0].n === 'main' && repo.branches[0].au === 'Ada Lovelace' && repo.branches[0].ts === 1700000300 && repo.branches.find((b) => b.n === 'feat').up === true && repo.branches.find((b) => b.n === 'backup-2026').au === 'Linus T Torvalds' && repo.bmore === 0);
+  check('status: ahead and behind the default branch come from one for-each-ref call', repo && repo.branches.find((b) => b.n === 'feat').a === 2 && repo.branches.find((b) => b.n === 'feat').b === 1 && repo.branches.find((b) => b.n === 'backup-2026').a === 5 && g.calls.filter((x) => /ahead-behind/.test(x.a)).length === 1 && !g.calls.some((x) => /rev-list --left-right/.test(x.a)));
+  check('status: a worktree carries its branch distance, and the main checkout its changed-file count', repo && repo.worktrees.find((w) => w.branch === 'feat').da === 2 && repo.worktrees.find((w) => w.branch === 'feat').db === 1 && repo.worktrees[0].facts && repo.worktrees[0].facts.ok && repo.worktrees[0].facts.fileTotal === 2);
+  check('status: the github link exists on the host only, the page gets a flag', repo.gh === true && scan.repoUrl(c.of('folder').find((f) => f.facts).facts.rk) === 'https://github.com/acme/repo0' && !JSON.stringify(c.msgs.map((x) => x.m)).includes('https://github.com'));
+  check('status: only read-only git commands ran', g.calls.every((x) => x.cmd === 'git' && /^(rev-parse|status|worktree list|for-each-ref|rev-list|remote get-url origin)/.test(x.a)));
+  // A git without ahead-behind: one rev-list per branch instead, same numbers.
+  world.noAheadBehind = true;
+  const r2 = await run(world), repo2 = r2.c.of('repo').filter((r) => r.state === 'ok').pop();
+  check('status: older git falls back to one rev-list per branch with the same numbers', repo2 && repo2.branches.find((b) => b.n === 'feat').a === 2 && repo2.branches.find((b) => b.n === 'feat').b === 1 && r2.g.calls.some((x) => /rev-list --left-right --count origin\/main\.\.\.refs\/heads\/feat/.test(x.a)));
+  world.noAheadBehind = false;
+  // Not a GitHub remote: no link.
+  world.remote = 'git@example.com:acme/x.git\n';
+  const r3 = await run(world);
+  check('status: a remote that is not github.com gives no repository link', r3.c.of('repo').filter((r) => r.state === 'ok').pop().gh === false && r3.scan.repoUrl(r3.c.of('folder').find((f) => f.facts).facts.rk) === undefined);
+  world.remote = undefined;
+}
+
 (async () => {
   try {
+    await projectStatusTests();
     await mergedTests();
     await limiterTests();
     await scanTests();

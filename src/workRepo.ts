@@ -1,12 +1,13 @@
 /** Repository layer of the Open Work scan: worktrees, default branch, merged branches, and the text of the remove command. Read-only. */
 import * as fs from 'fs';
 import * as path from 'path';
-import { commitMergedOf, Ctx, defaultBranchOf, git, mergedOf, statusOf, whyFailed } from './wipGit';
-import { parseLocalBranches, parseWorktrees, REF_FORMAT, StatusParts } from './wipParse';
+import { aheadBehindAll, commitMergedOf, Ctx, defaultBranchOf, divergeOf, git, mergedOf, statusOf, whyFailed } from './wipGit';
+import { BRANCH_FORMAT, BranchInfo, parseBranchInfo, parseLocalBranches, parseWorktrees, REF_FORMAT, StatusParts } from './wipParse';
 import { WorktreeInfo } from './wipTypes';
 
 export const MAX_WT_STATUS = 20;
 export const MAX_LOCALS = 3000;
+export const MAX_DIVERGE = 80; // branches whose distance from the default branch is read (worktree branches first, then the newest)
 export const REPO_GIT_SLOTS = 2; // the page lane has 3 git slots: 2 for folders, the repository layer keeps to its own share so it cannot starve them or itself
 
 /** Git facts of one worktree as the page needs them. */
@@ -18,10 +19,15 @@ export interface WtOut extends WorktreeInfo {
   facts?: WtFacts;
 }
 
+/** A local branch of the project status: upstream facts, last commit date and author, and its distance from the default branch (undefined when not read). */
+export interface BranchRow extends BranchInfo { ahead?: number; behind?: number; }
+
 /** What the repository layer found. */
 export interface RepoOut {
   common: string; name: string; main: string; def?: string; defLocal?: string; merged: string[]; worktrees: WtOut[]; reason?: string;
   locals?: string[]; // names of the local branches (capped), so the pull request layer can match branches that have no worktree
+  info?: BranchRow[]; // every local branch (capped at MAX_LOCALS), newest commit first, for the project status
+  ghUrl?: string; // https://github.com/<owner>/<repo> from the origin remote; stays on the host (the page only learns that a link exists)
 }
 
 const real = async (p: string): Promise<string> => { try { return await fs.promises.realpath(p); } catch { return p; } };
@@ -56,11 +62,29 @@ export async function readRepo(c: Ctx, common: string, top: string, onPartial?: 
     await markMerged(c, top, out, typeof m !== 'string');
   }
   onPartial?.(out);
-  const lb = await git(c, top, ['for-each-ref', '--format=' + REF_FORMAT, 'refs/heads']);
-  if (lb.code === 0) { out.locals = parseLocalBranches(lb.stdout).map((b) => b.name).filter((n) => !n.startsWith('-')).slice(0, MAX_LOCALS); }
-  const linked = worktrees.filter((w) => !w.main && !w.missing).slice(0, MAX_WT_STATUS);
+  const [lb, ro] = await Promise.all([git(c, top, ['for-each-ref', '--format=' + BRANCH_FORMAT, 'refs/heads']), git(c, top, ['remote', 'get-url', 'origin'])]);
+  if (lb.code === 0) {
+    out.locals = parseLocalBranches(lb.stdout).map((b) => b.name).filter((n) => !n.startsWith('-')).slice(0, MAX_LOCALS);
+    out.info = parseBranchInfo(lb.stdout).filter((b) => !b.name.startsWith('-')).sort((x, y) => y.ts - x.ts || x.name.localeCompare(y.name)).slice(0, MAX_LOCALS);
+  }
+  const gh = ro.code === 0 ? githubRepoOf(ro.stdout) : undefined;
+  if (gh) { out.ghUrl = 'https://github.com/' + gh.owner + '/' + gh.repo; }
+  onPartial?.(out);
+  await diverge(c, top, out);
+  const linked = worktrees.filter((w) => !w.missing).slice(0, MAX_WT_STATUS); // the main checkout too: the project status lists every worktree with its changed-file count
   await capped(c, linked, async (w) => { const f = factsOf(await statusOf(c, w.path)); if (!c.signal?.aborted) { w.facts = f; } }); // after a timeout the finished worktrees keep their facts; the rest stay unread
   return out;
+}
+
+/** Fill ahead and behind (against the default branch) on the branches: one for-each-ref call, or, when git cannot do that, one rev-list per branch (worktree branches first, then the newest, up to MAX_DIVERGE). */
+async function diverge(c: Ctx, top: string, r: RepoOut): Promise<void> {
+  if (!r.def || !r.info) { return; }
+  const all = await aheadBehindAll(c, top, r.def);
+  if (c.signal?.aborted) { return; }
+  if (typeof all !== 'string') { for (const b of r.info) { const d = all.get(b.name); if (d) { b.ahead = d.ahead; b.behind = d.behind; } } return; }
+  const wt = new Set(r.worktrees.map((w) => w.branch));
+  const todo = [...r.info.filter((b) => wt.has(b.name)), ...r.info.filter((b) => !wt.has(b.name))].filter((b) => b.name !== r.defLocal).slice(0, MAX_DIVERGE);
+  await capped(c, todo, async (b) => { const d = await divergeOf(c, top, r.def!, 'refs/heads/' + b.name); if (d && !c.signal?.aborted) { b.ahead = d.ahead; b.behind = d.behind; } });
 }
 
 /** Run fn over the items with at most REPO_GIT_SLOTS in flight; nothing new starts once the lane is aborted. */

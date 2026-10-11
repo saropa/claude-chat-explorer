@@ -15,7 +15,8 @@ function pwatchKey(rk){clearTimeout(pwatch[rk]);pwatch[rk]=setTimeout(()=>{delet
 function prDone(rk){clearTimeout(pwatch[rk]);delete pwatch[rk];}
 function onPrs(d){if(d.scan!==scan||typeof d.repo!=='string'||!prsOn)return;touch();const p=prs[d.repo]||(prs[d.repo]={chk:{},by:{},st:'',reason:''});
 p.st=String(d.state||'');p.reason=d.reason?String(d.reason):'';if(d.state==='ok')p.at=Date.now();
-if(d.state==='ok'&&d.by&&typeof d.by==='object'){p.by={};Object.keys(d.by).forEach(b=>{const x=d.by[b];if(x&&x.n>0)p.by[b]={n:Number(x.n),title:String(x.title||''),draft:!!x.draft,review:revWord(String(x.review||'')),link:!!x.link};});}
+if(d.state==='ok'&&d.by&&typeof d.by==='object'){p.by={};Object.keys(d.by).forEach(b=>{const x=d.by[b];if(x&&x.n>0)p.by[b]={n:Number(x.n),title:String(x.title||''),draft:!!x.draft,review:revWord(String(x.review||'')),link:!!x.link};});
+p.all=Array.isArray(d.all)?d.all.slice(0,100).filter(x=>x&&x.n>0&&typeof x.b==='string').map(x=>({b:x.b,n:Number(x.n),title:String(x.title||''),draft:!!x.draft,review:revWord(String(x.review||'')),link:!!x.link})):[];}
 prDone(d.repo);if(d.state==='checking'||d.state==='ok')pwatchKey(d.repo);sched();}
 function onChecks(d){if(d.scan!==scan||typeof d.repo!=='string'||!prsOn||!(d.n>0))return;touch();const p=prs[d.repo]||(prs[d.repo]={chk:{},by:{},st:'',reason:''}),n=Number(d.n),o=p.chk[n];
 if(d.state==='checking'){if(o&&o.st!=='checking'&&o.st!=='unavailable')o.re=true;else p.chk[n]={st:'checking'};}

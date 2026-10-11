@@ -3,11 +3,10 @@
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
 ## Unreleased
-- Added: branches with no chat and no worktree are listed, labelled merged, remote gone, or not merged.
-- Added: every git worktree of a repository is listed, including idle ones. Worktree rows have a "worktree" label and show the full path as a tooltip.
-- Added: every section header (bands and "Branches without a worktree") expands and collapses. The state is remembered per workspace.
-- Changed: "This workspace only" is on by default.
-- Changed: the "By repository" grouping is removed.
+- Changed: the Open Work page is now Project status for the one repository of the first workspace folder. The body is three tables (worktrees, branches, pull requests) with a colored health badge on each row: dirty, unpushed, behind, remote gone, failing checks, needs review, and a clear "safe to remove" for merged clean branches and worktrees. Chats sit inside the worktree or branch row they belong to (count and expander, with title, age, context %, state and the usual icon actions); chats outside git or with no matching branch are under "Chats without a branch". The attention chips (need you, to finish, waiting, to tidy) count branches, worktrees, pull requests and chats together and filter the rows. With no git repository in the workspace folder the page says "Open a git repository folder". The command is now titled "Saropa Chat Explorer: Project Status" (command id unchanged).
+- Added: every git worktree of the repository is listed, including idle ones, with the full path as a tooltip.
+- Added: every section header expands and collapses. The state is remembered per workspace.
+- Removed: the "This workspace only" toggle, the "Group chats by" menu, the repository sort and the separate "Branches without a worktree" section. Only the workspace repository is read and shown.
 - Changed: tighter layout. Action icons sit beside the title on wide windows; narrow windows use a grid.
 - Fixed: idle worktrees disappeared when the idle filter was on.
 

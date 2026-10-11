@@ -20,7 +20,7 @@ const list = JSON.parse(fs.readFileSync(FIX('cli_list.json'), 'utf8')).map((x) =
 const CASES = [
   { n: 1, pr: 14583, branch: 'bagtoad/add-accessibility-md', band: 'To finish', cell: /approved/, what: 'approved with passing checks' },
   { n: 2, pr: 13899, branch: 'fix/13804-gh-issue-create-errors-after-successful', band: 'To finish', cell: /changes requested/, what: 'changes requested' },
-  { n: 3, pr: 14580, branch: 'bagtoad/artifact-restore-version', band: 'Waiting on others', cell: /review requested/, what: 'review requested' },
+  { n: 3, pr: 14580, branch: 'bagtoad/artifact-restore-version', band: 'Waiting on others', cell: /review requested/, badge: /needs review/, what: 'review requested' },
   { n: 4, pr: 13665, branch: 'use-actions-firewall', band: 'Waiting on others', cell: /approved/, what: 'approved but the checks lookup failed (unknown facts never move a row)' },
 ];
 const exec = async (cmd, args) => {
@@ -41,28 +41,30 @@ const target = (a) => { const t = { dataset: { a }, closest: (sel) => (sel === '
   await run.settled();
   const by = msgs.find((m) => m.type === 'prs' && m.state === 'ok').by;
   check('e2e: the host posts lower case review words', by[CASES[0].branch].review === 'approved' && by[CASES[1].branch].review === 'changes requested' && by[CASES[2].branch].review === 'review requested');
-  const H = createHarness({ page, name: 'e2e', width: 1400, popIds: ['grb', 'grm', 'srb', 'srm', 'shb', 'shm'] });
+  const H = createHarness({ page, name: 'e2e', width: 1400, popIds: ['srb', 'srm', 'shb', 'shm'] });
   H.start();
-  H.deliver({ type: 'init', v: 3, prsOn: true, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {}, view: {} });
+  H.deliver({ type: 'init', v: 3, prsOn: true, days: 14, hidden: [], ws: 1, done: {}, view: {} });
   H.deliver({ type: 'dots', map: {} });
   const rows = CASES.map((c) => ({ id: id(c.n), title: 'Chat ' + c.n, project: 'cli', last: Date.now() - 3600e3, fk: 'f' + c.n }));
   H.deliver({ type: 'chats', scan: 1, rows, indexing: false, scanning: true });
   for (const c of CASES) { H.deliver({ type: 'folder', scan: 1, key: 'f' + c.n, state: 'ok', facts: { name: 'cli', branch: c.branch, detached: false, upstream: 'origin/' + c.branch, ahead: 0, behind: 0, gone: false, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], rk: 'r1', ws: true } }); }
+  H.deliver({ type: 'repo', scan: 1, key: 'r1', state: 'ok', name: 'cli', def: 'origin/trunk', defLocal: 'trunk', merged: [], ws: true, gh: true, branches: [],
+    worktrees: CASES.map((c) => ({ k: 'w' + c.n, name: 'cli-' + c.n, path: '/p/cli-' + c.n, branch: c.branch, detached: false, main: false, missing: false, locked: false, prunable: false, merged: false, ws: false, fks: ['f' + c.n], facts: { ok: true, fileTotal: 0, ahead: 0, behind: 0, gone: false, files: [] } })) });
   for (const m of msgs) { H.deliver(m); }
   H.advance(300);
   const html = H.els.get('body').innerHTML;
+  const cnt = H.els.get('cnt').innerHTML;
+  check('e2e: the chips count the two finished PR rows and the two waiting ones over worktrees, PRs and chats together', /2 to finish/.test(cnt) && /2 waiting/.test(cnt));
   for (const c of CASES) {
-    const j = html.indexOf('data-id="' + id(c.n) + '"');
-    const secs = [...html.matchAll(/<section class="band" aria-label="([^"]*)"/g)].filter((m) => m.index < j);
-    const cell = /<span class="pr">(.*?)<\/span><span class="kc">/.exec(html.slice(j));
-    check('e2e: PR ' + c.pr + ' (' + c.what + ') lands in ' + c.band + ', got ' + (secs.length ? secs[secs.length - 1][1] : 'none'), secs.length > 0 && secs[secs.length - 1][1] === c.band);
-    check('e2e: PR ' + c.pr + ' shows its review word in the PR column', !!cell && c.cell.test(cell[1]));
+    const prRow = new RegExp('<tr data-n="' + c.pr + '">[^]*?</tr>').exec(html), wtRow = new RegExp('<tr data-w="w' + c.n + '">[^]*?</tr>').exec(html);
+    check('e2e: PR ' + c.pr + ' (' + c.what + ') shows its review word in the pull request table', !!prRow && c.cell.test(prRow[0]));
+    check('e2e: PR ' + c.pr + ' (' + c.what + ') shows the review state as a badge on its worktree row', !!wtRow && (c.badge || c.cell).test(wtRow[0].replace(/<[^>]+>/g, ' ')));
   }
   H.fire(H.els.get('body'), 'click', { target: target('summary') });
   const sum = H.posted.find((p) => p.type === 'summary');
   check('e2e: the summary names the review state in plain words', !!sum && /PR #14583 approved/.test(sum.text) && /PR #13899 changes requested/.test(sum.text) && !/APPROVED|CHANGES_REQUESTED|REVIEW_REQUIRED/.test(sum.text));
   H.errors.forEach((e) => failures.push(e));
   if (failures.length) { console.error('check_prs_e2e FAILED (' + failures.length + ')'); failures.forEach((f) => console.error('  - ' + f)); process.exit(1); }
-  console.log('check_prs_e2e OK: real recorded gh JSON through WorkPrs into the page: review words, bands, summary, unknown checks');
+  console.log('check_prs_e2e OK: real recorded gh JSON through WorkPrs into the page: review words, chips, summary, unknown checks');
   process.exit(0);
 })().catch((e) => { console.error('check_prs_e2e crashed: ' + ((e && e.stack) || e)); process.exit(1); });

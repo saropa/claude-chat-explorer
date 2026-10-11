@@ -11,6 +11,8 @@ export const CHECKS_CACHE_MS = 2 * 60 * 1000;
 export const PR_LAYER_MS = 20000; // per repository: the time its own gh commands may run
 export const GH_MS = 8000;
 export const MAX_NAMES = 5;
+export const MAX_PR_ROWS = 100; // open pull requests listed for the project status
+export const MAX_EXTRA_CHECKS = 10; // pull requests on no known branch (remote only) whose checks are looked up too
 export const AUTH_CACHE_MS = 60 * 1000;
 const QUEUE_GRACE_MS = 60000;
 const NAME_MAX = 80;
@@ -202,7 +204,13 @@ export class PrRun {
     for (const b of st.branches) { const p = st.by?.get(b); if (p && isPrNumber(p.number)) { out.push([b, p]); } } // a number gh would never print is skipped, never fails the repository
     return out;
   }
-  private todo(st: St): Array<[string, PrInfo]> { return this.matched(st).filter(([, p]) => !st.final.has(p.number)); }
+  /** Open pull requests on a branch no worktree, chat or local branch names (remote-only), newest first: the project status shows their checks too, but only the first few are looked up. */
+  private extras(st: St): Array<[string, PrInfo]> {
+    const out: Array<[string, PrInfo]> = [];
+    for (const [b, p] of st.by ?? []) { if (!st.branches.has(b) && isPrNumber(p.number)) { out.push([b, p]); } }
+    return out.sort((a, b) => b[1].number - a[1].number).slice(0, MAX_EXTRA_CHECKS);
+  }
+  private todo(st: St): Array<[string, PrInfo]> { return [...this.matched(st), ...this.extras(st)].filter(([, p]) => !st.final.has(p.number)); }
 
   private finish(st: St): void {
     st.force = false; // the forced first run is over; later work may use the caches
@@ -257,8 +265,10 @@ export class PrRun {
   private postList(st: St): void {
     const by: { [b: string]: object } = {};
     for (const [b, p] of this.matched(st)) { by[b] = { n: p.number, title: p.title, draft: p.draft, review: reviewWord(p.review), link: !!p.url }; }
-    const sig = JSON.stringify(by);
-    if (sig !== st.sent) { st.sent = sig; this.put({ type: 'prs', repo: st.rk, state: 'ok', by }); }
+    const all: object[] = [];
+    for (const [b, p] of st.by ?? []) { if (all.length < MAX_PR_ROWS && isPrNumber(p.number)) { all.push({ b, n: p.number, title: p.title, draft: p.draft, review: reviewWord(p.review), link: !!p.url }); } } // every open pull request of this repository, with or without a local branch
+    const sig = JSON.stringify([by, all]);
+    if (sig !== st.sent) { st.sent = sig; this.put({ type: 'prs', repo: st.rk, state: 'ok', by, all }); }
   }
 
   /** One checks lookup: the 2 minute cache first (keyed by head commit), then gh view, raced against the layer deadline. */

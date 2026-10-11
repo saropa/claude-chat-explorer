@@ -28,15 +28,17 @@ function fakeGit(world, o) {
     if (a.startsWith('status')) { return OKRES(r.status); }
     if (a.startsWith('worktree list')) { return OKRES(r.repo.worktree); }
     if (a.startsWith('rev-parse --abbrev-ref origin/HEAD')) { return OKRES('origin/main\n'); }
+    if (a.startsWith('for-each-ref') && a.includes('(ahead-behind:')) { return world.noAheadBehind ? { code: 128, stdout: '', stderr: 'fatal: unknown field name: ahead-behind', timedOut: false, aborted: false } : OKRES((r.repo.branches || '').split('\n').filter(Boolean).map((l) => l.split('\t')[0]).map((k) => k + '\t' + ((r.repo.diverge && r.repo.diverge[k]) || [0, 0]).join(' ')).join('\n') + '\n'); } // name TAB ahead behind
     if (a.startsWith('for-each-ref')) { return OKRES(a.includes('%09%(upstream:track)') ? r.repo.branches || '' : r.repo.merged); }
     if (a.startsWith('rev-list --count')) { return OKRES('0\n'); }
+    if (a.startsWith('rev-list --left-right --count')) { const b = /refs\/heads\/(.+)$/.exec(a); const d = (r.repo.diverge && b && r.repo.diverge[b[1]]) || [0, 0]; return OKRES(d[1] + '\t' + d[0] + '\n'); } // behind TAB ahead of the default branch
     if (a.startsWith('rev-list --max-count')) { return OKRES('commit abc\nabc1234\tfirst commit\ncommit def\ndef5678\tsecond\n'); }
     return { code: 1, stdout: '', stderr: 'unexpected ' + a, timedOut: false, aborted: false };
   };
   return f;
 }
 
-/** Repositories on disk: main checkout, optional linked worktrees. */
+/** Repositories on disk: main checkout, linked worktrees. Several repositories can exist on disk, but the scan reads a repository layer only for the workspace repository (the first workspace folder's): pass workspace: () => [repo.top] to the scan. */
 function mkWorld(base0, n) {
   const base = fs.realpathSync(base0); // the scan resolves links, so the fake layout must already be link-free
   const repos = [];

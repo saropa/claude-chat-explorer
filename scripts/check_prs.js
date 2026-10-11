@@ -143,11 +143,11 @@ async function main() {
     check('stream: the layer starts queued before any gh call', r.of('prs')[0].state === 'queued' && g.calls.length <= 1);
     check('stream: settles', await settle(r));
     const kinds = r.msgs.filter((x) => x.m.type !== 'gh').map((x) => x.m.type + ':' + (x.m.state || '') + (x.m.n ? '#' + x.m.n : ''));
-    check('stream: order is queued, checking, ok, checking per matched PR, then results one at a time (' + kinds.join(' ') + ')', kinds.join(' ') === 'prs:queued prs:checking prs:ok checks:checking#1 checks:checking#2 checks:failing#1 checks:passing#2');
+    check('stream: order is queued, checking, ok, checking per matched PR, then results one at a time, the remote-only PR 3 last (' + kinds.join(' ') + ')', kinds.join(' ') === 'prs:queued prs:checking prs:ok checks:checking#1 checks:checking#2 checks:checking#3 checks:failing#1 checks:passing#2 checks:none#3');
     check('stream: the list posts only the matched PRs by branch, forks and unmatched never', (() => { const by = r.of('prs').find((m) => m.state === 'ok').by; return Object.keys(by).sort().join() === 'a,b' && by.a.n === 1 && by.a.link === true && !('forkb' in by); })());
-    check('stream: PR 3 (branch c) and the fork PR get no check lookup', g.views.join() === '1,2');
+    check('stream: PR 3 (branch c, no local branch) is looked up after the matched ones, the fork PR never', g.views.join() === '1,2,3');
     const v = g.calls.filter((c) => / view /.test(' ' + c.args));
-    check('stream: the check command is exactly pr view <n> --json statusCheckRollup,headRefOid', v.length === 2 && v.every((c) => /^pr view \d+ --json statusCheckRollup,headRefOid$/.test(c.args) && c.cmd === 'gh'));
+    check('stream: the check command is exactly pr view <n> --json statusCheckRollup,headRefOid', v.length === 3 && v.every((c) => /^pr view \d+ --json statusCheckRollup,headRefOid$/.test(c.args) && c.cmd === 'gh'));
     check('stream: one lookup at a time for one repository', g.max === 1);
     const f = r.of('checks').find((m) => m.state === 'failing');
     check('stream: the failing result carries counts and the failing check names', f.total === 1 && f.failing === 1 && f.names.join() === 'lint');
@@ -192,7 +192,7 @@ async function main() {
     const wp = mkGh({ lists: { '*': [pr(1, 'a'), pr(5, 'lonely'), pr(6, 'remoteonly')] }, views: { 1: [], 5: [run1('t', 'COMPLETED', 'FAILURE')] } }), ep = env(wp), rp = ep.begin();
     rp.run.join('r1', '/c/.git', '/c', 'a'); rp.run.addBranches('r1', ['a', 'lonely', 'plain']); await settle(rp);
     const by = rp.of('prs').filter((m) => m.state === 'ok').pop().by;
-    check('PR-only branch: a local branch with an open PR is in the list with its checks; a PR whose branch is not local is not', Object.keys(by).sort().join() === 'a,lonely' && wp.views.join() === '1,5' && rp.of('checks').some((m) => m.n === 5 && m.state === 'failing'));
+    check('PR-only branch: a local branch with an open PR is in the list with its checks; a PR whose branch is not local is not in by but is in all with its checks looked up (project status)', Object.keys(by).sort().join() === 'a,lonely' && wp.views.join() === '1,5,6' && rp.of('prs').filter((m) => m.state === 'ok').pop().all.map((x) => x.b).sort().join() === 'a,lonely,remoteonly' && rp.of('checks').some((m) => m.n === 5 && m.state === 'failing'));
     // Remote links: github.com only, https only, branch segments encoded.
     check('remote: https, scp and ssh forms of github.com give the owner and repository', ['https://github.com/o/r.git', 'https://user@github.com/o/r', 'git@github.com:o/r.git', 'ssh://git@github.com/o/r.git', 'git://github.com/o/r/'].every((u) => { const x = githubRepoOf(u + '\n'); return x && x.owner === 'o' && x.repo === 'r'; }));
     check('remote: other hosts, look-alike hosts, odd names and local paths give nothing', ['https://gitlab.com/o/r.git', 'https://github.com.evil.example/o/r', 'https://github.com@evil.example/o/r', 'git@github.com:o/..', 'https://github.com/o/r/extra', '/home/me/repo', 'file:///x/github.com/o/r', 'https://github.com/o%2Fx/r', ''].every((u) => githubRepoOf(u) === undefined));
@@ -214,7 +214,7 @@ async function main() {
     world.views[1] = [run1('lint', 'COMPLETED', 'FAILURE')];
     const before = g.views.length;
     r.run.retry('r1'); await settle(r);
-    check('retry: the list and both PRs are looked up again, ignoring the caches', g.lists === 2 && g.views.length === before + 2);
+    check('retry: the list and both PRs are looked up again, ignoring the caches', g.lists === 2 && g.views.length === before + 3);
     check('retry: PR 1 now shows failing', r.of('checks').filter((m) => m.n === 1).pop().state === 'failing');
     check('retry: the layer posts queued again first', r.of('prs').filter((m) => m.state === 'queued').length === 2);
   }
@@ -330,7 +330,7 @@ async function main() {
       const git = fakeGit(world), gh = mkGh(ghWorld);
       const exec = (cmd, args, o) => (cmd === 'gh' ? gh.exec(cmd, args, o) : git.exec(cmd, args, o));
       const lim = new Limiter(4, 3), ghl = new Limiter(2, 2);
-      const scan = new WorkScan({ exec, limiter: lim, deadlineMs: 5000, gitMs: 3000, workspace: () => [], prsOn: opt.prsOn, prs: new WorkPrs({ exec, limiter: ghl, cache: new PrCache(), deadlineMs: 20000, now: Date.now }) });
+      const scan = new WorkScan({ exec, limiter: lim, deadlineMs: 5000, gitMs: 3000, workspace: () => [world.repos[0].top], prsOn: opt.prsOn, prs: new WorkPrs({ exec, limiter: ghl, cache: new PrCache(), deadlineMs: 20000, now: Date.now }) });
       return { git, gh, scan, c: collect() };
     };
     const folders = world.repos.map((r, i) => ({ cwd: r.top + '-wt-a', last: 10 - i }));
@@ -339,14 +339,14 @@ async function main() {
       let done = false; s.scan.start(1, folders, false, s.c.post).then(() => { done = true; });
       check('scan with PRs: finishes', await until(() => done, 100, 120000));
       const prs = s.c.of('prs'), chk = s.c.of('checks'), end = s.c.of('end')[0];
-      check('scan with PRs: every repository posts queued then an ok list with only its own repository PR (fork PR and unrelated PR left out)', world.repos.every((_, i) => { const ok1 = prs.find((m) => m.repo === 'r' + (i + 1) && m.state === 'ok'); return ok1 && Object.keys(ok1.by).join() === 'feat' && ok1.by.feat.n === 100 + i; }));
-      check('scan with PRs: one check result per repository, failing for even repositories, passing for odd ones', world.repos.every((_, i) => { const m = chk.find((x) => x.repo === 'r' + (i + 1) && x.state !== 'checking'); return m && m.state === (i % 2 ? 'passing' : 'failing'); }));
+      check('scan with PRs: the workspace repository posts queued then an ok list with only its own repository PR (fork PR and unrelated PR left out), the other repositories nothing', prs.every((m) => m.repo === 'r1') && world.repos.slice(0, 1).every((_, i) => { const ok1 = prs.find((m) => m.repo === 'r' + (i + 1) && m.state === 'ok'); return ok1 && Object.keys(ok1.by).join() === 'feat' && ok1.by.feat.n === 100 + i; }));
+      check('scan with PRs: one check result, for the workspace repository only (failing)', chk.every((m) => m.repo === 'r1') && world.repos.slice(0, 1).every((_, i) => { const m = chk.find((x) => x.repo === 'r' + (i + 1) && x.state !== 'checking'); return m && m.state === (i % 2 ? 'passing' : 'failing'); }));
       check('scan with PRs: end comes after every PR result and lists no unfinished key', end && s.c.msgs.findIndex((x) => x.m.type === 'end') > s.c.msgs.map((x) => x.m.type + x.m.state).lastIndexOf('checksfailing') && end.open.length === 0);
-      check('scan with PRs: progress messages carry a prs counter that reaches 4 of 4', s.c.of('progress').some((m) => m.prs && m.prs.done === 4 && m.prs.total === 4));
-      check('scan with PRs: the PR layer never waited for git (a PR list was asked before the scan ended) and gh never exceeded 2', s.gh.max <= 2 && s.gh.lists === 4);
+      check('scan with PRs: progress messages carry a prs counter that reaches 1 of 1', s.c.of('progress').some((m) => m.prs && m.prs.done === 1 && m.prs.total === 1));
+      check('scan with PRs: the PR layer never waited for git (a PR list was asked before the scan ended) and gh never exceeded 2', s.gh.max <= 2 && s.gh.lists === 1);
       check('scan with PRs: the page can ask for the link by repository key and number', s.scan.prUrl('r1', 100) === 'https://example.com/pr/100' && s.scan.prUrl('r1', 900) === undefined);
       s.scan.retry('p1'); await advance(2000);
-      check('scan with PRs: retry p1 reruns that repository only (a queued state again, others untouched)', s.c.of('prs').filter((m) => m.repo === 'r1' && m.state === 'queued').length === 2 && s.gh.lists === 5);
+      check('scan with PRs: retry p1 reruns that repository only (a queued state again, others untouched)', s.c.of('prs').filter((m) => m.repo === 'r1' && m.state === 'queued').length === 2 && s.gh.lists === 2);
     }
     {
       const s = mk({ prsOn: () => false });
@@ -361,13 +361,13 @@ async function main() {
       const s = mk({ prsOn: undefined }); // no switch given: lookups are on (the setting defaults to on)
       let done = false; s.scan.start(1, folders, false, s.c.post).then(() => { done = true; });
       await until(() => done, 100, 120000);
-      check('switch default: an absent switch means lookups on', s.gh.lists === 4);
+      check('switch default: an absent switch means lookups on', s.gh.lists === 1);
     }
     {
       for (const v of Object.keys(ghWorld.views)) { ghWorld.views[v] = 'hang'; }
       const s = mk({ prsOn: () => true });
       s.scan.start(1, folders, false, s.c.post);
-      await until(() => s.gh.running >= 2 && s.gh.views.length >= 1, 50, 60000);
+      await until(() => s.gh.running >= 1 && s.gh.views.length >= 1, 50, 60000);
       const n = s.c.msgs.length;
       s.scan.cancel(); await advance(60000);
       check('scan abort: closing the page kills the running gh children', s.gh.running === 0 && s.gh.killed >= 1);

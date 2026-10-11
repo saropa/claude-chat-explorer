@@ -62,11 +62,11 @@ export function nextStep(dot: string, g?: any): string {
   return 'Nothing is open. Archive the chat when you are done with it.';
 }
 
-/** Row order inside a band or group: 'recent' (newest first, the default), 'name' (title) or 'repo' (project, then newest). */
+/** Row order: 'recent' (newest first, the default) or 'name' (title). */
 export function rowCmp(mode?: string): (a: any, b: any) => number {
   const byLast = (a: any, b: any): number => b.last - a.last;
   const text = (k: string) => (a: any, b: any): number => String(a[k] || '').toLowerCase().localeCompare(String(b[k] || '').toLowerCase()) || byLast(a, b);
-  return mode === 'name' ? text('title') : mode === 'repo' ? text('project') : byLast;
+  return mode === 'name' ? text('title') : byLast;
 }
 
 /** Rows by band (newest first unless sort says otherwise); every band is present, empty or not. bandFn(row, dot) places a row (the page uses it to hold rows still while they are hovered). */
@@ -75,23 +75,6 @@ export function bandRows(rows: Array<{ id: string; last: number }>, dots: { [id:
   const place = bandFn || function (r: any, dot: string): string { return bandOf(dot); };
   const sorted = rows.slice().sort(rowCmp(sort));
   for (const r of sorted) { out[place(r, dots[r.id] ? dots[r.id].s : 'idle')].push(r); }
-  return out;
-}
-
-/** Display groups for a mode: attention (bands) or chat (one flat list). hidden lists bands whose rows are left out. */
-export function groupRows(rows: Array<{ id: string; last: number; project: string }>, dots: { [id: string]: { s: string } }, mode: string, hidden: string[], bandFn?: (r: any, dot: string) => string, sort?: string): Array<{ key: string; label: string; rows: any[] }> {
-  const place = bandFn || function (r: any, dot: string): string { return bandOf(dot); };
-  const by = bandRows(rows, dots, place, sort);
-  if (mode === 'chat') {
-    const shown = rows.filter((r) => { const b = place(r, dots[r.id] ? dots[r.id].s : 'idle'); return hidden.indexOf(b) < 0 || (b === 'idle' && (r as any).kind === 'wt'); }).sort(rowCmp(sort)); // a worktree is never hidden with the idle chats
-    return shown.length ? [{ key: 'all', label: 'All chats', rows: shown }] : [];
-  }
-  const labels: { [k: string]: string } = { needs: 'Needs you', finish: 'To finish', waiting: 'Waiting on others', tidy: 'Ready to tidy', idle: 'Idle' };
-  const out: Array<{ key: string; label: string; rows: any[] }> = [];
-  for (const b of ['needs', 'finish', 'waiting', 'tidy', 'idle']) {
-    if (hidden.indexOf(b) < 0) { if (by[b].length) { out.push({ key: b, label: labels[b], rows: by[b] }); } }
-    else if (b === 'idle') { const w = by[b].filter((r: any) => r.kind === 'wt'); if (w.length) { out.push({ key: b, label: 'Idle worktrees', rows: w }); } } // idle chats stay hidden, worktrees do not
-  }
   return out;
 }
 
@@ -223,5 +206,5 @@ export function ghStatus(i: { on: boolean; gh?: { st: string; reason?: string } 
 }
 
 /** Source of the functions and constants above, for the page script. */
-export const WORK_MODEL_SRC = [bandOf, countWord, nextStep, rowCmp, bandRows, groupRows, wtReady, fingerprint, doneHidden, filterMatch, flagPass, summaryOf, ghStatus].map((f) => f.toString()).join('\n')
+export const WORK_MODEL_SRC = [bandOf, countWord, nextStep, rowCmp, bandRows, wtReady, fingerprint, doneHidden, filterMatch, flagPass, summaryOf, ghStatus].map((f) => f.toString()).join('\n')
   + '\nconst BAND_ORDER=' + JSON.stringify(BAND_ORDER) + ',BAND_LABEL=' + JSON.stringify(BAND_LABEL) + ',BAND_CHIP=' + JSON.stringify(BAND_CHIP) + ';\n';

@@ -10,6 +10,7 @@ import { PrRun, WorkPrs } from './workPrs';
 import { BranchOut, branchCommand, branchesOf, githubBranchUrl, readRepo, removeCommand, RepoOut, WtOut } from './workRepo';
 
 export const MAX_FOLDERS = 60;
+export const MAX_BRANCH_POST = 200; // local branches sent to the page per repository (newest first)
 export const FOLDER_DEADLINE_MS = 10000;
 export const SCAN_CACHE_MS = 5 * 60 * 1000;
 const FOLDER_POOL = 2; // the page lane has 3 git slots: 2 for folders, 1 for the repository layer
@@ -166,6 +167,7 @@ export class WorkScan {
   private async finish(run: Run, e: FolderEntry, out: FolderOut, age: number | undefined): Promise<void> {
     e.out = out;
     e.topReal = out.top;
+    if (out.state === 'ok' && run.ws) { await run.ws; if (run.ac.signal.aborted) { return; } } // the workspace repository is known before a folder is judged in or out of it
     run.unfinished.delete(e.key);
     if (!run.counted.has(e.key)) { run.counted.add(e.key); run.done++; }
     const msg: { [k: string]: unknown } = { state: out.state, reason: out.reason, age };
@@ -175,22 +177,11 @@ export class WorkScan {
     }
     this.postFolder(run, e.key, msg);
     this.progress(run, false);
-    if (out.state === 'ok' && out.common && out.top) {
+    if (out.state === 'ok' && out.common && out.top && e.wsSent) { // only the workspace repository gets a repository layer and a pull request lookup
       this.kickRepo(run, out.common, out.top, e.key);
       const b = out.facts && !out.facts.detached && typeof out.facts.branch === 'string' ? out.facts.branch : undefined;
       run.prs?.join(this.rkeyOf(out.common), out.common, out.top, b);
     }
-    void run.ws?.then(() => this.reportWs(run, e));
-  }
-
-  /** Once the workspace folders are known, tell the page when a folder (or repository) is in the workspace after all. */
-  private reportWs(run: Run, e: FolderEntry): void {
-    const o = e.out;
-    if (!o || o.state !== 'ok' || !o.facts || !o.common || e.wsSent || !this.inWs(e.cwd, o.common, o.top)) { return; }
-    e.wsSent = true;
-    this.postFolder(run, e.key, { state: 'ok', age: undefined, facts: { ...o.facts, rk: this.rkeyOf(o.common), ws: true } });
-    const rk = this.rkeyOf(o.common);
-    if (run.repos.get(rk)?.done) { this.postRepo(run, rk, 'ok'); }
   }
 
   private inWs(cwd: string, common: string, top?: string): boolean {
@@ -200,7 +191,7 @@ export class WorkScan {
 
   /** Resolve the workspace folders (their repository ids), so "this workspace only" also keeps sibling worktree folders. */
   private async wsInfo(run: Run): Promise<Ws> {
-    const paths = (this.o.workspace?.() ?? []).slice(0, 10);
+    const paths = (this.o.workspace?.() ?? []).slice(0, 1);
     this.ws = { paths, reals: new Set(), commons: new Set() };
     if (!paths.length) { return this.ws; }
     const lane = this.lane(run, () => undefined);
@@ -261,12 +252,15 @@ export class WorkScan {
     const r = this.repos.get(rk), st = run.repos.get(rk);
     if (!r || !st) { this.put(run, { type: 'repo', key: rk, state, reason, worktrees: [], merged: [] }); return; }
     const fks = [...st.fks];
+    const dv = new Map((r.info ?? []).map((b) => [b.name, b] as const));
     const worktrees = r.worktrees.map((w) => ({
       k: this.wkeyOf(rk, w.real), name: path.basename(w.path), path: w.path, branch: w.branch, detached: w.detached, sha: w.head.slice(0, 7), main: w.main, missing: w.missing,
       locked: w.locked, lockReason: w.lockReason, prunable: w.prunable, merged: w.merged, facts: w.facts, ws: this.ws.reals.has(w.real) || this.ws.paths.some((p) => path.resolve(p) === w.path),
       fks: fks.filter((k) => this.byKey.get(k)?.topReal === w.real),
+      da: w.branch ? dv.get(w.branch)?.ahead : undefined, db: w.branch ? dv.get(w.branch)?.behind : undefined, // ahead and behind the default branch
     }));
-    this.put(run, { type: 'repo', key: rk, state, reason, name: r.name, def: r.def ?? '', defLocal: r.defLocal ?? '', merged: r.merged, worktrees, ws: this.ws.commons.has(r.common) });
+    const branches = (r.info ?? []).slice(0, MAX_BRANCH_POST).map((b) => ({ n: b.name, ts: b.ts, au: b.author, up: !!b.upstream, gone: b.gone, a: b.ahead, b: b.behind }));
+    this.put(run, { type: 'repo', key: rk, state, reason, name: r.name, def: r.def ?? '', defLocal: r.defLocal ?? '', merged: r.merged, worktrees, ws: this.ws.commons.has(r.common), gh: !!r.ghUrl, branches, bmore: Math.max(0, (r.info?.length ?? 0) - branches.length) });
   }
 
   private wkeyOf(rk: string, real: string): string {
@@ -296,6 +290,9 @@ export class WorkScan {
   /** The https link of a pull request listed for a repository key (from the last answer), for Open and Copy PR link. */
   prUrl(rk: string, n: number): string | undefined { return this.o.prs?.url(rk, n); }
 
+  /** The github.com page of a repository key (built from the origin remote while the repository was read); undefined when the remote is not on github.com or the repository is not loaded. */
+  repoUrl(rk: string): string | undefined { return /^r\d{1,6}$/.test(rk) ? this.repos.get(rk)?.ghUrl : undefined; }
+
   /** The page to open for a branch of a repository key: the pull request link gh gave when a number is named and known, else the github.com page of the branch built from the origin remote.
    *  The branch must be one this scan knows for the repository (a worktree, a local branch or a chat folder); the page never sends a link. */
   async branchLink(rk: string, branch: string, n?: number): Promise<{ url?: string; reason?: string }> {
@@ -303,9 +300,9 @@ export class WorkScan {
     if (!r) { return { reason: 'Repository is not loaded' }; }
     const known = new Set<string>([...r.worktrees.map((w) => w.branch), ...(r.locals ?? [])]);
     for (const e of this.byKey.values()) { const o = e.out; if (o?.state === 'ok' && o.common === r.common && typeof o.facts?.branch === 'string') { known.add(o.facts.branch); } }
-    if (typeof branch !== 'string' || !branch || !known.has(branch)) { return { reason: 'That branch is not known. Refresh and try again.' }; }
     const pr = Number.isInteger(n) && (n as number) > 0 ? this.prUrl(rk, n as number) : undefined;
-    if (pr) { return { url: pr }; }
+    if (pr) { return { url: pr }; } // a link gh gave for this repository: also right for a remote-only branch, which is not known locally
+    if (typeof branch !== 'string' || !branch || !known.has(branch)) { return { reason: 'That branch is not known. Refresh and try again.' }; }
     const top = r.worktrees.find((w) => !w.missing)?.path;
     if (!top) { return { reason: 'The repository folder is missing' }; }
     const ac = new AbortController();

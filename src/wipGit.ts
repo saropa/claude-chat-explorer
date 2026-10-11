@@ -120,3 +120,26 @@ export async function commitMergedOf(c: Ctx, cwd: string, def: string, sha: stri
   const r = await git(c, cwd, ['rev-list', '--count', `${def}..${sha}`]);
   return r.code === 0 ? r.stdout.trim() === '0' : undefined;
 }
+
+const HEADS_SAFE = /^refs\/heads\/[^\u0000-\u001f\u007f\s~^:?*\[\\]+$/;
+
+/** Commits a local branch (ref `refs/heads/<name>`) is ahead of and behind def: one `rev-list --left-right --count def...ref`; undefined when it cannot be told or the names are unusual. */
+export async function divergeOf(c: Ctx, cwd: string, def: string, ref: string): Promise<{ ahead: number; behind: number } | undefined> {
+  if (!REF_SAFE.test(def) || !HEADS_SAFE.test(ref)) { return undefined; }
+  const r = await git(c, cwd, ['rev-list', '--left-right', '--count', `${def}...${ref}`]);
+  const m = r.code === 0 ? /^(\d+)\s+(\d+)\s*$/.exec(r.stdout) : null;
+  return m ? { behind: Number(m[1]), ahead: Number(m[2]) } : undefined;
+}
+
+/** Ahead and behind def for every local branch in one call (`for-each-ref --format=%(refname:lstrip=2)%09%(ahead-behind:def)`, git 2.41 or newer); a reason when git cannot do it. */
+export async function aheadBehindAll(c: Ctx, cwd: string, def: string): Promise<Map<string, { ahead: number; behind: number }> | string> {
+  if (!REF_SAFE.test(def)) { return 'default branch unknown'; }
+  const r = await git(c, cwd, ['for-each-ref', '--format=%(refname:lstrip=2)%09%(ahead-behind:' + def + ')', 'refs/heads']);
+  if (r.code !== 0) { return whyFailed(r); }
+  const m = new Map<string, { ahead: number; behind: number }>();
+  for (const line of r.stdout.split(/\r?\n/)) {
+    const x = /^(.+)\t(\d+) (\d+)$/.exec(line);
+    if (x) { m.set(x[1], { ahead: Number(x[2]), behind: Number(x[3]) }); }
+  }
+  return m.size ? m : 'not supported';
+}

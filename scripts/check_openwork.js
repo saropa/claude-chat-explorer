@@ -11,6 +11,7 @@ const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
 const page = require(path.join(OUT, 'openWorkHtml.js')).openWorkHtml();
 const model = require(path.join(OUT, 'workModel.js'));
 const failures = [];
+process.on('exit', (c) => { if (c !== 0 && failures.length) { console.error(failures.slice(0, 30).join('\n')); } });
 const bad = (what, e) => failures.push(what + (e ? ': ' + String((e && e.stack) || e).split('\n').slice(0, 3).join(' | ') : ''));
 const NOW = Date.now(), H = 3600e3;
 const id = (n) => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
@@ -24,24 +25,52 @@ function target(a, rowId, more) {
   return t;
 }
 
+const VIEW_POPS = ['srb', 'srm', 'shb', 'shm'];
+// Shared fixtures for the single-repository page. The page shows one repository: the workspace folder's (ws true).
+const wtm = (k, name, branch, o) => Object.assign({ k, name, path: '/p/' + name, branch, detached: false, sha: 'abc1234', main: false, missing: false, locked: false, prunable: false, merged: null, ws: false, fks: [] }, o || {});
+const repoMsg = (scan, worktrees, o) => Object.assign({ type: 'repo', scan, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: [], ws: true, gh: true, branches: [], worktrees }, o || {});
+const mainRepo = (scan, fks, o) => repoMsg(scan, [wtm('w1', 'proj', 'main', { main: true, fks })], o);
+/** Open every collapsed chat list and the chats section, like a reader who clicked them all. */
+function openAll(H) {
+  const body = H.els.get('body');
+  for (const m of [...body.innerHTML.matchAll(/data-a="hx" data-x="([^"]*)" data-on="0"/g)]) { H.fire(body, 'click', { target: target('hx', '', { dataset: { a: 'hx', x: m[1], on: '0' } }) }); }
+  if (/data-a="sec" data-s="nb" aria-expanded="false"/.test(body.innerHTML)) { H.fire(body, 'click', { target: target('sec', '', { dataset: { a: 'sec', s: 'nb' } }) }); }
+}
+
+const BCLS = { 'Needs you': 'b-needs', 'To finish': 'b-finish', 'Waiting on others': 'b-waiting', 'Ready to tidy': 'b-tidy' };
+/** The html of one chat row (by its id): from its data-id to the next chat row or the end of the list it is in. */
+const rowSlice = (body, key) => { const h = body.innerHTML, i = h.indexOf('data-id="' + key + '"'); if (i < 0) { return ''; } const ends = ['class="row"', '</td></tr>', '</section>'].map((m) => h.indexOf(m, i + 1)).filter((v) => v >= 0); return h.slice(i, ends.length ? Math.min(...ends) : undefined); };
+/** The html of one table row: by worktree key (w), branch name (b) or pull request number (n). */
+const trSlice = (body, attr, val) => { const m = new RegExp('<tr data-' + attr + '="' + val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '">[^]*?</tr>').exec(body.innerHTML); return m ? m[0] : ''; };
+/** The state pill of a chat row says which attention state it is in (the page has no bands any more). */
+const inBandOf = (body, label, n) => new RegExp('class="st ' + BCLS[label] + '"').test(rowSlice(body, id(n)));
+
 function scenario(W) {
-  const H1 = createHarness({ page, name: 'openwork@' + W, width: W, popIds: ['grb', 'grm'] });
+  const H1 = createHarness({ page, name: 'openwork@' + W, width: W, popIds: VIEW_POPS });
   const { els, document, posted, run, fire, deliver, advance, check, step } = H1;
   const body = els.get('body'), tag = (s) => s + ' at ' + W;
   H1.start();
   check(tag('page says ready'), posted.some((p) => p.type === 'ready'));
-  step('init', () => deliver({ type: 'init', v: 1, days: 14, group: 'attention', hidden: [] }));
+  step('init', () => deliver({ type: 'init', v: 1, days: 14, hidden: [], ws: 1 }));
   check(tag('loading state before the list'), /Loading chats/.test(body.innerHTML) && body.getAttribute('aria-busy') === 'true');
   check(tag('layout follows width'), els.get('wrap').classList.contains('wide') === (W >= 1080));
   step('empty list', () => deliver({ type: 'chats', scan: 1, rows: [], indexing: false }));
-  check(tag('empty state names the days'), /No chats in the last 14 days/.test(body.innerHTML) && body.getAttribute('aria-busy') === 'false');
+  check(tag('before git is read the page says so and is no longer busy'), /Reading git/.test(body.innerHTML) && body.getAttribute('aria-busy') === 'false');
+  step('scan ends with no repository', () => { deliver({ type: 'end', scan: 1, open: [], gitMissing: false }); advance(300); });
+  check(tag('no git repository in the workspace folder gives one plain message and no tables'), /Open a git repository folder/.test(body.innerHTML) && !/<table/.test(body.innerHTML));
+  step('no workspace folder at all', () => { deliver({ type: 'init', v: 1, days: 14, hidden: [], ws: 0 }); advance(300); });
+  check(tag('no workspace folder gives the same message'), /Open a git repository folder/.test(body.innerHTML));
+  step('init again', () => deliver({ type: 'init', v: 1, days: 14, hidden: [], ws: 1 }));
+  step('repository found', () => { deliver({ type: 'chats', scan: 2, rows: [], indexing: false }); deliver(mainRepo(2, [])); advance(300); });
+  check(tag('the repository shows as one slim line with its name, a GitHub button and counts, and no repository header block'), /class="psl"/.test(body.innerHTML) && /class="pn psn">proj</.test(body.innerHTML) && /data-a="repolink" data-k="r1"/.test(body.innerHTML) && /1 worktree/.test(body.innerHTML) && !/class="psh"|class="psr"/.test(body.innerHTML));
+  check(tag('the page is three sections: worktrees and branches tables and pull requests; no chats means no chat section'), (body.innerHTML.match(/<table class="pst /g) || []).length === 2 && /aria-label="Pull requests"/.test(body.innerHTML) && !/Chats without a branch/.test(body.innerHTML));
   const rows = [row(1), row(2), row(3, { pinned: true }), row(4, { ctx: undefined }), row(5, { title: 'A <b>bold</b> "quoted" title' })];
-  step('three bands', () => { deliver({ type: 'chats', scan: 2, rows, indexing: false }); deliver({ type: 'dots', map: { [id(1)]: { s: 'waiting' }, [id(2)]: { s: 'running' }, [id(4)]: { s: 'idle' } } }); advance(300); });
-  check(tag('bands Needs you, Waiting on others and Idle shown; empty bands not'), /Needs you/.test(body.innerHTML) && /Waiting on others/.test(body.innerHTML) && />Idle</.test(body.innerHTML) && !/To finish/.test(body.innerHTML.replace(/aria-label="[^"]*"/g, '')) && !/Ready to tidy/.test(body.innerHTML));
+  step('three bands', () => { deliver({ type: 'chats', scan: 3, rows, indexing: false }); deliver({ type: 'dots', map: { [id(1)]: { s: 'waiting' }, [id(2)]: { s: 'running' }, [id(4)]: { s: 'idle' } } }); advance(300); });
+  check(tag('chats of a folder that is not in git sit in one section "Chats without a branch", open because some need attention'), /aria-label="Chats without a branch"/.test(body.innerHTML) && /data-a="sec" data-s="nb" aria-expanded="true"/.test(body.innerHTML) && (body.innerHTML.match(/class="row"/g) || []).length === 5);
   check(tag('git bands are stubs: no chat lands in To finish or Ready to tidy'), model.bandOf('idle') === 'idle' && model.bandOf('running') === 'waiting' && model.bandOf('waiting') === 'needs' && model.bandOf('unread') === 'needs');
   const cnt = els.get('cnt').innerHTML;
   check(tag('band chips carry counts and toggle state'), /1 need you/.test(cnt) && /0 to finish/.test(cnt) && /1 waiting/.test(cnt) && /0 to tidy/.test(cnt) && /aria-pressed="true"/.test(cnt));
-  check(tag('every row has a dot with words, a title, a context percent and an age'), (body.innerHTML.match(/class="row"/g) || []).length === 5 && /role="img" aria-label="Waiting for you"/.test(body.innerHTML) && />61%</.test(body.innerHTML));
+  check(tag('every chat row has a dot with words, a title, a context percent and an age'), (body.innerHTML.match(/class="row"/g) || []).length === 5 && /role="img" aria-label="Waiting for you"/.test(body.innerHTML) && />61%</.test(body.innerHTML));
   check(tag('titles are escaped'), !/<b>bold<\/b>/.test(body.innerHTML) && /&lt;b&gt;bold/.test(body.innerHTML));
   check(tag('pinned chat shows a Pinned label'), /Pinned/.test(body.innerHTML));
   check(tag('exactly one row is in the tab order'), (body.innerHTML.match(/class="rb"[^>]*tabindex="0"/g) || []).length === 1);
@@ -68,7 +97,7 @@ function scenario(W) {
   step('recover again', () => deliver({ type: 'chats', scan: 7, rows, indexing: false }));
   // Dots change a band.
   step('dots move a chat', () => { deliver({ type: 'dots', map: { [id(2)]: { s: 'waiting' } } }); advance(300); });
-  check(tag('dots refresh the page'), !/Waiting on others/.test(body.innerHTML) && /1 need you/.test(els.get('cnt').innerHTML) && /aria-label="Needs you"/.test(body.innerHTML));
+  check(tag('dots refresh the page'), /1 need you/.test(els.get('cnt').innerHTML) && /0 waiting/.test(els.get('cnt').innerHTML) && />Waiting for you</.test(body.innerHTML));
   step('dots again', () => { deliver({ type: 'dots', map: { [id(1)]: { s: 'unread' }, [id(2)]: { s: 'running' } } }); advance(300); });
   // Buttons.
   const act = (a, n) => fire(els.get('body'), 'click', { target: target(a, id(n)) });
@@ -112,39 +141,33 @@ function scenario(W) {
   step('focusin sets the roving stop', () => fire(document, 'focusin', { target: rbs[1] }));
   check(tag('focus moves the single tab stop'), rbs[1].tabIndex === 0 && rbs[0].tabIndex === -1);
   document.querySelectorAll = () => [];
-  // Grouping and filters.
-  step('group by chat', () => fire('grm', 'change', { target: { value: 'chat' } }));
-  check(tag('By chat shows one flat list and saves the choice'), /All chats/.test(body.innerHTML) && posted.some((p) => p.type === 'prefs' && p.group === 'chat') && els.get('grm').hidden === true);
-  step('group by repository is gone', () => fire('grm', 'change', { target: { value: 'repo' } }));
-  check(tag('By repository is not offered and is ignored'), !/By repository/.test(els.get('grm').innerHTML) && !/aria-label="alpha"/.test(body.innerHTML));
-  step('bad group ignored', () => fire('grm', 'change', { target: { value: 'nope' } }));
-  step('group by attention', () => fire('grm', 'change', { target: { value: 'attention' } }));
-  step('hide the needs band', () => fire(els.get('body'), 'click', { target: target('band', '', { dataset: { a: 'band', b: 'needs' } }) }));
-  check(tag('a band chip hides that band and saves it'), !/aria-label="Needs you"/.test(body.innerHTML) && posted.some((p) => p.type === 'prefs' && p.hidden.includes('needs')) && /aria-pressed="false"/.test(els.get('cnt').innerHTML));
+  // Attention chips filter the rows.
+  step('hide the needs chip', () => fire(els.get('body'), 'click', { target: target('band', '', { dataset: { a: 'band', b: 'needs' } }) }));
+  check(tag('a chip hides the rows in that state, and saves it'), !new RegExp('data-id="' + id(1) + '"').test(body.innerHTML) && new RegExp('data-id="' + id(3) + '"').test(body.innerHTML) && posted.some((p) => p.type === 'prefs' && p.hidden.includes('needs') && !('group' in p) && !('wsOnly' in p)) && /aria-pressed="false"/.test(els.get('cnt').innerHTML));
   step('hide idle', () => fire(els.get('body'), 'click', { target: target('idle') }));
   step('everything hidden', () => deliver({ type: 'dots', map: {} }));
   advance(300);
-  check(tag('all bands hidden says so with a Show idle button'), /Nothing to show with these filters/.test(body.innerHTML) || /aria-label="Waiting on others"/.test(body.innerHTML) === false);
+  check(tag('with every state hidden no chat row is listed'), (body.innerHTML.match(/class="row"/g) || []).length === 0);
   step('show idle again', () => fire(els.get('body'), 'click', { target: target('idle') }));
   step('show needs again', () => fire(els.get('body'), 'click', { target: target('band', '', { dataset: { a: 'band', b: 'needs' } }) }));
-  step('init restores prefs', () => deliver({ type: 'init', v: 1, days: 30, group: 'chat', hidden: ['tidy', 'bogus'] }));
-  check(tag('init restores group, days and valid hidden bands'), /All chats/.test(body.innerHTML));
-  step('reset group', () => deliver({ type: 'init', v: 1, days: 14, group: 'attention', hidden: [] }));
+  step('init restores prefs', () => deliver({ type: 'init', v: 1, days: 30, hidden: ['tidy', 'bogus'], ws: 1 }));
+  check(tag('init restores only the valid hidden states'), !/bogus/.test(els.get('cnt').innerHTML) && /b-tidy"[^>]*aria-pressed="false"/.test(els.get('cnt').innerHTML) && /b-needs"[^>]*aria-pressed="true"/.test(els.get('cnt').innerHTML));
+  step('reset prefs', () => deliver({ type: 'init', v: 1, days: 14, hidden: [], ws: 1 }));
   // 250 rows, and every message type with odd payloads, must not throw.
   const many = Array.from({ length: 250 }, (_, i) => row(i + 10));
-  step('250 rows', () => deliver({ type: 'chats', scan: 8, rows: many, indexing: false }));
+  step('250 rows', () => { deliver({ type: 'chats', scan: 8, rows: many, indexing: false }); advance(300); openAll(H1); advance(300); });
   check(tag('250 rows render'), (body.innerHTML.match(/class="row"/g) || []).length === 250);
   for (const m of [{ type: 'unknown' }, { type: 'chats', scan: 9 }, { type: 'dots' }, { type: 'handoverState', id: id(1) }, { type: 'init' }, { type: 'chatsFailed', scan: 10 }, { type: 'chats', scan: 11, rows: [row(1, { title: '' , project: ''})] }]) { step('message ' + m.type, () => deliver(m)); }
   step('null message', () => { for (const f of H1.listeners.window.message || []) { f({ data: null }); } });
   advance(300);
   // Popover and tooltip placement inside the viewport.
-  const m = els.get('grm');
+  const m = els.get('srm');
   m.offsetWidth = 400;
-  els.get('grb').getBoundingClientRect = () => ({ top: 8, left: W - 34, right: W - 8, bottom: 34, width: 26, height: 26 });
-  step('group popover opens', () => fire('grb', 'click'));
+  els.get('srb').getBoundingClientRect = () => ({ top: 8, left: W - 34, right: W - 8, bottom: 34, width: 26, height: 26 });
+  step('sort popover opens', () => fire('srb', 'click'));
   const left = parseFloat(m.style.left), w = Math.min(400, W - 16);
-  check(tag('group popover sits inside the viewport with an 8px margin'), !m.hidden && left >= 8 && left + w <= W - 8 && /px$/.test(m.style.top));
-  step('escape closes it', () => fire(document, 'keydown', { key: 'Escape', target: els.get('grb') }));
+  check(tag('sort popover sits inside the viewport with an 8px margin'), !m.hidden && left >= 8 && left + w <= W - 8 && /px$/.test(m.style.top));
+  step('escape closes it', () => fire(document, 'keydown', { key: 'Escape', target: els.get('srb') }));
   check(tag('Escape closes the popover'), m.hidden === true);
   const tipEl = els.get('tip');
   const anchor = { dataset: { tip: 'Open chat\nSecond line' }, isConnected: true, closest: (s) => (s === '[data-tip]' ? anchor : null), contains: () => false, attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; }, getBoundingClientRect: () => ({ left: W - 40, right: W - 10, top: 100, bottom: 120, width: 30, height: 20 }) };
@@ -167,7 +190,7 @@ for (const W of [400, 760, 1400]) { scenario(W); }
 
 // Slice 2: streamed git state, progress, timeouts, bands from git, hold-still, Mark done, expanded git facts, worktree rows.
 function gitScenario(W) {
-  const G = createHarness({ page, name: 'openwork-git@' + W, width: W, popIds: ['grb', 'grm'] });
+  const G = createHarness({ page, name: 'openwork-git@' + W, width: W, popIds: VIEW_POPS });
   const { els, document, posted, fire, deliver, advance, check, step } = G;
   const body = els.get('body'), tag = (s) => s + ' at ' + W;
   const DAY = 86400000;
@@ -175,42 +198,43 @@ function gitScenario(W) {
   const fm = (scanNo, key, state, o) => Object.assign({ type: 'folder', scan: scanNo, key, state }, o || {});
   const click = (a, n, data) => fire(body, 'click', { target: target(a, n ? id(n) : '', data ? { dataset: Object.assign({ a }, data) } : undefined) });
   const rowsG = [row(1, { fk: 'f1', last: NOW - 1 * H }), row(2, { fk: 'f2', last: NOW - 5 * DAY }), row(3, { fk: 'f3', last: NOW - 2 * H }), row(4, { fk: 'f4', last: NOW - 3 * H }), row(5, { last: NOW - 4 * H })];
-  const rowOf = (key) => { const i = body.innerHTML.indexOf('data-id="' + key + '"'); if (i < 0) { return ''; } const j = body.innerHTML.indexOf('class="row"', i); return body.innerHTML.slice(i, j < 0 ? undefined : j); };
-  const inBand = (label, n) => { const i = body.innerHTML.indexOf('aria-label="' + label + '"'); const j = body.innerHTML.indexOf('data-id="' + id(n) + '"'); if (i < 0 || j < 0) { return false; } const next = body.innerHTML.indexOf('<section', i + 10); return j > i && (next < 0 || j < next); };
-  G.start();
-  step('init', () => deliver({ type: 'init', v: 2, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 2, done: {} }));
-  step('dots', () => deliver({ type: 'dots', map: {} }));
-  step('chats', () => { deliver({ type: 'chats', scan: 1, rows: rowsG, indexing: false, scanning: true }); for (const k of ['f1', 'f2', 'f3', 'f4']) { deliver(fm(1, k, 'queued')); } advance(300); });
-  check(tag('queued rows show a waiting cell and are busy'), /class="q"/.test(body.innerHTML) && (body.innerHTML.match(/aria-busy="true"/g) || []).length === 4);
-  check(tag('a chat with no folder is not busy'), !new RegExp('data-id="' + id(5) + '" aria-busy="true"').test(body.innerHTML));
-  step('running', () => { deliver(fm(1, 'f1', 'running')); deliver(fm(1, 'f3', 'running')); advance(300); });
-  check(tag('a running folder shows a spinner with a label'), /class="spin" role="img" aria-label="Reading git"/.test(body.innerHTML));
-  step('progress', () => deliver({ type: 'progress', scan: 1, git: { done: 0, total: 4 } }));
-  const prog = els.get('prog');
-  check(tag('progress line shows the counter and is a progressbar with numbers'), prog.hidden === false && /Checking git: 0 of 4 folders/.test(prog.textContent) && prog.getAttribute('aria-valuemax') === '4' && prog.getAttribute('aria-valuenow') === '0' && /Checking git: 0 of 4/.test(prog.getAttribute('aria-valuetext')));
-  step('f1 ends dirty', () => { deliver(fm(1, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 2, fileTotal: 3, staged: 1, modified: 1, untracked: 1, files: [{ s: 'M', p: 'src/a.ts' }, { s: '?', p: '<img src=x onerror=alert(1)>.txt' }, { s: 'A', p: 'b.ts' }] }) })); deliver({ type: 'progress', scan: 1, git: { done: 1, total: 4 } }); advance(300); });
-  check(tag('progress counter moves'), /Checking git: 1 of 4 folders/.test(prog.textContent) && prog.getAttribute('aria-valuenow') === '1');
-  check(tag('a dirty, unpushed chat moves to To finish with files and ahead shown'), inBand('To finish', 1) && /3 files/.test(body.innerHTML) && /↑2/.test(body.innerHTML) && />feat</.test(body.innerHTML));
-  check(tag('the To finish chip counts it'), /1 to finish/.test(els.get('cnt').innerHTML));
-  step('repo', () => { deliver({ type: 'repo', scan: 1, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: ['gone-branch'], ws: true, worktrees: [
-    { k: 'w1', name: 'proj', path: '/p/proj', branch: 'main', detached: false, main: true, missing: false, locked: false, prunable: false, merged: null, ws: true, fks: ['f1', 'f2'] },
+  const rowOf = (key) => rowSlice(body, key);
+  const inBand = (label, n) => inBandOf(body, label, n);
+  const repoG = { type: 'repo', scan: 1, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: ['gone-branch'], ws: true, worktrees: [
+    { k: 'w1', name: 'proj', path: '/p/proj', branch: 'main', detached: false, main: true, missing: false, locked: false, prunable: false, merged: null, ws: true, fks: ['f1', 'f2', 'f3'] },
     { k: 'w2', name: 'proj-wt-a', path: '/p/proj-wt-a', branch: 'feat', detached: false, main: false, missing: false, locked: false, prunable: false, merged: true, ws: false, fks: [], facts: { ok: true, fileTotal: 0, ahead: 0, behind: 0, gone: false, files: [] } },
     { k: 'w3', name: 'proj-wt-b', path: '/p/proj-wt-b', branch: '', sha: 'abc1234', detached: true, main: false, missing: false, locked: true, lockReason: 'in use', prunable: false, merged: true, ws: false, fks: [], facts: { ok: true, fileTotal: 0, ahead: 0, behind: 0, gone: false, files: [] } },
     { k: 'w4', name: 'proj-wt-c', path: '/p/proj-wt-c', branch: 'wip', detached: false, main: false, missing: false, locked: false, prunable: false, merged: false, ws: false, fks: [], facts: { ok: true, fileTotal: 4, ahead: 0, behind: 0, gone: false, files: [{ s: 'M', p: 'x.js' }] } },
-    { k: 'w5', name: 'proj-wt-d', path: '/p/gone', branch: 'old', detached: false, main: false, missing: true, locked: false, prunable: true, merged: true, ws: false, fks: [] } ] }); advance(300); });
-  check(tag('a leftover clean merged worktree with no chat is its own row in Ready to tidy with a Ready to remove marker and a Copy remove command button'), inBand('Ready to tidy', 0) === false && /data-id="w2"/.test(body.innerHTML) && /Ready to remove/.test(body.innerHTML) && /data-a="rm" data-k="w2"/.test(body.innerHTML));
-  check(tag('a locked worktree is Locked and has no remove button'), /data-id="w3"/.test(body.innerHTML) && />Locked</.test(body.innerHTML) && !/data-a="rm" data-k="w3"/.test(body.innerHTML));
-  check(tag('a dirty worktree with no chat sits in To finish, not Ready to tidy'), /data-id="w4"/.test(body.innerHTML) && !/data-a="rm" data-k="w4"/.test(body.innerHTML) && /2 to finish/.test(els.get('cnt').innerHTML));
-  check(tag('a worktree whose folder is missing is ready to prune'), /data-a="rm" data-k="w5"/.test(body.innerHTML) && /Folder missing/.test(body.innerHTML));
-  check(tag('worktree rows get no chat actions'), rowOf('w2') !== '' && !/data-a="(open|handover|find|arch|done)"/.test(rowOf('w2')));
-  check(tag('a worktree row tooltip shows the full path (data-tip only; nothing is posted back)'), /data-tip="[^"]*\/p\/proj-wt-a/.test(rowOf('w2')));
+    { k: 'w5', name: 'proj-wt-d', path: '/p/gone', branch: 'old', detached: false, main: false, missing: true, locked: false, prunable: true, merged: true, ws: false, fks: [] } ] };
+  G.start();
+  step('init', () => deliver({ type: 'init', v: 2, days: 14, hidden: [], ws: 1, done: {} }));
+  step('dots', () => deliver({ type: 'dots', map: {} }));
+  step('chats', () => { deliver({ type: 'chats', scan: 1, rows: rowsG, indexing: false, scanning: true }); for (const k of ['f1', 'f2', 'f3', 'f4']) { deliver(fm(1, k, 'queued')); } deliver(repoG); advance(300); openAll(G); advance(300); });
+  check(tag('queued chat rows show a waiting cell and are busy; the chats sit in the main worktree row, the one without a folder under Chats without a branch'), /Waiting to read git/.test(body.innerHTML) && (body.innerHTML.match(/aria-busy="true"/g) || []).length === 4 && /Chats without a branch/.test(body.innerHTML));
+  check(tag('a chat with no folder is not busy'), rowOf(id(5)) !== '' && !new RegExp('data-id="' + id(5) + '" aria-busy="true"').test(body.innerHTML));
+  step('running', () => { deliver(fm(1, 'f1', 'running')); deliver(fm(1, 'f3', 'running')); advance(300); openAll(G); advance(300); });
+  check(tag('a running folder shows a spinner with a label'), /class="spin" role="img" aria-label="Reading git"/.test(rowOf(id(1))));
+  step('progress', () => deliver({ type: 'progress', scan: 1, git: { done: 0, total: 4 } }));
+  const prog = els.get('prog');
+  check(tag('progress line shows the counter and is a progressbar with numbers'), prog.hidden === false && /Checking git: 0 of 4 folders/.test(prog.textContent) && prog.getAttribute('aria-valuemax') === '4' && prog.getAttribute('aria-valuenow') === '0' && /Checking git: 0 of 4/.test(prog.getAttribute('aria-valuetext')));
+  step('f1 ends dirty', () => { deliver(fm(1, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 2, fileTotal: 3, staged: 1, modified: 1, untracked: 1, files: [{ s: 'M', p: 'src/a.ts' }, { s: '?', p: '<img src=x onerror=alert(1)>.txt' }, { s: 'A', p: 'b.ts' }] }) })); deliver({ type: 'progress', scan: 1, git: { done: 1, total: 4 } }); advance(300); openAll(G); advance(300); });
+  check(tag('progress counter moves'), /Checking git: 1 of 4 folders/.test(prog.textContent) && prog.getAttribute('aria-valuenow') === '1');
+  check(tag('a dirty, unpushed chat is To finish inside its worktree row, which shows the dirty and unpushed badges'), inBand('To finish', 1) && /3 files/.test(rowOf(id(1))) && /↑2/.test(rowOf(id(1))) && />feat</.test(rowOf(id(1))) && /dirty: 3 files/.test(trSlice(body, 'w', 'w1')) && /2 unpushed/.test(trSlice(body, 'w', 'w1')));
+  check(tag('the To finish chip counts the dirty chat and the dirty worktree together'), /2 to finish/.test(els.get('cnt').innerHTML));
+  step('repo', () => { deliver(repoG); advance(300); openAll(G); advance(300); });
+  check(tag('a clean merged worktree with no chat has a safe to remove badge and a Copy remove command button'), /safe to remove/.test(trSlice(body, 'w', 'w2')) && /data-a="rm" data-k="w2"/.test(trSlice(body, 'w', 'w2')));
+  check(tag('a locked worktree has a locked badge and no remove button or safe badge'), /locked/.test(trSlice(body, 'w', 'w3')) && !/data-a="rm" data-k="w3"/.test(trSlice(body, 'w', 'w3')) && !/safe to remove/.test(trSlice(body, 'w', 'w3')));
+  check(tag('a dirty worktree with no chat shows a dirty badge, no remove button, and counts in the To finish chip'), /dirty: 4 files/.test(trSlice(body, 'w', 'w4')) && !/data-a="rm" data-k="w4"/.test(trSlice(body, 'w', 'w4')) && /2 to finish/.test(els.get('cnt').innerHTML));
+  check(tag('a worktree whose folder is missing is ready to prune'), /data-a="rm" data-k="w5"/.test(trSlice(body, 'w', 'w5')) && /folder missing/.test(trSlice(body, 'w', 'w5')));
+  check(tag('worktree rows get no chat actions'), trSlice(body, 'w', 'w2') !== '' && !/data-a="(open|handover|find|arch|done)"/.test(trSlice(body, 'w', 'w2')));
+  check(tag('a worktree row tooltip shows the full path (data-tip only; nothing is posted back)'), /data-tip="[^"]*\/p\/proj-wt-a/.test(trSlice(body, 'w', 'w2')));
   step('copy remove', () => click('rm', 0, { k: 'w2' }));
   check(tag('Copy remove command posts copyRemove with only the worktree key'), posted.some((p) => p.type === 'copyRemove' && p.key === 'w2' && Object.keys(p).length === 2));
-  step('init windows', () => { deliver({ type: 'init', v: 2, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 2, done: {}, win: true }); advance(300); });
-  check(tag('on Windows the button and its label say PowerShell'), /title="Copy a PowerShell command that removes/.test(rowOf('w2')) && /aria-label="Copy PowerShell remove command: /.test(rowOf('w2')));
-  step('init not windows', () => { deliver({ type: 'init', v: 2, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 2, done: {} }); advance(300); });
-  check(tag('elsewhere the button stays Copy remove command'), /aria-label="Copy remove command: /.test(rowOf('w2')) && !/PowerShell/.test(rowOf('w2')));
-  step('f2 clean, idle 5 days', () => { deliver(fm(1, 'f2', 'ok', { facts: facts() })); advance(300); });
+  step('init windows', () => { deliver({ type: 'init', v: 2, days: 14, hidden: [], ws: 1, done: {}, win: true }); advance(300); openAll(G); advance(300); });
+  check(tag('on Windows the button and its label say PowerShell'), /title="Copy a PowerShell command that removes/.test(trSlice(body, 'w', 'w2')) && /aria-label="Copy PowerShell remove command: /.test(trSlice(body, 'w', 'w2')));
+  step('init not windows', () => { deliver({ type: 'init', v: 2, days: 14, hidden: [], ws: 1, done: {} }); advance(300); openAll(G); advance(300); });
+  check(tag('elsewhere the button stays Copy remove command'), /aria-label="Copy remove command: /.test(trSlice(body, 'w', 'w2')) && !/PowerShell/.test(trSlice(body, 'w', 'w2')));
+  step('f2 clean, idle 5 days', () => { deliver(fm(1, 'f2', 'ok', { facts: facts() })); advance(300); openAll(G); advance(300); });
   check(tag('a clean, pushed chat idle for 5 days is Ready to tidy'), inBand('Ready to tidy', 2));
   check(tag('a chat on the main checkout is not given a remove button'), rowOf(id(2)) !== '' && !/data-a="rm"/.test(rowOf(id(2))));
   // Staleness.
@@ -220,29 +244,29 @@ function gitScenario(W) {
   check(tag('a message of another scan is dropped'), inBand('To finish', 1) && !/>error</.test(body.innerHTML));
   // Watchdog: a folder left on running ends as timed out with Retry on the fake clock.
   step('time passes', () => advance(15200));
-  check(tag('a folder left on "running" becomes "timed out" with Retry after the watchdog'), /timed out/.test(body.innerHTML) && new RegExp('data-a="fretry" data-k="f3"').test(body.innerHTML) && !/class="spin"/.test(body.innerHTML.replace(/data-id="w[0-9]"[^]*$/, '')));
+  check(tag('a folder left on "running" becomes "timed out" with Retry after the watchdog'), /timed out/.test(rowOf(id(3))) && new RegExp('data-a="fretry" data-k="f3"').test(body.innerHTML) && !/class="spin"/.test(rowOf(id(3))));
   step('retry', () => click('fretry', 3, { k: 'f3' }));
   advance(300);
   check(tag('Retry posts retry with the folder key and shows the row as waiting'), posted.some((p) => p.type === 'retry' && p.key === 'f3') && !/data-a="fretry" data-k="f3"/.test(body.innerHTML));
   step('bad retry key', () => click('fretry', 3, { k: '../x' }));
   check(tag('a retry for a key that is not f/r + digits is not sent'), !posted.some((p) => p.type === 'retry' && p.key === '../x'));
   // end lists keys that never finished.
-  step('end', () => { deliver(fm(1, 'f3', 'ok', { facts: facts({ branch: 'topic', fileTotal: 0 }) })); deliver({ type: 'end', scan: 1, open: ['f4'], gitMissing: false }); advance(300); });
+  step('end', () => { deliver(fm(1, 'f3', 'ok', { facts: facts({ branch: 'topic', fileTotal: 0 }) })); deliver({ type: 'end', scan: 1, open: ['f4'], gitMissing: false }); advance(300); openAll(G); advance(300); });
   check(tag('end hides progress, announces and marks unfinished keys timed out with Retry'), prog.hidden === true && /Scan finished, but some parts were not read: \d+ items? open so far\./.test(els.get('live').textContent) && /data-a="fretry" data-k="f4"/.test(body.innerHTML));
   // Idle watchdog on a second scan.
-  step('second scan', () => { deliver({ type: 'chats', scan: 2, rows: rowsG, indexing: false, scanning: true }); deliver(fm(2, 'f1', 'queued')); deliver(fm(2, 'f2', 'queued')); advance(300); });
-  check(tag('a new scan number starts progress again'), /class="q"/.test(body.innerHTML));
+  step('second scan', () => { deliver({ type: 'chats', scan: 2, rows: rowsG, indexing: false, scanning: true }); deliver(fm(2, 'f1', 'queued')); deliver(fm(2, 'f2', 'queued')); deliver(Object.assign({}, repoG, { scan: 2 })); advance(300); openAll(G); advance(300); });
+  check(tag('a new scan number starts progress again'), /Waiting to read git/.test(body.innerHTML));
   step('silence', () => advance(45500));
-  check(tag('a scan that goes silent ends every waiting cell as timed out (never an endless spinner)'), !/class="q"/.test(body.innerHTML) && /data-a="fretry" data-k="f1"/.test(body.innerHTML) && prog.hidden === true);
-  step('recover', () => { deliver(fm(2, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 2, fileTotal: 3, files: [{ s: 'M', p: 'src/a.ts' }, { s: '?', p: '<img src=x onerror=alert(1)>.txt' }, { s: 'A', p: 'b.ts' }], staged: 1, modified: 1, untracked: 1 }) })); deliver(fm(2, 'f2', 'ok', { facts: facts() })); deliver({ type: 'end', scan: 2, open: [] }); advance(300); });
+  check(tag('a scan that goes silent ends every waiting cell as timed out (never an endless spinner)'), !/Waiting to read git/.test(body.innerHTML) && /data-a="fretry" data-k="f1"/.test(body.innerHTML) && prog.hidden === true);
+  step('recover', () => { deliver(fm(2, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 2, fileTotal: 3, files: [{ s: 'M', p: 'src/a.ts' }, { s: '?', p: '<img src=x onerror=alert(1)>.txt' }, { s: 'A', p: 'b.ts' }], staged: 1, modified: 1, untracked: 1 }) })); deliver(fm(2, 'f2', 'ok', { facts: facts() })); deliver({ type: 'end', scan: 2, open: [] }); advance(300); openAll(G); advance(300); });
   // Hold still: a row under the mouse does not change band until the mouse leaves or 2 s pass.
   const hoverRow = (n) => ({ target: { closest: (s) => (s === '.row' ? { dataset: { id: id(n) } } : null), dataset: {} } });
   step('hover row 1', () => fire(document, 'mouseover', hoverRow(1)));
-  step('row 1 gets cleaned up while hovered', () => { deliver(fm(2, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 0, fileTotal: 0, upstream: 'origin/feat' }) })); advance(300); });
+  step('row 1 gets cleaned up while hovered', () => { deliver(fm(2, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 0, fileTotal: 0, upstream: 'origin/feat' }) })); advance(300); openAll(G); advance(300); });
   check(tag('a hovered row keeps its band while results stream in'), inBand('To finish', 1));
-  step('mouse leaves', () => { fire(document, 'mouseover', { target: { closest: () => null, dataset: {} } }); advance(300); });
+  step('mouse leaves', () => { fire(document, 'mouseover', { target: { closest: () => null, dataset: {} } }); advance(300); openAll(G); advance(300); });
   check(tag('the row settles in one move when the mouse leaves'), !inBand('To finish', 1) && rowOf(id(1)) !== '');
-  step('hover again then 2 s', () => { fire(document, 'mouseover', hoverRow(1)); deliver(fm(2, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 1, fileTotal: 1, files: [{ s: 'M', p: 'q.ts' }] }) })); advance(300); });
+  step('hover again then 2 s', () => { fire(document, 'mouseover', hoverRow(1)); deliver(fm(2, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 1, fileTotal: 1, files: [{ s: 'M', p: 'q.ts' }] }) })); advance(300); openAll(G); advance(300); });
   check(tag('while hovered the row stays where it was'), !inBand('To finish', 1));
   step('2 s idle', () => advance(2100));
   check(tag('after 2 s the row moves even if the mouse is still there'), inBand('To finish', 1));
@@ -250,7 +274,7 @@ function gitScenario(W) {
   // Expanded row: git facts, escaped file names, unpushed commits requested once, open-file click by index only.
   step('expand', () => click('row', 1));
   check(tag('expanding a chat with unpushed commits asks the host once'), posted.filter((p) => p.type === 'expand' && p.id === id(1)).length === 1);
-  step('detail', () => { deliver({ type: 'detail', id: id(1), commits: [{ sha: 'abc1234', subject: 'fix <b>x</b>' }], reason: '' }); advance(300); });
+  step('detail', () => { deliver({ type: 'detail', id: id(1), commits: [{ sha: 'abc1234', subject: 'fix <b>x</b>' }], reason: '' }); advance(300); openAll(G); advance(300); });
   check(tag('expanded row shows branch, remote state, changes, files and commits'), /Branch/.test(body.innerHTML) && /1 commit not pushed/.test(body.innerHTML) && /Uncommitted files \(1\)/.test(body.innerHTML) && /abc1234/.test(body.innerHTML) && /Unpushed commits \(1\)/.test(body.innerHTML));
   check(tag('commit subjects and file names are escaped'), !/<b>x<\/b>/.test(body.innerHTML) && /&lt;b&gt;x/.test(body.innerHTML));
   step('open file', () => click('file', 1, { k: 'f1', i: '0' }));
@@ -261,24 +285,24 @@ function gitScenario(W) {
   advance(300);
   const doneMsg = posted.filter((p) => p.type === 'done' && p.id === id(1) && p.on === true).pop();
   check(tag('Mark done posts the fingerprint and hides the row'), doneMsg && typeof doneMsg.fp === 'string' && !new RegExp('data-id="' + id(1) + '"').test(body.innerHTML) && /Show done \(1\)/.test(els.get('dnb').textContent) && els.get('dnb').hidden === false);
-  step('same state again', () => { deliver(fm(2, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 1, fileTotal: 1, files: [{ s: 'M', p: 'q.ts' }] }) })); advance(300); });
+  step('same state again', () => { deliver(fm(2, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 1, fileTotal: 1, files: [{ s: 'M', p: 'q.ts' }] }) })); advance(300); openAll(G); advance(300); });
   check(tag('a done row stays hidden while nothing changed'), !new RegExp('data-id="' + id(1) + '"').test(body.innerHTML));
   step('show done', () => click('showdone'));
   check(tag('Show done brings it back with Undo done'), new RegExp('data-id="' + id(1) + '"').test(body.innerHTML) && /aria-label="Show again: /.test(body.innerHTML));
   step('hide done again', () => click('showdone'));
-  step('git changes', () => { deliver(fm(2, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 1, fileTotal: 2, files: [{ s: 'M', p: 'q.ts' }, { s: 'M', p: 'r.ts' }] }) })); advance(300); });
+  step('git changes', () => { deliver(fm(2, 'f1', 'ok', { facts: facts({ branch: 'feat', ahead: 1, fileTotal: 2, files: [{ s: 'M', p: 'q.ts' }, { s: 'M', p: 'r.ts' }] }) })); advance(300); openAll(G); advance(300); });
   check(tag('a git change brings a done row back and clears the stored mark'), new RegExp('data-id="' + id(1) + '"').test(body.innerHTML) && posted.some((p) => p.type === 'done' && p.id === id(1) && p.on === false));
-  step('restored done map', () => { deliver({ type: 'init', v: 2, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 2, done: { [id(3)]: model.fingerprint('idle', rowsG[2].last, undefined) } }); advance(300); });
+  step('restored done map', () => { deliver({ type: 'init', v: 2, days: 14, hidden: [], ws: 1, done: { [id(3)]: model.fingerprint('idle', rowsG[2].last, undefined) } }); advance(300); openAll(G); advance(300); });
   check(tag('a stored done mark hides its row after a reload (git unknown does not un-hide it)'), !new RegExp('data-id="' + id(3) + '"').test(body.innerHTML));
-  // This workspace only, scoped by repository.
-  check(tag('This workspace only defaults to on in the page, and a saved off from the host is kept'), /wsOnly=true,wsN=0/.test(page) && /wsOnly=!!d\.wsOnly/.test(page));
-  step('workspace chip', () => click('ws'));
-  check(tag('the workspace chip shows when a workspace is open and saves the choice'), els.get('wsb').hidden === false && posted.some((p) => p.type === 'prefs' && p.wsOnly === true));
-  step('a sibling worktree folder in another repo', () => { deliver(fm(2, 'f4', 'ok', { facts: facts({ rk: 'r9', ws: false }) })); advance(300); });
-  check(tag('only chats outside the workspace repositories are dropped'), !new RegExp('data-id="' + id(4) + '"').test(body.innerHTML) && new RegExp('data-id="' + id(2) + '"').test(body.innerHTML));
-  step('late scope update', () => { deliver(fm(2, 'f4', 'ok', { facts: facts({ rk: 'r1', ws: true, branch: 'wt' }) })); advance(300); });
-  check(tag('a chat in a sibling worktree folder is kept (scope by repository)'), new RegExp('data-id="' + id(4) + '"').test(body.innerHTML));
-  step('chip off', () => click('ws'));
+  // One repository: the workspace folder's. Chats of other repositories are not shown.
+  check(tag('there is no This workspace only toggle and no repository sort: the page is the one repository'), !/id="wsb"/.test(page) && !/wsOnly/.test(page) && !/data-a="ws"/.test(page) && !/Repository'\]/.test(page));
+
+
+  step('a sibling worktree folder in another repo', () => { deliver(fm(2, 'f4', 'ok', { facts: facts({ rk: 'r9', ws: false }) })); advance(300); openAll(G); advance(300); });
+  check(tag('chats outside the repository are dropped'), !new RegExp('data-id="' + id(4) + '"').test(body.innerHTML) && new RegExp('data-id="' + id(2) + '"').test(body.innerHTML));
+  step('late scope update', () => { deliver(fm(2, 'f4', 'ok', { facts: facts({ rk: 'r1', ws: true, branch: 'wt' }) })); advance(300); openAll(G); advance(300); });
+  check(tag('a chat in a sibling worktree folder of the repository is kept (scope by repository)'), new RegExp('data-id="' + id(4) + '"').test(body.innerHTML));
+
   // Notes.
   step('notes', () => deliver({ type: 'notes', scan: 2, more: 7 }));
   check(tag('folders beyond the cap say so with a Scan more button'), /7 more folders not scanned/.test(els.get('note').innerHTML) && /data-a="more"/.test(els.get('note').innerHTML));
@@ -287,7 +311,7 @@ function gitScenario(W) {
   step('git missing', () => deliver({ type: 'end', scan: 2, open: [], gitMissing: true }));
   check(tag('a missing git says only chat state is shown'), /Git was not found on this computer\. Only chat state is shown\./.test(els.get('note').innerHTML));
   // Odd payloads never throw.
-  for (const m of [{ type: 'folder' }, { type: 'folder', scan: 2 }, { type: 'folder', scan: 2, key: 5 }, { type: 'folder', scan: 2, key: 'f1', state: 'ok' }, { type: 'folder', scan: 2, key: 'f9', state: 'ok', facts: {} }, { type: 'repo', scan: 2, key: 'r1' }, { type: 'repo', scan: 2, key: 'r2', state: 'ok', worktrees: [{}] }, { type: 'repo', scan: 2, key: 'r3', state: 'ok', worktrees: [{ k: 'w9', fks: null }] }, { type: 'progress', scan: 2 }, { type: 'progress', scan: 2, git: {} }, { type: 'end', scan: 2 }, { type: 'end', scan: 2, open: 5 }, { type: 'notes', scan: 2 }, { type: 'detail' }, { type: 'detail', id: id(1) }]) { step('odd ' + JSON.stringify(m).slice(0, 40), () => { deliver(m); advance(300); }); }
+  for (const m of [{ type: 'folder' }, { type: 'folder', scan: 2 }, { type: 'folder', scan: 2, key: 5 }, { type: 'folder', scan: 2, key: 'f1', state: 'ok' }, { type: 'folder', scan: 2, key: 'f9', state: 'ok', facts: {} }, { type: 'repo', scan: 2, key: 'r1' }, { type: 'repo', scan: 2, key: 'r2', state: 'ok', worktrees: [{}] }, { type: 'repo', scan: 2, key: 'r3', state: 'ok', worktrees: [{ k: 'w9', fks: null }] }, { type: 'progress', scan: 2 }, { type: 'progress', scan: 2, git: {} }, { type: 'end', scan: 2 }, { type: 'end', scan: 2, open: 5 }, { type: 'notes', scan: 2 }, { type: 'detail' }, { type: 'detail', id: id(1) }]) { step('odd ' + JSON.stringify(m).slice(0, 40), () => { deliver(m); advance(300); openAll(G); advance(300); }); }
   // Nothing in the page names an agent; every id the script reads exists.
   check(tag('no agent name in the git cells'), !/claude/i.test(body.innerHTML));
   G.errors.forEach((e) => failures.push(e));
@@ -296,7 +320,7 @@ for (const W of [400, 760, 1400]) { gitScenario(W); }
 
 // Review fixes (0.24.1): expand never hangs on Loading, repository queued/running, partial repositories, dropped repositories, done marks.
 function reviewScenario(W) {
-  const R = createHarness({ page, name: 'openwork-review@' + W, width: W, popIds: ['grb', 'grm'] });
+  const R = createHarness({ page, name: 'openwork-review@' + W, width: W, popIds: VIEW_POPS });
   const { els, posted, fire, deliver, advance, check, step } = R;
   const body = els.get('body'), tag = (s) => s + ' at ' + W;
   const facts = (o) => Object.assign({ name: 'proj', branch: 'feat', detached: false, upstream: 'origin/feat', ahead: 0, behind: 0, gone: false, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], rk: 'r1', ws: true }, o || {});
@@ -307,8 +331,8 @@ function reviewScenario(W) {
   const wtm = (k, o) => Object.assign({ k, name: 'proj-' + k, path: '/p/' + k, branch: 'b' + k, detached: false, main: false, missing: false, locked: false, prunable: false, merged: false, ws: true, fks: [] }, o || {});
   const okf = (n) => ({ ok: true, fileTotal: n, ahead: 0, behind: 0, gone: false, files: [] });
   R.start();
-  step('init', () => { deliver({ type: 'init', v: 3, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {} }); deliver({ type: 'dots', map: {} }); });
-  step('chats', () => { deliver({ type: 'chats', scan: 1, rows, indexing: false, scanning: true }); deliver(fm(1, 'f1', 'queued')); deliver(fm(1, 'f2', 'queued')); advance(300); });
+  step('init', () => { deliver({ type: 'init', v: 3, days: 14, hidden: [], ws: 1, done: {} }); deliver({ type: 'dots', map: {} }); });
+  step('chats', () => { deliver({ type: 'chats', scan: 1, rows, indexing: false, scanning: true }); deliver(fm(1, 'f1', 'queued')); deliver(fm(1, 'f2', 'queued')); deliver(mainRepo(1, ['f1', 'f2'])); advance(300); openAll(R); advance(300); });
   // 1. A row opened while its folder is still queued gets its commit request when the folder result arrives.
   step('open while queued', () => click('row', 1));
   check(tag('opening a row whose folder is still queued sends no request yet'), exp(1) === 0);
@@ -339,19 +363,19 @@ function reviewScenario(W) {
   // 5. Repository queued, running, partial.
   step('repo queued and worktrees', () => { deliver({ type: 'repo', scan: 2, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: [], ws: true, worktrees: [wtm('w1', { main: true, fks: ['f1'] }), wtm('w2', { facts: okf(3) }), wtm('w3')] }); advance(300); });
   step('repo queued again', () => { deliver({ type: 'repo', scan: 2, key: 'r1', state: 'queued', worktrees: [], merged: [] }); advance(300); });
-  check(tag('a queued post with no worktrees keeps the worktree rows already known'), /data-id="w2"/.test(body.innerHTML) && /data-id="w3"/.test(body.innerHTML));
+  check(tag('a queued post with no worktrees keeps the worktree rows already known'), trSlice(body, 'w', 'w2') !== '' && trSlice(body, 'w', 'w3') !== '');
   step('queued for a long time', () => advance(20000));
   check(tag('a repository that is only queued is not timed out by the per-row watchdog'), !/data-a="fretry" data-k="r1"/.test(body.innerHTML));
   step('running then silence', () => { deliver({ type: 'repo', scan: 2, key: 'r1', state: 'running', worktrees: [], merged: [] }); advance(15500); });
   check(tag('a running repository that goes silent times out after 15 s'), /data-a="fretry" data-k="r1"/.test(body.innerHTML));
-  check(tag('a worktree that finished before the timeout still shows its files; the unread one says timed out'), /3 files/.test(body.innerHTML.slice(body.innerHTML.indexOf('data-id="w2"'), body.innerHTML.indexOf('data-id="w3"'))) && /timed out/.test(body.innerHTML.slice(body.innerHTML.indexOf('data-id="w3"'))));
-  // 10. Repositories of earlier scans leave the page.
-  step('another repo in scan 2', () => { deliver({ type: 'repo', scan: 2, key: 'r9', state: 'ok', name: 'old', def: 'origin/main', defLocal: 'main', merged: [], ws: true, worktrees: [wtm('w1', { main: true }), wtm('w9', { facts: okf(1) })] }); advance(300); });
-  check(tag('a repository of this scan lists its worktree'), /data-id="w9"/.test(body.innerHTML));
+  check(tag('a worktree that finished before the timeout still shows its files; the unread one says timed out'), /<span class="ah">3<\/span>/.test(trSlice(body, 'w', 'w2')) && /timed out/.test(trSlice(body, 'w', 'w3')));
+  // 10. Only the workspace repository is shown; one of another repository never appears and leaves nothing behind.
+  step('another repo in scan 2', () => { deliver({ type: 'repo', scan: 2, key: 'r9', state: 'ok', name: 'old', def: 'origin/main', defLocal: 'main', merged: [], ws: false, worktrees: [wtm('w1', { main: true }), wtm('w9', { facts: okf(1) })] }); advance(300); });
+  check(tag('a repository outside the workspace is not listed'), !/psn">old</.test(body.innerHTML) && trSlice(body, 'w', 'w9') === '');
   step('scan 3', () => { deliver({ type: 'chats', scan: 3, rows, indexing: false, scanning: true }); deliver(fm(3, 'f1', 'queued')); deliver({ type: 'repo', scan: 3, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: [], ws: true, worktrees: [wtm('w1', { main: true, fks: ['f1'] }), wtm('w2', { facts: okf(3) })] }); deliver({ type: 'end', scan: 3, open: [], gitMissing: false }); advance(300); });
-  check(tag('a repository that is not in the latest scan is dropped with its worktree rows'), !/data-id="w9"/.test(body.innerHTML) && /data-id="w2"/.test(body.innerHTML));
+  check(tag('a worktree that is not in the latest scan is dropped'), trSlice(body, 'w', 'w3') === '' && trSlice(body, 'w', 'w2') !== '');
   step('late timers', () => advance(50000));
-  check(tag('the dropped repository never flips to timed out later'), !/data-id="w9"/.test(body.innerHTML) && !/data-k="r9"/.test(body.innerHTML));
+  check(tag('the dropped repository never flips to timed out later'), !/data-k="r9"/.test(body.innerHTML) && trSlice(body, 'w', 'w9') === '');
   // 8. Mark done: no post or mutation while rendering; long branch names keep their mark.
   const doneOfSrc = /function doneOf\(r\)\{[^]*?\n[^\n]*\}\n/.exec(R.script);
   check(tag('doneOf (called while rendering) neither posts nor deletes'), doneOfSrc && !/postMessage|delete donemap/.test(doneOfSrc[0]));
@@ -362,7 +386,7 @@ function reviewScenario(W) {
   check(tag('Mark done on a chat with a 300 character branch sends a fingerprint that fits the 200 character store'), dm && typeof dm.fp === 'string' && dm.fp.length <= 200 && !dm.fp.includes('xxxxxxxx'));
   step('same state', () => { deliver(fm(3, 'f2', 'ok', { facts: facts({ branch: longBranch, rk: 'r1' }) })); advance(300); });
   check(tag('the long-branch chat stays hidden while nothing changed'), !new RegExp('data-id="' + id(2) + '"').test(body.innerHTML));
-  step('branch changes', () => { deliver(fm(3, 'f2', 'ok', { facts: facts({ branch: longBranch + 'y', rk: 'r1' }) })); advance(300); });
+  step('branch changes', () => { deliver(fm(3, 'f2', 'ok', { facts: facts({ branch: longBranch + 'y', rk: 'r1' }) })); advance(300); openAll(R); advance(300); });
   check(tag('a different long branch brings the row back and clears the mark'), new RegExp('data-id="' + id(2) + '"').test(body.innerHTML) && posted.some((p) => p.type === 'done' && p.id === id(2) && p.on === false));
   R.errors.forEach((e) => failures.push(e));
 }
@@ -370,33 +394,33 @@ for (const W of [400, 1400]) { reviewScenario(W); }
 
 // Slice 3: pull request layer, check states, streaming, hold-still, retry, lookups off.
 function prScenario(W) {
-  const P = createHarness({ page, name: 'openwork-prs@' + W, width: W, popIds: ['grb', 'grm'] });
+  const P = createHarness({ page, name: 'openwork-prs@' + W, width: W, popIds: VIEW_POPS });
   const { els, document, posted, fire, deliver, advance, check, step } = P;
   const body = els.get('body'), tag = (s) => s + ' at ' + W, prog = els.get('prog');
   const facts = (o) => Object.assign({ name: 'proj', branch: 'feat', detached: false, upstream: 'origin/feat', ahead: 0, behind: 0, gone: false, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], rk: 'r1', ws: true }, o || {});
   const fm = (sc, key, state, o) => Object.assign({ type: 'folder', scan: sc, key, state }, o || {});
   const click = (a, n, data) => fire(body, 'click', { target: target(a, n ? id(n) : '', data ? { dataset: Object.assign({ a }, data) } : undefined) });
   const rowsP = [row(1, { fk: 'f1', last: NOW - 1 * H }), row(2, { fk: 'f2', last: NOW - 2 * H }), row(3, { last: NOW - 3 * H })];
-  const rowOf = (key) => { const i = body.innerHTML.indexOf('data-id="' + key + '"'); if (i < 0) { return ''; } const j = body.innerHTML.indexOf('class="row"', i); return body.innerHTML.slice(i, j < 0 ? undefined : j); };
-  const inBand = (label, n) => { const i = body.innerHTML.indexOf('aria-label="' + label + '"'); const j = body.innerHTML.indexOf('data-id="' + id(n) + '"'); if (i < 0 || j < 0) { return false; } const next = body.innerHTML.indexOf('<section', i + 10); return j > i && (next < 0 || j < next); };
+  const rowOf = (key) => rowSlice(body, key);
+  const inBand = (label, n) => inBandOf(body, label, n);
   const prs = (state, o) => Object.assign({ type: 'prs', scan: 1, repo: 'r1', state }, o || {});
   const chk = (n, state, o) => Object.assign({ type: 'checks', scan: 1, repo: 'r1', n, state }, o || {});
   const BY = { feat: { n: 81, title: 'Fix <b>it</b>', draft: false, review: 'approved', link: true }, other: { n: 82, title: 'Draft one', draft: true, review: '', link: true } };
   P.start();
-  step('init', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {} }));
+  step('init', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, hidden: [], ws: 1, done: {} }));
   step('dots', () => deliver({ type: 'dots', map: { [id(1)]: { s: 'running' } } }));
-  step('chats', () => { deliver({ type: 'chats', scan: 1, rows: rowsP, indexing: false, scanning: true }); deliver(fm(1, 'f1', 'ok', { facts: facts() })); deliver(fm(1, 'f2', 'ok', { facts: facts({ branch: 'other' }) })); advance(300); });
-  check(tag('the PR and Checks columns exist when lookups are on'), />PR</.test(body.innerHTML) && />Checks</.test(body.innerHTML) && els.get('wrap').classList.contains('wpr'));
+  step('chats', () => { deliver({ type: 'chats', scan: 1, rows: rowsP, indexing: false, scanning: true }); deliver(fm(1, 'f1', 'ok', { facts: facts() })); deliver(fm(1, 'f2', 'ok', { facts: facts({ branch: 'other' }) })); deliver(mainRepo(1, ['f1', 'f2'])); advance(300); openAll(P); advance(300); });
+  check(tag('the PR and Checks cells exist in the chat rows when lookups are on'), /class="pr"/.test(rowOf(id(1))) && /class="kc"/.test(rowOf(id(1))) && els.get('wrap').classList.contains('wpr'));
   check(tag('the header title has no off-tooltip while lookups are on'), !els.get('ttl').dataset.tip);
-  step('queued', () => { deliver(prs('queued')); advance(300); });
+  step('queued', () => { deliver(prs('queued')); advance(300); openAll(P); advance(300); });
   check(tag('a queued PR layer shows a waiting cell and the row is busy'), /class="q" data-tip="Waiting to look up pull requests"/.test(rowOf(id(1))) && /aria-busy="true"/.test(rowOf(id(1))));
   check(tag('a chat with no folder has no PR cell state and is not busy'), !/aria-busy="true"/.test(rowOf(id(3))));
-  step('checking', () => { deliver(prs('checking')); deliver({ type: 'progress', scan: 1, git: { done: 2, total: 2 }, prs: { done: 0, total: 1 } }); advance(300); });
+  step('checking', () => { deliver(prs('checking')); deliver({ type: 'progress', scan: 1, git: { done: 2, total: 2 }, prs: { done: 0, total: 1 } }); advance(300); openAll(P); advance(300); });
   check(tag('a PR layer being read shows a spinner with a label'), /class="spin" role="img" aria-label="Checking pull request"/.test(rowOf(id(1))));
   check(tag('the progress line shows the PR counter with numbers and the git part is gone once it is done'), /Checking pull requests: 0 of 1 repository/.test(prog.textContent) && !/Checking git/.test(prog.textContent) && prog.getAttribute('aria-valuemax') === '3' && prog.getAttribute('aria-valuenow') === '2' && prog.hidden === false);
   step('both running', () => deliver({ type: 'progress', scan: 1, git: { done: 1, total: 2 }, prs: { done: 0, total: 3 } }));
   check(tag('while both run, both counters show'), /Checking git: 1 of 2 folders · Checking pull requests: 0 of 3 repositories/.test(prog.textContent));
-  step('list', () => { deliver(prs('ok', { by: BY })); deliver(chk(81, 'checking')); advance(300); });
+  step('list', () => { deliver(prs('ok', { by: BY })); deliver(chk(81, 'checking')); advance(300); openAll(P); advance(300); });
   check(tag('the PR cell shows number, review state; the checks cell shows a spinner and the word checking'), /#81 approved/.test(rowOf(id(1))) && /aria-label="Checking pull request"/.test(rowOf(id(1))) && /checking/.test(rowOf(id(1))) && /#82 draft/.test(rowOf(id(2))));
   check(tag('a PR in review with unknown checks puts the running chat in Waiting on others; a clean chat with a draft PR is Waiting on others'), inBand('Waiting on others', 1) && inBand('Waiting on others', 2));
   check(tag('the PR title is escaped in the expanded row and no raw tag reaches the page'), (() => { step('expand', () => click('row', 1)); const h = rowOf(id(1)); step('collapse', () => click('row', 1)); return /Fix &lt;b&gt;it&lt;\/b&gt;/.test(h) && !/<b>it<\/b>/.test(h); })());
@@ -408,7 +432,7 @@ function prScenario(W) {
   check(tag('a PR click with a bad key or number posts nothing'), posted.filter((p) => p.type === 'openPr').length === 1);
   // Failing check moves the running chat up (even while running); the cell has icon and text.
   const names = ['lint <img src=x onerror=alert(1)>', 'unit'];
-  step('failing', () => { deliver(chk(81, 'failing', { total: 9, failing: 2, pending: 0, names })); advance(300); });
+  step('failing', () => { deliver(chk(81, 'failing', { total: 9, failing: 2, pending: 0, names })); advance(300); openAll(P); advance(300); });
   check(tag('a failing check moves the chat to To finish even while the agent is running'), inBand('To finish', 1) && /class="dot running"/.test(rowOf(id(1))));
   check(tag('the failing badge has an icon and text, not color alone'), /class="ck fail"[^>]*>✗ checks failing \(2 of 9\)</.test(rowOf(id(1))));
   check(tag('failing check names are in the tooltip, escaped'), /data-tip="Failing: lint &lt;img src=x onerror=alert\(1\)&gt;, unit"/.test(rowOf(id(1))) && !/<img src=x/.test(body.innerHTML));
@@ -417,72 +441,72 @@ function prScenario(W) {
   check(tag('the expanded row lists the pull request and the failing names, escaped'), /Checks<\/dt><dd>checks failing \(2 of 9\): lint &lt;img/.test(rowOf(id(1))) && /Pull request<\/dt><dd>#81 Fix &lt;b&gt;it&lt;\/b&gt; \(approved\)/.test(rowOf(id(1))));
   step('collapse', () => click('row', 1));
   // Pending moves to Waiting; passing + approved moves to To finish (not running).
-  step('dots idle', () => { deliver({ type: 'dots', map: {} }); advance(300); });
-  step('pending', () => { deliver(chk(81, 'pending', { total: 9, failing: 0, pending: 3, names: [] })); advance(300); });
+  step('dots idle', () => { deliver({ type: 'dots', map: {} }); advance(300); openAll(P); advance(300); });
+  step('pending', () => { deliver(chk(81, 'pending', { total: 9, failing: 0, pending: 3, names: [] })); advance(300); openAll(P); advance(300); });
   check(tag('pending checks put an approved PR in Waiting on others'), inBand('Waiting on others', 1) && /◔ checks pending/.test(rowOf(id(1))));
-  step('passing', () => { deliver(chk(81, 'passing', { total: 9, failing: 0, pending: 0, names: [] })); advance(300); });
+  step('passing', () => { deliver(chk(81, 'passing', { total: 9, failing: 0, pending: 0, names: [] })); advance(300); openAll(P); advance(300); });
   check(tag('approved with checks passing is To finish'), inBand('To finish', 1) && /✓ checks passing/.test(rowOf(id(1))));
-  step('none', () => { deliver(chk(81, 'none', { total: 0, failing: 0, pending: 0, names: [] })); advance(300); });
+  step('none', () => { deliver(chk(81, 'none', { total: 0, failing: 0, pending: 0, names: [] })); advance(300); openAll(P); advance(300); });
   check(tag('no checks shows no badge'), !/class="ck/.test(rowOf(id(1))) && inBand('To finish', 1));
   // Mark done ignores pending -> passing but comes back on failing.
-  step('pending again', () => { deliver(chk(81, 'pending', { total: 9, failing: 0, pending: 3, names: [] })); advance(300); });
+  step('pending again', () => { deliver(chk(81, 'pending', { total: 9, failing: 0, pending: 3, names: [] })); advance(300); openAll(P); advance(300); });
   step('mark done', () => click('done', 1));
   advance(300);
   const dm = posted.filter((p) => p.type === 'done' && p.id === id(1) && p.on === true).pop();
   check(tag('Mark done hides the row and its fingerprint records the PR'), dm && /#feat\|0\|0#81\|approved\|-$/.test(dm.fp) && !new RegExp('data-id="' + id(1) + '"').test(body.innerHTML));
-  step('pending to passing', () => { deliver(chk(81, 'passing', { total: 9, failing: 0, pending: 0, names: [] })); advance(300); });
+  step('pending to passing', () => { deliver(chk(81, 'passing', { total: 9, failing: 0, pending: 0, names: [] })); advance(300); openAll(P); advance(300); });
   check(tag('checks going from pending to passing do not bring a done row back'), !new RegExp('data-id="' + id(1) + '"').test(body.innerHTML) && !posted.some((p) => p.type === 'done' && p.id === id(1) && p.on === false));
-  step('failing again', () => { deliver(chk(81, 'failing', { total: 9, failing: 1, pending: 0, names: ['unit'] })); advance(300); });
+  step('failing again', () => { deliver(chk(81, 'failing', { total: 9, failing: 1, pending: 0, names: ['unit'] })); advance(300); openAll(P); advance(300); });
   check(tag('a failing check brings a done row back and clears the mark'), new RegExp('data-id="' + id(1) + '"').test(body.innerHTML) && posted.some((p) => p.type === 'done' && p.id === id(1) && p.on === false) && inBand('To finish', 1));
   // Hold still while streaming: a row under the mouse does not jump when a check result arrives.
-  step('back to passing and none', () => { deliver(chk(81, 'pending', { total: 9, failing: 0, pending: 3, names: [] })); advance(300); });
+  step('back to passing and none', () => { deliver(chk(81, 'pending', { total: 9, failing: 0, pending: 3, names: [] })); advance(300); openAll(P); advance(300); });
   check(tag('setup: pending puts it in Waiting on others'), inBand('Waiting on others', 1));
   const hoverRow = (n) => ({ target: { closest: (sel) => (sel === '.row' ? { dataset: { id: id(n) } } : null), dataset: {} } });
   step('hover', () => fire(document, 'mouseover', hoverRow(1)));
-  step('failing while hovered', () => { deliver(chk(81, 'failing', { total: 9, failing: 1, pending: 0, names: ['unit'] })); advance(300); });
+  step('failing while hovered', () => { deliver(chk(81, 'failing', { total: 9, failing: 1, pending: 0, names: ['unit'] })); advance(300); openAll(P); advance(300); });
   check(tag('a hovered row stays in its band while the failing result streams in (the badge itself updates)'), inBand('Waiting on others', 1) && /checks failing/.test(rowOf(id(1))));
-  step('leave', () => { fire(document, 'mouseover', { target: { closest: () => null, dataset: {} } }); advance(300); });
+  step('leave', () => { fire(document, 'mouseover', { target: { closest: () => null, dataset: {} } }); advance(300); openAll(P); advance(300); });
   check(tag('the row moves up to To finish once the mouse leaves'), inBand('To finish', 1));
-  step('hover and wait', () => { step('pending', () => deliver(chk(81, 'pending', { total: 9, failing: 0, pending: 3, names: [] }))); advance(300); });
+  step('hover and wait', () => { step('pending', () => deliver(chk(81, 'pending', { total: 9, failing: 0, pending: 3, names: [] }))); advance(300); openAll(P); advance(300); });
   check(tag('setup: failing to pending leaves To finish when nothing is hovered'), inBand('Waiting on others', 1));
   step('hover 2', () => fire(document, 'mouseover', hoverRow(1)));
-  step('failing hovered', () => { deliver(chk(81, 'failing', { total: 9, failing: 1, pending: 0, names: ['unit'] })); advance(300); });
+  step('failing hovered', () => { deliver(chk(81, 'failing', { total: 9, failing: 1, pending: 0, names: ['unit'] })); advance(300); openAll(P); advance(300); });
   check(tag('held while hovered'), inBand('Waiting on others', 1));
   step('2 s', () => advance(2100));
   check(tag('a hovered row moves after 2 s anyway'), inBand('To finish', 1));
   step('mouse out', () => fire(document, 'mouseover', { target: { closest: () => null, dataset: {} } }));
   // Unavailable states.
-  step('unavailable', () => { deliver(chk(81, 'unavailable', { reason: 'timed out' })); advance(300); });
+  step('unavailable', () => { deliver(chk(81, 'unavailable', { reason: 'timed out' })); advance(300); openAll(P); advance(300); });
   check(tag('a failed check lookup shows PR info unavailable with Retry; the row keeps its git facts and band'), /PR info unavailable/.test(rowOf(id(1))) && /data-a="fretry" data-k="p1"/.test(rowOf(id(1))) && /aria-label="Retry pull request lookup: Chat 1"/.test(rowOf(id(1))));
   step('retry', () => click('fretry', 1, { k: 'p1' }));
   advance(300);
   check(tag('Retry posts retry with the p key and shows the repository as waiting'), posted.some((p) => p.type === 'retry' && p.key === 'p1') && /data-tip="Waiting to look up pull requests"/.test(rowOf(id(2))));
   step('retry watchdog', () => advance(25500));
   check(tag('a PR layer left on queued or checking ends as unavailable with Retry after the watchdog (never an endless spinner)'), !/class="spin"/.test(rowOf(id(2))) && /class="q unk"[^>]*>timed out</.test(rowOf(id(2))) && /data-a="fretry" data-k="p1"/.test(rowOf(id(2))));
-  step('good again', () => { deliver(prs('ok', { by: BY })); deliver(chk(81, 'passing', { total: 1, failing: 0, pending: 0, names: [] })); advance(300); });
-  step('layer unavailable', () => { deliver(prs('unavailable', { reason: 'not a GitHub repository' })); advance(300); });
+  step('good again', () => { deliver(prs('ok', { by: BY })); deliver(chk(81, 'passing', { total: 1, failing: 0, pending: 0, names: [] })); advance(300); openAll(P); advance(300); });
+  step('layer unavailable', () => { deliver(prs('unavailable', { reason: 'not a GitHub repository' })); advance(300); openAll(P); advance(300); });
   check(tag('a permanent reason (not a GitHub repository) shows "not on GitHub" (unknown, not "no PR") and no Retry, plus a header note'), /class="q unk"[^>]*>not on GitHub</.test(rowOf(id(2))) && !/no PR/.test(rowOf(id(2))) && !/data-k="p1"/.test(rowOf(id(2))) && /Pull requests unavailable for 1 repository: not a GitHub repository\./.test(els.get('note').innerHTML));
-  step('layer transient', () => { deliver(prs('unavailable', { reason: 'GitHub not reachable' })); advance(300); });
+  step('layer transient', () => { deliver(prs('unavailable', { reason: 'GitHub not reachable' })); advance(300); openAll(P); advance(300); });
   check(tag('a transient reason shows the reason in the PR cell (not "no PR") with Retry on each row of the repository'), /class="q unk"[^>]*>offline</.test(rowOf(id(2))) && !/no PR/.test(rowOf(id(2))) && /data-k="p1"/.test(rowOf(id(2))));
   // end lists unfinished PR keys; stale scans are dropped.
-  step('stale', () => { deliver(prs('ok', { scan: 0, by: {} })); deliver(chk(81, 'failing', { scan: 5, total: 1, failing: 1, names: [] })); advance(300); });
+  step('stale', () => { deliver(prs('ok', { scan: 0, by: {} })); deliver(chk(81, 'failing', { scan: 5, total: 1, failing: 1, names: [] })); advance(300); openAll(P); advance(300); });
   check(tag('PR and check messages of another scan are dropped'), /class="q unk"[^>]*>offline</.test(rowOf(id(2))));
-  step('2nd scan', () => { deliver({ type: 'chats', scan: 2, rows: rowsP, indexing: false, scanning: true }); deliver(prs('queued', { scan: 2 })); deliver(prs('checking', { scan: 2 })); advance(300); });
-  step('end with p1', () => { deliver({ type: 'end', scan: 2, open: ['p1'] }); advance(300); });
+  step('2nd scan', () => { deliver({ type: 'chats', scan: 2, rows: rowsP, indexing: false, scanning: true }); deliver(mainRepo(2, ['f1', 'f2'])); deliver(prs('queued', { scan: 2 })); deliver(prs('checking', { scan: 2 })); advance(300); openAll(P); advance(300); });
+  step('end with p1', () => { deliver({ type: 'end', scan: 2, open: ['p1'] }); advance(300); openAll(P); advance(300); });
   check(tag('end listing p1 turns a checking layer into unavailable with Retry'), !/class="spin"/.test(rowOf(id(2))) && /data-k="p1"/.test(rowOf(id(2))) && prog.hidden === true);
-  step('scan-wide silence', () => { deliver({ type: 'chats', scan: 3, rows: rowsP, indexing: false, scanning: true }); deliver(prs('checking', { scan: 3 })); deliver(chk(81, 'checking', { scan: 3 })); advance(300); });
+  step('scan-wide silence', () => { deliver({ type: 'chats', scan: 3, rows: rowsP, indexing: false, scanning: true }); deliver(mainRepo(3, ['f1', 'f2'])); deliver(prs('checking', { scan: 3 })); deliver(chk(81, 'checking', { scan: 3 })); advance(300); openAll(P); advance(300); });
   step('silence', () => advance(45500));
   check(tag('a silent scan ends every PR spinner as unavailable'), !/class="spin"/.test(body.innerHTML.replace(/data-id="[^"]*"[^]*$/, '') + rowOf(id(1)) + rowOf(id(2))));
   // Odd payloads never throw.
-  for (const m of [{ type: 'prs' }, { type: 'prs', scan: 3 }, { type: 'prs', scan: 3, repo: 5 }, { type: 'prs', scan: 3, repo: 'r1', state: 'ok', by: null }, { type: 'prs', scan: 3, repo: 'r2', state: 'ok', by: { x: null, y: {}, z: { n: -1 } } }, { type: 'checks' }, { type: 'checks', scan: 3, repo: 'r1' }, { type: 'checks', scan: 3, repo: 'r1', n: 81, state: 'bogus' }, { type: 'checks', scan: 3, repo: 'r9', n: 1, state: 'failing', names: 'x' }, { type: 'progress', scan: 3, git: { done: 1, total: 2 }, prs: 5 }, { type: 'progress', scan: 3, git: { done: 1, total: 2 }, prs: {} }, { type: 'notes', scan: 3, more: 0, prsOn: 'x' }]) { step('odd ' + JSON.stringify(m).slice(0, 50), () => { deliver(m); advance(300); }); }
+  for (const m of [{ type: 'prs' }, { type: 'prs', scan: 3 }, { type: 'prs', scan: 3, repo: 5 }, { type: 'prs', scan: 3, repo: 'r1', state: 'ok', by: null }, { type: 'prs', scan: 3, repo: 'r2', state: 'ok', by: { x: null, y: {}, z: { n: -1 } } }, { type: 'checks' }, { type: 'checks', scan: 3, repo: 'r1' }, { type: 'checks', scan: 3, repo: 'r1', n: 81, state: 'bogus' }, { type: 'checks', scan: 3, repo: 'r9', n: 1, state: 'failing', names: 'x' }, { type: 'progress', scan: 3, git: { done: 1, total: 2 }, prs: 5 }, { type: 'progress', scan: 3, git: { done: 1, total: 2 }, prs: {} }, { type: 'notes', scan: 3, more: 0, prsOn: 'x' }]) { step('odd ' + JSON.stringify(m).slice(0, 50), () => { deliver(m); advance(300); openAll(P); advance(300); }); }
   // Lookups off: no PR column, no PR text, no PR progress, a quiet tooltip, messages ignored.
-  step('off', () => { deliver({ type: 'init', v: 3, prsOn: false, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {} }); advance(300); });
+  step('off', () => { deliver({ type: 'init', v: 3, prsOn: false, days: 14, hidden: [], ws: 1, done: {} }); advance(300); openAll(P); advance(300); });
   check(tag('lookups off: no PR or Checks column and no PR cells'), !/>PR</.test(body.innerHTML) && !/>Checks</.test(body.innerHTML) && !/class="pr"/.test(body.innerHTML) && !/class="kc"/.test(body.innerHTML) && !els.get('wrap').classList.contains('wpr'));
   check(tag('lookups off: the header tooltip says so quietly'), els.get('ttl').dataset.tip === 'Pull requests are off (setting Look Up Pull Requests).' && !/Pull requests/.test(els.get('note').innerHTML));
-  step('off messages', () => { deliver({ type: 'chats', scan: 4, rows: rowsP, indexing: false, scanning: true }); deliver(prs('ok', { scan: 4, by: BY })); deliver(chk(81, 'failing', { scan: 4, total: 1, failing: 1, names: ['x'] })); deliver({ type: 'progress', scan: 4, git: { done: 1, total: 2 }, prs: { done: 0, total: 3 } }); advance(300); });
+  step('off messages', () => { deliver({ type: 'chats', scan: 4, rows: rowsP, indexing: false, scanning: true }); deliver(mainRepo(4, ['f1', 'f2'])); deliver(prs('ok', { scan: 4, by: BY })); deliver(chk(81, 'failing', { scan: 4, total: 1, failing: 1, names: ['x'] })); deliver({ type: 'progress', scan: 4, git: { done: 1, total: 2 }, prs: { done: 0, total: 3 } }); advance(300); openAll(P); advance(300); });
   check(tag('lookups off: PR messages are ignored, no PR band move, no PR progress text'), !/checks failing/.test(body.innerHTML) && !/#81/.test(body.innerHTML) && !/pull requests/i.test(prog.textContent) && !/data-a="pr"/.test(body.innerHTML));
   check(tag('indicator: lookups off shows the grey off state whose click opens the setting'), els.get('ghs').dataset.g === 'off' && /g-off/.test(els.get('ghs').className) && els.get('ght').textContent === 'GitHub off' && /Look Up Pull Requests/.test(els.get('ghs').dataset.tip) && (() => { fire(body, 'click', { target: target('ghs') }); return posted.some((p) => p.type === 'prsSetting'); })());
-  step('on again', () => { deliver({ type: 'notes', scan: 4, more: 0, prsOn: true }); advance(300); });
+  step('on again', () => { deliver({ type: 'notes', scan: 4, more: 0, prsOn: true }); advance(300); openAll(P); advance(300); });
   check(tag('turning lookups back on restores the columns and clears the tooltip'), /class="pr"/.test(body.innerHTML) && !els.get('ttl').dataset.tip);
   check(tag('no agent name in the PR cells'), !/claude/i.test(body.innerHTML));
   P.errors.forEach((e) => failures.push(e));
@@ -491,62 +515,64 @@ for (const W of [400, 760, 1400]) { prScenario(W); }
 
 // GitHub connection indicator, PR-only rows and branch links.
 function ghScenario(W) {
-  const P = createHarness({ page, name: 'openwork-gh@' + W, width: W, popIds: ['grb', 'grm'] });
+  const P = createHarness({ page, name: 'openwork-gh@' + W, width: W, popIds: VIEW_POPS });
   const { els, posted, fire, deliver, advance, check, step } = P;
   const body = els.get('body'), tag = (s) => s + ' at ' + W;
   const facts = (o) => Object.assign({ name: 'proj', branch: 'feat', detached: false, upstream: 'origin/feat', ahead: 0, behind: 0, gone: false, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], rk: 'r1', ws: true }, o || {});
   const fm = (sc, key, state, o) => Object.assign({ type: 'folder', scan: sc, key, state }, o || {});
   const click = (a, n, data) => fire(body, 'click', { target: target(a, n ? id(n) : '', data ? { dataset: Object.assign({ a }, data) } : undefined) });
   const rowsP = [row(1, { fk: 'f1', last: NOW - 1 * H }), row(2, { fk: 'f2', last: NOW - 2 * H })];
-  const rowOf = (key) => { const i = body.innerHTML.indexOf('data-id="' + key + '"'); if (i < 0) { return ''; } const j = body.innerHTML.indexOf('class="row"', i); return body.innerHTML.slice(i, j < 0 ? undefined : j); };
+  const rowOf = (key) => rowSlice(body, key);
   const prs = (state, o) => Object.assign({ type: 'prs', scan: 1, repo: 'r1', state }, o || {});
   const chk = (n, state, o) => Object.assign({ type: 'checks', scan: 1, repo: 'r1', n, state }, o || {});
   const BY = { feat: { n: 81, title: 'Fix it', draft: false, review: 'approved', link: true }, other: { n: 82, title: 'Draft one', draft: true, review: '', link: true } };
   P.start();
-  step('init', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {} }));
-  step('chats', () => { deliver({ type: 'chats', scan: 1, rows: rowsP, indexing: false, scanning: true }); deliver(fm(1, 'f1', 'ok', { facts: facts() })); deliver(fm(1, 'f2', 'ok', { facts: facts({ branch: 'other' }) })); advance(300); });
+  step('init', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, hidden: [], ws: 1, done: {} }));
+  step('chats', () => { deliver({ type: 'chats', scan: 1, rows: rowsP, indexing: false, scanning: true }); deliver(fm(1, 'f1', 'ok', { facts: facts() })); deliver(fm(1, 'f2', 'ok', { facts: facts({ branch: 'other' }) })); deliver(mainRepo(1, ['f1', 'f2'])); advance(300); openAll(P); advance(300); });
   // GitHub connection indicator, PR-only branch rows and branch links.
   const gb = els.get('ghs'), gt = els.get('ght'), ghk = () => gb.dataset.g;
   check(tag('indicator: before any answer it waits (checking), it is not green'), ghk() === 'wait' && !/g-ok/.test(gb.className));
-  step('gh ok state', () => { deliver(prs('ok', { by: BY })); advance(300); });
+  step('gh ok state', () => { deliver(prs('ok', { by: BY })); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
   check(tag('indicator: lookups on and one repository answered shows OK, green, with the repository count and the age of the lookup'), ghk() === 'ok' && /g-ok/.test(gb.className) && gt.textContent === 'GitHub OK' && /Checked 1 repository, last lookup just now/.test(gb.dataset.tip) && /GitHub connection: GitHub OK/.test(gb.getAttribute('aria-label')));
-  step('gh unauth', () => { deliver({ type: 'gh', scan: 1, state: 'unauth', reason: 'not signed in to gh' }); advance(300); });
+  step('gh unauth', () => { deliver({ type: 'gh', scan: 1, state: 'unauth', reason: 'not signed in to gh' }); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
   check(tag('indicator: gh not signed in is red, says gh auth login in the tooltip'), ghk() === 'unauth' && /g-bad/.test(gb.className) && /gh auth login/.test(gb.dataset.tip) && gt.textContent === 'gh not signed in');
   step('click unauth', () => fire(body, 'click', { target: target('ghs') }));
   check(tag('indicator: clicking when gh is signed out checks again (a refresh), it opens no setting'), posted.some((p) => p.type === 'refresh') && !posted.some((p) => p.type === 'prsSetting'));
-  step('gh missing', () => { deliver({ type: 'gh', scan: 1, state: 'missing', reason: 'gh not installed' }); advance(300); });
+  step('gh missing', () => { deliver({ type: 'gh', scan: 1, state: 'missing', reason: 'gh not installed' }); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
   check(tag('indicator: gh not installed is red and names the install'), ghk() === 'missing' && /g-bad/.test(gb.className) && /Install it/.test(gb.dataset.tip));
-  step('gh limit', () => { deliver({ type: 'gh', scan: 1, state: 'error', reason: 'GitHub rate limit reached' }); advance(300); });
+  step('gh limit', () => { deliver({ type: 'gh', scan: 1, state: 'error', reason: 'GitHub rate limit reached' }); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
   check(tag('indicator: a rate limit is amber and says so'), ghk() === 'limit' && /g-warn/.test(gb.className) && /rate limit/.test(gb.dataset.tip));
-  step('gh other', () => { deliver({ type: 'gh', scan: 1, state: 'error', reason: 'timed out' }); advance(300); });
+  step('gh other', () => { deliver({ type: 'gh', scan: 1, state: 'error', reason: 'timed out' }); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
   check(tag('indicator: any other gh failure is amber with its reason'), ghk() === 'error' && /g-warn/.test(gb.className) && /timed out/.test(gb.dataset.tip));
-  step('gh ok again', () => { deliver({ type: 'gh', scan: 1, state: 'ok', reason: '' }); advance(300); });
-  step('repo failed', () => { deliver(prs('ok', { repo: 'r9', by: {} })); deliver(prs('unavailable', { reason: 'timed out' })); advance(300); });
+  step('gh ok again', () => { deliver({ type: 'gh', scan: 1, state: 'ok', reason: '' }); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
+  step('repo failed', () => { deliver(prs('ok', { repo: 'r9', by: {} })); deliver(prs('unavailable', { reason: 'timed out' })); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
   check(tag('indicator: one repository failing while another works is a partial failure with the reason'), ghk() === 'partial' && /1 of 2 repositories: timed out/.test(gb.dataset.tip) && /g-warn/.test(gb.className));
   check(tag('rows of the failed repository show the reason as unknown in the PR cell, never "no PR"'), /class="q unk"[^>]*>timed out</.test(rowOf(id(1))) && !/no PR/.test(rowOf(id(1))));
-  step('repo not github', () => { deliver(prs('unavailable', { reason: 'not a GitHub repository' })); advance(300); });
+  step('repo not github', () => { deliver(prs('unavailable', { reason: 'not a GitHub repository' })); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
   check(tag('indicator: a repository that is not on GitHub is not a failure'), ghk() === 'ok' && !/data-a="brl"/.test(rowOf(id(1))));
-  step('repo ok again', () => { deliver(prs('ok', { by: BY })); advance(300); });
+  step('repo ok again', () => { deliver(prs('ok', { by: BY })); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
   check(tag('a repository looked up with no PR on the branch says "no PR" (lookup worked)'), /class="q"[^>]*>no PR</.test(rowOf(id(2))) === false && /#82 draft/.test(rowOf(id(2))));
-  step('no pr branch', () => { deliver(prs('ok', { by: { feat: BY.feat } })); advance(300); });
+  step('no pr branch', () => { deliver(prs('ok', { by: { feat: BY.feat } })); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
   check(tag('"no PR" only after a lookup that worked and found none'), />no PR</.test(rowOf(id(2))));
-  step('restore by', () => { deliver(prs('ok', { by: BY })); advance(300); });
+  step('restore by', () => { deliver(prs('ok', { by: BY })); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
   // PR-only rows: an open PR on a local branch that has no chat row and no worktree.
   const wtl = (k, name, branch, o) => Object.assign({ k, name, branch, detached: false, sha: 'abc1234', main: false, missing: false, locked: false, merged: false, facts: null, ws: true, fks: [] }, o || {});
-  step('repo layer', () => { deliver({ type: 'repo', scan: 1, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: [], ws: true, worktrees: [wtl('w1', 'proj', 'main', { main: true, fks: ['f1', 'f2'] })] }); advance(300); });
+  step('repo layer', () => { deliver({ type: 'repo', scan: 1, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: [], ws: true, gh: true, worktrees: [wtl('w1', 'proj', 'main', { main: true, fks: ['f1', 'f2'] })] }); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
   const LONELY = Object.assign({}, BY, { lonely: { n: 90, title: 'Lonely <b>work</b>', draft: false, review: '', link: true }, main: { n: 91, title: 'on default', draft: false, review: '', link: true } });
-  step('lonely pr', () => { deliver(prs('ok', { by: LONELY })); deliver(chk(90, 'failing', { total: 3, failing: 1, pending: 0, names: ['unit'] })); advance(300); });
-  const pbId = 'pb:r1:lonely', pbRow = () => rowOf(pbId);
-  check(tag('PR-only: a local branch with an open PR and no row becomes its own row in the repository, titled by the PR, escaped'), pbRow() !== '' && /Lonely &lt;b&gt;work&lt;\/b&gt;/.test(pbRow()) && !/<b>work<\/b>/.test(pbRow()) && />proj</.test(pbRow()));
-  check(tag('PR-only: branches that already have a chat row, and the default branch, are not duplicated'), (body.innerHTML.match(/data-id="pb:/g) || []).length === 1);
-  check(tag('PR-only: failing checks put it in To finish; the PR and checks cells and the Open PR and Copy PR link buttons are on the row'), (() => { const i = body.innerHTML.indexOf('aria-label="To finish"'), j = body.innerHTML.indexOf('data-id="' + pbId + '"'); return i >= 0 && j > i; })() && /#90/.test(pbRow()) && /checks failing/.test(pbRow()) && /data-a="pr" data-k="r1" data-n="90"/.test(pbRow()) && /data-a="prc" data-k="r1" data-n="90"/.test(pbRow()) && !/data-a="open"/.test(pbRow()) && !/data-a="arch"/.test(pbRow()));
-  step('pb passing', () => { deliver(chk(90, 'passing', { total: 3, failing: 0, pending: 0, names: [] })); advance(300); });
-  check(tag('PR-only: passing checks with no review is Waiting on others'), (() => { const i = body.innerHTML.indexOf('aria-label="Waiting on others"'), j = body.innerHTML.indexOf('data-id="' + pbId + '"'); return i >= 0 && j > i; })());
+  step('lonely pr', () => { deliver(prs('ok', { by: LONELY })); deliver(chk(90, 'failing', { total: 3, failing: 1, pending: 0, names: ['unit'] })); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
+  const chipN = (w) => Number((new RegExp('(\\d+) ' + w).exec(els.get('cnt').innerHTML) || [0, -1])[1]);
+  const brRow = () => trSlice(body, 'b', 'lonely'), prRow = () => trSlice(body, 'n', '90');
+  check(tag('PR-only: a branch with an open PR and no chat or worktree is a row in Branches and in Pull requests, titled by the PR, escaped'), brRow() !== '' && prRow() !== '' && /Lonely &lt;b&gt;work&lt;\/b&gt;/.test(prRow()) && !/<b>work<\/b>/.test(body.innerHTML) && /no worktree|remote only/.test(brRow()));
+  check(tag('PR-only: a branch is one row in the Branches table, however many chats, worktrees and PRs it has'), (body.innerHTML.match(/<tr data-b="lonely"/g) || []).length === 1 && (body.innerHTML.match(/<tr data-b="feat"/g) || []).length <= 1);
+  check(tag('PR-only: failing checks make the row To finish; the PR table row has the PR, the failing badge and the Open PR and Copy PR link buttons'), chipN('to finish') >= 1 && /#90/.test(prRow()) && /checks failing/.test(prRow()) && /data-a="pr" data-k="r1" data-n="90"/.test(prRow()) && /data-a="prc" data-k="r1" data-n="90"/.test(prRow()) && !/data-a="open"/.test(prRow()) && !/data-a="arch"/.test(prRow()));
+  const finishBefore = chipN('to finish');
+  step('pb passing', () => { deliver(chk(90, 'passing', { total: 3, failing: 0, pending: 0, names: [] })); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
+  check(tag('PR-only: passing checks with no review is Waiting on others (it leaves the To finish count)'), /checks passing/.test(prRow()) && chipN('to finish') === finishBefore - 1);
   step('pb open pr', () => click('pr', 0, { k: 'r1', n: '90' }));
   check(tag('PR-only: Open PR posts the key and number only'), posted.some((p) => p.type === 'openPr' && p.repo === 'r1' && p.n === 90 && Object.keys(p).length === 3));
-  step('pb filter', () => { deliver({ type: 'init', v: 3, prsOn: true, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {}, view: { q: 'lonely', f: {}, sort: 'recent' } }); advance(300); });
-  check(tag('PR-only: the filter box finds it by PR title and the Has open PR filter keeps it'), pbRow() !== '');
-  step('pb clear', () => { deliver({ type: 'init', v: 3, prsOn: true, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {}, view: { q: '', f: {}, sort: 'recent' } }); advance(300); });
+  step('pb filter', () => { deliver({ type: 'init', v: 3, prsOn: true, days: 14, hidden: [], ws: 1, done: {}, view: { q: 'lonely', f: {}, sort: 'recent' } }); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
+  check(tag('PR-only: the filter box finds it by PR title and the Has open PR filter keeps it'), prRow() !== '');
+  step('pb clear', () => { deliver({ type: 'init', v: 3, prsOn: true, days: 14, hidden: [], ws: 1, done: {}, view: { q: '', f: {}, sort: 'recent' } }); advance(300); openAll(P); advance(300); openAll(P); advance(300); });
   // Branch links: the page sends a repository key, a branch name and a number, never a link.
   check(tag('branch link: the branch cell is a link and a keyboard button with the key, branch and PR number'), /class="lk" role="link" data-a="brl" data-k="r1" data-b="feat" data-n="81"/.test(rowOf(id(1))) && /<button[^>]*data-a="brl" data-k="r1" data-b="feat" data-n="81"[^>]*aria-label="Open pull request #81 on GitHub: Chat 1"/.test(rowOf(id(1))));
   step('branch click', () => click('brl', 1, { k: 'r1', b: 'feat', n: '81' }));
@@ -554,7 +580,7 @@ function ghScenario(W) {
   step('branch bad', () => { click('brl', 1, { k: '../x', b: 'feat', n: '1' }); click('brl', 1, { k: 'r1', b: '', n: '1' }); click('brl', 1, { k: 'r1', b: 'x'.repeat(300), n: '1' }); });
   check(tag('branch link: a bad key, an empty branch and an over-long branch post nothing'), posted.filter((p) => p.type === 'openBranch').length === 1);
   step('pb branch', () => click('brl', 0, { k: 'r1', b: 'lonely', n: '90' }));
-  check(tag('branch link: the PR-only row links the branch too'), /data-a="brl" data-k="r1" data-b="lonely" data-n="90"/.test(pbRow()) && posted.some((p) => p.type === 'openBranch' && p.branch === 'lonely' && p.n === 90));
+  check(tag('branch link: the PR-only row links the branch too'), /data-a="brl" data-k="r1" data-b="lonely" data-n="90"/.test(brRow()) && posted.some((p) => p.type === 'openBranch' && p.branch === 'lonely' && p.n === 90));
 
   P.errors.forEach((e) => failures.push(e));
 }
@@ -619,7 +645,6 @@ for (const W of [400, 760, 1400]) { ghScenario(W); }
 }
 
 // Slice 4: filter box, state filters, sort, copy summary, keyboard, branches without a worktree, empty states, status line.
-const VIEW_POPS = ['grb', 'grm', 'srb', 'srm', 'shb', 'shm'];
 const vfacts = (o) => Object.assign({ name: 'proj', branch: 'main', detached: false, upstream: 'origin/main', ahead: 0, behind: 0, gone: false, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], rk: 'r1', ws: true }, o || {});
 const vwt = (k, name, branch, o) => Object.assign({ k, name, path: '/p/' + name, branch, detached: false, main: false, missing: false, locked: false, prunable: false, merged: null, ws: false, fks: [] }, o || {});
 const vrepo = (sc, key, name, fks) => ({ type: 'repo', scan: sc, key, state: 'ok', name, def: 'origin/main', defLocal: 'main', merged: [], ws: true, worktrees: [vwt('w' + key.slice(1), name, 'main', { main: true, fks: fks })] });
@@ -629,7 +654,7 @@ function viewScenario(W) {
   const body = els.get('body'), fq = els.get('fq'), tag = (s) => s + ' at ' + W;
   const fm = (key, state, o) => Object.assign({ type: 'folder', scan: 1, key, state }, o || {});
   const click = (a, data) => fire(body, 'click', { target: target(a, '', data ? { dataset: Object.assign({ a }, data) } : undefined) });
-  const count = () => (body.innerHTML.match(/class="row"/g) || []).length;
+  const count = () => { advance(300); openAll(V); advance(300); return (body.innerHTML.match(/class="row"/g) || []).length; };
   const has = (n) => body.innerHTML.indexOf('data-id="' + id(n) + '"') >= 0;
   const only = (...ns) => count() === ns.length && ns.every(has);
   const typeQ = (v) => { fq.value = v; fire(fq, 'input'); advance(250); };
@@ -637,32 +662,35 @@ function viewScenario(W) {
   const rowsV = [row(1, { title: 'Fix login', project: 'alpha', fk: 'f1', last: NOW - 1 * H }), row(2, { title: 'Add search', project: 'beta', fk: 'f2', last: NOW - 2 * H }),
     row(3, { title: 'Tidy docs', project: 'alpha', fk: 'f3', last: NOW - 5 * 24 * H }), row(4, { title: 'Refactor', project: 'gamma', fk: 'f4', last: NOW - 1 * H })];
   V.start();
-  step('init', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {}, view: { q: '', f: {}, sort: 'recent' } }));
+  step('init', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, hidden: [], ws: 1, done: {}, view: { q: '', f: {}, sort: 'recent' } }));
   step('chats', () => { deliver({ type: 'chats', scan: 1, rows: rowsV, indexing: false, scanning: true }); advance(300); });
   check(tag('before the scan ends there is no All clear and no no-repositories note'), !/All clear/.test(body.innerHTML) && !/No git repositories/.test(body.innerHTML));
+  const T0 = 1700000000;
   step('git', () => {
     deliver(fm('f1', 'ok', { facts: vfacts({ branch: 'fix-login', fileTotal: 2, modified: 2, files: [{ s: 'M', p: 'src/login.ts' }, { s: 'M', p: 'README.md' }] }) }));
-    deliver(fm('f2', 'ok', { facts: vfacts({ branch: 'feat-search', ahead: 3, rk: 'r2' }) }));
+    deliver(fm('f2', 'ok', { facts: vfacts({ branch: 'feat-search', ahead: 3 }) }));
     deliver(fm('f3', 'ok', { facts: vfacts() }));
-    deliver(fm('f4', 'ok', { facts: vfacts({ rk: 'r3' }) }));
-    deliver(vrepo(1, 'r1', 'alpha-repo', ['f1', 'f3'])); deliver(vrepo(1, 'r2', 'beta-repo', ['f2'])); deliver(vrepo(1, 'r3', 'gamma-repo', ['f4']));
-    deliver({ type: 'prs', scan: 1, repo: 'r2', state: 'ok', by: { 'feat-search': { n: 81, title: 'Add search box', draft: false, review: '', link: true } } });
-    deliver({ type: 'checks', scan: 1, repo: 'r2', n: 81, state: 'failing', total: 3, failing: 1, pending: 0, names: ['build'] });
+    deliver(fm('f4', 'none', { reason: 'Not a git folder' }));
+    deliver({ type: 'repo', scan: 1, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: [], ws: true, gh: true,
+      branches: [{ n: 'main', ts: T0 - 500, au: 'Ada', up: true, gone: false, a: 0, b: 0 }, { n: 'fix-login', ts: T0 - 100, au: 'Ada', up: true, gone: false, a: 1, b: 0 }, { n: 'feat-search', ts: T0, au: 'Bob', up: true, gone: false, a: 3, b: 0 }],
+      worktrees: [vwt('w1', 'proj', 'main', { main: true, fks: ['f3'] }), vwt('w2', 'proj-fix', 'fix-login', { fks: ['f1'], facts: { ok: true, fileTotal: 2, ahead: 0, behind: 0, gone: false, files: [] } }), vwt('w3', 'proj-search', 'feat-search', { fks: ['f2'], facts: { ok: true, fileTotal: 0, ahead: 3, behind: 0, gone: false, files: [] } })] });
+    deliver({ type: 'prs', scan: 1, repo: 'r1', state: 'ok', by: { 'feat-search': { n: 81, title: 'Add search box', draft: false, review: '', link: true } } });
+    deliver({ type: 'checks', scan: 1, repo: 'r1', n: 81, state: 'failing', total: 3, failing: 1, pending: 0, names: ['build'] });
     deliver({ type: 'end', scan: 1, open: [], gitMissing: false }); advance(300);
   });
   check(tag('four rows, and the filter chips are there and not pressed'), count() === 4 && /Has open PR/.test(els.get('fch').innerHTML) && /Failing checks/.test(els.get('fch').innerHTML) && /Uncommitted/.test(els.get('fch').innerHTML) && /Unpushed/.test(els.get('fch').innerHTML) && !/aria-pressed="true"/.test(els.get('fch').innerHTML));
   check(tag('the filter box is a labelled search field'), /role="search"/.test(page) && /id="fq"[^>]*aria-label="[^"]+"/.test(page) && fq.value === '');
   // Text filter with debounce.
   step('typing', () => { fq.value = 'login'; fire(fq, 'input'); advance(100); });
-  check(tag('the filter waits for the debounce'), count() === 4 && posts('view').length === 0);
+  check(tag('the filter waits for the debounce'), (body.innerHTML.match(/class="row"/g) || []).length === 4 && posts('view').every((p) => p.q === ''));
   step('debounce ends', () => advance(200));
   check(tag('after the debounce only the matching row shows, and the filter is saved'), only(1) && posts('view').some((p) => p.q === 'login'));
-  for (const [q, ns, what] of [['readme', [1], 'a file name'], ['feat-search', [2], 'a branch'], ['#81', [2], 'a pull request number with #'], ['81', [2], 'a pull request number'], ['search box', [2], 'a pull request title'], ['beta-repo', [2], 'a repository name'], ['ALPHA', [1, 3], 'a project, any case'], ['alpha login', [1], 'several words']]) {
+  for (const [q, ns, what] of [['readme', [1], 'a file name'], ['feat-search', [2], 'a branch'], ['#81', [2], 'a pull request number with #'], ['81', [2], 'a pull request number'], ['search box', [2], 'a pull request title'], ['proj', [1, 2, 3], 'the repository name'], ['ALPHA', [1, 3], 'a project, any case'], ['alpha login', [1], 'several words']]) {
     step('q ' + q, () => typeQ(q));
     check(tag('the filter matches ' + what), only(...ns));
   }
   step('no match', () => typeQ('zzzzz'));
-  check(tag('a filter with no match says so with a Clear filters button and never All clear'), count() === 0 && /No chats match these filters/.test(body.innerHTML) && /data-a="clearf"/.test(body.innerHTML) && !/All clear/.test(body.innerHTML));
+  check(tag('a filter with no match says so with a Clear filters button and never All clear'), count() === 0 && /Nothing matches these filters/.test(body.innerHTML) && /data-a="clearf"/.test(body.innerHTML) && !/All clear/.test(body.innerHTML));
   step('clear', () => click('clearf'));
   check(tag('Clear filters empties the box, shows every row and saves'), count() === 4 && fq.value === '' && posts('view').pop().q === '');
   // State filters.
@@ -671,23 +699,23 @@ function viewScenario(W) {
   step('dirty off, push', () => { chip('dirty'); chip('push'); }); check(tag('Unpushed keeps rows with commits not pushed'), only(2));
   step('push off, pr', () => { chip('push'); chip('pr'); }); check(tag('Has open PR keeps rows with an open pull request'), only(2));
   step('pr off, fail', () => { chip('pr'); chip('fail'); }); check(tag('Failing checks keeps rows whose pull request has failing checks'), only(2));
-  step('fail + dirty', () => chip('dirty')); check(tag('two filters on combine (both must hold)'), count() === 0 && /No chats match these filters/.test(body.innerHTML) && posts('view').pop().f.dirty === true && posts('view').pop().f.fail === true);
+  step('fail + dirty', () => chip('dirty')); check(tag('two filters on combine (both must hold)'), count() === 0 && /Nothing matches these filters/.test(body.innerHTML) && posts('view').pop().f.dirty === true && posts('view').pop().f.fail === true);
   step('clear 2', () => click('clearf')); check(tag('Clear filters turns every state filter off'), count() === 4 && !/aria-pressed="true"/.test(els.get('fch').innerHTML));
   // Saved view comes back from the host.
-  step('init with a saved view', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {}, view: { q: 'search', f: { push: true }, sort: 'name' } }));
+  step('init with a saved view', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, hidden: [], ws: 1, done: {}, view: { q: 'search', f: { push: true }, sort: 'name' } }));
   advance(300);
   check(tag('a saved filter text, state filter and sort are restored'), fq.value === 'search' && only(2) && /data-f="push" aria-pressed="true"/.test(els.get('fch').innerHTML) && /Sort: Name/.test(els.get('srt').textContent));
-  step('reset view', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {}, view: { q: '', f: {}, sort: 'recent' } }));
+  step('reset view', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, hidden: [], ws: 1, done: {}, view: { q: '', f: {}, sort: 'recent' } }));
   advance(300);
-  // Sort within bands.
+  // Sort: the rows of each table follow the sort menu (worktrees by newest branch commit, or by name).
   const pos = (n) => body.innerHTML.indexOf('data-id="' + id(n) + '"');
-  check(tag('recent activity is the default: newest first inside To finish'), pos(1) < pos(2));
+  check(tag('recent activity is the default: the worktree with the newest commit comes first'), pos(2) < pos(1));
   step('sort name', () => fire(els.get('srm'), 'change', { target: { value: 'name' } })); advance(300);
-  check(tag('sorting by name puts Add search before Fix login and saves the sort'), pos(2) < pos(1) && posts('view').pop().sort === 'name' && /Sort: Name/.test(els.get('srt').textContent));
+  check(tag('sorting by name puts proj-fix before proj-search and saves the sort'), pos(1) < pos(2) && posts('view').pop().sort === 'name' && /Sort: Name/.test(els.get('srt').textContent));
   step('sort repo', () => fire(els.get('srm'), 'change', { target: { value: 'repo' } })); advance(300);
-  check(tag('sorting by repository puts alpha before beta'), pos(1) < pos(2) && posts('view').pop().sort === 'repo');
+  check(tag('there is no sort by repository: it is ignored'), /Sort: Name/.test(els.get('srt').textContent) && !/Repository/.test(els.get('srm').innerHTML));
   step('sort junk', () => fire(els.get('srm'), 'change', { target: { value: 'bogus' } }));
-  check(tag('an unknown sort value is ignored'), /Sort: Repository/.test(els.get('srt').textContent));
+  check(tag('an unknown sort value is ignored'), /Sort: Name/.test(els.get('srt').textContent));
   step('sort recent', () => fire(els.get('srm'), 'change', { target: { value: 'recent' } })); advance(300);
   // Copy summary.
   step('copy summary', () => click('summary'));
@@ -728,31 +756,24 @@ function viewScenario(W) {
   check(tag('one Escape closes the popover and leaves the row expanded'), els.get('shm').hidden === true && exOpen() === 1);
   step('second escape', () => { key('Escape', rbs[0]); advance(300); }); check(tag('the next Escape collapses the row'), exOpen() === 0);
   document.querySelectorAll = () => []; document.querySelector = () => null;
-  // Branches without a worktree.
-  check(tag('the branch section is collapsed and no branch read has been asked'), /aria-label="Branches without a worktree"/.test(body.innerHTML) && /data-a="brsec"[^>]*aria-expanded="false"/.test(body.innerHTML) && !/data-a="brx"/.test(body.innerHTML) && posts('branches').length === 0);
-  step('open section', () => click('brsec')); advance(300);
-  check(tag('opening the section lists the repositories and still asks for nothing'), /data-a="brx" data-k="r1"/.test(body.innerHTML) && /data-a="brx" data-k="r2"/.test(body.innerHTML) && posts('branches').length === 0 && /Nothing is deleted/.test(body.innerHTML));
-  const SK = (/data-a="sec" data-s="([a-z]+)"/.exec(body.innerHTML) || [])[1] || 'needs', secRe = (v) => new RegExp('data-a="sec" data-s="' + SK + '"[^>]*aria-expanded="' + v + '"');
-  step('collapse first band', () => click('sec', { s: SK }));
-  check(tag('a band header toggles: collapsed has aria-expanded false and the state is saved per workspace'), secRe(false).test(body.innerHTML) && posts('view').pop().sec[SK] === false);
-  step('expand needs band', () => click('sec', { s: SK }));
-  check(tag('a second click expands it again and saves'), secRe(true).test(body.innerHTML) && posts('view').pop().sec[SK] === true);
-  step('open r1', () => click('brx', { k: 'r1' }));
-  check(tag('opening a repository asks the host for its branches once and shows Loading'), posts('branches').length === 1 && posts('branches')[0].key === 'r1' && /Loading\.\.\./.test(body.innerHTML));
-  step('answer', () => deliver({ type: 'branchList', key: 'r1', list: [{ name: 'stale', merged: false, gone: true }, { name: '<b>x</b>', merged: true, gone: false }], more: 4, reason: '' })); advance(300);
-  check(tag('branches show with merged or gone, escaped names, a copy button each and a more count'), /<code[^>]*>stale<\/code>/.test(body.innerHTML) && /<code[^>]*>&lt;b&gt;x&lt;\/b&gt;<\/code>/.test(body.innerHTML) && /remote branch gone/.test(body.innerHTML) && (body.innerHTML.match(/data-a="brcopy"/g) || []).length === 2 && /\+4 more/.test(body.innerHTML));
-  step('copy branch', () => click('brcopy', { k: 'r1', i: '1' }));
-  check(tag('Copy delete command posts the repository key and the index only'), posts('copyBranch').some((p) => p.key === 'r1' && p.i === 1 && Object.keys(p).length === 3));
-  step('collapse and reopen r1', () => { click('brx', { k: 'r1' }); click('brx', { k: 'r1' }); });
-  check(tag('reopening shows the kept answer without asking again'), posts('branches').length === 1 && /<code[^>]*>stale<\/code>/.test(body.innerHTML));
-  step('open r2', () => click('brx', { k: 'r2' })); step('fail r2', () => { deliver({ type: 'branchList', key: 'r2', list: null, reason: 'git error' }); advance(300); });
-  check(tag('a failed read shows the reason and a Retry button'), /git error/.test(body.innerHTML) && /data-a="brx2" data-k="r2"/.test(body.innerHTML));
-  step('retry r2', () => click('brx2', { k: 'r2' })); check(tag('Retry asks again'), posts('branches').filter((p) => p.key === 'r2').length === 2);
-  step('open r3', () => click('brx', { k: 'r3' })); step('r3 silent', () => advance(15100));
-  check(tag('a read nobody answers ends as timed out with Retry'), /timed out/.test(body.innerHTML));
-  step('bad key', () => click('brx', { k: 'x1;rm' })); check(tag('a malformed repository key is ignored'), posts('branches').every((p) => /^r\d+$/.test(p.key)));
+  // Sections: three tables and Chats without a branch collapse, and the choice is saved per workspace.
+  check(tag('no branch read is ever asked: the Branches table holds the branches'), posts('branches').length === 0 && /aria-label="Branches"/.test(body.innerHTML) && !/Branches without a worktree/.test(body.innerHTML + page));
+  check(tag('the chat that is not in git is under "Chats without a branch" with its count'), count() >= 0 && /aria-label="Chats without a branch"[^]*class="pill">1</.test(body.innerHTML) && has(4));
+  for (const s of ['wt', 'bs', 'prs', 'nb']) {
+    count();
+    step('collapse ' + s, () => click('sec', { s }));
+    check(tag('section ' + s + ' collapses and the state is saved'), new RegExp('data-a="sec" data-s="' + s + '"[^>]*aria-expanded="false"').test(body.innerHTML) && posts('view').pop().sec[s] === false);
+    step('expand ' + s, () => click('sec', { s }));
+    check(tag('section ' + s + ' expands again and saves'), new RegExp('data-a="sec" data-s="' + s + '"[^>]*aria-expanded="true"').test(body.innerHTML) && posts('view').pop().sec[s] === true);
+  }
+  step('collapse worktrees', () => click('sec', { s: 'wt' }));
+  check(tag('a collapsed section hides its table but the others stay'), !/class="pst pw"/.test(body.innerHTML) && /class="pst pb"/.test(body.innerHTML));
+  step('expand worktrees', () => click('sec', { s: 'wt' }));
+  // A chat list inside a row expands and collapses; the count stays.
+  const hxBtn = () => /data-a="hx" data-x="([^"]*)" data-on="(\d)"/.exec(body.innerHTML);
+  step('collapse a chat list', () => { const m = hxBtn(); click('hx', { x: m[1], on: m[2] }); });
+  check(tag('collapsing the chats of a row hides them and keeps the count button'), (body.innerHTML.match(/class="row"/g) || []).length < 4 && /data-on="0"/.test(body.innerHTML));
   step('new scan', () => { deliver({ type: 'chats', scan: 2, rows: rowsV, indexing: false, scanning: false }); advance(300); });
-  check(tag('a new scan collapses the repositories and drops the old answers'), !/<code[^>]*>stale<\/code>/.test(body.innerHTML));
   // Status line.
   step('time', () => advance(125000));
   check(tag('the status line reads Updated 2 min ago with a Refresh link'), /Updated 2 min ago/.test(els.get('upd').textContent) && els.get('updw').hidden === false && /data-a="refresh"/.test(page.slice(page.indexOf('id="updw"'), page.indexOf('id="updw"') + 400)));
@@ -760,6 +781,102 @@ function viewScenario(W) {
   V.errors.forEach((e) => failures.push(e));
 }
 for (const W of [400, 760, 1400]) { viewScenario(W); }
+
+// Project status: a repository with worktrees, an unmerged backup branch and a PR-only branch, and no chat at all.
+function statusScenario(W) {
+  const V = createHarness({ page, name: 'openwork-status@' + W, width: W, popIds: VIEW_POPS });
+  const { els, posted, fire, deliver, advance, check, step } = V;
+  const body = els.get('body'), tag = (s) => s + ' at ' + W;
+  const click = (a, data) => fire(body, 'click', { target: target(a, '', { dataset: Object.assign({ a }, data || {}) }) });
+  V.start();
+  step('init', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, hidden: [], ws: 1, done: {}, view: { q: '', f: {}, sort: 'recent' } }));
+  step('no chats', () => { deliver({ type: 'chats', scan: 1, rows: [], indexing: false, scanning: true }); advance(300); });
+  const wts = [vwt('w1', 'contacts', 'main', { main: true, fks: ['f1'], facts: { ok: true, fileTotal: 2, ahead: 0, behind: 0, gone: false, files: [] }, da: 0, db: 0 })];
+  for (let i = 1; i <= 4; i++) { wts.push(vwt('w' + (i + 1), 'contacts-wt-' + i, 'wt-' + i, { merged: i === 1, facts: { ok: true, fileTotal: i === 2 ? 3 : 0, ahead: i === 3 ? 2 : 0, behind: 0, gone: false, files: [] }, da: i === 3 ? 2 : 0, db: i === 3 ? 1 : 0 })); }
+  const T = 1700000000;
+  const br = (n, o) => Object.assign({ n, ts: T, au: 'Ada <b>L</b>', up: true, gone: false, a: 0, b: 0 }, o || {});
+  step('repo with no chat', () => {
+    deliver({ type: 'repo', scan: 1, key: 'r1', state: 'ok', name: 'contacts', def: 'origin/main', defLocal: 'main', merged: ['wt-1'], ws: true, gh: true, worktrees: wts, bmore: 0,
+      branches: [br('main'), br('wt-1'), br('wt-2'), br('wt-3', { a: 2, b: 1 }), br('wt-4'), br('backup-2026', { up: false, gone: false, a: 9, b: 0, au: 'Linus' }), br('stale', { gone: true })] });
+    deliver({ type: 'prs', scan: 1, repo: 'r1', state: 'ok', by: { 'wt-3': { n: 7, title: 'Add <i>x</i>', draft: false, review: 'approved', link: true } },
+      all: [{ b: 'wt-3', n: 7, title: 'Add <i>x</i>', draft: false, review: 'approved', link: true }, { b: 'only-remote', n: 9, title: 'Remote only change', draft: true, review: '', link: true }] });
+    deliver({ type: 'checks', scan: 1, repo: 'r1', n: 7, state: 'failing', total: 3, failing: 1, pending: 0, names: ['build'] });
+    deliver({ type: 'checks', scan: 1, repo: 'r1', n: 9, state: 'passing', total: 2, failing: 0, pending: 0, names: [] });
+    advance(300);
+  });
+  const h = body.innerHTML;
+  check(tag('a repository with worktrees and no chat shows Worktrees, Branches and Pull requests, open by default, under the page title Project status'), ['wt', 'bs', 'prs'].every((s) => new RegExp('data-a="sec" data-s="' + s + '" aria-expanded="true"').test(h)) && !/Chats without a branch/.test(h) && />Project status</.test(page));
+  check(tag('with one repository the facts sit in one slim line: name, GitHub button and counts, no header block'), /class="psl"[^>]*><span class="pn psn">contacts</.test(h) && /data-a="repolink" data-k="r1"/.test(h) && /5 worktrees/.test(h) && /8 branches/.test(h) && /2 pull requests/.test(h) && !/class="psh"|class="psr"/.test(h));
+  check(tag('three tables: worktrees (all five), branches (all eight), pull requests (both)'), (h.match(/<table class="pst pw"/g) || []).length === 1 && (h.match(/<table class="pst pb"/g) || []).length === 1 && (h.match(/<table class="pst pp"/g) || []).length === 1 && (h.match(/<tr data-w=/g) || []).length === 5 && (h.match(/<tr data-b=/g) || []).length === 8 && (h.match(/<tr data-n=/g) || []).length === 2);
+  check(tag('the branch of a worktree and its PR is one row with all three facts'), (() => { const rowS = trSlice(body, 'b', 'wt-3'); return /contacts-wt-3/.test(rowS) && /#7/.test(rowS) && /\u21912/.test(rowS) && (h.match(/<tr data-b="wt-3"/g) || []).length === 1; })());
+  check(tag('an unmerged backup branch with no worktree shows author, no worktree and an unpushed badge'), (() => { const rowS = trSlice(body, 'b', 'backup-2026'); return /no worktree/.test(rowS) && /Linus/.test(rowS) && /\u21919/.test(rowS) && /unpushed/.test(rowS); })());
+  check(tag('a remote-only PR shows as a branch row and a PR row with its checks'), />only-remote</.test(h) && /remote only/.test(h) && /no local branch/.test(h) && /checks passing/.test(h) && /checks failing/.test(h));
+  check(tag('health badges: gone remote, merged clean worktree safe to remove, dirty, unpushed and failing checks'), /remote gone/.test(trSlice(body, 'b', 'stale')) && /safe to remove/.test(trSlice(body, 'w', 'w2')) && /dirty: 3 files/.test(trSlice(body, 'w', 'w3')) && /2 unpushed/.test(trSlice(body, 'w', 'w4')) && /checks failing/.test(trSlice(body, 'n', '7')) && /bd-bad/.test(trSlice(body, 'n', '7')) && /bd-ok/.test(trSlice(body, 'w', 'w2')) && /bd-warn/.test(trSlice(body, 'w', 'w3')));
+  check(tag('names and titles are escaped'), !/<b>L<\/b>|<i>x<\/i>/.test(h) && /Ada &lt;b&gt;L/.test(h));
+  check(tag('branch names link through the host (brl) with the repository key'), /data-a="brl" data-k="r1" data-b="wt-3" data-n="7"/.test(h) && /data-a="brl" data-k="r1" data-b="backup-2026" data-n="0"/.test(h) && /data-a="brl" data-k="r1" data-b="only-remote" data-n="9"/.test(h));
+  check(tag('the PR table has no author column (the read-only list does not return it) and says so'), !/<table class="pst pp"><thead>[^]*?Author/.test(h) && /author is not shown/.test(h));
+  step('click a branch link', () => click('brl', { k: 'r1', b: 'backup-2026', n: '0' }));
+  check(tag('a branch link posts openBranch'), posted.some((p) => p.type === 'openBranch' && p.repo === 'r1' && p.branch === 'backup-2026'));
+  step('click the repo link', () => click('repolink', { k: 'r1' }));
+  check(tag('the repository button posts openRepo with the key only'), posted.some((p) => p.type === 'openRepo' && p.repo === 'r1' && Object.keys(p).length === 2));
+  step('collapse', () => click('sec', { s: 'wt' }));
+  check(tag('the section collapses and the choice is saved per workspace'), !/class="pst pw"/.test(body.innerHTML) && posted.filter((p) => p.type === 'view').pop().sec.wt === false);
+  step('expand', () => click('sec', { s: 'wt' }));
+  check(tag('and opens again'), /class="pst pw"/.test(body.innerHTML));
+  step('another repository outside the workspace', () => { deliver({ type: 'repo', scan: 1, key: 'r2', state: 'ok', name: 'elsewhere', def: '', defLocal: '', merged: [], ws: false, gh: false, worktrees: [vwt('w9', 'elsewhere', 'main', { main: true })], branches: [] }); advance(300); });
+  check(tag('a repository outside the workspace is not listed'), !/psn">elsewhere</.test(body.innerHTML) && trSlice(body, 'w', 'w9') === '');
+  step('filter', () => { const f = els.get('fq'); f.value = 'backup'; fire(f, 'input'); advance(250); });
+  check(tag('the filter box narrows the tables'), />backup-2026</.test(body.innerHTML) && !/>wt-4</.test(body.innerHTML));
+  V.errors.forEach((e) => failures.push(e));
+}
+for (const W of [400, 760, 1400]) { statusScenario(W); }
+
+
+// Page structure: chats live in the worktree or branch row they belong to; attention chips filter the rows; row badges.
+function structureScenario(W) {
+  const S = createHarness({ page, name: 'openwork-structure@' + W, width: W, popIds: VIEW_POPS });
+  const { els, posted, fire, deliver, advance, check, step } = S;
+  const body = els.get('body'), tag = (s) => s + ' at ' + W;
+  const click = (a, data) => fire(body, 'click', { target: target(a, '', { dataset: Object.assign({ a }, data || {}) }) });
+  const T = 1700000000, DAY = 86400;
+  const fct = (o) => Object.assign({ name: 'proj', branch: 'main', detached: false, upstream: 'origin/main', ahead: 0, behind: 0, gone: false, staged: 0, modified: 0, untracked: 0, fileTotal: 0, files: [], rk: 'r1', ws: true }, o || {});
+  const rowsS = [row(1, { title: 'On the worktree', fk: 'f1' }), row(2, { title: 'On a lone branch', fk: 'f2' }), row(3, { title: 'No git here', fk: 'f3' }), row(4, { title: 'Idle one', fk: 'f1' })];
+  S.start();
+  step('init', () => deliver({ type: 'init', v: 3, prsOn: true, days: 14, hidden: [], ws: 1, done: {}, view: {} }));
+  step('dots', () => deliver({ type: 'dots', map: { [id(1)]: { s: 'waiting' } } }));
+  step('scan', () => {
+    deliver({ type: 'chats', scan: 1, rows: rowsS, indexing: false, scanning: true });
+    deliver({ type: 'folder', scan: 1, key: 'f1', state: 'ok', facts: fct({ branch: 'feat', fileTotal: 1, files: [{ s: 'M', p: 'a.ts' }] }) });
+    deliver({ type: 'folder', scan: 1, key: 'f2', state: 'ok', facts: fct({ branch: 'solo' }) });
+    deliver({ type: 'folder', scan: 1, key: 'f3', state: 'none', reason: 'Not a git folder' });
+    deliver({ type: 'repo', scan: 1, key: 'r1', state: 'ok', name: 'proj', def: 'origin/main', defLocal: 'main', merged: ['done-br'], ws: true, gh: true,
+      branches: [{ n: 'main', ts: T, au: 'A', up: true, gone: false, a: 0, b: 0 }, { n: 'feat', ts: T - DAY, au: 'A', up: true, gone: false, a: 1, b: 2 }, { n: 'solo', ts: T - 2 * DAY, au: 'A', up: true, gone: false, a: 0, b: 0 }, { n: 'done-br', ts: T - 9 * DAY, au: 'A', up: true, gone: false, a: 0, b: 0 }, { n: 'lost', ts: T - 9 * DAY, au: 'A', up: true, gone: true, a: 1, b: 0 }],
+      worktrees: [wtm('w1', 'proj', 'main', { main: true, fks: [] }), wtm('w2', 'proj-feat', 'feat', { fks: ['f1'], facts: { ok: true, fileTotal: 1, ahead: 0, behind: 0, gone: false, files: [] }, db: 2 })] });
+    deliver({ type: 'prs', scan: 1, repo: 'r1', state: 'ok', by: { feat: { n: 5, title: 'Feat', draft: false, review: 'review requested', link: true } } });
+    deliver({ type: 'end', scan: 1, open: [], gitMissing: false }); advance(300);
+  });
+  const h = () => body.innerHTML;
+  check(tag('a chat is listed once, inside the worktree row of its folder'), (h().match(new RegExp('data-id="' + id(1) + '"', 'g')) || []).length === 1 && new RegExp('<tr data-w="w2">[^]*?data-x="w:w2"[^]*?</tr><tr class="hxr">[^]*?data-id="' + id(1) + '"').test(h()));
+  check(tag('a chat that needs attention is open by default, an idle chat list is not'), /data-x="w:w2" data-on="1"/.test(h()) && !/data-x="b:solo" data-on="1"/.test(h()));
+  check(tag('a chat on a branch with no worktree sits in that branch row with a count button'), /<tr data-b="solo">[^]*?data-a="hx" data-x="b:solo" data-on="0"[^]*?<\/span>1<\/button>/.test(h()) && !new RegExp('data-id="' + id(2) + '"').test(h()));
+  step('open the lone branch chats', () => click('hx', { x: 'b:solo', on: '0' }));
+  check(tag('the expander shows the chat with title, age, context percent and its icon actions'), new RegExp('data-id="' + id(2) + '"').test(h()) && /data-a="open"[^>]*aria-label="Open chat: On a lone branch"[^>]*title="Open chat"/.test(h()) && />61%</.test(rowSlice(body, id(2))) && /data-a="handover"/.test(rowSlice(body, id(2))) && /data-a="find"/.test(rowSlice(body, id(2))) && /data-a="arch"/.test(rowSlice(body, id(2))) && /data-a="done"/.test(rowSlice(body, id(2))));
+  step('collapse it again', () => click('hx', { x: 'b:solo', on: '1' }));
+  check(tag('collapsing a chat list hides the chats and keeps the count'), !new RegExp('data-id="' + id(2) + '"').test(h()) && /data-x="b:solo" data-on="0"/.test(h()));
+  check(tag('the branch row of a worktree shows the chat count and points to the worktree'), /<tr data-b="feat">[^]*?listed under its worktree/.test(h()));
+  check(tag('a chat outside git goes in the one section Chats without a branch'), /aria-label="Chats without a branch"/.test(h()) && /class="pill">1</.test(/aria-label="Chats without a branch"[^]*/.exec(h())[0]));
+  check(tag('state badges: dirty, behind, needs review on the worktree; remote gone and safe to remove on branches'), /dirty: 1 file/.test(trSlice(body, 'w', 'w2')) && /behind 2/.test(trSlice(body, 'w', 'w2')) && /needs review/.test(trSlice(body, 'w', 'w2')) && /remote gone/.test(trSlice(body, 'b', 'lost')) && /safe to remove/.test(trSlice(body, 'b', 'done-br')));
+  check(tag('the default branch and a plain branch get no state badge'), !/class="bd/.test(trSlice(body, 'b', 'main')) && !/class="bd/.test(trSlice(body, 'b', 'solo')));
+  check(tag('the page has no chat bands and no Project status block: the title is Project status'), !/class="band"[^>]*aria-label="(Needs you|To finish|Waiting on others|Ready to tidy|Idle)"/.test(h()) && /<h1 id="ttl">Project status<\/h1>/.test(page) && !/aria-label="Project status"/.test(h()));
+  step('hide the needs chip', () => click('band', { b: 'needs' }));
+  check(tag('an attention chip filters the rows: with it off the waiting chat is hidden, and its worktree row stays only for its own dirty state'), !new RegExp('data-id="' + id(1) + '"').test(h()) && /<tr data-w="w2"/.test(h()) && /<tr data-w="w1"/.test(h()));
+  step('show it again', () => click('band', { b: 'needs' }));
+  check(tag('turning the chip back on brings the rows back'), /<tr data-w="w2"/.test(h()) && new RegExp('data-id="' + id(1) + '"').test(h()));
+  check(tag('every icon button has an accessible name and a tooltip'), [...h().matchAll(/<button type="button" class="ab ib"[^>]*>/g)].every((m) => /aria-label="[^"]+"/.test(m[0]) && /title="[^"]+"/.test(m[0])));
+  check(tag('no repository sort and no This workspace only chip'), !/Repository/.test(els.get('srm').innerHTML) && els.get('wsb') === undefined);
+  S.errors.forEach((e) => failures.push(e));
+}
+for (const W of [400, 760, 1400]) { structureScenario(W); }
 
 // Empty states: All clear, no repositories, git missing, and every way a scan can end with parts never read.
 const CLEAR_OK = ['clear', 'clearpr'], CLEAR_NO = ['clearmore', 'clearrepo', 'clearnofolder', 'clearprdown'];
@@ -769,7 +886,7 @@ function emptyScenario(W, mode) {
   const body = els.get('body'), tag = (s) => s + ' (' + mode + ') at ' + W;
   const git = mode !== 'none';
   E.start();
-  step('init', () => deliver({ type: 'init', v: 3, prsOn: /^clearpr/.test(mode), days: 14, group: 'attention', hidden: [], wsOnly: false, ws: 0, done: {}, view: {} }));
+  step('init', () => deliver({ type: 'init', v: 3, prsOn: /^clearpr/.test(mode), days: 14, hidden: [], ws: 1, done: {}, view: {} }));
   const rs = [row(1, { fk: 'f1', last: NOW - H })].concat(mode === 'clearnofolder' ? [row(2, { fk: 'f2', last: NOW - H })] : []);
   step('chats', () => { deliver({ type: 'chats', scan: 1, rows: rs, indexing: false, scanning: true }); advance(300); });
   step('folder', () => deliver(git ? { type: 'folder', scan: 1, key: 'f1', state: 'ok', facts: vfacts() } : { type: 'folder', scan: 1, key: 'f1', state: 'none', reason: 'Not a git folder' }));
@@ -781,7 +898,7 @@ function emptyScenario(W, mode) {
   step('end', () => { deliver({ type: 'end', scan: 1, open: [], gitMissing: mode === 'gitmissing' }); advance(300); });
   if (CLEAR_OK.includes(mode)) { check(tag('every chat clean: All clear with a calm message naming the days'), /All clear/.test(body.innerHTML) && /Nothing open\. Every chat in the last 14 days is committed, pushed and closed\./.test(body.innerHTML) && /role="status"/.test(body.innerHTML) && /Scan finished: 0 items open\./.test(els.get('live').textContent)); }
   if (CLEAR_NO.includes(mode)) { check(tag('parts never read: no All clear and no "0 items open" claim'), !/All clear/.test(body.innerHTML) && !/Scan finished: 0 items open/.test(els.get('live').textContent) && /some parts were not read/.test(els.get('live').textContent)); }
-  if (mode === 'none') { check(tag('no git repository found for the chats says so and never All clear'), /No git repositories were found for these chats/.test(body.innerHTML) && !/All clear/.test(body.innerHTML)); }
+  if (mode === 'none') { check(tag('a workspace folder that is not a git repository gives the one plain message and never All clear'), /Open a git repository folder/.test(body.innerHTML) && !/All clear/.test(body.innerHTML) && !/<table/.test(body.innerHTML)); }
   if (mode === 'gitmissing') { check(tag('git missing never claims All clear'), !/All clear/.test(body.innerHTML)); }
   E.errors.forEach((e) => failures.push(e));
 }
@@ -789,7 +906,7 @@ for (const W of [400, 1400]) { for (const m of ['clear', 'none', 'gitmissing'].c
 
 // Resize on one page: layout class follows.
 {
-  const R = createHarness({ page, name: 'openwork-resize', width: 400, popIds: ['grb', 'grm'] });
+  const R = createHarness({ page, name: 'openwork-resize', width: 400, popIds: VIEW_POPS });
   R.start();
   R.step('resize', () => { R.resize(1400); });
   R.check('resizing to 1400 turns on the table layout', R.els.get('wrap').classList.contains('wide'));
@@ -824,18 +941,11 @@ if (!/Content-Security-Policy[^>]*default-src 'none'/.test(page)) { bad('page ke
 {
   const dots = { a: { s: 'waiting' }, b: { s: 'running' }, c: { s: 'unread' }, d: { s: 'idle' } };
   const rs = [{ id: 'a', last: 1, project: 'p' }, { id: 'b', last: 2, project: 'q' }, { id: 'c', last: 3, project: 'p' }, { id: 'd', last: 4, project: 'q' }, { id: 'e', last: 5, project: '' }];
-  const g = model.groupRows(rs, dots, 'attention', []);
-  if (g.map((x) => x.key).join() !== 'needs,waiting,idle') { bad('attention order is needs, waiting, idle: ' + g.map((x) => x.key).join()); }
-  if (g[0].rows.map((r) => r.id).join() !== 'c,a') { bad('newest first inside a band'); }
-  if (model.groupRows(rs, dots, 'attention', ['needs']).some((x) => x.key === 'needs')) { bad('a hidden band is left out'); }
-  if (model.groupRows(rs, dots, 'chat', ['idle'])[0].rows.length !== 3) { bad('chat mode honors hidden bands'); }
-  if (model.groupRows([], dots, 'chat', []).length !== 0) { bad('no rows, no groups'); }
-  {
-    const wr = rs.concat([{ id: 'w1', last: 0, project: 'p', kind: 'wt' }]);
-    const gi = model.groupRows(wr, dots, 'attention', ['idle']).find((x) => x.key === 'idle');
-    if (!gi || gi.rows.map((r) => r.id).join() !== 'w1') { bad('with idle hidden, idle worktrees still show and idle chats do not'); }
-    if (model.groupRows(wr, dots, 'chat', ['idle'])[0].rows.map((r) => r.id).indexOf('w1') < 0) { bad('chat mode keeps idle worktrees when idle is hidden'); }
-  }
+  const by = model.bandRows(rs, dots);
+  if (Object.keys(by).join() !== 'needs,finish,waiting,tidy,idle' || by.needs.map((r) => r.id).join() !== 'c,a' || by.waiting.map((r) => r.id).join() !== 'b' || by.idle.map((r) => r.id).join() !== 'e,d') { bad('bands: needs, waiting and idle hold the rows, newest first inside a band'); }
+  if (model.bandRows(rs, dots, (r, dot) => (r.id === 'a' ? 'tidy' : 'idle')).tidy.map((r) => r.id).join() !== 'a') { bad('bands: a held band function places the row'); }
+  if (model.bandRows([], dots).needs.length !== 0) { bad('no rows, empty bands'); }
+  if (model.groupRows !== undefined || /function groupRows/.test(model.WORK_MODEL_SRC)) { bad('the groups of the old page are gone from the model'); }
   if (!/BAND_ORDER/.test(model.WORK_MODEL_SRC) || !/function bandOf/.test(model.WORK_MODEL_SRC)) { bad('the page embeds the model source'); }
 }
 
@@ -850,9 +960,9 @@ if (!/Content-Security-Policy[^>]*default-src 'none'/.test(page)) { bad('page ke
   if (!fp(g({ pr: { n: 1, checks: 'failing' } }), { pr: true, fail: true }) || fp(g({ pr: { n: 1, checks: 'passing' } }), { fail: true }) || fp(g(), { pr: true }) || fp(g({ pr: { n: 1, checks: 'failing' } }), { pr: true, dirty: true })) { bad('flagPass: pull request, failing checks, and all filters must hold'); }
   const rs = [{ id: 'a', title: 'beta', project: 'z', last: 1 }, { id: 'b', title: 'Alpha', project: 'z', last: 3 }, { id: 'c', title: 'gamma', project: 'a', last: 2 }];
   const ids = (m) => rs.slice().sort(model.rowCmp(m)).map((x) => x.id).join('');
-  if (ids() !== 'bca' || ids('recent') !== 'bca' || ids('name') !== 'bac' || ids('repo') !== 'cba') { bad('rowCmp: recent newest first, name alphabetical any case, repo by project then newest (' + ids() + ',' + ids('name') + ',' + ids('repo') + ')'); }
-  const gr = model.groupRows(rs.map((x) => Object.assign({}, x)), {}, 'chat', [], undefined, 'name');
-  if (gr[0].rows.map((x) => x.id).join('') !== 'bac') { bad('groupRows: the sort applies to the flat list'); }
+  if (ids() !== 'bca' || ids('recent') !== 'bca' || ids('name') !== 'bac' || ids('repo') !== 'bca') { bad('rowCmp: recent newest first, name alphabetical any case, no repository sort (' + ids() + ',' + ids('name') + ',' + ids('repo') + ')'); }
+  const gr = model.bandRows(rs.map((x) => Object.assign({}, x)), {}, undefined, 'name');
+  if (gr.idle.map((x) => x.id).join('') !== 'bac') { bad('bandRows: the sort applies inside a band'); }
   const items = [{ band: 'finish', title: 'Fix [x] *bold* <b> `c` | #1\nline', project: 'p_q', branch: 'b', state: 'waiting for you', files: 1, ahead: 2, pr: { n: 7, review: 'approved', checks: 'failing' }, wt: false },
     { band: 'tidy', title: 'See https://example.com/a?token=abc', project: '', branch: '', files: 0, ahead: 0, pr: null, wt: true, ready: true },
     { band: 'finish', title: 'key ghp_abcdefghijklmnopqrstuvwxyz0123456789ABCD here', project: 'p', branch: '', files: 0, ahead: 0, pr: null }, { band: 'idle', title: 'idle one' }];

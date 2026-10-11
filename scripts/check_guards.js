@@ -13,6 +13,25 @@ const errors = [];
 const bad = (m) => errors.push(m);
 const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
 
+// 0. The top CHANGELOG heading is "Unreleased" or a version whose git tag vX.Y.Z exists (publish.py makes both).
+// Only the top heading is checked: older releases (0.27.1, 0.28.0) have no tags.
+{
+  const cl = fs.readFileSync(process.env.CCS_CHANGELOG || path.join(ROOT, 'CHANGELOG.md'), 'utf8');
+  const top = /^##\s+(.+?)\s*$/m.exec(cl);
+  const name = top ? top[1].replace(/^\[|\]$/g, '') : '';
+  if (!top) { bad('CHANGELOG.md has no "## " heading'); }
+  else if (!/^Unreleased$/i.test(name)) {
+    const ver = /^v?(\d+\.\d+\.\d+)\b/.exec(name);
+    if (!ver) { bad('CHANGELOG.md top heading "## ' + top[1] + '" is not Unreleased or a version'); }
+    else {
+      let tags = '';
+      try { tags = require('child_process').execFileSync('git', ['tag', '--list', 'v' + ver[1]], { cwd: ROOT, encoding: 'utf8' }).trim(); } catch (e) { bad('cannot run git tag --list: ' + e.message); }
+      if (!tags) { bad('CHANGELOG.md top heading "## ' + top[1] + '" has no git tag v' + ver[1] + ': use ## Unreleased; publish.py sets the version and tag'); }
+      else if (JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version !== ver[1]) { bad('package.json version differs from the tagged top CHANGELOG heading ' + ver[1]); }
+    }
+  }
+}
+
 // 1. Open Work sources never import the worker client, and every .request( they make is soft.
 const own = fs.readdirSync(SRC).filter((f) => /^(openWork|work)[A-Za-z]*\.ts$/.test(f));
 for (const must of ['openWork.ts', 'workChats.ts', 'workScan.ts', 'workRepo.ts', 'workPrs.ts', 'openWorkGitJs.ts', 'openWorkPrJs.ts', 'openWorkViewJs.ts']) { if (!own.includes(must)) { bad('guard cannot see ' + must); } }

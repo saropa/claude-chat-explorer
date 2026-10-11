@@ -64,7 +64,7 @@
     "commands": [
       {
         "command": "claudeChatExplorer.openWork",
-        "title": "Saropa Chat Explorer: Open Work",
+        "title": "Saropa Chat Explorer: Project Status",
         "icon": "$(checklist)"
       },
       {
@@ -220,12 +220,12 @@
           "default": 14,
           "minimum": 1,
           "maximum": 90,
-          "description": "How many days of chats the Open Work page lists. Chats that are open now are always listed. Archived chats are left out."
+          "description": "How many days of chats the Project Status page lists. Chats that are open now are always listed. Archived chats are left out."
         },
         "saropaChatExplorer.lookupPullRequests": {
           "type": "boolean",
           "default": true,
-          "description": "Look up open pull requests and their check results (passing, failing, pending) for the Git section of a chat card and for the Open Work page, with the gh command (GitHub CLI). This contacts GitHub using your own gh sign-in. Turn it off to never run gh."
+          "description": "Look up open pull requests and their check results (passing, failing, pending) for the Git section of a chat card and for the Project Status page, with the gh command (GitHub CLI). This contacts GitHub using your own gh sign-in. Turn it off to never run gh."
         }
       }
     },

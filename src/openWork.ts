@@ -13,10 +13,9 @@ const PANEL_TYPE = 'saropaChatExplorer.openWork';
 const PREFS_KEY = 'saropaChatExplorer.openWorkPrefs';
 const DONE_KEY = 'saropaChatExplorer.openWorkDone';
 const VIEW_KEY = 'saropaChatExplorer.openWorkView'; // filter text, state filters and sort: kept per workspace
-const SORTS = ['recent', 'name', 'repo'];
+const SORTS = ['recent', 'name'];
 const SUMMARY_MAX_CHARS = 100000;
 const BANDS = ['needs', 'finish', 'waiting', 'tidy', 'idle'];
-const GROUPS = ['attention', 'chat'];
 const REFRESH_DEBOUNCE_MS = 1000;
 const FIND_MAX_CHARS = 80;
 const DONE_MAX = 500;
@@ -40,7 +39,7 @@ export interface OpenWorkDeps {
   workspace: () => string[];
   prsOn: () => boolean; // the setting lookupPullRequests; off means no gh call and no pull request state
 }
-interface Prefs { group: string; hidden: string[]; wsOnly: boolean; }
+interface Prefs { hidden: string[]; }
 interface View { q: string; f: { pr: boolean; fail: boolean; dirty: boolean; push: boolean }; sort: string; sec: { [k: string]: boolean }; }
 interface Model { gh?: object; chats?: object; notes?: object; progress?: object; end?: object; folder: Map<string, object>; repo: Map<string, object>; prs: Map<string, object>; checks: Map<string, object>; }
 const newModel = (): Model => ({ folder: new Map(), repo: new Map(), prs: new Map(), checks: new Map() });
@@ -70,7 +69,7 @@ export class OpenWork {
 
   private get prefs(): Prefs {
     const p = this.ctx.globalState.get<Partial<Prefs>>(PREFS_KEY) ?? {};
-    return { group: GROUPS.includes(String(p.group)) ? String(p.group) : 'attention', hidden: Array.isArray(p.hidden) ? p.hidden.filter((b) => BANDS.includes(b)) : [], wsOnly: p.wsOnly !== false }; // on unless the owner saved it off
+    return { hidden: Array.isArray(p.hidden) ? p.hidden.filter((b) => BANDS.includes(b)) : [] };
   }
 
   /** The page's filter box, state filters and sort order for this workspace; anything unexpected falls back to the default. */
@@ -162,7 +161,7 @@ export class OpenWork {
       const r = await this.d.softRequest({ t: 'openWork', days: openWorkDays(), pins: this.d.pins(), archived: this.d.archived(), live: Object.keys(dots), folders: this.d.workspace() });
       if (req !== this.reqNo) { return; } // a newer refresh owns the page
       const raw: OpenWorkRowOut[] = Array.isArray(r?.rows) ? r.rows : [];
-      const all = [...new Set([...this.d.workspace().slice(0, 10), ...raw.map((x) => String(x.cwd ?? '')).filter(Boolean)])]; // open workspace folders are scanned even when no chat ran in them, so their worktrees and branches are listed
+      const all = [...new Set([...this.d.workspace(), ...raw.map((x) => String(x.cwd ?? '')).filter(Boolean)])]; // the workspace folder is scanned even when no chat ran in them, so their worktrees and branches are listed
       const wanted = all.slice(0, this.cap);
       const same = !o.force && !o.restart && this.scanned.size > 0 && wanted.every((c) => this.scanned.has(c));
       const rows = this.rowsOut(raw);
@@ -202,7 +201,7 @@ export class OpenWork {
 
   private replay(): void {
     const p = this.prefs;
-    this.post({ type: 'init', v: 3, prsOn: this.d.prsOn(), days: openWorkDays(), group: p.group, hidden: p.hidden, wsOnly: p.wsOnly, ws: this.d.workspace().length, done: Object.fromEntries(this.done), view: this.view, win: process.platform === 'win32' });
+    this.post({ type: 'init', v: 3, prsOn: this.d.prsOn(), days: openWorkDays(), hidden: p.hidden, ws: this.d.workspace().length, done: Object.fromEntries(this.done), view: this.view, win: process.platform === 'win32' });
     this.post({ type: 'dots', map: this.d.dots() });
     const k = this.model;
     if (!k.chats) { void this.refresh(); return; }
@@ -218,6 +217,7 @@ export class OpenWork {
       else if (t === 'retry') { if (typeof m.key === 'string' && /^[frp]\d{1,6}$/.test(m.key)) { this.d.scan.retry(m.key); } }
       else if (t === 'openPr' || t === 'copyPr') { await this.prLink(t === 'copyPr', String(m.repo), Number(m.n)); }
       else if (t === 'openBranch') { await this.branchLink(String(m.repo), String(m.branch), Number(m.n)); }
+      else if (t === 'openRepo') { await this.repoLink(String(m.repo)); }
       else if (t === 'prsSetting') { await vscode.commands.executeCommand('workbench.action.openSettings', 'saropaChatExplorer.lookupPullRequests'); }
       else if (t === 'scanMore') { this.cap += MAX_FOLDERS; await this.refresh({ restart: true }); }
       else if (t === 'prefs') { void this.savePrefs(m); }
@@ -233,7 +233,7 @@ export class OpenWork {
   }
 
   private async savePrefs(m: any): Promise<void> {
-    await this.ctx.globalState.update(PREFS_KEY, { group: GROUPS.includes(String(m.group)) ? m.group : 'attention', hidden: Array.isArray(m.hidden) ? m.hidden.filter((b: unknown) => BANDS.includes(String(b))) : [], wsOnly: m.wsOnly === true });
+    await this.ctx.globalState.update(PREFS_KEY, { hidden: Array.isArray(m.hidden) ? m.hidden.filter((b: unknown) => BANDS.includes(String(b))) : [] });
   }
 
   /** Messages that act on one chat; the id is validated before any use. */
@@ -289,6 +289,14 @@ export class OpenWork {
     try { const u = r.url ? new URL(r.url) : undefined; ok = !!u && u.protocol === 'https:' && !u.username && !u.password; } catch { ok = false; }
     if (!r.url || !ok) { void vscode.window.showInformationMessage(r.reason || 'That link is not available.'); return; }
     await vscode.env.openExternal(vscode.Uri.parse(r.url));
+  }
+
+  /** Open a repository on github.com. The host built the link from the origin remote while it read the repository; the page sends only the repository key. */
+  private async repoLink(rk: string): Promise<void> {
+    if (!/^r\d{1,6}$/.test(rk)) { return; }
+    const url = this.d.scan.repoUrl(rk);
+    if (!url || !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(url)) { void vscode.window.showInformationMessage('This repository is not on github.com, or it is not loaded yet.'); return; }
+    await vscode.env.openExternal(vscode.Uri.parse(url));
   }
 
   /** Copy the remove command of a finished worktree. Nothing is run: the user pastes it in a terminal. */

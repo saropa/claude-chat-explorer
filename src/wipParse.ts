@@ -86,6 +86,24 @@ export function parseLocalBranches(out: string): Array<{ name: string; upstream?
   return list;
 }
 
+/** for-each-ref format of the project status: REF_FORMAT plus the tip commit's date (unix seconds) and author name, tab separated (the author last). */
+export const BRANCH_FORMAT = REF_FORMAT + '%09%(committerdate:unix)%09%(authorname)';
+export const MAX_AUTHOR = 60;
+/** One local branch as the project status needs it: upstream facts and the last commit's date and author. */
+export interface BranchInfo { name: string; upstream?: string; gone: boolean; ts: number; author: string; }
+
+/** Parse for-each-ref lines (BRANCH_FORMAT). A line without the date and author (older output) still gives the name and upstream facts; the date is 0 and the author empty. */
+export function parseBranchInfo(out: string): BranchInfo[] {
+  const list: BranchInfo[] = [];
+  for (const line of out.split(/\r?\n/)) {
+    const [name, up = '', track = '', ts = '', ...au] = line.split('\t');
+    if (!name) { continue; }
+    const n = Number(ts);
+    list.push({ name, upstream: up || undefined, gone: /\bgone\b/.test(track), ts: Number.isFinite(n) && n > 0 ? n : 0, author: au.join(' ').replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_AUTHOR) });
+  }
+  return list;
+}
+
 /** Upstream facts of one branch from a for-each-ref line (REF_FORMAT): upstream name, ahead, behind and whether the upstream is gone. */
 export function parseTrack(out: string): { upstream?: string; ahead: number; behind: number; gone: boolean } {
   const [, up = '', track = ''] = (out.split(/\r?\n/)[0] ?? '').split('\t');
