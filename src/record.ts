@@ -2,10 +2,10 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
-import { Cost, FileRef, Git, Usage } from './types';
+import { Cost, FileRef, Git, Receipt, Usage } from './types';
 
 /** Record layout version; bump it when the file layout or the parse output changes. */
-export const FORMAT = 10;
+export const FORMAT = 12; // 12: each created worktree or branch keeps the receipt of its tool call (time, tool_use id, command, line)
 export const DIR_PREFIX = 'records-v';
 export const EXT = '.ccr';
 const MAGIC = 'CCR5'; // file layout tag; FORMAT also changes when only the header or parse output does
@@ -19,7 +19,7 @@ export interface RecHeader {
   v: number; src: string; mtime: number; size: number; id: string; dir: string;
   parent?: string; agentType?: string; desc?: string; title: string; last: number; first: number; count: number;
   files: Array<[string, number]>;
-  cost?: Cost; git?: Git; use?: Usage; cwd?: string; cwds?: string[]; seen?: string[]; made?: Array<[string, string]>;
+  cost?: Cost; git?: Git; use?: Usage; cwd?: string; cwds?: string[]; seen?: string[]; made?: Array<[string, string, Receipt?]>;
 }
 export interface Parsed { h: RecHeader; bloom: Uint8Array; bodyLen: number; }
 

@@ -4,11 +4,13 @@
 import * as path from 'path';
 import { Limiter } from './execLimit';
 import { Exec, pool } from './wipExec';
-import { Ctx, git, probe, statusOf, unpushedOf } from './wipGit';
+import { Ctx, git, probe, statusOf, uniqueCommitsOf, unpushedOf } from './wipGit';
+import { reflogFirstOf } from './workCreated';
+import { CleanCommit, CleanItem } from './workCleanup';
 import { FileChange } from './wipTypes';
 import { PrRun, WorkPrs } from './workPrs';
 import { RelIn } from './workMatch';
-import { BranchOut, branchCommand, branchesOf, githubBranchUrl, readRepo, removeCommand, RepoOut, WtOut } from './workRepo';
+import { BranchOut, branchCommand, branchesOf, githubBranchUrl, MAX_REMOTES, readRepo, removeCommand, RepoOut, WtOut } from './workRepo';
 
 export const MAX_FOLDERS = 60;
 export const MAX_BRANCH_POST = 200; // local branches sent to the page per repository (newest first)
@@ -261,7 +263,7 @@ export class WorkScan {
       da: w.branch ? dv.get(w.branch)?.ahead : undefined, db: w.branch ? dv.get(w.branch)?.behind : undefined, // ahead and behind the default branch
     }));
     const branches = (r.info ?? []).slice(0, MAX_BRANCH_POST).map((b) => ({ n: b.name, ts: b.ts, au: b.author, cr: b.cr || 0, up: !!b.upstream, gone: b.gone, a: b.ahead, b: b.behind }));
-    this.put(run, { type: 'repo', key: rk, state, reason, name: r.name, def: r.def ?? '', defLocal: r.defLocal ?? '', merged: r.merged, worktrees, ws: this.ws.commons.has(r.common), gh: !!r.ghUrl, branches, bmore: Math.max(0, (r.info?.length ?? 0) - branches.length) });
+    this.put(run, { type: 'repo', key: rk, state, reason, name: r.name, def: r.def ?? '', defLocal: r.defLocal ?? '', merged: r.merged, worktrees, ws: this.ws.commons.has(r.common), gh: !!r.ghUrl, branches, remotes: (r.remotes ?? []).slice(0, MAX_REMOTES), stray: (r.stray ?? []).map((x, i) => ({ k: 's' + (i + 1), name: x.name, path: x.path, git: x.git })), bmore: Math.max(0, (r.info?.length ?? 0) - branches.length) });
   }
 
   /** What the chat matcher needs of a repository key: the folders, worktrees and branches of the last answer (never posted to the page). ids are filled by the caller. */
@@ -269,7 +271,8 @@ export class WorkScan {
     const r = this.repos.get(rk);
     if (!r) { return undefined; }
     const wts = r.worktrees.map((w) => ({ k: this.wkeyOf(rk, w.real), name: path.basename(w.path), path: w.path, real: w.real, branch: w.branch, main: w.main, detached: w.detached }));
-    const brs = (r.info ?? []).slice(0, MAX_BRANCH_POST).map((b) => ({ n: b.name, cr: b.cr ?? 0, ts: b.ts }));
+    const brs = (r.info ?? []).slice(0, MAX_BRANCH_POST).map((b) => ({ n: b.name, cr: b.cr ?? 0, ts: b.ts })).concat((r.remotes ?? []).map((b) => ({ n: b.n, cr: 0, ts: b.ts })));
+    (r.stray ?? []).forEach((x, i) => { wts.push({ k: 's' + (i + 1), name: x.name, path: x.path, real: x.path, branch: '', main: false, detached: true }); });
     return { roots: [r.main], wts, brs, def: r.defLocal ?? '' };
   }
 
@@ -357,6 +360,37 @@ export class WorkScan {
       return typeof r === 'string' ? { reason: r } : { commits: r };
     } catch (e) { this.log('open work commits', e); return { reason: 'git error' }; }
     finally { clearTimeout(timer); this.details.delete(ac); }
+  }
+
+  /** The read-only facts of one branch and its worktree for the clean-up prompt: the worktree state of the last scan, the creation line of the branch reflog (a plain file read) and the
+   *  newest commits only on the branch (one rev-list call on the sidebar lane, ends within 10 s). wk is a worktree key the page named, b a branch name; both are looked up here, never trusted. */
+  async cleanFacts(rk: string, b: string, wk: string): Promise<Omit<CleanItem, 'proofs' | 'pr' | 'told'> & { common: string; top: string } | undefined> {
+    const r = /^r\d{1,6}$/.test(rk) ? this.repos.get(rk) : undefined;
+    if (!r) { return undefined; }
+    const w0 = /^w\d{1,6}$/.test(wk) ? this.wkeys.get(wk) : undefined;
+    const wt = (w0 && w0.rk === rk ? r.worktrees.find((x) => x.real === w0.real) : undefined) ?? (b ? r.worktrees.find((x) => !x.detached && x.branch === b) : undefined);
+    const branch = b || (wt && !wt.detached ? wt.branch : '');
+    const info = branch ? r.info?.find((x) => x.name === branch) : undefined;
+    const f = wt?.facts;
+    const out: Omit<CleanItem, 'proofs' | 'pr' | 'told'> & { common: string; top: string } = {
+      branch, wt: wt?.path, missing: !!wt?.missing, created: info?.cr, commits: [], fileTotal: f?.ok ? f.fileTotal : 0, files: f?.ok ? f.files.map((x) => x.p) : [],
+      unpushed: f?.ok ? f.ahead : 0, ahead: info?.ahead, behind: info?.behind, def: r.def ?? '', gone: f?.ok ? f.gone : info?.gone, read: !!f?.ok || (!wt && !!info), common: r.common, top: r.worktrees.find((x) => !x.missing)?.path ?? r.main,
+    };
+    if (!wt && info && !info.upstream) { out.unpushed = info.ahead ?? 0; }
+    if (!branch) { return out; }
+    const rf = await reflogFirstOf(r.common, branch);
+    if (rf) { out.reflog = rf.line; out.reflogAt = rf.at; out.reflogMsg = rf.msg; }
+    if (!r.def) { return out; }
+    const ac = new AbortController();
+    this.details.add(ac);
+    const timer = setTimeout(() => ac.abort(), DETAIL_MS);
+    try {
+      const ctx: Ctx = { exec: this.o.limiter.wrap(this.o.exec, 'ui'), signal: ac.signal, gitMs: this.gitMs, ghMs: this.gitMs, flags: { gitMissing: false } };
+      const cs = await uniqueCommitsOf(ctx, out.top, r.def, branch, 10);
+      if (typeof cs !== 'string') { out.commits = cs as CleanCommit[]; out.commitTotal = Math.max(info?.ahead ?? 0, cs.length); }
+    } catch (e) { this.log('open work clean-up facts', e); }
+    finally { clearTimeout(timer); this.details.delete(ac); }
+    return out;
   }
 
   /** The folder key of a chat's working folder, and the worktree the folder is in (for the copy-remove button). */

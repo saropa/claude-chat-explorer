@@ -12,6 +12,9 @@ export interface Usage { tokens: number; model: string; max: number; at: number;
 /** Context usage as shown: percent (0 to 100), tokens, window size, short model id, compactions, lag flag, and approx when the window was inferred. */
 export interface CtxInfo { pct: number; tokens: number; window: number; model: string; comp: number; pend: boolean; approx: boolean; }
 
+/** Proof of one creating tool call: t its time (ms), u the tool_use id, c the exact command (at most 300 characters), l the 1-based line of the transcript file. */
+export interface Receipt { t: number; u: string; c: string; l: number; }
+
 /** In-memory metadata of one indexed chat file. Message text lives in its record file. */
 export interface Chat {
   id: string; // session id, or agent id for a subagent
@@ -25,7 +28,7 @@ export interface Chat {
   cwd?: string; // working folder of the chat: the last cwd recorded in its rows
   cwds?: string[]; // every distinct cwd (only when it changed during the chat)
   seen?: string[]; // every distinct gitBranch of its rows, most used first
-  made?: Array<[string, string]>; // worktrees ('w', folder) and branches ('b', name) its tool calls created
+  made?: Array<[string, string, Receipt?]>; // worktrees ('w', folder) and branches ('b', name) its tool calls created, each with the receipt of the tool call that made it
   bloom: Uint8Array; // trigram prefilter over lowercased text and commands
 }
 

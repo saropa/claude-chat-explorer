@@ -4,6 +4,7 @@ export const OW_CSS = String.raw`
 html{height:100%}
 body{margin:0;padding:8px 12px 12px;line-height:normal;font-weight:normal;color:var(--vscode-foreground);background:var(--vscode-editor-background);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
 button,select,input{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);font-weight:normal;line-height:normal}
+h1 .ver{margin-left:6px;font-size:calc(var(--vscode-font-size) - 1px);font-weight:normal;opacity:.6}
 h1{margin:0;font-size:calc(var(--vscode-font-size) + 5px);font-weight:600}
 h2{margin:0;font-size:inherit;font-weight:600}
 #wrap{--acts:260px;--gc:14px minmax(150px,3fr) minmax(90px,1.4fr) minmax(120px,1.8fr) 9ch 8ch 5ch 15ch 7ch;max-width:none;margin:0;--c-need:var(--vscode-charts-red,var(--vscode-errorForeground));--c-fin:var(--vscode-charts-blue,var(--vscode-textLink-foreground));--c-wait:var(--vscode-charts-yellow,var(--vscode-editorWarning-foreground));--c-tidy:var(--vscode-charts-green,var(--vscode-testing-iconPassed));--c-acc:var(--vscode-focusBorder)}
@@ -174,6 +175,7 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .pst tr.hxr td{max-width:0;overflow:hidden;padding:0 0 4px 12px;white-space:normal;border-bottom:1px solid var(--vscode-widget-border,transparent)}
 .pst tr.hxr:hover td,.pst tr:hover+tr.hxr td{background:transparent}
 .row[data-rel="p"] .t,.row[data-rel="p"] .tm{opacity:.7}
+.mnl .row .t,.mnl .row .tm{opacity:.55}.mnp{margin:2px 0 0}
 .row[data-rel] .t .bd{margin-right:4px}
 .nest{margin:2px 0 2px 8px;border-left:2px solid var(--vscode-widget-border,var(--vscode-contrastBorder,transparent))}
 .nest .meta>.pj,.nest .meta>.br,.nest .meta>.fl,.nest .meta>.ah,.nest .meta>.pr,.nest .meta>.kc{display:none}
@@ -182,4 +184,9 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .wide .nest .meta{display:contents}
 .wide .nest .meta>.cx{grid-column:3}.wide .nest .meta>.st{grid-column:4}.wide .nest .meta>.tm{grid-column:5}
 .wide .nest .rb .t{grid-column:2}
+.bh.tg{cursor:pointer}
+.bh.tg .ab{flex:none}
+.bh .chv{margin-left:auto;flex:none;width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;opacity:.4;transform:rotate(45deg) translate(-2px,-2px);transition:transform .12s}
+.bh.tg:hover .chv{opacity:.7}
+.bh.op .chv{transform:rotate(-135deg) translate(-2px,-2px)}
 `;

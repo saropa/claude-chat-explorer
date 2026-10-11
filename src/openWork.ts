@@ -6,18 +6,20 @@ import { openWorkHtml, OW_TITLE } from './openWorkHtml';
 import { DotMap } from './liveState';
 import { isSessionId } from './sessionId';
 import { capDone } from './workModel';
+import { cleanView, prefsHidden, savedView, STATE_VER, View } from './workState';
 import { MAX_FOLDERS, WorkScan } from './workScan';
+import { projectsRoot } from './files';
+import { buildCleanup, CleanRow, MAX_ROWS, resumeCommand } from './workCleanHost';
 
 export const OPEN_WORK_CMD = 'claudeChatExplorer.openWork';
 const PANEL_TYPE = 'saropaChatExplorer.openWork';
 const PREFS_KEY = 'saropaChatExplorer.openWorkPrefs';
 const DONE_KEY = 'saropaChatExplorer.openWorkDone';
 const VIEW_KEY = 'saropaChatExplorer.openWorkView'; // filter text, state filters and sort: kept per workspace
-const SORTS = ['recent', 'name'];
 const SUMMARY_MAX_CHARS = 100000;
 const BANDS = ['needs', 'finish', 'waiting', 'tidy', 'idle'];
 const REFRESH_DEBOUNCE_MS = 1000;
-const FIND_MAX_CHARS = 80;
+const FIND_MAX_CHARS = 80; // the title length the Find action sends
 const DONE_MAX = 500;
 const FP_MAX = 200;
 const REVISIT_MS = 60000;
@@ -40,7 +42,6 @@ export interface OpenWorkDeps {
   prsOn: () => boolean; // the setting lookupPullRequests; off means no gh call and no pull request state
 }
 interface Prefs { hidden: string[]; }
-interface View { q: string; f: { pr: boolean; fail: boolean; dirty: boolean; push: boolean }; sort: string; sec: { [k: string]: boolean }; }
 interface Model { gh?: object; chats?: object; notes?: object; progress?: object; end?: object; folder: Map<string, object>; repo: Map<string, object>; prs: Map<string, object>; checks: Map<string, object>; rel: Map<string, object>; }
 const newModel = (): Model => ({ folder: new Map(), repo: new Map(), prs: new Map(), checks: new Map(), rel: new Map() });
 const REL_DEBOUNCE_MS = 300;
@@ -73,11 +74,11 @@ export class OpenWork {
 
   private get prefs(): Prefs {
     const p = this.ctx.globalState.get<Partial<Prefs>>(PREFS_KEY) ?? {};
-    return { hidden: Array.isArray(p.hidden) ? p.hidden.filter((b) => BANDS.includes(b)) : [] };
+    return { hidden: prefsHidden(p, BANDS) };
   }
 
   /** The page's filter box, state filters and sort order for this workspace; anything unexpected falls back to the default. */
-  private get view(): View { return cleanView(this.ctx.workspaceState.get<unknown>(VIEW_KEY)); }
+  private get view(): View { return savedView(this.ctx.workspaceState.get<unknown>(VIEW_KEY)); }
 
   /** Marked-done chats as [id, fingerprint], oldest first. */
   private get done(): Array<[string, string]> {
@@ -90,7 +91,7 @@ export class OpenWork {
     if (this.panel) { this.panel.reveal(); return; }
     const panel = vscode.window.createWebviewPanel(PANEL_TYPE, OW_TITLE, vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [] });
     this.panel = panel;
-    panel.webview.html = openWorkHtml();
+    panel.webview.html = openWorkHtml(String(this.ctx.extension?.packageJSON?.version ?? ''));
     const subs = [
       panel.webview.onDidReceiveMessage((m) => { void this.onMessage(m); }),
       panel.onDidChangeViewState(() => { if (panel.visible) { this.d.poke(); if (!this.scanning && Date.now() - this.lastEnd > REVISIT_MS) { void this.refresh({ restart: true }); } } }),
@@ -229,7 +230,7 @@ export class OpenWork {
 
   private replay(): void {
     const p = this.prefs;
-    this.post({ type: 'init', v: 3, prsOn: this.d.prsOn(), days: openWorkDays(), hidden: p.hidden, ws: this.d.workspace().length, done: Object.fromEntries(this.done), view: this.view, win: process.platform === 'win32' });
+    this.post({ type: 'init', v: 4, prsOn: this.d.prsOn(), days: openWorkDays(), hidden: p.hidden, ws: this.d.workspace().length, done: Object.fromEntries(this.done), view: this.view, win: process.platform === 'win32' });
     this.post({ type: 'dots', map: this.d.dots() });
     const k = this.model;
     if (!k.chats) { void this.refresh(); return; }
@@ -251,17 +252,37 @@ export class OpenWork {
       else if (t === 'prefs') { void this.savePrefs(m); }
       else if (t === 'openFile') { await this.openFile(String(m.key), Number(m.i)); }
       else if (t === 'copyRemove') { await this.copyRemove(String(m.key)); }
-      else if (t === 'view') { await this.ctx.workspaceState.update(VIEW_KEY, cleanView(m)); }
+      else if (t === 'view') { await this.ctx.workspaceState.update(VIEW_KEY, { ...cleanView(m), v: STATE_VER }); }
       else if (t === 'summary') { await this.copySummary(m.text, m.n); }
       else if (t === 'branches') { await this.branches(String(m.key)); }
       else if (t === 'copyBranch') { await this.copyBranch(String(m.key), Number(m.i)); }
       else if (t === 'expand') { await this.expand(String(m.id)); }
+      else if (t === 'cleanup') { await this.cleanup(m); }
       else { await this.onChat(m); }
     } catch (e) { this.d.log('open work message ' + String(m?.type), e); }
   }
 
   private async savePrefs(m: any): Promise<void> {
-    await this.ctx.globalState.update(PREFS_KEY, { hidden: Array.isArray(m.hidden) ? m.hidden.filter((b: unknown) => BANDS.includes(String(b))) : [] });
+    await this.ctx.globalState.update(PREFS_KEY, { v: STATE_VER, hidden: Array.isArray(m.hidden) ? m.hidden.filter((b: unknown) => BANDS.includes(String(b))) : [] });
+  }
+
+  /** "Ask <chat> to clean up": build the prompt with receipts for the rows this chat created (the page names a repository key, the chat id and branch or worktree keys; each is checked against the
+   *  scan, and a row the chat did not create is dropped). Copy puts the prompt on the clipboard. Resume opens the chat; the agent panel cannot be pre-filled, so the prompt is copied and the terminal
+   *  command is offered. Nothing is run. */
+  private async cleanup(m: any): Promise<void> {
+    const rk = String(m.rk), id = m.id;
+    if (!/^r\d{1,6}$/.test(rk) || !isSessionId(id)) { return; }
+    const rows: CleanRow[] | undefined = m.all === true ? undefined : (Array.isArray(m.rows) ? m.rows.slice(0, MAX_ROWS) : [])
+      .map((x: any): CleanRow => ({ b: typeof x?.b === 'string' && x.b.length <= 250 ? x.b : undefined, w: typeof x?.w === 'string' && /^[ws]?\d{1,6}$/.test(x.w) ? x.w : undefined }));
+    const k = this.model;
+    const out = await buildCleanup(this.d.scan, { rel: k.rel.get(rk) as any, prs: k.prs.get(rk), checks: k.checks }, rk, id, this.titles.get(id) ?? 'this chat', projectsRoot(), rows);
+    if (!out) { void vscode.window.showInformationMessage('Nothing to ask about: this chat is not the certain creator of that row. Refresh and try again.'); return; }
+    await vscode.env.clipboard.writeText(out.text);
+    const what = out.n === 1 ? 'one item' : out.n + ' items';
+    if (m.mode !== 'resume') { void vscode.window.showInformationMessage(`Copied the clean-up prompt for ${what} (${out.text.length} characters). Paste it into the chat.`); return; }
+    await this.d.resume(id);
+    const pick = await vscode.window.showInformationMessage(`Opened the chat. It cannot be pre-filled, so the clean-up prompt for ${what} is on your clipboard: paste it into the chat.`, 'Copy terminal command');
+    if (pick) { await vscode.env.clipboard.writeText(resumeCommand(out.dir, id, process.platform === 'win32')); void vscode.window.showInformationMessage('Copied the terminal command. Paste the prompt after it starts (it is no longer on the clipboard).'); }
   }
 
   /** Messages that act on one chat; the id is validated before any use. */
@@ -374,19 +395,6 @@ export class OpenWork {
     const pick = await vscode.window.showInformationMessage(`Archived "${this.titles.get(id) || 'chat'}".`, 'Undo');
     if (pick === 'Undo') { await this.d.setArchived(id, false); }
   }
-}
-
-/** A stored or posted view, cleaned: text up to 80 characters, booleans for the four state filters, a known sort. */
-/** Open or closed state the user chose per section (band key or 'br'); at most 120 entries, boolean values only. */
-function secOf(x: any): { [k: string]: boolean } {
-  const o: { [k: string]: boolean } = {};
-  if (x && typeof x === 'object') { for (const k of Object.keys(x).slice(0, 120)) { if (k.length <= 80 && typeof x[k] === 'boolean') { o[k] = x[k]; } } }
-  return o;
-}
-
-export function cleanView(v: any): View {
-  const f = v && typeof v.f === 'object' && v.f ? v.f : {};
-  return { q: typeof v?.q === 'string' ? v.q.slice(0, FIND_MAX_CHARS) : '', f: { pr: f.pr === true, fail: f.fail === true, dirty: f.dirty === true, push: f.push === true }, sort: SORTS.includes(String(v?.sort)) ? String(v.sort) : 'recent', sec: secOf(v?.sec) };
 }
 
 /** Register the command that opens the page. */

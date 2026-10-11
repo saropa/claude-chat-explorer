@@ -1,11 +1,16 @@
 /** What a shell command created: the worktree folders and branches named by `git worktree add`, `git checkout -b`, `git switch -c` and `git branch <name>`.
  *  Pure text work done while a chat file is parsed (nothing is run); the Project status page uses it to tie a chat to the branch or worktree it made. */
 
-/** [kind, value]: 'w' with the folder as typed (absolute or relative), 'b' with the branch name. */
-export type Made = [string, string];
+import * as path from 'path';
+import { Receipt } from './types';
+
+/** [kind, value]: 'w' the worktree folder (absolute when the working folder was known, else as typed), 'b' the branch name,
+ *  'i' a worktree folder a subagent's instructions said to use (intended, not seen created). */
+export type Made = [string, string, Receipt?];
 
 const MAX_PER_CMD = 4;
 const MAX_VALUE = 300;
+export const RECEIPT_CMD_CAP = 300;
 const BRANCH_OK = /^[\p{L}\p{N}_.\/+@#-]{1,200}$/u;
 const UNRESOLVED = /[$`<>*?{}\\]/; // shell text that is not a literal name: a variable, a substitution, a glob
 
@@ -36,25 +41,40 @@ const BRANCH_WITH_VALUE = new Set(['-t', '--track', '--set-upstream', '--create-
 const keepBranch = (v: string | undefined): string => (v && !v.startsWith('-') && !UNRESOLVED.test(v) && BRANCH_OK.test(v) && v !== 'HEAD' ? v : '');
 const keepPath = (v: string | undefined): string => (v && !v.startsWith('-') && !UNRESOLVED.test(v) && v.length <= MAX_VALUE ? v : '');
 
-/** The arguments of a git command line after its global options; undefined when the words are not a git command. */
-function gitArgs(words: string[]): string[] | undefined {
-  let i = 0;
+/** A path resolved against a folder (what the shell and git do with a relative path); the path as typed when the folder is unknown or the path is not literal. */
+export function resolveIn(base: string, p: string): string {
+  if (!p || p.startsWith('~') || UNRESOLVED.test(p)) { return p; }
+  const win = /^[A-Za-z]:[\\/]/.test(p) || /^[A-Za-z]:[\\/]/.test(base);
+  const m = win ? path.win32 : path.posix;
+  if (m.isAbsolute(p)) { return m.normalize(p).replace(/(.)[\\/]+$/, '$1'); }
+  return base && m.isAbsolute(base) ? m.resolve(base, p) : p;
+}
+
+/** The arguments of a git command line after its global options and the folder its -C options point to (relative to cwd);
+ *  undefined when the words are not a git command. */
+function gitArgs(words: string[], cwd: string): { a: string[]; dir: string } | undefined {
+  let i = 0, dir = cwd;
   while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) { i++; } // VAR=value prefixes
   if (words[i] !== 'git') { return undefined; }
   i++;
-  while (i < words.length && words[i].startsWith('-')) { i += GLOBAL_WITH_VALUE.has(words[i]) ? 2 : 1; }
-  return words.slice(i);
+  while (i < words.length && words[i].startsWith('-')) {
+    if (words[i] === '-C' && i + 1 < words.length) { dir = dir ? resolveIn(dir, words[i + 1]) : words[i + 1]; }
+    i += GLOBAL_WITH_VALUE.has(words[i]) ? 2 : 1;
+  }
+  return { a: words.slice(i), dir };
 }
 
-function worktreeAdd(a: string[], out: Made[]): void {
-  let path = '';
+/** `git worktree add [options] <path> [<commit-ish>]`: the FIRST word that is not an option (or an option's value) is the path; the second is the start point (origin/x, HEAD, a branch)
+ *  and is never a path, even when the path itself is not literal ("$W") and so could not be kept. */
+function worktreeAdd(a: string[], out: Made[], dir: string): void {
+  let wt = '', seen = false;
   for (let i = 0; i < a.length; i++) {
     const v = a[i];
     if (v === '-b' || v === '-B') { const b = keepBranch(a[++i]); if (b) { out.push(['b', b]); } }
     else if (v === '--reason') { i++; }
-    else if (!v.startsWith('-') && !path) { path = keepPath(v); }
+    else if (!v.startsWith('-') && !seen) { seen = true; wt = keepPath(v); }
   }
-  if (path) { out.push(['w', path]); }
+  if (wt) { out.push(['w', dir ? resolveIn(dir, wt) : wt]); }
 }
 
 function branchCreate(a: string[], out: Made[]): void {
@@ -69,14 +89,27 @@ function branchCreate(a: string[], out: Made[]): void {
   }
 }
 
-/** Everything one command line created, at most four values, each once. */
-export function madeOf(cmd: string): Made[] {
+/** Everything one command line created, at most four values, each once. cwd is the folder the command ran in: relative worktree paths
+ *  are resolved against it, after any `cd <dir> &&` and `git -C <dir>` in the line. */
+/** Replace $NAME and ${NAME} by the value an earlier `NAME=value` line of the same command gave; a name that is not known stays as typed (and is then not a literal path). */
+function expandVars(w: string, vars: Map<string, string>): string {
+  return vars.size && w.includes('$') ? w.replace(/\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/g, (m, a, b) => vars.get(a ?? b) ?? m) : w;
+}
+
+export function madeOf(cmd: string, cwd = ''): Made[] {
   const out: Made[] = [];
   if (typeof cmd !== 'string' || !/\bgit\b/.test(cmd)) { return out; }
-  for (const words of wordsOf(cmd)) {
-    const a = gitArgs(words);
-    if (!a || !a.length) { continue; }
-    if (a[0] === 'worktree' && a[1] === 'add') { worktreeAdd(a.slice(2), out); }
+  let cur = cwd;
+  const vars = new Map<string, string>();
+  for (const raw of wordsOf(cmd)) {
+    const assign = raw.length > 0 && raw.every((x) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(x));
+    const words = raw.map((x) => expandVars(x, vars));
+    if (assign) { for (const x of words) { const k = x.indexOf('='); vars.set(x.slice(0, k), x.slice(k + 1)); } continue; }
+    if (words[0] === 'cd' && words.length >= 2) { cur = cur && words[1] !== '-' ? resolveIn(cur, words[1]) : ''; continue; }
+    const g = gitArgs(words, cur);
+    if (!g || !g.a.length) { continue; }
+    const a = g.a;
+    if (a[0] === 'worktree' && a[1] === 'add') { worktreeAdd(a.slice(2), out, g.dir); }
     else if (a[0] === 'checkout' || a[0] === 'switch') {
       const flags = a[0] === 'checkout' ? ['-b', '-B'] : ['-c', '-C', '--create', '--force-create'];
       const i = a.findIndex((v) => flags.includes(v));
@@ -93,4 +126,17 @@ export function madeByTool(name: string, input: any): Made[] {
   if (name !== 'EnterWorktree' || !input || typeof input !== 'object') { return []; }
   const v = keepPath(typeof input.path === 'string' ? input.path : typeof input.name === 'string' ? input.name : undefined);
   return v ? [['w', v]] : [];
+}
+
+const INTENT = /\bworktree\s+(?:add\s+)?(?:-b\s+\S+\s+)?[`'"]?((?:\.{1,2}[\\/]|\/|[A-Za-z]:[\\/])[^\s`'",;)]+)/gi;
+
+/** The worktree folders a subagent's first instruction says to use ("use a sibling worktree ../name", "git worktree add ../name"), as intended folders. */
+export function intendedOf(text: string, cwd = ''): Made[] {
+  const out: Made[] = [];
+  if (typeof text !== 'string') { return out; }
+  for (const m of text.slice(0, 6000).matchAll(INTENT)) {
+    const p = keepPath(m[1].replace(/[.:]+$/, ''));
+    if (p && out.length < 2) { out.push(['i', cwd ? resolveIn(cwd, p) : p]); }
+  }
+  return out;
 }

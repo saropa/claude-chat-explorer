@@ -93,6 +93,19 @@ export async function unpushedOf(c: Ctx, top: string): Promise<Array<{ sha: stri
 }
 
 const REF_SAFE = /^[A-Za-z0-9._][A-Za-z0-9._/-]*$/;
+
+/** The newest commits of a branch that the default branch does not have, as sha, author, ISO date and subject (one read-only rev-list call, at most max). */
+export async function uniqueCommitsOf(c: Ctx, top: string, def: string, branch: string, max: number): Promise<Array<{ sha: string; au: string; date: string; subject: string }> | string> {
+  if (!REF_SAFE.test(def) || !REF_SAFE.test(branch)) { return 'name not usable'; }
+  const r = await git(c, top, ['rev-list', '--max-count=' + max, '--format=%h%x09%an%x09%cI%x09%s', def + '..refs/heads/' + branch]);
+  if (r.code !== 0) { return whyFailed(r); }
+  const out: Array<{ sha: string; au: string; date: string; subject: string }> = [];
+  for (const line of r.stdout.split(/\r?\n/)) {
+    const p = line.split('\t');
+    if (p.length >= 4 && !line.startsWith('commit ')) { out.push({ sha: p[0], au: p[1].slice(0, 60), date: p[2], subject: p.slice(3).join('\t').slice(0, 120) }); }
+  }
+  return out;
+}
 const SHA_SAFE = /^[0-9a-f]{7,64}$/;
 
 /** The remote's default branch as `origin/main`; undefined (default branch unknown) when git has none or the name is unusual. */

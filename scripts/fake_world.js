@@ -89,12 +89,21 @@ function contactsWorld() {
   say(c6, 'Please look at branch bahai-mojibake and the broken strings. Also feat/pro-pill-gaps was discussed.');
   const c7 = chat(7, { title: 'Spike session', first: T0 + 100 * H, last: T0 + 104 * H });
   chat(8, { title: 'Other project', dir: '-w-elsewhere', cwd: '/w/elsewhere', first: T0 + 100 * H, last: T0 + 104 * H });
+  // The owner's real case (worktree contacts-wt-langv2): the parent chat started a background subagent whose instructions said "use a sibling worktree ../contacts-wt-langv2"
+  // and which ran `git worktree add ../contacts-wt-langv2 origin/main` (a relative path); another repository's chat only names the worktree; a chat holds just the owner's question.
+  const LV = '22eb3898-19ee-4316-be07-d87a8384586d', LQ = 'Find the claude chat that created contacts-wt-langv2 and the branches langv2-final and langv2-spare-branch';
+  const cLv = chat(9, { id: LV, title: 'Language rule design', first: T0 + 200 * H, last: T0 + 210 * H });
+  sub(cLv, 'aeb797a22e217fd5e', { made: [['i', C + '-wt-langv2'], ['w', '../contacts-wt-langv2'], ['b', 'langv2-final'], ['b', 'langv2-spare-branch']] });
+  const cMen = chat(10, { id: id(10), title: 'Explorer matcher', dir: '-w-explorer', cwd: '/w/claude-chat-explorer', first: T0 + 205 * H, last: T0 + 212 * H });
+  say(cMen, 'The worktree contacts-wt-langv2 and its branches langv2-final and langv2-spare-branch belong to another repository; I only read about them.');
+  const cQ = chat(11, { title: 'Who made it', first: T0 + 215 * H, last: T0 + 216 * H, roles: [0], ends: [LQ.length] });
+  say(cQ, LQ);
   const sec = (ms) => Math.floor(ms / 1000);
   const wt = (k, name, branch, o) => Object.assign({ k, name, path: C + (name === 'contacts' ? '' : '-wt-' + name), real: '', branch, main: false, detached: false }, o || {});
   const wts = [
     { k: 'w1', name: 'contacts', path: C, real: C, branch: 'main', main: true, detached: false },
     wt('w2', 'connection-icon', 'feat/saropa-connection-cloud-icon-search'), wt('w3', 'nudge-once', 'fix/login-reminder-dot-fires-once'),
-    wt('w4', 'pro-pill-gaps', 'feat/pro-pill-gaps'), wt('w5', 'unused-keys', 'unused-arb-keys'),
+    wt('w4', 'pro-pill-gaps', 'feat/pro-pill-gaps'), wt('w5', 'unused-keys', 'unused-arb-keys'), wt('w7', 'langv2', 'langv2-final'),
     { k: 'w6', name: 'agent-' + AG, path: C + '/.claude/worktrees/agent-' + AG, real: C + '/.claude/worktrees/agent-' + AG, branch: 'worktree-agent-' + AG, main: false, detached: false },
   ];
   wts.forEach((w) => { w.real = w.path; if (w.name !== 'contacts' && !w.name.startsWith('agent-')) { w.name = 'contacts-wt-' + w.name; } });
@@ -102,12 +111,13 @@ function contactsWorld() {
     { n: 'main', cr: 0, ts: sec(T0 + 12 * H) },
     ...wts.slice(1).map((w, i) => ({ n: w.branch, cr: sec(T0 + (2 + i) * H), ts: sec(T0 + (3 + i) * H) })),
     { n: 'backup/main-before-merge-20261010_2142', cr: sec(T0 + 5 * H), ts: sec(T0 + 4 * H) },
+    { n: 'langv2-spare-branch', cr: sec(T0 + 200 * H), ts: sec(T0 + 201 * H) }, // a branch with no worktree, made by the subagent
     { n: 'bahai-mojibake', cr: sec(T0 + 300 * H), ts: sec(T0 + 301 * H) }, // only the name is in a chat
     { n: 'orphan-spike-branch', cr: sec(T0 + 101 * H), ts: sec(T0 + 102 * H) }, // only the time window
     { n: 'ancient-nothing-branch', cr: sec(T0 - 900 * H), ts: sec(T0 - 899 * H) }, // nothing: the nearest chat by time
     { n: 'no-time-branch', cr: 0, ts: 0 }, // nothing at all, not even a time
   ];
-  const ix = { tops: () => chats.filter((c) => !c.parent), subsOf: (p) => subs.get(p.id) || [], rec: (c) => ({ text: texts.get(c.rec) || '', cmds: [] }) };
+  const ix = { tops: () => chats.filter((c) => !c.parent), subsOf: (p) => subs.get(p.id) || [], rec: (c) => ({ text: texts.get(c.rec) || '', cmds: [], roles: c.roles || [], ends: c.ends || [] }) };
   const input = { ids: chats.map((c) => c.id), roots: [C], wts, brs, def: 'main' };
   return { ix, input, chats, id, C, T0, H, AG };
 }

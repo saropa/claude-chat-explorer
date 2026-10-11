@@ -24,11 +24,20 @@ export interface WtOut extends WorktreeInfo {
 /** A local branch of the project status: upstream facts, last commit date and author, and its distance from the default branch (undefined when not read). */
 export interface BranchRow extends BranchInfo { ahead?: number; behind?: number; cr?: number; } // cr: creation time, unix seconds (reflog), when known
 
+/** A remote-only branch that is not merged: its name (without the remote), tip date (unix seconds) and author. */
+export interface RemoteBranch { n: string; ts: number; au: string; }
+/** A folder that looks like a worktree of this repository but is not registered; git says whether it has a .git entry. */
+export interface Stray { name: string; path: string; git: boolean; }
+export const MAX_REMOTES = 100;
+export const MAX_STRAY = 20;
+
 /** What the repository layer found. */
 export interface RepoOut {
   common: string; name: string; main: string; def?: string; defLocal?: string; merged: string[]; worktrees: WtOut[]; reason?: string;
   locals?: string[]; // names of the local branches (capped), so the pull request layer can match branches that have no worktree
   info?: BranchRow[]; // every local branch (capped at MAX_LOCALS), newest commit first, for the project status
+  remotes?: RemoteBranch[]; // remote branches (origin) with no local branch of that name that are not merged into the default branch: "remote only" rows
+  stray?: Stray[]; // folders named <repo>-wt-* next to the main checkout (or one level up) that git does not list as worktrees
   ghUrl?: string; // https://github.com/<owner>/<repo> from the origin remote; stays on the host (the page only learns that a link exists)
 }
 
@@ -69,6 +78,8 @@ export async function readRepo(c: Ctx, common: string, top: string, onPartial?: 
     out.locals = parseLocalBranches(lb.stdout).map((b) => b.name).filter((n) => !n.startsWith('-')).slice(0, MAX_LOCALS);
     out.info = parseBranchInfo(lb.stdout).filter((b) => !b.name.startsWith('-')).sort((x, y) => y.ts - x.ts || x.name.localeCompare(y.name)).slice(0, MAX_LOCALS);
   }
+  out.remotes = await remotesOf(c, top, out);
+  out.stray = await strayOf(out);
   const gh = ro.code === 0 ? githubRepoOf(ro.stdout) : undefined;
   if (gh) { out.ghUrl = 'https://github.com/' + gh.owner + '/' + gh.repo; }
   onPartial?.(out);
@@ -178,4 +189,46 @@ export function githubBranchUrl(remote: string, branch: string): string | undefi
   const segs = branch.split('/');
   if (segs.some((x) => !x || x === '.' || x === '..')) { return undefined; }
   return 'https://github.com/' + r.owner + '/' + r.repo + '/tree/' + segs.map(encodeURIComponent).join('/');
+}
+
+/** Remote branches of origin that have no local branch and are not merged into the default branch (two read-only for-each-ref calls); empty on any failure. */
+export async function remotesOf(c: Ctx, top: string, r: RepoOut): Promise<RemoteBranch[]> {
+  const list = await git(c, top, ['for-each-ref', '--format=%(refname:lstrip=3)%09%(committerdate:unix)%09%(authorname)', 'refs/remotes/origin']);
+  if (list.code !== 0) { return []; }
+  const local = new Set([...(r.locals ?? []), ...r.worktrees.map((w) => w.branch)]);
+  let merged = new Set<string>();
+  if (r.def && /^[A-Za-z0-9_.\/-]+$/.test(r.def)) {
+    const m = await git(c, top, ['for-each-ref', '--merged=' + r.def, '--format=%(refname:lstrip=3)', 'refs/remotes/origin']);
+    if (m.code === 0) { merged = new Set(m.stdout.split(/\r?\n/).filter(Boolean)); }
+  }
+  const out: RemoteBranch[] = [];
+  for (const line of list.stdout.split(/\r?\n/)) {
+    const [n, ts = '', ...au] = line.split('\t');
+    if (!n || n === 'HEAD' || n.startsWith('-') || local.has(n) || merged.has(n) || n === r.defLocal) { continue; }
+    out.push({ n, ts: Number(ts) > 0 ? Number(ts) : 0, au: au.join('\t').slice(0, 60) });
+  }
+  return out.sort((a, b) => b.ts - a.ts || a.n.localeCompare(b.n)).slice(0, MAX_REMOTES);
+}
+
+/** Folders named <repo>-wt-* in the folder that holds the main checkout and the one above it, that git does not list as worktrees (plain directory reads). */
+export async function strayOf(r: RepoOut): Promise<Stray[]> {
+  const known = new Set<string>();
+  for (const w of r.worktrees) { known.add(path.resolve(w.path)); known.add(path.resolve(w.real)); }
+  const prefix = r.name + '-wt-';
+  const parent = path.dirname(r.main), dirs = [...new Set([parent, path.dirname(parent)])];
+  const out: Stray[] = [];
+  for (const d of dirs) {
+    let names: string[] = [];
+    try { names = await fs.promises.readdir(d); } catch { continue; }
+    for (const n of names.sort()) {
+      if (!n.startsWith(prefix) || n.length <= prefix.length) { continue; }
+      const p = path.join(d, n);
+      if (known.has(p) || known.has(await real(p)) || !(await isDir(p))) { continue; }
+      let g = false;
+      try { await fs.promises.stat(path.join(p, '.git')); g = true; } catch { g = false; }
+      out.push({ name: n, path: p, git: g });
+      if (out.length >= MAX_STRAY) { return out; }
+    }
+  }
+  return out;
 }

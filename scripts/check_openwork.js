@@ -807,7 +807,7 @@ function statusScenario(W) {
     advance(300);
   });
   const h = body.innerHTML;
-  check(tag('a repository with worktrees and no chat shows Worktrees, Branches and Pull requests, open by default, under the page title Project status'), ['wt', 'bs', 'prs'].every((s) => new RegExp('data-a="sec" data-s="' + s + '" aria-expanded="true"').test(h)) && !/Chats without a branch/.test(h) && />Project status</.test(page));
+  check(tag('a repository with worktrees and no chat shows Worktrees, Branches and Pull requests, open by default, under the page title Project status'), ['wt', 'bs', 'prs'].every((s) => new RegExp('data-a="sec" data-s="' + s + '" aria-expanded="true"').test(h)) && !/Chats without a branch/.test(h) && />Claude Project Status</.test(page));
   check(tag('with one repository the facts sit in one slim line: name, GitHub button and counts, no header block'), /class="psl"[^>]*><span class="pn psn">contacts</.test(h) && /data-a="repolink" data-k="r1"/.test(h) && /5 worktrees/.test(h) && /8 branches/.test(h) && /2 pull requests/.test(h) && !/class="psh"|class="psr"/.test(h));
   check(tag('three tables: worktrees (all five), branches (all eight), pull requests (both)'), (h.match(/<table class="pst pw"/g) || []).length === 1 && (h.match(/<table class="pst pb"/g) || []).length === 1 && (h.match(/<table class="pst pp"/g) || []).length === 1 && (h.match(/<tr data-w=/g) || []).length === 5 && (h.match(/<tr data-b=/g) || []).length === 8 && (h.match(/<tr data-n=/g) || []).length === 2);
   check(tag('the branch of a worktree and its PR is one row with all three facts'), (() => { const rowS = trSlice(body, 'b', 'wt-3'); return /contacts-wt-3/.test(rowS) && /#7/.test(rowS) && /\u21912/.test(rowS) && (h.match(/<tr data-b="wt-3"/g) || []).length === 1; })());
@@ -872,6 +872,9 @@ function relatedScenario(W) {
   const none = trSlice(body, 'b', 'no-time-branch');
   check(tag('a branch with no time and no chat still shows an evidence line, not an empty cell'), /no matching chat found/.test(none) && !/class="ab hxb"/.test(none));
   check(tag('a chat the matcher placed is not also listed under Chats without a branch'), !/aria-label="Chats without a branch"/.test(h) || !/Pro rollout/.test(h.slice(h.indexOf('aria-label="Chats without a branch"'))));
+  check(tag('a row with a creator lists the creator chat in the main list and puts the mention-only chat under a closed "Mentions only (1)" toggle, muted'), (() => { const t = sub('contacts-wt-langv2'); return /Language rule design/.test(t) && !/Who made it/.test(t) && /data-x="w:w7:m" data-on="0"[^>]*>[^]*?Mentions only \(1\)/.test(h) && /class="bd bd-info" data-rel="certain">subagent</.test(t); })());
+  step('open the Mentions only toggle on the langv2 row', () => { fire(body, 'click', { target: target('hx', '', { dataset: { a: 'hx', x: 'w:w7:m', on: '0' } }) }); advance(300); });
+  check(tag('the opened toggle shows the mention-only chat muted with a "mention only" badge, after the creator'), (() => { const h2 = body.innerHTML, i = h2.indexOf('aria-label="Chats that only mention contacts-wt-langv2"'); return i > 0 && /Who made it/.test(h2.slice(i, i + 3000)) && /data-rel="mention">mention only</.test(h2.slice(i, i + 3000)) && h2.indexOf('Language rule design') < i; })());
   step('the matcher fails', () => { deliver({ type: 'rel', scan: 1, rk: 'r1', ok: false }); advance(300); });
   check(tag('when the matcher fails the evidence says so, still not blank'), /chat matching unavailable/.test(trSlice(body, 'b', 'no-time-branch')));
   step('a new scan clears the old matches', () => { deliver({ type: 'chats', scan: 2, rows: prow, indexing: false, scanning: true }); advance(300); });
@@ -927,13 +930,13 @@ function structureScenario(W) {
   check(tag('with idle hidden every worktree and branch row stays, and the hidden chat is counted next to its row'), (h().match(/<tr data-w=/g) || []).length === 2 && (h().match(/<tr data-b=/g) || []).length === 5 && /<tr data-w="w1">[^]*?class="q hid"[^>]*>1 hidden</.test(h()) && !new RegExp('data-id="' + id(5) + '"').test(h()));
   step('show idle', () => click('idle'));
   step('hide the tidy chip', () => click('band', { b: 'tidy' }));
-  check(tag('a state chip that is off removes those rows and the page says how many are hidden, with Show all'), /3 of 5 branches/.test(h()) && /2 branches hidden by the filters/.test(h()) && /data-a="showall"/.test(h()) && (h().match(/<tr data-b=/g) || []).length === 3 && !/<tr data-b="lost"/.test(h()));
+  check(tag('a state chip that is off never removes a worktree or branch row (it only filters chats)'), (h().match(/<tr data-b=/g) || []).length === 5 && /<tr data-b="lost"/.test(h()) && !/class="sub psh"/.test(h()));
   step('show all', () => click('showall'));
   check(tag('Show all brings every row back'), (h().match(/<tr data-b=/g) || []).length === 5 && !/class="sub psh"/.test(h()) && !/aria-pressed="false"[^>]*aria-label="[^"]*, hidden"/.test(els.get('cnt').innerHTML));
   check(tag('a chat outside git is in the section Chats without a branch, open, with its count'), /aria-label="Chats without a branch"/.test(h()) && /data-s="nb" aria-expanded="true"/.test(h()) && /class="pill">1</.test(/aria-label="Chats without a branch"[^]*/.exec(h())[0]) && inTr(/aria-label="Chats without a branch"[^]*/.exec(h())[0], 3));
   check(tag('state badges: dirty, behind, needs review on the worktree; remote gone and safe to remove on branches'), /dirty: 1 file/.test(trSlice(body, 'w', 'w2')) && /behind 2/.test(trSlice(body, 'w', 'w2')) && /needs review/.test(trSlice(body, 'w', 'w2')) && /remote gone/.test(trSlice(body, 'b', 'lost')) && /safe to remove/.test(trSlice(body, 'b', 'done-br')));
   check(tag('the default branch and a plain branch get no state badge'), !/class="bd/.test(trSlice(body, 'b', 'main')) && !/class="bd/.test(trSlice(body, 'b', 'solo')));
-  check(tag('the page has no chat bands and no Project status block: the title is Project status'), !/class="band"[^>]*aria-label="(Needs you|To finish|Waiting on others|Ready to tidy|Idle)"/.test(h()) && /<h1 id="ttl">Project status<\/h1>/.test(page) && !/aria-label="Project status"/.test(h()));
+  check(tag('the page has no chat bands and no Project status block: the title is Project status'), !/class="band"[^>]*aria-label="(Needs you|To finish|Waiting on others|Ready to tidy|Idle)"/.test(h()) && /<h1 id="ttl">Claude Project Status<\/h1>/.test(page) && !/aria-label="Project status"/.test(h()));
   step('hide the needs chip', () => click('band', { b: 'needs' }));
   check(tag('an attention chip filters the rows: with it off the waiting chat is hidden, and its worktree row stays only for its own dirty state'), !new RegExp('data-id="' + id(1) + '"').test(h()) && /<tr data-w="w2"/.test(h()) && /<tr data-w="w1"/.test(h()));
   step('show it again', () => click('band', { b: 'needs' }));
@@ -943,6 +946,47 @@ function structureScenario(W) {
   S.errors.forEach((e) => failures.push(e));
 }
 for (const W of [400, 760, 1400]) { structureScenario(W); }
+
+// The live contacts case: the old saved chip state turned every chip off, 135 chats ran on main, one branch exists only on the remote and one folder is not a registered worktree.
+function liveScenario(W) {
+  const S = createHarness({ page, name: 'openwork-live@' + W, width: W, popIds: VIEW_POPS });
+  const { els, deliver, advance, check, step, fire } = S;
+  const body = els.get('body'), tag = (s) => s + ' at ' + W;
+  const click = (a, data) => fire(body, 'click', { target: target(a, '', { dataset: Object.assign({ a }, data || {}) }) });
+  const T = 1791000000, N = 135;
+  const rowsL = Array.from({ length: N }, (_, i) => row(i + 1, { title: 'Main chat ' + (i + 1), fk: 'f1', last: NOW - i * H })).concat([row(500, { title: 'Names the worktree', fk: 'f9' })]);
+  S.start();
+  step('init with the chip state an older build saved (every chip off)', () => deliver({ type: 'init', v: 3, prsOn: false, days: 14, hidden: ['needs', 'finish', 'waiting', 'tidy'], ws: 1, done: {}, view: {} }));
+  step('dots', () => deliver({ type: 'dots', map: Object.fromEntries(rowsL.map((r, i) => [r.id, { s: i < 5 ? 'waiting' : 'idle' }])) }));
+  step('scan', () => {
+    deliver({ type: 'chats', scan: 1, rows: rowsL, indexing: false, scanning: true });
+    deliver({ type: 'folder', scan: 1, key: 'f1', state: 'ok', facts: { name: 'contacts', branch: 'main', detached: false, upstream: 'origin/main', ahead: 32, behind: 7, gone: false, staged: 0, modified: 59, untracked: 0, fileTotal: 59, files: [], rk: 'r1', ws: true } });
+    deliver({ type: 'repo', scan: 1, key: 'r1', state: 'ok', name: 'contacts', def: 'origin/main', defLocal: 'main', merged: [], ws: true, gh: false,
+      branches: [{ n: 'main', ts: T, au: 'A', up: true, gone: false, a: 0, b: 0 }, { n: 'worktree-agent-ac629da4a945a5227', ts: T - 5, au: 'A', up: false, gone: false, a: 1, b: 0 }, { n: 'feat/saropa-connection-cloud-icon-search', ts: T - 9, au: 'A', up: true, gone: false, a: 2, b: 0 }],
+      remotes: [{ n: 'docs/grid-menu-to-tab-plan', ts: T - 50, au: 'Ada' }],
+      stray: [{ k: 's1', name: 'contacts-wt-langv2', path: '/Users/x/Documents/contacts-wt-langv2', git: false }],
+      worktrees: [wtm('w1', 'contacts', 'main', { main: true, fks: ['f1'] }), wtm('w2', 'contacts-wt-connection-icon', 'feat/saropa-connection-cloud-icon-search')] });
+    deliver({ type: 'rel', scan: 1, rk: 'r1', ok: true, w: { w2: [{ id: id(500), why: 'name-in-text', conf: 'probable', note: 'the chat mentions "contacts-wt-connection-icon"' }], s1: [] }, b: { 'feat/saropa-connection-cloud-icon-search': [{ id: id(500), why: 'name-in-text', conf: 'probable' }], 'docs/grid-menu-to-tab-plan': [] } });
+    deliver({ type: 'end', scan: 1, open: [], gitMissing: false }); advance(300);
+  });
+  const h = () => body.innerHTML;
+  const trs = (attr) => (h().match(new RegExp('<tr data-' + attr + '=', 'g')) || []).length;
+  check(tag('with every state chip saved off no worktree and no branch row is hidden: 2 of 2 worktrees, 4 branches (3 local, 1 remote only), no hidden note'), trs('w') === 2 && trs('b') === 4 && !/class="sub psh"/.test(h()) && !/0 of 2 worktrees/.test(h()) && !/1 of 4 branches/.test(h()));
+  check(tag('the chats the old chip state hid are counted on their row as a button that turns the chips on'), /<tr data-w="w1">[^]*?data-a="showall"[^>]*>135 hidden</.test(h()));
+  step('click the hidden count', () => click('showall'));
+  const mainBlock = h().slice(h().indexOf('<tr data-w="w1">'), h().indexOf('<tr data-w="w2">'));
+  check(tag('main shows its 5 newest chats with a Show 20 more button, not 135 hidden'), (mainBlock.match(/data-id="/g) || []).length === 5 && /data-a="hxm"[^>]*>Show 20 more</.test(mainBlock) && !/135 hidden/.test(mainBlock));
+  step('Show more', () => click('hxm', { x: 'w:w1' }));
+  check(tag('Show more lists 20 more chats'), ((h().slice(h().indexOf('<tr data-w="w1">'), h().indexOf('<tr data-w="w2">')).match(/data-id="/g)) || []).length === 25);
+  check(tag('the chat that only names the worktree sits in the worktree row and the branch row, labelled probable: name'), /probable: name</.test(trSlice(body, 'w', 'w2') + h().slice(h().indexOf('<tr data-w="w2">'), h().indexOf('</tr>', h().indexOf('<tr data-w="w2">') + 10) + 900)));
+  const rb = trSlice(body, 'b', 'docs/grid-menu-to-tab-plan');
+  check(tag('a remote-only branch that is not merged is in the Branches table, marked remote only, with an evidence line (no blank cell)'), /remote only/.test(rb) && /no matching chat found/.test(rb));
+  const st = trSlice(body, 's', 's1');
+  check(tag('an unregistered worktree folder is listed under Not a registered worktree with its path, a hint and an evidence line'), /Not a registered worktree/.test(h()) && /contacts-wt-langv2/.test(st) && /not a git worktree of this repository/.test(st) && /no matching chat found/.test(st));
+  S.errors.forEach((e) => failures.push(e));
+}
+for (const W of [400, 760, 1400]) { liveScenario(W); }
+
 
 // Empty states: All clear, no repositories, git missing, and every way a scan can end with parts never read.
 const CLEAR_OK = ['clear', 'clearpr'], CLEAR_NO = ['clearmore', 'clearrepo', 'clearnofolder', 'clearprdown'];
@@ -998,7 +1042,7 @@ if (rgba.length) { bad('rgba() only as a var() fallback (' + rgba.map((x) => x[1
 if (/color-mix|named-color/.test(decls)) { bad('no color-mix in the page CSS'); }
 const named = [...decls.matchAll(/(?:^|;)\s*(?:color|background|background-color|border(?:-[a-z]+)?|outline)\s*:\s*(?:\d+px\s+\w+\s+)?(white|black|red|green|blue|gray|grey|yellow|orange)\b/g)];
 if (named.length) { bad('no named colors in the page CSS'); }
-if (/claude/i.test(page)) { bad('no agent name anywhere in the page: ' + (/.{0,20}claude.{0,20}/i.exec(page) || [''])[0]); }
+if (/claude/i.test(page.replace(/Claude Project Status/g, ''))) { bad('no agent name anywhere in the page: ' + (/.{0,20}claude.{0,20}/i.exec(page) || [''])[0]); }
 if (!/--vscode-saropaChatExplorer-dotRunning/.test(css) || !/--vscode-testing-iconPassed/.test(css)) { bad('dot colors use the contributed variables'); }
 if (!/background:var\(--vscode-editor-background\)/.test(css)) { bad('page background is the editor background'); }
 if (!/Content-Security-Policy[^>]*default-src 'none'/.test(page)) { bad('page keeps the strict content security policy'); }

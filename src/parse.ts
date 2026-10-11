@@ -1,8 +1,8 @@
-import { FileRef, Cost, Git, Usage } from './types';
+import { FileRef, Cost, Git, Receipt, Usage } from './types';
 import { finishExtras, GitAcc, newGitAcc, takeExtra } from './gitInfo';
 import { scanLines } from './scan';
 import { takeCwd } from './cwdInfo';
-import { Made, madeByTool, madeOf } from './workMade';
+import { Made, intendedOf, madeByTool, madeOf } from './workMade';
 import { finishUsage, newUseAcc, takeOther, takeUsage, UseAcc } from './contextUsage';
 
 export const MSG_CAP = 20000; // chars of text kept per message of a top-level chat
@@ -36,7 +36,7 @@ export interface Parsed {
 interface Acc {
   custom: string; ai: string; lastPrompt: string; summary: string; firstUser: string;
   lastTs: number; firstTs: number; count: number; cap: number; before: number; mtime: number; line: number;
-  lines: number[]; ts: number[]; roles: number[]; texts: string[]; files: Map<string, boolean>; cmds: Map<string, number>; x: GitAcc; u: UseAcc; cwd: string; cwds: Set<string>; made: Map<string, Made>;
+  lines: number[]; ts: number[]; roles: number[]; texts: string[]; files: Map<string, boolean>; cmds: Map<string, number>; x: GitAcc; u: UseAcc; cwd: string; cwds: Set<string>; made: Map<string, Made>; sub: boolean;
 }
 
 /** Joined text blocks of a message content value (tool results, images and thinking are skipped). */
@@ -50,11 +50,16 @@ export function textOf(content: unknown): string {
   return out;
 }
 
-function toolUse(b: any, a: Acc): void {
+function toolUse(b: any, a: Acc, row: any): void {
   const inp = b.input ?? {};
   if (a.made.size < MAX_MADE) {
-    const list = b.name === 'Bash' && typeof inp.command === 'string' ? madeOf(inp.command) : madeByTool(String(b.name), inp);
-    for (const m of list) { if (a.made.size < MAX_MADE) { a.made.set(m[0] + '\0' + m[1], m); } }
+    const bash = b.name === 'Bash' && typeof inp.command === 'string';
+    const list = bash ? madeOf(inp.command, a.cwd) : madeByTool(String(b.name), inp);
+    if (list.length) { // the receipt: when, which tool call, the exact command and the line of this file
+      const at = typeof row?.timestamp === 'string' ? Date.parse(row.timestamp) : NaN;
+      const rc: Receipt = { t: Number.isNaN(at) ? 0 : at, u: typeof b.id === 'string' ? b.id.slice(0, 80) : '', c: (bash ? inp.command : String(b.name) + ' ' + JSON.stringify(inp)).slice(0, CMD_CAP), l: a.line };
+      for (const m of list) { const k = m[0] + '\0' + m[1]; if (a.made.size < MAX_MADE && !a.made.has(k)) { a.made.set(k, [m[0], m[1], rc]); } }
+    }
   }
   if (EDIT_TOOLS.has(b.name)) {
     const p = inp.file_path ?? inp.notebook_path;
@@ -79,11 +84,14 @@ function takeTitles(row: any, a: Acc): void {
 function takeMessage(row: any, a: Acc): void {
   const content = row.message?.content;
   if (row.type === 'assistant' && Array.isArray(content)) {
-    for (const b of content) { if (b && b.type === 'tool_use') { toolUse(b, a); } }
+    for (const b of content) { if (b && b.type === 'tool_use') { toolUse(b, a, row); } }
   }
   const text = textOf(content);
   if (!text) { return; }
-  if (row.type === 'user' && !a.firstUser) { a.firstUser = text.slice(0, 400); }
+  if (row.type === 'user' && !a.firstUser) {
+    a.firstUser = text.slice(0, 400);
+    if (a.sub) { for (const m of intendedOf(text, a.cwd)) { if (a.made.size < MAX_MADE) { a.made.set(m[0] + '\0' + m[1], m); } } }
+  }
   const rts = typeof row.timestamp === 'string' ? Date.parse(row.timestamp) : NaN;
   const ts = Number.isNaN(rts) ? a.mtime : rts;
   if (!a.firstTs || ts < a.firstTs) { a.firstTs = ts; }
@@ -136,7 +144,7 @@ function takeLine(b: Buffer, s: number, e: number, a: Acc): void {
 /** Parse one chat file. Messages older than before are counted but their text is dropped. */
 export async function parseFile(file: string, mtime: number, cap: number, before = 0): Promise<Parsed> {
   const a: Acc = { custom: '', ai: '', lastPrompt: '', summary: '', firstUser: '', lastTs: 0, firstTs: 0,
-    count: 0, cap, before, mtime, line: 0, lines: [], ts: [], roles: [], texts: [], files: new Map(), cmds: new Map(), x: newGitAcc(), u: newUseAcc(), cwd: '', cwds: new Set(), made: new Map() };
+    count: 0, cap, before, mtime, line: 0, lines: [], ts: [], roles: [], texts: [], files: new Map(), cmds: new Map(), x: newGitAcc(), u: newUseAcc(), cwd: '', cwds: new Set(), made: new Map(), sub: /[\\/]subagents[\\/]/.test(file) };
   await scanLines(file, (b, s, e, n) => { a.line = n; takeLine(b, s, e, a); });
   const flat = (x: string) => x.replace(/\s+/g, ' ');
   const title = flat(a.custom || a.ai || a.lastPrompt || a.summary || flat(a.firstUser).slice(0, 80) || '(untitled)');

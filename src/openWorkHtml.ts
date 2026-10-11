@@ -3,10 +3,11 @@ import { OW_CSS } from './openWorkCss';
 import { OW_SCRIPT } from './openWorkJs';
 import { POP_CSS, TIP_CSS } from './webviewPop';
 
-export const OW_TITLE = 'Project status';
+export const OW_TITLE = 'Claude Project Status';
 
 /** The Project status page (command id and tab type stay openWork): header, attention chips, status lines, the tables, the tooltip box and the script. */
-export function openWorkHtml(): string {
+export function openWorkHtml(version = ''): string {
+  const ver = /^[\w.+-]{1,32}$/.test(version) ? `<sub class="ver">v${version}</sub>` : '';
   const nonce = randomBytes(18).toString('base64url');
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${OW_TITLE}</title>
@@ -15,7 +16,7 @@ export function openWorkHtml(): string {
 <style nonce="${nonce}">${OW_CSS}${POP_CSS}${TIP_CSS}</style></head><body>
 <div id="wrap">
 <header id="hd">
-<div class="hr"><h1 id="ttl">${OW_TITLE}</h1><span class="sp"></span>
+<div class="hr"><h1 id="ttl">${OW_TITLE}${ver}</h1><span class="sp"></span>
 <button type="button" class="gst g-off" id="ghs" data-a="ghs" data-g="off" data-tip="GitHub connection" aria-label="GitHub connection"><span class="gd" aria-hidden="true"></span><span id="ght">GitHub</span></button>
 <div class="pw"><button type="button" class="gb" id="srb" data-tip="Sort the rows of each table" aria-label="Sort rows by: Recent activity" aria-haspopup="true" aria-expanded="false" aria-controls="srm"><span id="srt">Sort: Recent activity</span></button>
 <div id="srm" class="pop" role="group" aria-label="Sort rows by" hidden></div></div>

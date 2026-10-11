@@ -35,7 +35,7 @@ const acts=btn('open','Open chat: '+t,'open','Open chat')+btn('handover','Copy h
 +(c.retry?ibtn('fretry','Retry reading git: '+t,'retry',retryTip(gs[c.retry])||'Read git again',' data-k="'+esc(c.retry)+'"'):'')
 +(pc.retry?ibtn('fretry','Retry pull request lookup: '+t,'retry','Look up the pull request again',' data-k="'+esc(pc.retry)+'"'):'')
 +(ready&&w&&!w.main?ibtn('rm','Copy '+cw()+'remove command: '+t,'trash','Copy a '+cw()+'command that removes this finished worktree. Nothing is run.',' data-k="'+esc(w.k)+'"'):'');
-return '<div class="row" role="listitem" data-id="'+esc(r.id)+'"'+(curAnn?' data-rel="'+esc(curAnn.c==='probable'?'p':'c')+'"':'')+' aria-busy="'+(c.busy||pc.busy?'true':'false')+'"><div class="main"><button type="button" class="rb" data-a="row" tabindex="'+(tab?0:-1)+'" aria-expanded="'+isOpen+'" aria-label="'+esc(label)+'">'+dot
+return '<div class="row" role="listitem" data-id="'+esc(r.id)+'"'+(curAnn?' data-rel="'+esc(curAnn.c==='certain'?'c':'p')+'"':'')+' aria-busy="'+(c.busy||pc.busy?'true':'false')+'"><div class="main"><button type="button" class="rb" data-a="row" tabindex="'+(tab?0:-1)+'" aria-expanded="'+isOpen+'" aria-label="'+esc(label)+'">'+dot
 +'<span class="t" data-tip="'+esc(t+'\n'+words+(curAnn?'\n'+relTip(curAnn):''))+'">'+(r.pinned?'<span class="pill">Pinned</span> ':'')+relBadge(curAnn)+esc(t)+'</span>'
 +'<span class="meta"><span class="pj" title="'+esc(r.project||'')+'">'+esc(r.project||'')+'</span><span class="br" title="'+(c.br?'Branch: '+c.br:'No branch')+'">'+brCell(r,c)+'</span><span class="fl">'+c.fl+'</span><span class="ah">'+esc(c.ah)+'</span>'+(prsOn?'<span class="pr">'+pc.pr+'</span><span class="kc">'+pc.ck+'</span>':'')+'<span class="cx '+(r.ctx?pctClass(r.ctx.pct):'')+'"'+(r.ctx?' title="Context window used: '+esc(r.ctx.pct)+'%"':'')+'>'+(r.ctx?r.ctx.pct+'%':'')+'</span><span class="st'+(stTxt?' b-'+(bnd==='idle'?(s==='running'?'waiting':'tidy'):bnd):'')+'">'+esc(stTxt)+'</span><span class="tm">'+esc(age)+'</span></span></button>'
 +'<div class="acts">'+acts+'</div></div>'
@@ -82,7 +82,7 @@ else if(k==='arch'){pend.add(id);open.delete(id);vs.postMessage({type:'archive',
 else if(k==='done'){const r=rows.find(x=>x.id===id);if(!r)return;const fp=fingerprint(dotOf(id),r.last,gitView(r));donemap[id]=fp;open.delete(id);vs.postMessage({type:'done',id:id,on:true,fp:fp});render();}
 else if(k==='undone'){delete donemap[id];vs.postMessage({type:'done',id:id,on:false});render();}}
 function toggleRow(id,on){if(on===undefined?open.has(id):!on)open.delete(id);else{open.add(id);askDetail(id,true);}focusId=id;render();}
-document.addEventListener('click',e=>{const a=e.target.closest('[data-a]');if(!a)return;const k=a.dataset.a,row=a.closest('.row'),id=row?row.dataset.id:'';
+document.addEventListener('click',e=>{const a=e.target.closest('[data-a]');if(!a){const h=e.target.closest('.bh.tg'),b=h&&h.querySelector('[data-a="sec"]');if(b)b.click();return;}const k=a.dataset.a,row=a.closest('.row'),id=row?row.dataset.id:'';
 if(k==='retry'||k==='refresh'){refresh();}
 else if(k==='idle'){toggleBand('idle');}
 else if(k==='band'){toggleBand(a.dataset.b);}
@@ -100,6 +100,7 @@ else if(k==='flt'){toggleFlag(a.dataset.f||'');}
 else if(k==='clearf'){clearFilters();}
 else if(k==='summary'){copySummary();}
 else if(k==='sec'){toggleSec(a.dataset.s||'');}
+else if(k==='hxm'){const x=String(a.dataset.x||'');if(x&&x.length<=120){psMore[x]=(psMore[x]||0)+PS_STEP;render();}}
 else if(k==='hx'){const x=String(a.dataset.x||'');if(x&&x.length<=120){hxSet(x,a.dataset.on!=='1');}}
 else if(k==='showall'){hidden=[];savePrefs();clearFilters();}
 else if(k==='row'&&id){toggleRow(id);}
