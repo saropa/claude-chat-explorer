@@ -81,7 +81,7 @@ const ref=prev?prev.nextSibling:el.firstChild;if(node!==ref)el.insertBefore(node
 old.forEach(o=>o.remove());
 if(ak&&!act.isConnected){const s3={},f=Array.from(el.children).find(c=>nkey(c,s3)===ak);if(f)refocus(f,fd);}}
 function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;
-const base=hasResults?rs.filter(r=>!arch.has(r.id)):sessBase(),keep=stKeep(base);stUi(stCounts(base));sessN=hasResults?0:keep.length;
+const base=hasResults?rs.filter(r=>!arch.has(r.id)):sessBase(),keep=stKeep(base);sessN=hasResults?0:keep.length;
 const capOn=capShown(),t=capOn?'':noteText(),hid=base.length-keep.length;
 noteIn=t||hid?esc(t)+stNote(hid,!!t):'';
 patch(list,hasResults?resultsHtml(keep):sessHtml(keep));

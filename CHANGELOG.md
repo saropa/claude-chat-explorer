@@ -2,6 +2,10 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Changed: Info (search tips), Sort and Status filter icons moved from the search row to the view title bar, next to Open Work. Each opens a quick pick (the current sort and the number of hidden statuses show in its placeholder). The search box now uses the full row width.
+- Removed: the in-panel tips, sort and filter popovers, and the "changed" dots on the sort and filter buttons.
+
 ## 0.26.0 - 2026-10-10
 - Added: a GitHub status indicator in the Open Work top bar: lookup off, gh missing, not signed in, rate limited, failed, or OK with repo count and lookup age. The tooltip gives the next step. `gh auth status` joins the read-only allow-list (cached 60 seconds). SECURITY.
 - Added: a branch with an open pull request but no chat or worktree gets its own row, with PR, checks and PR buttons.

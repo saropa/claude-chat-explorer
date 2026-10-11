@@ -12,6 +12,12 @@ Usage:
   python3 scripts/publish.py --publish --skip-openvsx --skip-release
   python3 scripts/publish.py --allow-dirty    # dry run on a dirty tree (never with --publish)
 
+Prompts (interactive terminal only; non-TTY runs fail with the exit code instead):
+  - tsc missing: offers to run `npm ci` (default yes).
+  - dirty tree on a --publish run: shows `git status --short`, then asks
+    "Check in now? ([yes]/n/retry)". Yes asks for a commit message, then runs
+    git add -A, git commit and git push origin main. Dry runs never prompt.
+
 Flags: --publish, --skip-marketplace, --skip-openvsx, --skip-tag, --skip-release,
        --allow-dirty, --no-color.
 Environment: VSCE_PAT (Marketplace), OVSX_PAT (Open VSX). Values are never printed.
@@ -119,6 +125,39 @@ def step_prereqs(args) -> None:
         if run(["gh", "auth", "status"]).returncode != 0:
             die("PREREQUISITE", "gh is not logged in (run: gh auth login)")
         ok("gh authenticated")
+    elif not args.publish and not args.skip_release:
+        if run(["gh", "--version"]).returncode != 0:
+            warn("gh not found on PATH; a --publish run would need it for the GitHub release")
+    check_tsc()
+
+
+def ask(prompt: str, default: str, lower: bool = True) -> str:
+    """Prompt on a TTY; blank input returns the default."""
+    try:
+        text = input(f"  {prompt} ").strip()
+        return (text.lower() if lower else text) or default
+    except EOFError:
+        return default
+
+
+def check_tsc() -> None:
+    """Require tsc; offer to run npm ci when missing (TTY only)."""
+    res = run(["npx", "tsc", "--version"])
+    if res.returncode != 0:
+        if not sys.stdin.isatty():
+            die("PREREQUISITE", "tsc (TypeScript) not found; run: npm ci")
+        if ask("tsc (TypeScript) not found. Run npm ci to install? ([yes]/n)", "yes") not in ("y", "yes"):
+            die("PREREQUISITE", "tsc (TypeScript) not found; run: npm ci")
+        cmd = ["npm", "ci"] if (ROOT / "package-lock.json").is_file() else ["npm", "install"]
+        inst = run(cmd)
+        if inst.returncode != 0:
+            print(tail(inst))
+            die("PREREQUISITE", f"'{' '.join(cmd)}' failed")
+        res = run(["npx", "tsc", "--version"])
+        if res.returncode != 0:
+            print(tail(res))
+            die("PREREQUISITE", "tsc still not found after install")
+    ok(f"tsc {res.stdout.strip().splitlines()[0]}")
 
 
 def step_tokens(args) -> dict:
@@ -145,9 +184,28 @@ def step_tokens(args) -> dict:
 
 def step_tree(args) -> None:
     heading("Step 3: Working tree, branch, remote sync")
-    dirty = run(["git", "status", "--porcelain"]).stdout.strip()
-    if dirty and not args.allow_dirty:
-        die("TREE_DIRTY", f"working tree is not clean ({len(dirty.splitlines())} changed paths)")
+    interactive = args.publish and sys.stdin.isatty()
+    while True:
+        dirty = run(["git", "status", "--porcelain"]).stdout.strip()
+        if not dirty or args.allow_dirty:
+            break
+        n = len(dirty.splitlines())
+        if not interactive:
+            die("TREE_DIRTY", f"working tree is not clean ({n} changed paths)")
+        print(run(["git", "status", "--short"]).stdout)
+        answer = ask(f"Working tree is not clean ({n} changed paths). Check in now? ([yes]/n/retry)", "yes")
+        if answer == "retry":
+            continue
+        if answer not in ("y", "yes"):
+            die("TREE_DIRTY", f"working tree is not clean ({n} changed paths)")
+        msg = ask('Commit message [chore: release prep]:', "chore: release prep", lower=False)
+        msg += "\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+        for cmd in (["git", "add", "-A"], ["git", "commit", "-m", msg], ["git", "push", "origin", BRANCH]):
+            res = run(cmd)
+            if res.returncode != 0:
+                print(tail(res))
+                die("GIT_FAILED", f"'{' '.join(cmd[:3])}' failed")
+        ok("checked in and pushed")
     if dirty:
         warn("tree is dirty; allowed for this dry run (--allow-dirty)")
     else:
@@ -283,7 +341,7 @@ def step_package(version: str) -> Path:
 def extract_notes(version: str) -> str:
     out, on = [], False
     for line in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines():
-        if re.match(rf"^##\s+\[?{re.escape(version)}\]?", line):
+        if re.match(rf"^##\s+\[?{re.escape(version)}(?![\d.])\]?", line):
             on = True
         elif on and line.startswith("## "):
             break

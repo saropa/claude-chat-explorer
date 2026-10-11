@@ -1,8 +1,6 @@
 import { SHARED_SRC } from './group';
 import { GIT_JS } from './webviewGit';
 import { SORT_JS } from './webviewSort';
-import { POP_JS } from './webviewPop';
-import { TIPS_JS } from './webviewTips';
 import { RENDER } from './webviewRender';
 import { CAP_JS } from './webviewCap';
 import { ADV_JS } from './webviewAdv';
@@ -127,6 +125,9 @@ else if(d.type==='indexed'){ix=null;showIx();if(dirty){dirty=false;go();}}
 else if(d.type==='history'){history=d.history||[];histIdx=-1;if(!history.length)lastRec='';ahSync();}
 else if(d.type==='sessions'){if(d.sn!==sn)return;sess={rows:d.rows||[],total:d.total||0,arch:d.arch||[],archTotal:d.archTotal||0};capN=d.max||capN;rerender();}
 else if(d.type==='dots'){dots=d.map||{};rerender();}
+else if(d.type==='setQuery'){q.value=d.query||'';histIdx=-1;go();}
+else if(d.type==='setSort'){sortSet(d.sort);draft();if(sessOn&&!hasResults)askSess();rerender();}
+else if(d.type==='setStatuses'){stLoad(d.checked);rerender();}
 else if(!live)return;
 else if(d.type==='start'){acc=[];prog=null;tot=null;}
 else if(d.type==='batch'){if(!busy)return;acc=acc.concat(d.results).sort((a,b)=>b.score-a.score).slice(0,capN);if(d.totals){tot=d.totals;capN=d.totals.max;}prog={done:d.done,total:d.total};
@@ -135,9 +136,8 @@ else if(d.type==='done'){busy=false;bar.classList.remove('on');acc=d.results;tot
 render(d.results,d.searched||'');if(n)histAfter();else askSess();}
 else if(d.type==='error'){setBusy(false);sessOn=false;sess=null;lastMsg='';hasResults=false;lastRs=[];showErr(d.message);rerender();}
 else if(d.type==='short'){setBusy(false);hint.textContent=d.message||'Type at least 2 characters';hint.hidden=false;sessOn=true;hasResults=false;lastRs=[];lastMsg='';askSess();rerender();}
-else if(d.type==='results'){tot=null;busy=false;bar.classList.remove('on');sessOn=!d.results.length;render(d.results,d.searched);if(sessOn&&lastQ)askSess();}
-else if(d.type==='setQuery'){q.value=d.query||'';go();}});
+else if(d.type==='results'){tot=null;busy=false;bar.classList.remove('on');sessOn=!d.results.length;render(d.results,d.searched);if(sessOn&&lastQ)askSess();}});
 vs.postMessage({type:'ready'});
 `;
 
-export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + GIT_JS + HIST_JS + POP_JS + CORE + STATUS + SORT_JS + TIPS_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS + TOUCH_JS + SUM_JS;
+export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + GIT_JS + HIST_JS + CORE + STATUS + SORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS + TOUCH_JS + SUM_JS;

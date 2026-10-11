@@ -68,6 +68,21 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "claudeChatExplorer.searchTips",
+        "title": "Saropa Chat Explorer: Search Tips",
+        "icon": "$(info)"
+      },
+      {
+        "command": "claudeChatExplorer.sortResults",
+        "title": "Saropa Chat Explorer: Sort Results",
+        "icon": "$(sort-precedence)"
+      },
+      {
+        "command": "claudeChatExplorer.filterStatus",
+        "title": "Saropa Chat Explorer: Filter by Status",
+        "icon": "$(filter)"
+      },
+      {
         "command": "saropaChatExplorer.fileSessions.show",
         "title": "Saropa: Related Chats"
       },
@@ -123,6 +138,21 @@
         }
       ],
       "view/title": [
+        {
+          "command": "claudeChatExplorer.searchTips",
+          "when": "view == claudeChatExplorer.view",
+          "group": "navigation@1"
+        },
+        {
+          "command": "claudeChatExplorer.sortResults",
+          "when": "view == claudeChatExplorer.view",
+          "group": "navigation@2"
+        },
+        {
+          "command": "claudeChatExplorer.filterStatus",
+          "when": "view == claudeChatExplorer.view",
+          "group": "navigation@3"
+        },
         {
           "command": "claudeChatExplorer.openWork",
           "when": "view == claudeChatExplorer.view",

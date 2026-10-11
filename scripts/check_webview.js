@@ -7,7 +7,7 @@ const { createHarness } = require('./webview_harness');
 
 const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
 const page = require(path.join(OUT, 'webview.js')).html();
-const H = createHarness({ page, name: 'panel', width: 400, popIds: ['srb', 'srm', 'sfb', 'sfm', 'tpb', 'tpm'] });
+const H = createHarness({ page, name: 'panel', width: 400 });
 const { errors, fail, els, mkEl, document, window, posted, run, fire, deliver } = H;
 if (H.syntaxFailed) { H.report(); }
 
@@ -153,62 +153,28 @@ function drive() {
   check('no divider when every chat is open', at('class="osep"') < 0);
   step('reset dots', () => deliver({ type: 'dots', map: {} }));
 
-  // Items 3, 9: sort and status icon buttons with popovers.
-  const hid = (n) => els.get(n).hidden;
-  const exp = (n) => els.get(n).getAttribute('aria-expanded');
-  const out = mkEl('outside');
-  step('sort popover opens', () => fire('srb', 'click'));
-  check('sort popover open with aria-expanded', !hid('srm') && exp('srb') === 'true' && hid('sfm'));
-  step('status popover replaces it', () => fire('sfb', 'click'));
-  check('only one popover open', hid('srm') && !hid('sfm') && exp('sfb') === 'true' && exp('srb') === 'false');
-  step('Escape closes', () => fire(document, 'keydown', { key: 'Escape', target: els.get('sfb') }));
-  check('Escape closes the popover', hid('sfm') && exp('sfb') === 'false');
-  step('outside click closes', () => { fire('srb', 'click'); fire(document, 'click', { target: out }); });
-  check('outside click closes the popover', hid('srm'));
-  step('click inside keeps it open', () => { fire('srb', 'click'); fire(document, 'click', { target: els.get('srm') }); });
-  check('click inside the popover keeps it open', !hid('srm'));
-  step('pick a sort', () => fire('srm', 'change', { target: Object.assign(mkEl(''), { value: 'time' }) }));
-  check('sort change shows the dot and is saved', !hid('srd') && posted.some((p) => p.type === 'draft' && p.sort === 'time'));
-  step('back to default sort', () => fire('srm', 'change', { target: Object.assign(mkEl(''), { value: 'score' }) }));
-  check('default sort hides the dot', hid('srd'));
-  step('turn a status off', () => fire('sfm', 'change', { target: { dataset: { k: 'tiny' }, checked: false } }));
-  check('status filter on shows the dot and is saved', !hid('sfp') && posted.some((p) => p.type === 'status' && !p.checked.includes('tiny')));
-  step('reset status', () => fire('sfm', 'click', { target: Object.assign(mkEl('sfx'), { inPw: true }) }));
-  check('status reset hides the dot', hid('sfp'));
-  step('close popovers', () => fire(document, 'keydown', { key: 'Escape', target: els.get('srb') }));
+  // Sort, status filter and search tips live in the view title bar; the host posts setSort, setStatuses and setQuery.
+  const KNOWN = ['file:', 'edited:', 'cmd:', 'tag:', 'sha:', 'pr:', 'branch:', 'last:', 'from:'];
+  const { TIPS, SORT_LIST } = require('../out/headerData');
+  const tipEx = TIPS.flatMap((g) => g[1].map((t) => t[1]));
+  check('the three header icon buttons and popovers are gone from the page', !/id="(srb|sfb|tpb|srm|sfm|tpm)"/.test(page) && !/class="hbs"/.test(page));
+  check('tips list every parser prefix with an example', KNOWN.every((k) => tipEx.some((e) => e.startsWith(k))) && tipEx.length === KNOWN.length);
+  check('sort list matches the sort keys the script accepts', run('JSON.stringify(SORTS.map(o=>o[0]))', 'sorts') === JSON.stringify(SORT_LIST.map((o) => o[0])));
+  check('placeholder is the short text and the long hint is gone', /placeholder="Search chats"/.test(page) && !/placeholder="[^"]*file:/.test(page));
+  step('host sets a sort', () => deliver({ type: 'setSort', sort: 'time' }));
+  check('setSort applies and saves the sort', run('sort.value', 'sort') === 'time' && posted.some((p) => p.type === 'draft' && p.sort === 'time'));
+  step('host sets a bad sort', () => deliver({ type: 'setSort', sort: 'bogus' }));
+  check('unknown sort falls back to score', run('sort.value', 'sort2') === 'score');
+  step('host turns a status off', () => deliver({ type: 'setStatuses', checked: ['normal', 'active'] }));
+  check('setStatuses updates the filter', run('stOn.size', 'stOn') === 2 && run('stOn.has("tiny")', 'tiny') === false);
+  step('reset status', () => run('stReset();', 'stReset'));
+  check('status reset restores all and is saved', posted.some((p) => p.type === 'status' && p.checked.length === run('STATUS_KEYS.length', 'n')));
+  step('host sets a query', () => deliver({ type: 'setQuery', query: 'file:extension.ts' }));
+  check('setQuery fills the search box and runs it', els.get('q').value === 'file:extension.ts' && posted.some((p) => p.type === 'search' && p.query === 'file:extension.ts'));
+  step('clear tip query', () => { els.get('q').value = ''; run('qSync();', 'qSync'); });
   check('sort and status are gone from the details panel', !/id="sort"/.test(page) && !/id="lbst"/.test(page));
   check('Export button is gone', !/id="exb"/.test(page) && !/>Export</.test(page));
   check('status Normal is renamed Mid-size', run('STATUS_LABELS.normal', 'label') === 'Mid-size' && !/Normal/.test(run('JSON.stringify(STATUS_LABELS)', 'labels')));
-
-  // Search tips popover: opens from the info icon, lists only prefixes the parser knows, and an example fills the search box.
-  const tipsPage = els.get('tpm').innerHTML;
-  const KNOWN = ['file:', 'edited:', 'cmd:', 'tag:', 'sha:', 'pr:', 'branch:', 'last:', 'from:'];
-  step('tips popover opens', () => fire('tpb', 'click'));
-  check('tips popover opens beside sort and status, aria-expanded set', !hid('tpm') && exp('tpb') === 'true' && hid('srm') && hid('sfm'));
-  check('tips list every parser prefix with an example', KNOWN.every((k) => new RegExp('data-ex="' + k).test(tipsPage)) && (tipsPage.match(/data-ex=/g) || []).length === KNOWN.length);
-  check('placeholder is the short text and the long hint is gone', /placeholder="Search chats"/.test(page) && !/placeholder="[^"]*file:/.test(page));
-  step('click an example', () => {
-    const ex = Object.assign(mkEl(''), { closest: (sel) => (sel === '[data-ex]' ? { dataset: { ex: 'file:extension.ts' } } : sel === '.pw' ? {} : null) });
-    fire('tpm', 'click', { target: ex });
-  });
-  check('tip example fills the search box and runs it', els.get('q').value === 'file:extension.ts' && hid('tpm') && posted.some((p) => p.type === 'search' && p.query === 'file:extension.ts'));
-  step('clear tip query', () => { els.get('q').value = ''; run('qSync();', 'qSync'); });
-  // Popovers stay inside the panel at narrow, medium and wide widths (the wrapper that used to clip them is gone).
-  for (const W of [220, 330, 400, 600, 760, 1400]) {
-    for (const [b, mid] of [['srb', 'srm'], ['sfb', 'sfm'], ['tpb', 'tpm']]) {
-      const m = els.get(mid);
-      window.innerWidth = W; m.offsetWidth = 400; // wider than the panel on purpose
-      els.get(b).getBoundingClientRect = () => ({ top: 8, left: W - 34, right: W - 8, bottom: 34, width: 26, height: 26 });
-      step('place ' + mid + ' at ' + W, () => { fire(b, 'click'); });
-      const left = parseFloat(m.style.left), w = Math.min(400, W - 16);
-      check(mid + ' sits inside a ' + W + 'px panel with an 8px margin', left >= 8 && left + w <= W - 8 && /px$/.test(m.style.top));
-      step('close ' + mid, () => fire(document, 'keydown', { key: 'Escape', target: els.get(b) }));
-    }
-  }
-  step('scrolling closes a popover', () => { fire('srb', 'click'); fire(document, 'scroll', { target: document }); });
-  check('scrolling the panel closes the open popover', hid('srm'));
-  check('popover css is fixed, wraps, and has no 100% clamp to the icon wrapper', /\.pop\{position:fixed/.test(page) && /overflow-wrap:anywhere/.test(page) && !/#sfm,#exm/.test(page));
-  check('sort options use a 2-column left-aligned grid', /\.pg\{display:grid;grid-template-columns:1fr 1fr;justify-items:start/.test(page));
   // Messages from: the control, its plumbing into every request, the summary note and the query prefix.
   step('pick messages from you', () => { els.get('frm').value = 'you'; fire('frm', 'change'); });
   check('author choice is sent with the search and saved in the draft', posted.some((p) => p.type === 'draft' && p.from === 'you') && run('cur().from', 'cur') === 'you');
@@ -224,7 +190,6 @@ function drive() {
   const left = [...page.matchAll(/.{0,30}claude.{0,30}/gi)].map((x) => x[0]).filter((x) => !/\|claude\||===\s*'claude'|\|claude\)/.test(x));
   check('no "claude" in the generated page outside the from:claude alias (' + left.slice(0, 3).join(' / ') + ')', left.length === 0);
   check('messages from drop-down is Both / You / Agent', /<option value="agent">agent<\/option>/.test(page) && !/value="claude"/.test(page));
-  check('Search tips teach from:agent', /data-ex="from:agent"/.test(page) || /from:agent/.test(page));
   check('stat labels have a 1px top margin', /\.xs dt\{margin-top:1px/.test(page));
   // Tag editor: wraps, no visible hint, tooltip carries it.
   step('tag editor open', () => run('tagIn={id:' + JSON.stringify(id(1)) + ",v:''};", 'tagIn'));

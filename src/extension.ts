@@ -25,6 +25,7 @@ import { Compiled, Options, Result } from './types';
 import { html, NAME } from './webview';
 import { OPEN_EDITOR_CMD, registerEditorView } from './editorView';
 import { Hub } from './hub';
+import { registerHeaderCommands } from './headerCommands';
 import { OpenWork, registerOpenWork } from './openWork';
 import { Limiter } from './execLimit';
 import { realExec } from './wipExec';
@@ -72,7 +73,7 @@ class Provider implements vscode.WebviewViewProvider {
     client.onEvent = (m) => this.onWorker(m);
   }
 
-  private post(m: unknown): void {
+  post(m: unknown): void {
     try { this.view?.webview.postMessage(m).then(undefined, (e) => logErr('post', e)); } catch (e) { logErr('post', e); }
   }
 
@@ -350,6 +351,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
     }),
     vscode.window.registerWebviewViewProvider('claudeChatExplorer.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
+  registerHeaderCommands(ctx, { reveal: () => vscode.commands.executeCommand(REVEAL_CMD), post: (m) => provider.post(m), sort: () => store!.draft.sort, statuses: () => store!.statuses, setStatuses: (c) => store!.setStatuses(c) });
   registerEditorView(ctx, { client, ctxMsg: () => provider.searchCtx, archived: () => [...store!.archived], log: logErr, resume: (id) => provider.resume(id) },
     () => ({ ...store!.draft, statuses: store!.statuses }));
   registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
