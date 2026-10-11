@@ -2,7 +2,7 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
-## 0.27.1 - 2026-10-11
+## 0.28.0
 - Added: branches with no chat and no worktree are listed, labelled merged, remote gone, or not merged.
 - Added: every git worktree of a repository is listed, including idle ones. Worktree rows have a "worktree" label and show the full path as a tooltip.
 - Added: every section header (bands and "Branches without a worktree") expands and collapses. The state is remembered per workspace.
