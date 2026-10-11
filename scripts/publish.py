@@ -242,6 +242,34 @@ def next_version(version: str) -> str:
     return f"{major}.{minor + 1}.0"
 
 
+def _vtuple(version: str) -> tuple:
+    return tuple(int(x) for x in re.findall(r"\d+", version)[:3])
+
+
+def sync_to_changelog(args, version: str) -> str:
+    """No Unreleased section: if the top CHANGELOG heading is newer than package.json
+    (heading written by hand), bump package.json to it and commit."""
+    top = changelog_version()
+    if not top or not version or _vtuple(top) <= _vtuple(version):
+        return version
+    if not args.publish:
+        warn(f"CHANGELOG top heading {top} is ahead of package.json {version}; a real run bumps package.json to {top}")
+        return top
+    cmds = [
+        ["npm", "version", top, "--no-git-tag-version"],
+        ["git", "add", "-A"],
+        ["git", "commit", "-m", f"chore: release {top}\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"],
+        ["git", "push", "origin", BRANCH],
+    ]
+    for cmd in cmds:
+        res = run(cmd)
+        if res.returncode != 0:
+            print(tail(res))
+            die("GIT_FAILED", f"'{' '.join(cmd[:3])}' failed")
+    ok(f"package.json bumped {version} -> {top} to match CHANGELOG; committed and pushed")
+    return top
+
+
 def fold_unreleased(args, version: str) -> str:
     """Turn '## Unreleased' into the newest entry; return the version to publish.
 
@@ -252,7 +280,7 @@ def fold_unreleased(args, version: str) -> str:
     lines = path.read_text(encoding="utf-8").splitlines()
     start = next((i for i, ln in enumerate(lines) if re.match(r"^##\s+\[?unreleased", ln, re.I)), None)
     if start is None:
-        return version
+        return sync_to_changelog(args, version)
     end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
     bullets = [ln for ln in lines[start + 1:end] if ln.strip()]
     rest = lines[:start] + lines[end:]
