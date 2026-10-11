@@ -374,7 +374,7 @@ export class WorkScan {
     const f = wt?.facts;
     const out: Omit<CleanItem, 'proofs' | 'pr' | 'told'> & { common: string; top: string } = {
       branch, wt: wt?.path, missing: !!wt?.missing, created: info?.cr, commits: [], fileTotal: f?.ok ? f.fileTotal : 0, files: f?.ok ? f.files.map((x) => x.p) : [],
-      unpushed: f?.ok ? f.ahead : 0, ahead: info?.ahead, behind: info?.behind, def: r.def ?? '', gone: f?.ok ? f.gone : info?.gone, read: !!f?.ok || (!wt && !!info), common: r.common, top: r.worktrees.find((x) => !x.missing)?.path ?? r.main,
+      unpushed: f?.ok ? f.ahead : 0, removed: !!branch && !wt && !info && !(r.remotes ?? []).some((x) => x.n === branch), ahead: info?.ahead, behind: info?.behind, def: r.def ?? '', gone: f?.ok ? f.gone : info?.gone, read: !!f?.ok || (!wt && !!info), common: r.common, top: r.worktrees.find((x) => !x.missing)?.path ?? r.main,
     };
     if (!wt && info && !info.upstream) { out.unpushed = info.ahead ?? 0; }
     if (!branch) { return out; }

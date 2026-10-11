@@ -6,6 +6,7 @@ import { compile } from './query';
 import { fileSessionsOf, FileSessionsReply } from './fileSessions';
 import { handoverData } from './handover';
 import { chatCwd } from './wipChats';
+import { chatFacts, chatHits, hitsInOf } from './chatFacts';
 import { openWorkRows } from './workChats';
 import { relInOf, relOf } from './workMatch';
 import { clampMax, Tally, totalsOf } from './limits';
@@ -168,8 +169,24 @@ async function cwdOf(m: any): Promise<string> {
   return ix ? chatCwd(ix, String(m.chat ?? ''), folders) : '';
 }
 
+/** Folders and creations of one chat, for the sidebar card (the host reads git next, then asks chatHits). */
+async function factsOf(m: any): Promise<unknown> {
+  await loaded;
+  const folders: string[] = Array.isArray(m.folders) ? m.folders.filter((x: unknown) => typeof x === 'string') : [];
+  return ix ? chatFacts(ix, String(m.chat ?? ''), folders) : { ok: false, cwd: '', cands: [], cwds: [], made: [], seen: [] };
+}
+
+/** The shared matcher's verdict for one chat against the host's worktrees and branches. */
+async function hitsOf(m: any): Promise<unknown> {
+  await loaded;
+  const i = hitsInOf(m);
+  return ix && i ? chatHits(ix, i) : { w: {}, b: {} };
+}
+
 async function request(m: any): Promise<unknown> {
   if (m.t === 'chatCwd') { return cwdOf(m); }
+  if (m.t === 'chatFacts') { return factsOf(m); }
+  if (m.t === 'chatHits') { return hitsOf(m); }
   if (m.t === 'expand') { return expand(m); }
   if (m.t === 'related') { return related(m); }
   if (m.t === 'sessions') { return sessions(m); }

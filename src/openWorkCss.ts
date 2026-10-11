@@ -189,4 +189,26 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .bh .chv{margin-left:auto;flex:none;width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;opacity:.4;transform:rotate(45deg) translate(-2px,-2px);transition:transform .12s}
 .bh.tg:hover .chv{opacity:.7}
 .bh.op .chv{transform:rotate(-135deg) translate(-2px,-2px)}
+
+.chip.b-idle{--bcc:var(--vscode-descriptionForeground)}
+.tot{margin-left:auto;align-self:center;color:var(--vscode-descriptionForeground)}
+.hl{margin:10px 0 8px;font-size:calc(var(--vscode-font-size) + 3px);font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.wg{margin-bottom:10px}
+.wh,.wr{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,20ch) minmax(70px,12ch) 9ch 7ch auto;column-gap:14px;align-items:start}
+.wh{padding:2px 4px;color:var(--vscode-descriptionForeground);font-size:calc(var(--vscode-font-size) - 1px);border-bottom:1px solid var(--vscode-widget-border,transparent)}
+.wr{padding:6px 4px;border-bottom:1px solid var(--vscode-widget-border,transparent)}
+.wr:hover{background:var(--vscode-list-hoverBackground)}
+.c-nm,.c-cr{min-width:0;overflow-wrap:anywhere}
+.nl{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
+.bn,.bn .lk,.bn code,.bn-t{font-size:calc(var(--vscode-font-size) + 2px);font-weight:600}
+.bn code{font-family:var(--vscode-editor-font-family)}
+.wtn{font-size:calc(var(--vscode-font-size) - 1px);color:var(--vscode-descriptionForeground)}
+.why{margin-top:2px}
+.vd{font-weight:600}
+.vd-needs{color:var(--c-need)}.vd-finish{color:var(--c-fin)}.vd-waiting{color:var(--c-wait)}.vd-tidy{color:var(--c-tidy)}.vd-idle{color:var(--vscode-descriptionForeground)}
+.c-cr,.c-vs,.cby{color:var(--vscode-descriptionForeground)}
+.cby .lk{color:inherit}
+.c-ac{display:flex;gap:2px;justify-content:flex-end;align-items:center}
+.hxr{padding:0 0 4px 12px;border-bottom:1px solid var(--vscode-widget-border,transparent)}
+@media (max-width:760px){.wh{display:none}.wr{display:flex;flex-wrap:wrap;gap:4px 14px}.c-nm{flex:1 1 100%}.c-ac{margin-left:auto}.wr [data-l]::before{content:attr(data-l) ': ';color:var(--vscode-descriptionForeground)}.c-ac::before{content:none}}
 `;

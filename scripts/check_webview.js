@@ -98,11 +98,27 @@ function drive() {
   check('Git shows PR lookup in progress', /Looking up pull requests/.test(secOf('git')));
   step('git final', () => deliver({ type: 'gitLive', id: id(1), part: 'git', data: git }));
   check('Git pill and PR rendered', /class="pill"[^>]*>5</.test(secOf('git')) && /#7 A PR/.test(secOf('git')));
+  // Created work: badge with the time, the created list with state, receipt tooltip, PR pill, a collapsed Mentions only row, never a blank branch area.
+  const mk = (n, state) => ({ kind: 'wt', name: 'proj-wt-' + n, branch: 'feat/' + n, state, at: '2026-10-11 01:04', pr: n === 'a' ? { number: 42, title: 'Alive work', draft: false, review: 'APPROVED' } : undefined, tip: 'Created by a tool call at 2026-10-11 01:04\nCommand: git worktree add ../proj-wt-' + n + '\ntool_use: toolu_' + n + '\nTranscript: p/s/subagents/agent-1.jsonl line 12' });
+  const work = { badge: 'created branch feat/a at 2026-10-11 01:04', folder: '/r/proj-wt-a', branch: 'feat/a', how: 'created', created: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((n, i) => mk(n, i === 0 ? 'exists' : 'removed')), createdTotal: 20, createdGone: 19, worked: [{ name: 'proj-wt-w', branch: 'feat/w', how: 'cwd', state: 'removed' }], mentions: [{ name: 'feat/zzz', note: 'the chat only mentions "feat/zzz"' }], mentionsTotal: 3 };
+  step('git with created work', () => deliver({ type: 'gitLive', id: id(1), part: 'git', data: Object.assign({}, git, { work }) }));
+  const gs = () => secOf('git');
+  check('created badge shows "created branch X at <time>" with the receipt in its tooltip', /created branch feat\/a at 2026-10-11 01:04/.test(gs()) && /tool_use: toolu_a/.test(gs()) && /agent-1\.jsonl line 12/.test(gs()) && /git worktree add \.\.\/proj-wt-a/.test(gs()));
+  check('created list shows state and PR, the removed ones as "created, now removed", and only the newest rows with a +N more toggle', /created 2026-10-11 01:04/.test(gs()) && /created, now removed 2026-10-11 01:04/.test(gs()) && /#42/.test(gs()) && /\+14 more created/.test(gs()) && !/proj-wt-g/.test(gs().replace(/data-tip="[^"]*"/g, '')) && /Made here \(20\)/.test(gs()));
+  check('the worktree the card reads is called out as created by this chat, and the used (not created) worktree is listed', /created by this chat/.test(gs()) && /feat\/w[\s\S]*ran in[\s\S]*now removed/.test(gs()));
+  check('Mentions only is collapsed by default: a count and no names', /Mentions only \(3\)/.test(gs()) && !/feat\/zzz <span/.test(gs()));
+  step('expand mentions and created', () => run("wx.add('wm:' + " + JSON.stringify(id(1)) + ");wx.add('wc:' + " + JSON.stringify(id(1)) + ');rerender();', 'wmore'));
+  check('opening Mentions only lists the names with why, and opening +N more lists every created row sent', /feat\/zzz <span/.test(gs()) && /the chat only mentions/.test(gs()) && /Hide/.test(gs()) && /feat\/h <span/.test(gs()));
+  step('git unreachable with created work', () => deliver({ type: 'gitLive', id: id(1), part: 'git', data: { state: 'none', reason: 'The working folder no longer exists', work } }));
+  check('a chat that created something never shows a blank branch area, even when its folder is gone', /no longer exists/.test(gs()) && /created branch feat\/a at/.test(gs()));
+  step('git restored', () => deliver({ type: 'gitLive', id: id(1), part: 'git', data: git }));
   step('open Unpushed and Worktrees', () => { run("toggleSec('unp:' + " + JSON.stringify(id(1)) + ');', 'unp'); run("toggleSec('wt:' + " + JSON.stringify(id(1)) + ');', 'wt'); });
   check('Unpushed and Worktrees requests', asked('gitLive', 'unp', 1) === 1 && asked('gitLive', 'wt', 1) === 1);
   step('unp wt replies', () => { deliver({ type: 'gitLive', id: id(1), part: 'unp', data: git }); deliver({ type: 'gitLive', id: id(1), part: 'wt', data: git }); });
   check('Unpushed lists commits', /abc1234/.test(secOf('unp')) && /class="pill"[^>]*>4</.test(secOf('unp')));
   check('Worktrees lists both', /r-wt/.test(secOf('wt')) && /class="pill"[^>]*>2</.test(secOf('wt')));
+  step('wt list marks created and removed', () => deliver({ type: 'gitLive', id: id(1), part: 'wt', data: Object.assign({}, git, { worktrees: [{ path: '/r/proj-wt-a', branch: 'feat/a', detached: false, main: false, missing: false, here: true, created: true }, { path: '/r/proj-wt-b', branch: 'feat/b', detached: false, main: false, missing: true, here: true, created: true, removed: true }] }) }));
+  check('Worktrees section: created by this chat, and created, now removed', /created by this chat/.test(secOf('wt')) && /created, now removed/.test(secOf('wt')));
   check('Related not asked until opened', asked('related', '', 1) === 0);
   step('open Related', () => run("toggleSec('rel:' + " + JSON.stringify(id(1)) + ');', 'rel'));
   check('Related request sent on open', asked('related', '', 1) === 1);

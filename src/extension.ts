@@ -6,6 +6,7 @@ import { TIMEOUT_MSG, WorkerClient } from './client';
 import { runExpand } from './expandRun';
 import { GIT_PARTS, GitLive, GitLiveService, GitPart, GitTargets, timedOutLive, withDeadline, TIMED_OUT, GIT_DEADLINE_MS } from './gitLive';
 import { CardCounts } from './cardCounts';
+import { ChatWork, ChatWorkFacts } from './chatWork';
 import { IndexStatus } from './indexStatus';
 import { maxResults, pickTotals, Totals } from './maxResults';
 import { opts, sortOf } from './msgOpts';
@@ -63,9 +64,13 @@ class Provider implements vscode.WebviewViewProvider {
   watcher?: LiveWatcher; // live state of Claude sessions
   actions?: ArchiveActions;
   private readonly gitLive = new GitLiveService(uiExec, ghUiExec, prCache);
+  private readonly work = new ChatWork({
+    request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), exec: uiExec, ghExec: ghUiExec, cache: prCache, folders: folderPaths, prsOn,
+  });
   private readonly counts = new CardCounts({
     request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), folders: folderPaths, log: logErr,
     prsOn: () => vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false, post: (m) => this.post(m),
+    work: (id) => this.work.resolve(id),
   }, this.gitLive, uiExec);
   private readonly gitTargets = new Map<string, GitTargets>(); // per chat: what a click in its Git section resolves against
 
@@ -205,7 +210,7 @@ class Provider implements vscode.WebviewViewProvider {
     else if (m.type === 'handover') { await this.handover(id, String(m.query ?? '')); }
     else if (m.type === 'archive') { await this.actions?.setArchived(id, !!m.on); }
     else if (m.type === 'cardClosed') { this.gitTargets.delete(id); } // a closed card keeps no click targets
-    else if (m.type === 'expand') { this.gitTargets.delete(id); await this.expand(id, m); } // a reopened card starts clean
+    else if (m.type === 'expand') { this.gitTargets.delete(id); this.work.forget(id); await this.expand(id, m); } // a reopened card starts clean
     else if (m.type === 'gitLive' && GIT_PARTS.includes(m.part)) { await this.loadGit(id, m.part as GitPart); }
     else if (m.type === 'counts') { void this.counts.run(id, Number(m.rq) || 0); } // fire and forget: never holds the message loop
     else if (m.type === 'related') { await this.loadRelated(id); }
@@ -222,20 +227,24 @@ class Provider implements vscode.WebviewViewProvider {
   private async handover(id: string, query: string, state: (id: string, s: 'busy' | 'done' | '') => void = (cid, s) => this.post({ type: 'handoverState', id: cid, state: s })): Promise<void> {
     await copyHandover(id, query, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), roots: folderPaths, log: logErr,
       folders: folderPaths, prsOn: () => vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false,
-      gitLive: this.gitLive, state });
+      gitLive: this.gitLive, work: (cid) => this.work.resolve(cid), state });
   }
 
   /** Load one part of a chat card (git, wt, unc or unp) and post it; the git part posts its first step (branch, counts) before the PR step; a deadline or failure posts a one-line state. */
   private async loadGit(id: string, part: GitPart): Promise<void> {
+    let facts: ChatWorkFacts | undefined;
     const post = (live: GitLive, t?: GitTargets): void => {
-      if (t) { this.gitTargets.set(id, { ...this.gitTargets.get(id), ...t }); }
-      this.post({ type: 'gitLive', id, part, data: live });
+      if (t) { this.gitTargets.set(id, { ...this.gitTargets.get(id), ...t, ...(facts?.urls.size ? { urls: new Map([...facts.urls, ...(t.urls ?? [])]) } : {}) }); }
+      this.post({ type: 'gitLive', id, part, data: part === 'git' && facts?.view ? { ...live, work: facts.view } : live });
     };
     try {
-      const cwd = await withDeadline(this.client.request({ t: 'chatCwd', chat: id, folders: folderPaths() }, true, true), GIT_DEADLINE_MS);
+      let cwd: string | typeof TIMED_OUT = '';
+      const w = await withDeadline(this.work.resolve(id), GIT_DEADLINE_MS);
+      if (w !== TIMED_OUT) { facts = w; cwd = w.cwd; }
+      if (!cwd) { cwd = await withDeadline(this.client.request({ t: 'chatCwd', chat: id, folders: folderPaths() }, true, true), GIT_DEADLINE_MS); }
       const prs = vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false;
       if (cwd === TIMED_OUT) { post(timedOutLive()); return; }
-      const r = await this.gitLive.load(typeof cwd === 'string' ? cwd : '', part, prs, (p) => post(p.live, p.targets));
+      const r = await this.gitLive.load(typeof cwd === 'string' ? cwd : '', part, prs, (p) => post(p.live, p.targets), facts?.hint);
       post(r.live, r.targets);
     } catch (e) {
       logErr('git section ' + part, e);

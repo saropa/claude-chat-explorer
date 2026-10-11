@@ -22,6 +22,13 @@ export const shaAlike = (a: string, b: string): boolean => a.startsWith(b) || b.
 /** Commits (either id a prefix of the other, 4+ hex chars typed), PRs (exact number, any repository) or branches (substring) a git token matches. */
 export function gitMatched(c: Chat, t: Token): string[] {
   const g = c.git;
+  if (t.kind === 'branch') {
+    // Recorded branch names, plus branches a tool call of the chat created (a creator, never a mere mention: 'i' instruction entries are skipped).
+    const seen = new Set<string>(), out: string[] = [];
+    for (const b of g?.branches ?? []) { if (b.toLowerCase().includes(t.value) && !seen.has(b)) { seen.add(b); out.push(b); } }
+    for (const m of c.made ?? []) { if (m[0] === 'b' && m[2] && m[1].toLowerCase().includes(t.value) && !seen.has(m[1])) { seen.add(m[1]); out.push(m[1] + ' (created)'); } }
+    return out;
+  }
   if (!g) { return []; }
   if (t.kind === 'sha') {
     return validSha(t.value) ? g.commits.filter(([s]) => s.length >= SHA_MIN && shaAlike(s, t.value)).map(([s, b]) => (b ? `${s} on ${b}` : s)) : [];
@@ -29,5 +36,5 @@ export function gitMatched(c: Chat, t: Token): string[] {
   if (t.kind === 'pr') {
     return validPr(t.value) ? g.prs.filter(([n]) => n === Number(t.value)).map(([n, r]) => `#${n} ${r}`.trim()) : [];
   }
-  return g.branches.filter((b) => b.toLowerCase().includes(t.value));
+  return [];
 }

@@ -102,7 +102,7 @@ class Matcher {
         for (const s of p.subs) {
           const sw = s.s.made.filter((m) => m[0] === 'w' && baseOf(m[1]) === w.name);
           if (sw.length) { out.push(['subagent', agentNote(s.c, 'created ' + w.name), true, sw.flatMap((m) => proofOf(s.c, m))]); }
-          else if (s.s.made.some((m) => m[0] === 'i' && baseOf(m[1]) === w.name)) { out.push(['subagent', agentNote(s.c, 'was told to create ' + w.name), true]); }
+          else if (s.s.made.some((m) => m[0] === 'i' && baseOf(m[1]) === w.name)) { out.push(['subagent', agentNote(s.c, 'was told to create ' + w.name), false]); } // instructions only: no tool call, so never the creator
         }
       }
     }

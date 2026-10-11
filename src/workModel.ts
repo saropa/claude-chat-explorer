@@ -40,6 +40,68 @@ export function bandOf(dot: string, g?: any, last?: number, now?: number): strin
   return 'idle';
 }
 
+/** Group headers of the Project status table (same keys as the bands, so the saved "turned off" list keeps its meaning). */
+export const GROUP_LABEL: { [k: string]: string } = { needs: 'Needs you', finish: 'Unfinished work', waiting: 'Waiting', tidy: 'Safe to remove', idle: 'Idle' };
+
+/**
+ * The one verdict of a Project status row: state (one word), group (needs, finish, waiting, tidy, idle), reason (one plain sentence) and tags (secondary facts, the page shows two at most).
+ * i: name, defName, isDef, local, remote, stray ({git}), wt (null or {missing, main, locked, known, files, unpushed, behind, gone, merged}), a and bh (commits ahead of and behind the default branch, undefined when not read),
+ *    up (the branch has a remote branch), gone, merged (merged into the default branch), pr (null or {n, checks, review, draft}), chat ('waiting', 'unread', 'running' or '').
+ * First matching rule wins; unknown facts never move a row into a worse group.
+ */
+export function workVerdict(i: any): { state: string; group: string; reason: string; tags: string[] } {
+  const out = (state: string, group: string, reason: string, tags?: string[]) => ({ state, group, reason, tags: tags || [] });
+  const dn = i.defName || 'main', w = i.wt, pr = i.pr;
+  const tags: string[] = [];
+  if (w && w.locked && !w.main) { tags.push('locked'); }
+  if (pr && pr.draft) { tags.push('draft'); }
+  if (i.gone) { tags.push('remote branch deleted'); }
+  if (i.isDef) { tags.push('default branch'); }
+  if (w && w.main && !i.isDef) { tags.push('main checkout'); }
+  if (i.stray) { return out('Not a registered worktree', 'needs', i.stray.git ? 'Git does not list this folder as a worktree: repair or remove it' : 'A plain folder left behind by a removed worktree', tags); }
+  const files = w && w.known ? w.files || 0 : 0;
+  const never = !w && i.local && !i.up && !i.gone && !i.isDef && typeof i.a === 'number' && i.a > 0; // a branch with no worktree that was never pushed
+  const unp = w && w.known ? w.unpushed || 0 : never ? i.a : 0;
+  const bh = typeof i.bh === 'number' ? i.bh : w ? w.behind || 0 : 0;
+  const behind = bh > 0 ? ', ' + bh + ' behind ' + (i.isDef ? 'origin' : dn) : '';
+  const prWord = (p: any): string => 'PR #' + p.n + ' is open' + (p.checks === 'passing' ? ', checks passing' : p.checks === 'failing' ? ', checks failing' : p.checks === 'pending' ? ', checks running' : '') + (p.review === 'approved' ? ', approved' : p.review === 'review requested' ? ', needs review' : '');
+  if (i.chat === 'waiting') { return out('Needs you', 'needs', 'A chat is waiting for your answer', tags); }
+  if (i.chat === 'unread') { return out('Needs you', 'needs', 'A chat finished while you were away: read it', tags); }
+  if (w && w.missing) { return out('Needs you', 'needs', 'The worktree folder is gone: prune the worktree', tags); }
+  if (pr && pr.checks === 'failing') { return out('PR failing', 'needs', 'Checks are failing on PR #' + pr.n, tags); }
+  if (pr && pr.review === 'changes requested') { return out('Needs you', 'needs', 'Changes were requested on PR #' + pr.n, tags); }
+  if (i.chat === 'running') { return out('Active chat', 'waiting', 'A chat is working here right now', tags); }
+  if (files > 0) { return out('Dirty', 'finish', countWord(files, 'file') + ' not committed' + (unp > 0 ? ', ' + countWord(unp, 'commit') + ' not pushed' : '') + behind, tags); }
+  if (unp > 0) { return out('Unpushed', 'finish', countWord(unp, 'commit') + (never ? ' only on this computer' : ' not pushed') + behind, tags); }
+  if (pr && pr.review === 'approved' && (pr.checks === 'passing' || pr.checks === 'none')) { return out('Needs you', 'needs', 'PR #' + pr.n + ' is approved and its checks pass: ready to merge', tags); }
+  if (pr) { return out('PR open', 'waiting', prWord(pr), tags); }
+  const same = !i.isDef && !w?.main && typeof i.a === 'number' && i.a === 0;
+  if (!i.isDef && !(w && (w.main || w.locked || w.ws || (!w.known && !w.missing))) && (i.merged || same || i.gone || (w && w.merged === true))) {
+    return out('Merged clean', 'tidy', same ? 'Same as ' + dn + ', nothing unique' + (w ? ': the worktree can be removed' : ': the branch can be deleted') : i.gone && !i.merged ? 'The remote branch was deleted and nothing is unpushed' : 'Merged into ' + dn + ', nothing to lose' + (w ? ': the worktree can be removed' : ''), tags);
+  }
+  if (!i.local && i.remote) { return out('Remote only', 'idle', 'Only on GitHub, no local copy' + (typeof i.a === 'number' && i.a > 0 ? ', ' + countWord(i.a, 'commit') + ' not in ' + dn : ''), tags); }
+  if (bh > 0 && !(typeof i.a === 'number' && i.a > 0)) { return out('Behind', 'idle', bh + ' behind ' + (i.isDef ? 'origin' : dn) + ', nothing of its own', tags); }
+  if (typeof i.a === 'number' && i.a > 0 && i.local) { return out('No PR', 'idle', countWord(i.a, 'commit') + ' pushed' + (bh > 0 ? ', ' + bh + ' behind ' + dn : '') + ', no pull request', tags); }
+  if (w && !w.known) { return out('Idle', 'idle', 'Git state not read (' + (w.unread || 'unknown') + ')', tags); }
+  return out('Idle', 'idle', 'Nothing open', tags);
+}
+
+/** The answer-first line above the table: "3 branches: 1 needs you, 1 has unpushed work, 1 is safe to remove". rows: {group, state} per row; strays: folders git does not list. */
+export function workHeadline(rows: Array<{ group: string; state: string }>, strays: number, complete = true): string {
+  const n = rows.length, c = (g: string) => rows.filter((r) => r.group === g);
+  const one = (l: any[], a: string, b: string) => l.length + ' ' + (l.length === 1 ? a : b);
+  const parts: string[] = [];
+  const needs = c('needs').filter((r) => r.state !== 'Not a registered worktree'), fin = c('finish'), wait = c('waiting'), tidy = c('tidy'), idle = c('idle');
+  if (needs.length) { parts.push(one(needs, 'needs you', 'need you')); }
+  if (fin.length) { const k = fin.every((r) => r.state === 'Unpushed') ? 'unpushed work' : fin.every((r) => r.state === 'Dirty') ? 'uncommitted work' : 'unfinished work'; parts.push(one(fin, 'has ' + k, 'have ' + k)); }
+  if (wait.length) { parts.push(one(wait, 'is waiting on a PR or a chat', 'are waiting on a PR or a chat')); }
+  if (tidy.length) { parts.push(one(tidy, 'is safe to remove', 'are safe to remove')); }
+  if (idle.length) { parts.push(one(idle, 'is idle', 'are idle')); }
+  const sf = strays > 0 ? countWord(strays, 'stray folder') + ' git does not list' : '';
+  if (!n) { return sf ? 'No branches besides the default one; ' + sf + '.' : complete ? 'No branches besides the default one. Nothing is open.' : 'No branches besides the default one so far; some parts were not read yet.'; }
+  return countWord(n, 'branch', 'branches') + (parts.length ? ': ' + parts.join(', ') : '') + (sf ? '; ' + sf : '') + '.';
+}
+
 /** Plain-words count: 1 file, 2 files. */
 export function countWord(n: number, one: string, many?: string): string { return n + ' ' + (n === 1 ? one : many || one + 's'); }
 
@@ -206,5 +268,5 @@ export function ghStatus(i: { on: boolean; gh?: { st: string; reason?: string } 
 }
 
 /** Source of the functions and constants above, for the page script. */
-export const WORK_MODEL_SRC = [bandOf, countWord, nextStep, rowCmp, bandRows, wtReady, fingerprint, doneHidden, filterMatch, flagPass, summaryOf, ghStatus].map((f) => f.toString()).join('\n')
-  + '\nconst BAND_ORDER=' + JSON.stringify(BAND_ORDER) + ',BAND_LABEL=' + JSON.stringify(BAND_LABEL) + ',BAND_CHIP=' + JSON.stringify(BAND_CHIP) + ';\n';
+export const WORK_MODEL_SRC = [bandOf, countWord, workVerdict, workHeadline, nextStep, rowCmp, bandRows, wtReady, fingerprint, doneHidden, filterMatch, flagPass, summaryOf, ghStatus].map((f) => f.toString()).join('\n')
+  + '\nconst BAND_ORDER=' + JSON.stringify(BAND_ORDER) + ',BAND_LABEL=' + JSON.stringify(BAND_LABEL) + ',BAND_CHIP=' + JSON.stringify(BAND_CHIP) + ',GROUP_LABEL=' + JSON.stringify(GROUP_LABEL) + ';\n';

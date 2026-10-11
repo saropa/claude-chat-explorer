@@ -85,7 +85,9 @@ const GIT_KINDS = ['sha', 'pr', 'branch'];
 /** The parent as git tokens see it: its git data plus the subagents that did not match, so a commit held by a matched subagent counts once (on the subagent). */
 export function gitView(sc: Scan, p: Chat, matched: Chat[]): Chat {
   if (!sc.o.subs || !sc.c.tokens.some((t) => GIT_KINDS.includes(t.kind))) { return p; }
-  return { ...p, git: mergedGit(p, sc.ix.subsOf(p).filter((s) => !matched.includes(s))) };
+  const rest = sc.ix.subsOf(p).filter((s) => !matched.includes(s));
+  const made = [...(p.made ?? []), ...rest.flatMap((s) => s.made ?? [])];
+  return { ...p, git: mergedGit(p, rest), ...(made.length ? { made } : {}) };
 }
 
 /** Match one parent chat and its subagents; null when nothing matched. */

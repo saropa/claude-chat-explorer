@@ -523,7 +523,9 @@ async function chatMatchTests() {
   const f = path.join(base, 'parse.jsonl');
   fs.writeFileSync(f, [tool('git worktree add ../contacts-wt-x -b feat/x origin/main'), row({ type: 'assistant', cwd: '/w/contacts-wt-x', gitBranch: 'feat/x', message: { role: 'assistant', content: [{ type: 'text', text: 'in the worktree' }] } }), tool('git -C /w/contacts branch backup/y HEAD')].join('\n') + '\n');
   const pr = await parseFile(f, Date.now(), 20000, 0);
-  check('parse: a transcript yields every distinct cwd, every gitBranch seen (most used first) and the worktrees and branches its tool calls made', JSON.stringify(pr.cwds) === '["/w/contacts","/w/contacts-wt-x"]' && pr.cwd === '/w/contacts' && pr.seen.includes('feat/x') && pr.seen.includes('main') && JSON.stringify(pr.made) === '[["b","feat/x"],["w","/w/contacts-wt-x"],["b","backup/y"]]');
+  check('parse: a transcript yields every distinct cwd, every gitBranch seen (most used first) and the worktrees and branches its tool calls made', JSON.stringify(pr.cwds) === '["/w/contacts","/w/contacts-wt-x"]' && pr.cwd === '/w/contacts' && pr.seen.includes('feat/x') && pr.seen.includes('main') && JSON.stringify(pr.made.map((m) => [m[0], m[1]])) === '[["b","feat/x"],["w","/w/contacts-wt-x"],["b","backup/y"]]');
+  const rcs = pr.made.map((m) => m[2]);
+  check('parse: each created worktree or branch keeps the receipt of its tool call: time, tool_use id, exact command and the line of the transcript file', rcs.every(Boolean) && rcs[0].t === Date.parse('2026-10-11T01:00:00.000Z') && rcs[0].u === 't' && rcs[0].c === 'git worktree add ../contacts-wt-x -b feat/x origin/main' && rcs[0].l === 1 && rcs[1].c === rcs[0].c && rcs[1].l === 1 && rcs[2].c === 'git -C /w/contacts branch backup/y HEAD' && rcs[2].l === 4);
   // Relative worktree paths resolve against the folder the tool call ran in: `../name`, `./name`, `-C <dir>`, `cd <dir> && git worktree add`, with and without -b, quoted or not.
   const { intendedOf } = require(path.join(OUT, 'workMade.js'));
   const mw = (cmd, cwd) => JSON.stringify(madeOf(cmd, cwd));
@@ -626,11 +628,169 @@ async function placementTests() {
   check('placement: the folder facts carry the repository key and the branch the page matches a chat to a branch row by', c.finals.get(keys.feat)[0].facts.branch === 'feat' && c.finals.get(keys.feat)[0].facts.rk === repo.key && c.finals.get(keys.main)[0].facts.branch === 'main');
 }
 
+
+/** The clean-up feature: path and start-point parsing, receipts on the matcher's creator hits, the verdict and headline, the prompt (size cap, receipts, truncation) and the host builder on a fake repository. */
+async function cleanupTests() {
+  const { madeOf } = require(path.join(OUT, 'workMade.js'));
+  const { relOf, transcriptOf } = require(path.join(OUT, 'workMatch.js'));
+  const { cleanupPrompt, PROMPT_MAX, ASK, resumeCommand } = require(path.join(OUT, 'workCleanup.js'));
+  const { buildCleanup, creatorRows } = require(path.join(OUT, 'workCleanHost.js'));
+  const model = require(path.join(OUT, 'workModel.js'));
+  const m = (c, cwd) => JSON.stringify(madeOf(c, cwd || '/d/src/contacts'));
+  check('made: a start point is never taken for the folder: an unresolved "$W" path keeps no folder, however many words follow', m('git worktree add --detach "$W" origin/feat/detail-row-long-press-menu -q') === '[]' && m('git worktree add -b docs/x "$W" origin/main -q') === '[["b","docs/x"]]');
+  check('made: a variable set earlier in the same command resolves the folder (the real shape of chat 181b2190)', m('W=/private/tmp/s/mergewt && rm -rf "$W" && git worktree add --detach "$W" origin/feat/y -q') === '[["w","/private/tmp/s/mergewt"]]' && m('W=/tmp/hwt && git worktree add -b docs/handover-wp11-finishing-sweep "$W" origin/main -q') === '[["b","docs/handover-wp11-finishing-sweep"],["w","/tmp/hwt"]]' && m('git worktree add ${X} -b b') === '[["b","b"]]');
+  check('made: arguments the wrong way round (start point first, path second) make no folder, because git rejects them', m('git worktree add --track -b gmtrim origin/main ../contacts-wt-gmtrim') === '[["b","gmtrim"]]' && m('git worktree add ../x origin/main') === '[["w","/d/src/x"]]' && m('git worktree add HEAD ../y') === '[]');
+  // Receipts on the matcher's creator hits.
+  const W = contactsWorld(), out = relOf(W.ix, W.input), id = W.id;
+  const h1 = out.w.w2.find((h) => h.cr), p1 = h1 && h1.rc && h1.rc[0];
+  check('receipts: a worktree made by a subagent carries the receipt: time, tool_use id, exact command, transcript line, session and subagent id, and the transcript path', !!p1 && p1.u === 'toolu_01FAKE0002' && p1.l === 4218 && /^git worktree add \.\.\/contacts-wt-connection-icon -b feat\//.test(p1.c) && p1.t === W.T0 + 2 * W.H + 12345 && p1.s === id(1) && p1.a === 'a1111111111111111' && p1.f === '-w-contacts/' + id(1) + '/subagents/agent-a1111111111111111.jsonl');
+  const h3 = out.w.w4.find((h) => h.cr), p3 = h3 && h3.rc && h3.rc[0];
+  check('receipts: a worktree made by the chat itself has no subagent id and points at the chat file; mention-only and probable hits carry none', !!p3 && p3.a === undefined && p3.s === id(3) && p3.f === '-w-contacts/' + id(3) + '.jsonl' && out.b['bahai-mojibake'].every((h) => !h.rc) && transcriptOf({ dir: 'd', id: 'x' }) === 'd/x.jsonl');
+  check('receipts: a branch made by a separate command has its own receipt, and a branch and its worktree made by one command share it', out.b['langv2-spare-branch'].find((h) => h.cr).rc[0].c === 'git branch langv2-spare-branch origin/main' && out.b['langv2-final'].find((h) => h.cr).rc[0].c === out.w.w7.find((h) => h.cr).rc[0].c);
+  // Verdict and headline.
+  const v = (o) => model.workVerdict(Object.assign({ name: 'b', defName: 'main', local: true, remote: false, wt: null, a: 1, bh: 0, up: true, pr: null, chat: '' }, o));
+  const wtf = (o) => Object.assign({ known: true, files: 0, unpushed: 0, behind: 0, merged: false }, o);
+  check('verdict: 26 files not committed and 11 behind; 34 commits not pushed; same as main', v({ wt: wtf({ files: 26 }), bh: 11 }).reason === '26 files not committed, 11 behind main' && v({ wt: wtf({ unpushed: 34 }) }).reason === '34 commits not pushed' && v({ a: 0 }).reason === 'Same as main, nothing unique: the branch can be deleted');
+  check('verdict: the states and their groups', v({ wt: wtf({ files: 1 }) }).state === 'Dirty' && v({ wt: wtf({ files: 1 }) }).group === 'finish' && v({ wt: wtf({ unpushed: 2 }) }).state === 'Unpushed' && v({ pr: { n: 5, checks: 'failing' } }).group === 'needs' && v({ pr: { n: 5, checks: 'passing', review: '' } }).state === 'PR open' && v({ pr: { n: 5, checks: 'passing', review: 'approved' } }).reason === 'PR #5 is approved and its checks pass: ready to merge' && v({ pr: { n: 5, checks: 'pending', review: 'approved' } }).state === 'PR open' && v({ a: 0, merged: true }).group === 'tidy' && v({ local: false, remote: true, a: 3 }).state === 'Remote only' && v({ a: 2 }).state === 'No PR' && v({ a: 0, wt: wtf({ merged: true }) }).state === 'Merged clean' && v({ stray: { git: false } }).state === 'Not a registered worktree' && v({ chat: 'running' }).state === 'Active chat' && v({ chat: 'waiting' }).group === 'needs' && v({ a: undefined, bh: 4 }).state === 'Behind');
+  check('verdict: facts not read never say safe to remove; locked, main and default rows are never Merged clean', v({ wt: wtf({ known: false, unread: 'timed out', merged: true }), a: 0 }).state === 'Idle' && /timed out/.test(v({ wt: wtf({ known: false, unread: 'timed out' }), a: undefined }).reason) && v({ a: 0, wt: wtf({ locked: true }) }).state !== 'Merged clean' && v({ a: 0, isDef: true }).state !== 'Merged clean' && v({ a: 0, wt: wtf({ main: true }) }).state !== 'Merged clean');
+  check('verdict: a never-pushed branch with no worktree says only on this computer', v({ up: false, a: 9 }).reason === '9 commits only on this computer');
+  const hl = model.workHeadline([{ group: 'needs', state: 'Needs you' }, { group: 'finish', state: 'Unpushed' }, { group: 'tidy', state: 'Merged clean' }], 0);
+  check('headline: answer first, in plain words', hl === '3 branches: 1 needs you, 1 has unpushed work, 1 is safe to remove.' && model.workHeadline([], 0) === 'No branches besides the default one. Nothing is open.' && /so far/.test(model.workHeadline([], 0, false)) && model.workHeadline([{ group: 'idle', state: 'Idle' }, { group: 'idle', state: 'Idle' }], 1) === '2 branches: 2 are idle; 1 stray folder git does not list.');
+  // The prompt.
+  const proof = { t: Date.UTC(2026, 9, 11, 3, 4, 5), u: 'toolu_01ABC', c: 'git worktree add ../contacts-wt-x -b feat/x origin/main', l: 2737, s: id(1), f: '-w-contacts/' + id(1) + '.jsonl' };
+  const item = (n, o) => Object.assign({ branch: 'feat/x' + n, wt: '/w/contacts-wt-x' + n, pr: { n: 12, text: 'is open, checks failing (1 of 3)' }, created: 1791687845, proofs: [proof], reflogAt: 1791687846, reflogMsg: 'branch: Created from origin/main', commits: Array.from({ length: 10 }, (_, i) => ({ sha: 'abc' + i + '000', au: 'Ada', date: '2026-10-11T03:04:05Z', subject: 'commit number ' + i })), commitTotal: 14,
+    files: Array.from({ length: 15 }, (_, i) => 'lib/file' + i + '.dart'), fileTotal: 26, unpushed: 3, ahead: 14, behind: 11, def: 'origin/main', read: true }, o || {});
+  const one = cleanupPrompt({ title: 'Pro rollout', chatId: id(1), root: '/home/u/.claude/projects', items: [item(1)] });
+  check('prompt: carries the branch, worktree, PR, both times (UTC and local), the exact command, tool_use id, session, file and line, the reflog proof, the commits and the state, then the ask', /Branch feat\/x1; worktree \/w\/contacts-wt-x1; PR #12 is open/.test(one) && /2026-10-11 03:04:05 UTC, local /.test(one) && /Command: git worktree add \.\.\/contacts-wt-x -b feat\/x origin\/main/.test(one) && /tool_use toolu_01ABC, session 0000/.test(one) && /\/home\/u\/\.claude\/projects\/-w-contacts\/0000[^ ]*\.jsonl line 2737/.test(one) && /Branch reflog \(independent proof\): first entry 2026-10-11 .* UTC, "branch: Created from origin\/main"/.test(one) && /abc0000 Ada 2026-10-11 commit number 0/.test(one) && /26 files not committed \(lib\/file0\.dart/.test(one) && /3 commits not pushed/.test(one) && /ahead 14, behind 11 vs origin\/main/.test(one) && one.endsWith(ASK) && /Do not delete anything until I confirm\.$/.test(one));
+  check('prompt: plain text under the cap, and a subagent receipt names the subagent', one.length <= PROMPT_MAX && !/[<>]|\*\*|^#/m.test(one) && /subagent a1111/.test(cleanupPrompt({ title: 't', chatId: id(1), root: '/r', items: [item(1, { proofs: [Object.assign({}, proof, { a: 'a1111111111111111' })] })] })));
+  const many = cleanupPrompt({ title: 'Big', chatId: id(1), root: '/home/u/.claude/projects', items: Array.from({ length: 40 }, (_, i) => item(i)) });
+  check('prompt: forty items still fit under 4000 characters, lists are cut with "and N more", and the ask is kept', many.length <= PROMPT_MAX && /and \d+ more items\./.test(many) && many.endsWith(ASK) && /1\) Branch feat\/x0/.test(many));
+  const lists = cleanupPrompt({ title: 'T', chatId: id(1), root: '/r', items: [item(1, { commits: item(1).commits, commitTotal: 14 })] }, 9000);
+  check('prompt: at most 10 commits and 15 file names, with "and N more" for the rest', (lists.match(/commit number/g) || []).length === 10 && /\| and 4 more/.test(lists) && /and 11 more\)/.test(lists) && !/file15/.test(lists));
+  check('prompt: a branch whose folder is gone and an item with no receipt say so', /Worktree folder is gone/.test(cleanupPrompt({ title: 't', chatId: id(1), root: '/r', items: [item(1, { missing: true })] })) && /No tool-call receipt: a subagent was only told/.test(cleanupPrompt({ title: 't', chatId: id(1), root: '/r', items: [item(1, { proofs: [], told: true })] })) && resumeCommand('/w/my wt', id(1)) === "cd '/w/my wt' && claude --resume " + id(1));
+  // The host side on a fake repository: facts from the last scan, the branch reflog file, unique commits through the allowed rev-list.
+  const world = mkWorld(1), g = fakeGit(world);
+  const scan = new WorkScan({ exec: g.exec, limiter: new Limiter(4, 3), deadlineMs: 800, gitMs: 300, workspace: () => [world.repos[0].top] });
+  const c = collect();
+  await scan.start(1, [{ cwd: world.repos[0].top, last: 1 }], false, c.post);
+  const rk = c.of('repo').filter((r) => r.state === 'ok').pop().key, wk = c.of('repo').filter((r) => r.state === 'ok').pop().worktrees.find((w) => w.branch === 'feat').k;
+  fs.mkdirSync(path.join(world.repos[0].common, 'logs', 'refs', 'heads'), { recursive: true });
+  fs.writeFileSync(path.join(world.repos[0].common, 'logs', 'refs', 'heads', 'feat'), '0000000000000000000000000000000000000000 bbbbbbb2 Ada <a@x> 1791687846 +0000\tbranch: Created from origin/main\n');
+  const before = g.calls.length;
+  const f = await scan.cleanFacts(rk, 'feat', wk);
+  check('clean facts: the branch reflog creation line, the unique commits (one read-only rev-list) and the worktree state of the last scan', !!f && f.reflogAt === 1791687846 && /branch: Created from origin\/main/.test(f.reflog) && f.commits.length === 2 && f.commits[0].au === 'Ada' && f.wt === world.repos[0].top + '-wt-a' && f.def === 'origin/main' && g.calls.slice(before).every((x) => x.cmd === 'git' && /^rev-list --max-count=10 --format=%h%x09%an%x09%cI%x09%s origin\/main\.\.refs\/heads\/feat$/.test(x.a)));
+  check('clean facts: a worktree key or a branch the scan does not know gives nothing invented', (await scan.cleanFacts('r999', 'feat', 'w1')) === undefined && (await scan.cleanFacts(rk, 'nope; rm -rf', '')).commits.length === 0);
+  const rel = { b: { feat: [{ id: id(1), why: 'created-by-tool-call', conf: 'certain', cr: true, rc: [proof] }] }, w: { [wk]: [{ id: id(1), why: 'created-by-tool-call', conf: 'certain', cr: true, rc: [proof] }, { id: id(2), why: 'name-in-text', conf: 'mention' }] } };
+  const model2 = { rel, prs: { state: 'ok', by: { feat: { n: 12, draft: false, review: 'approved' } }, all: [] }, checks: new Map([[rk + '|12', { state: 'failing', failing: 1, total: 3 }]]) };
+  check('host: the rows a chat created are the rows where it is a certain creator (a mention or another chat is not)', JSON.stringify(creatorRows(scan, rk, rel, id(1)).map((r) => r.b)) === '["feat"]' && creatorRows(scan, rk, rel, id(2)).length === 0 && creatorRows(scan, rk, rel, id(9)).length === 0);
+  const built = await buildCleanup(scan, model2, rk, id(1), 'Pro rollout', '/home/u/.claude/projects', undefined);
+  check('host: the prompt for the chat has the receipt, the reflog, the PR with its checks and the ask, and stays under 4000 characters', !!built && built.n === 1 && built.text.length <= PROMPT_MAX && /tool_use toolu_01ABC/.test(built.text) && /line 2737/.test(built.text) && /1791687846|2026-10-1\d/.test(built.text) && /PR #12 is open, review: approved, checks failing \(1 of 3\)/.test(built.text) && /first unique commit/.test(built.text) && built.text.endsWith(ASK) && built.dir === world.repos[0].top + '-wt-a');
+  check('host: rows a chat did not create are dropped, and nothing is built for a chat with no row', (await buildCleanup(scan, model2, rk, id(2), 't', '/r', undefined)) === undefined && (await buildCleanup(scan, model2, rk, id(1), 't', '/r', [{ b: 'not-mine' }])) === undefined && !!(await buildCleanup(scan, model2, rk, id(1), 't', '/r', [{ b: 'feat' }])));
+}
+
+
+/** The sidebar card's chat-to-work matching on a real repository and real parsed transcripts: a parent chat whose subagents created worktrees (one still there, one removed),
+ *  a chat that only mentions them, a chat that ran in two folders; the folder the card reads, the created list with receipts, the live worktree list and the PR of the resolved branch. */
+async function chatWorkTests() {
+  const cp = require('child_process');
+  const { ChatIndex } = require(path.join(OUT, 'index.js'));
+  const cf = require(path.join(OUT, 'chatFacts.js'));
+  const { ChatWork } = require(path.join(OUT, 'chatWork.js'));
+  const { GitLiveService } = require(path.join(OUT, 'gitLive.js'));
+  const { realExec } = require(path.join(OUT, 'wipExec.js'));
+  const { chatCwd, encode } = require(path.join(OUT, 'wipChats.js'));
+  const { gitMatched } = require(path.join(OUT, 'gitMatch.js'));
+  const { CardCounts } = require(path.join(OUT, 'cardCounts.js'));
+  const { gatherLive } = require(path.join(OUT, 'handoverLive.js'));
+  const run = (cwd, ...a) => cp.execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const home = fs.realpathSync(fs.mkdtempSync(path.join(base, 'cw-')));
+  const repo = path.join(home, 'src', 'proj');
+  fs.mkdirSync(repo, { recursive: true });
+  run(repo, 'init', '-q', '-b', 'main'); fs.writeFileSync(path.join(repo, 'a'), '1'); run(repo, 'add', '.'); run(repo, 'commit', '-q', '-m', 'one');
+  const alive = path.join(home, 'src', 'proj-wt-alive'), multi = path.join(home, 'src', 'proj-wt-multi'), gone = path.join(home, 'src', 'proj-wt-gone');
+  run(repo, 'worktree', 'add', '-q', alive, '-b', 'feat/alive');
+  run(repo, 'worktree', 'add', '-q', multi, '-b', 'feat/multi');
+  run(repo, 'worktree', 'add', '-q', gone, '-b', 'feat/gone'); run(repo, 'worktree', 'remove', '--force', gone); run(repo, 'branch', '-q', '-D', 'feat/gone');
+  const root = path.join(home, 'projects'), proj = path.join(root, encode(repo)), store = path.join(home, 'store');
+  fs.mkdirSync(proj, { recursive: true });
+  const ts = (min) => new Date(Date.UTC(2026, 9, 11, 1, min)).toISOString();
+  const row = (o) => JSON.stringify(Object.assign({ cwd: repo, gitBranch: 'main' }, o));
+  const say = (min, text, extra) => row(Object.assign({ type: 'assistant', timestamp: ts(min), message: { role: 'assistant', content: [{ type: 'text', text }] } }, extra));
+  const ask = (min, text, extra) => row(Object.assign({ type: 'user', timestamp: ts(min), message: { role: 'user', content: text } }, extra));
+  const tool = (min, id, cmd, extra) => row(Object.assign({ type: 'assistant', timestamp: ts(min), message: { role: 'assistant', content: [{ type: 'tool_use', id, name: 'Bash', input: { command: cmd } }] } }, extra));
+  const P = '11111111-2222-4333-8444-000000000001', X = '11111111-2222-4333-8444-000000000002', M = '11111111-2222-4333-8444-000000000003';
+  fs.writeFileSync(path.join(proj, P + '.jsonl'), [ask(1, 'make two worktrees with subagents'), say(2, 'launching subagents')].join('\n') + '\n');
+  fs.mkdirSync(path.join(proj, P, 'subagents'), { recursive: true });
+  fs.writeFileSync(path.join(proj, P, 'subagents', 'agent-aaaa0001.jsonl'), [ask(3, 'Use a sibling worktree ../proj-wt-alive'), tool(4, 'toolu_ALIVE', 'git worktree add ../proj-wt-alive -b feat/alive main 2>&1 | tail -3')].join('\n') + '\n');
+  fs.writeFileSync(path.join(proj, P, 'subagents', 'agent-aaaa0002.jsonl'), [ask(5, 'Use a sibling worktree ../proj-wt-gone'), tool(6, 'toolu_GONE', 'git worktree add ../proj-wt-gone -b feat/gone main')].join('\n') + '\n');
+  fs.writeFileSync(path.join(proj, X + '.jsonl'), [ask(10, 'what happened to proj-wt-alive?'), say(11, 'The worktree proj-wt-alive was made earlier; branch feat/alive is open.')].join('\n') + '\n');
+  fs.writeFileSync(path.join(proj, M + '.jsonl'), [ask(20, 'continue'), say(21, 'in main'), say(22, 'moved', { cwd: multi, gitBranch: 'feat/multi' })].join('\n') + '\n');
+  const ix = new ChatIndex(store, root);
+  await ix.load(); await ix.refresh();
+  const requests = [];
+  const request = async (m) => { requests.push(m.t); if (m.t === 'chatFacts') { return cf.chatFacts(ix, m.chat, m.folders); } if (m.t === 'chatHits') { return cf.chatHits(ix, cf.hitsInOf(m)); } if (m.t === 'chatCwd') { return chatCwd(ix, m.chat, m.folders); } return undefined; };
+  const pr = JSON.stringify([{ headRefName: 'feat/alive', headRefOid: 'abcdef1234', isCrossRepository: false, isDraft: false, number: 42, reviewDecision: 'APPROVED', title: 'Alive work', url: 'https://github.com/o/r/pull/42' }]);
+  const ghExec = async () => OKRES(pr);
+  const cache = new PrCache();
+  const w = new ChatWork({ request, exec: realExec, ghExec, cache, folders: () => [repo], prsOn: () => true });
+  const live = new GitLiveService(realExec, ghExec, cache);
+
+  // Parent chat: its cwd is the main checkout, its subagents made the worktrees.
+  const fp = await w.resolve(P), v = fp.view;
+  check('chat work: the parent chat resolves to the worktree its subagent created, not to its last cwd (main)', fp.fromMatcher && fp.cwd === alive && chatCwd(ix, P, [repo]) === repo && v.branch === 'feat/alive' && v.how === 'created' && v.folder === alive);
+  check('chat work: every created worktree is listed with its state: the live one exists, the removed one is created, now removed (' + JSON.stringify(v.created.map((x) => [x.branch, x.state])) + ')', v.createdTotal === 2 && v.createdGone === 1 && v.created[0].branch === 'feat/alive' && v.created[0].state === 'exists' && v.created[1].branch === 'feat/gone' && v.created[1].state === 'removed' && v.created[1].kind === 'wt');
+  check('chat work: the PR of a created branch comes from the shared cache by branch (open PR on the live branch, none on the removed one)', v.created[0].pr && v.created[0].pr.number === 42 && !v.created[1].pr && fp.prNumbers.join() === '42' && fp.urls.get(42) === 'https://github.com/o/r/pull/42');
+  check('chat work: the badge says created branch <name> at the receipt time in the local zone (' + v.badge + ')', v.badge === 'created branch feat/alive at ' + (() => { const d = new Date(Date.UTC(2026, 9, 11, 1, 4)); const p = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); })());
+  check('chat work: the tooltip carries the command, the tool_use id and the transcript line of the creating call', /Command: git worktree add \.\.\/proj-wt-alive -b feat\/alive/.test(v.created[0].tip) && /tool_use: toolu_ALIVE/.test(v.created[0].tip) && /Transcript: .*agent-aaaa0001\.jsonl line \d+ \(subagent aaaa0001\)/.test(v.created[0].tip));
+  check('chat work: the main checkout is not listed as something the chat used, and no mention appears for a creator (' + JSON.stringify([v.worked, v.mentions]) + ')', v.worked.length === 0 && v.mentionsTotal === 0);
+
+  // Live state of the resolved folder: branch and PR of the created worktree; the list marks created ones as the chat's own, the removed one as created, now removed.
+  const g = (await live.load(fp.cwd, 'git', true, undefined, fp.hint)).live;
+  check('chat work: the card git part reads the created worktree: branch feat/alive and its open PR #42', g.state === 'ok' && g.branch === 'feat/alive' && g.top === alive && g.prs.length === 1 && g.prs[0].number === 42);
+  const wt = (await live.load(fp.cwd, 'wt', false, undefined, fp.hint)).live.worktrees;
+  const goneRow = wt.find((x) => x.path === gone), aliveRow = wt.find((x) => x.path === alive), multiRow = wt.find((x) => x.path === multi);
+  check('chat work: the worktree list marks the created live worktree here and created, and lists the removed one as created, now removed (' + JSON.stringify(wt.map((x) => [path.basename(x.path), x.here, x.created, x.removed])) + ')', aliveRow.here && aliveRow.created && !aliveRow.removed && goneRow && goneRow.here && goneRow.created && goneRow.removed && goneRow.missing && !multiRow.here);
+
+  // Mention-only chat: names the worktree and branch another chat created; no created list, never a creator, never the card's folder.
+  const fx = await w.resolve(X);
+  check('chat work: a chat that only names the worktree and branch has no created list, no badge, and reads its own last folder', fx.cwd === repo && (!fx.view || (fx.view.created.length === 0 && !fx.view.badge)) && !!fx.view && fx.view.mentionsTotal >= 1 && fx.view.mentions.some((m) => /alive/.test(m.name)));
+
+  // Multi-cwd chat: ran in main, then in a linked worktree; nothing created.
+  const fm = await w.resolve(M);
+  check('chat work: a chat that ran in two folders reads the linked worktree it ran in (not main) and lists it as used, not created (' + JSON.stringify(fm.view && fm.view.worked) + ')', fm.cwd === multi && fm.view.how === 'cwd' && fm.view.created.length === 0 && fm.view.worked.some((x) => x.branch === 'feat/multi' && x.how === 'cwd'));
+
+  // A folder that no longer exists, an unknown chat, and a failing request fall back to the old rule.
+  const bad1 = new ChatWork({ request: async () => { throw new Error('worker gone'); }, exec: realExec, ghExec, cache: new PrCache(), folders: () => [repo], prsOn: () => false });
+  const fb = await bad1.resolve(P);
+  check('chat work: when the matcher request fails, the card falls back to the chat last folder rule (no throw)', fb.fromMatcher === false && fb.cwd === '' && !fb.view);
+  const unk = await w.resolve('99999999-0000-4000-8000-000000000000');
+  check('chat work: an unknown chat gives an empty folder, no view', unk.cwd === '' && !unk.view);
+
+  // Counts and the hand-over note use the resolved folder.
+  const posts = [];
+  const counts = new CardCounts({ request, folders: () => [repo], prsOn: () => true, post: (m) => posts.push(m), log() {}, work: (id) => w.resolve(id) }, live, realExec);
+  await counts.run(P, 1);
+  const n = (part) => posts.find((m) => m.part === part).n;
+  check('chat work: counts read the resolved worktree: 3 worktrees listed plus 1 created one now removed = 4, 1 PR on its branch (' + JSON.stringify(posts.map((m) => [m.part, m.n])) + ')', n('wt') === 4 && n('git') === 1);
+  const seen = [];
+  const lv = await gatherLive(P, { request, log() {}, folders: () => [repo], prsOn: () => true, work: (id) => w.resolve(id), gitLive: { load: async (cwd, part, prs, cb, hint) => { seen.push([cwd, part, !!hint]); return live.load(cwd, part, prs, cb, hint); } } }, 8000);
+  check('chat work: the hand-over note reads git of the resolved worktree, with the created hint', seen.length >= 4 && seen.every(([c]) => c === alive) && lv.git && lv.git.branch === 'feat/alive' && lv.wt && lv.wt.worktrees.some((x) => x.removed));
+
+  // Search: branch: matches branches a tool call created (own or a subagent's), a creator only; a mention is not matched.
+  const chats = ix.tops(), top = (id) => chats.find((c) => c.id === id);
+  const tok = (value) => ({ kind: 'branch', value });
+  const pm = { ...top(P), made: ix.subsOf(top(P)).flatMap((s) => s.made || []) };
+  check('chat work: branch: matches a branch created by a subagent (the merged made list), even when it was never recorded as a branch name, and a mention does not match', gitMatched(pm, tok('feat/gone')).join() === 'feat/gone (created)' && gitMatched(top(X), tok('feat/alive')).length === 0 && gitMatched(pm, tok('nothing')).length === 0);
+  await ix.dispose();
+}
+
 (async () => {
   try {
+    await chatWorkTests();
     await placementTests();
     await liveCauseTests();
     await chatMatchTests();
+    await cleanupTests();
     await projectStatusTests();
     await mergedTests();
     await limiterTests();

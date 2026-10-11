@@ -13,7 +13,7 @@ const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 const WIDE_PX=1080,WIDE_PR_PX=1360,THROTTLE_MS=250,WATCHDOG_MS=20000;
 let rows=[],dots={},days=14,tabId='',hidden=[],open=new Set(),hv={},pend=new Set(),loaded=false,failed='',indexing=false,scan=0,lastAt=0,askedAt=0,watch=0,rtimer=0,lastRender=0,focusId='';
 const DONE_TIP='Hide this row until its git or chat state changes';
-const body=$('body');
+const body=$('body');let lastB=null;
 const pop=makePop([['srb','srm'],['shb','shm']]);
 const tipper=makeTip({bounds:()=>{const w=document.documentElement.clientWidth||window.innerWidth||400;return{left:0,right:w,width:w};},html:el=>tipPlain(el.dataset.tip||'')});
 $('srm').innerHTML='<div class="pt">Sort rows by</div>'+SORTS.map(g=>'<label class="pi"><input type="radio" name="srt" value="'+g[0]+'"><span>'+g[1]+'</span></label>').join('');
@@ -31,7 +31,7 @@ const dot=d?'<span class="dot '+esc(s)+'" role="img" aria-label="'+esc(words)+'"
 const isDone=donemap[r.id]!==undefined;
 const acts=btn('open','Open chat: '+t,'open','Open chat')+btn('handover','Copy hand-over note: '+t,hv[r.id]==='done'?'check':'copy',hvT==='Copy note'?'Copy hand-over note':hvT)+btn('find','Find in the sidebar search: '+t,'find','Find in the sidebar search')+btn('arch','Archive chat: '+t,'archive','Archive chat')
 +(isDone?btn('undone','Show again: '+t,'undone','Show this row again'):btn('done','Mark done: '+t,'done',DONE_TIP))
-+prActs(r,t)+brAct(r,t)
++prActs(r,t)+brAct(r,t)+(curAnn&&curAnn.cr&&curRk?ibtn('cua','Ask '+t+' about all of its leftovers: copy the prompt','askcopy','Ask this chat about all of its leftovers: copy one prompt that covers every branch, worktree and pull request it created',' data-k="'+esc(curRk)+'" data-m="copy"')+ibtn('cua','Ask '+t+' about all of its leftovers: open the chat','ask','Ask this chat about all of its leftovers: open the chat; the prompt is copied so you can paste it',' data-k="'+esc(curRk)+'" data-m="resume"'):'')
 +(c.retry?ibtn('fretry','Retry reading git: '+t,'retry',retryTip(gs[c.retry])||'Read git again',' data-k="'+esc(c.retry)+'"'):'')
 +(pc.retry?ibtn('fretry','Retry pull request lookup: '+t,'retry','Look up the pull request again',' data-k="'+esc(pc.retry)+'"'):'')
 +(ready&&w&&!w.main?ibtn('rm','Copy '+cw()+'remove command: '+t,'trash','Copy a '+cw()+'command that removes this finished worktree. Nothing is run.',' data-k="'+esc(w.k)+'"'):'');
@@ -45,26 +45,27 @@ exGit(r).forEach(x=>kv.push(x));kv.push(['Next step',esc(nextStep(dotOf(r.id),g)
 return '<div class="ex"><dl>'+kv.filter(x=>x[1]!=='').map(x=>'<dt>'+x[0]+'</dt><dd>'+x[1]+'</dd>').join('')+'</dl>'+exLists(r)+'</div>';}
 function visibleRows(){return rows.filter(r=>!pend.has(r.id)).concat(wtRows()).filter(r=>wsOk(r)&&(showDone||!doneOf(r)));}
 function doneCount(){return rows.filter(r=>!pend.has(r.id)&&wsOk(r)&&donemap[r.id]!==undefined&&doneOf(r)).length;}
-function chips(vis){const by=bandRows(vis,dots,bandHeld);
-$('cnt').innerHTML=['needs','finish','waiting','tidy'].map(b=>{const n=by[b].length,t=n+' '+BAND_CHIP[b],on=hidden.indexOf(b)<0;
-return '<button type="button" class="chip bc b-'+b+'" data-a="band" data-b="'+b+'" aria-pressed="'+on+'" data-tip="'+esc(on?'Click to hide these rows':'Click to show these rows')+'" aria-label="'+esc(t+(on?', shown':', hidden'))+'">'+esc(t)+'</button>';}).join('');
-const idle=hidden.indexOf('idle')<0;$('idl').setAttribute('aria-pressed',String(idle));$('idl').textContent='Show idle ('+by.idle.length+')';
+function chips(){const B=lastB,tot=B?B.tot:null,els=$('cnt');
+if(!B){els.innerHTML='';const dn0=doneCount();$('dnb').setAttribute('aria-pressed',String(showDone));$('dnb').textContent='Show done ('+dn0+')';$('dnb').hidden=!dn0&&!showDone;return;}
+const by={};BAND_ORDER.forEach(g=>{by[g]=B.shown.filter(it=>it.v.group===g).length;});
+els.innerHTML=BAND_ORDER.map(g=>{const n=by[g],on=hidden.indexOf(g)<0;if(!n&&on)return '';const t=GROUP_LABEL[g]+' '+n;
+return '<button type="button" class="chip bc b-'+g+'" data-a="band" data-b="'+g+'" aria-pressed="'+on+'" data-tip="'+esc(on?'Click to hide these rows':'Click to show these rows')+'" aria-label="'+esc(t+(on?', shown':', hidden'))+'">'+esc(t)+'</button>';}).join('')
++'<span class="tot" data-tip="Totals for this repository">'+esc(countWord(tot.br,'branch','branches')+' · '+countWord(tot.wt,'worktree')+' · '+countWord(tot.pr,'PR')+' · '+countWord(tot.ch,'chat'))+'</span>';
 const dn=doneCount();$('dnb').setAttribute('aria-pressed',String(showDone));$('dnb').textContent='Show done ('+dn+')';$('dnb').hidden=!dn&&!showDone;}
 function bodyHtml(vis,total){
 const err=failed?'<p class="msg err" role="alert">Could not load chats. '+ibtn('retry','Retry loading the chat list','retry','Retry loading the chat list')+'</p>':'';
 if(failed&&!loaded)return err;
 if(!loaded)return '<p class="msg" role="status">Loading chats...</p>';
-const k=psKey();if(!k)return err+noRepoHtml();
-const B=psBuild(k,vis),ord=psOrder(B);tabId=ord.indexOf(focusId)>=0?focusId:ord[0]||'';
-const clr=allClear(vis);
-return err+(clr?clearHtml():'')+psRepo(k,B)+(filtering()&&!B.wl.length&&!B.bl.length&&!B.pl.length&&!B.nb.length?'<p class="msg">Nothing matches these filters. <button type="button" class="ab" data-a="clearf">Clear filters</button></p>':'');}
+const k=psKey();if(!k){lastB=null;return err+noRepoHtml();}
+const B=psBuild(k,vis),ord=psOrder(B);lastB=B;tabId=ord.indexOf(focusId)>=0?focusId:ord[0]||'';
+return err+psRepo(k,B)+(filtering()&&!B.shown.length&&!B.nb.length?'<p class="msg">Nothing matches these filters. <button type="button" class="ab" data-a="clearf">Clear filters</button></p>':'');}
 function layout(){const w=document.documentElement.clientWidth||window.innerWidth||400;$('wrap').classList.toggle('wide',w>=(prsOn?WIDE_PR_PX:WIDE_PX));prsUi();}
 function ago(ms){const s=Math.floor(ms/1000);return s<10?'just now':s<60?s+' s ago':s<3600?Math.floor(s/60)+' min ago':Math.floor(s/3600)+' h ago';}
 function updText(){ghUi();$('upd').textContent=lastAt?'Updated '+ago(Date.now()-lastAt):'';$('updw').hidden=!lastAt;}
 function render(){lastRender=Date.now();
-try{const ae=document.activeElement,had=ae&&ae.classList&&ae.classList.contains('rb');moving=false;const all=visibleRows(),vis=filtered(all);layout();chips(vis);viewUi();progUi();noteUi();
+try{const ae=document.activeElement,had=ae&&ae.classList&&ae.classList.contains('rb');moving=false;const all=visibleRows(),vis=filtered(all);layout();viewUi();progUi();noteUi();
 $('ixs').hidden=!indexing;body.setAttribute('aria-busy',String(!loaded&&!failed));updText();
-body.innerHTML=bodyHtml(vis,all.length);
+const bh=bodyHtml(vis,all.length);chips();body.innerHTML=bh;
 if(refocus){const rf=document.querySelector(refocus);refocus='';if(rf&&rf.focus)rf.focus();}
 if(had&&focusId){const b=document.querySelector('.row[data-id="'+focusId+'"] .rb');if(b)b.focus();}
 if(moving&&!settleT)settle(HOLD_MS);}
@@ -103,6 +104,9 @@ else if(k==='sec'){toggleSec(a.dataset.s||'');}
 else if(k==='hxm'){const x=String(a.dataset.x||'');if(x&&x.length<=120){psMore[x]=(psMore[x]||0)+PS_STEP;render();}}
 else if(k==='hx'){const x=String(a.dataset.x||'');if(x&&x.length<=120){hxSet(x,a.dataset.on!=='1');}}
 else if(k==='showall'){hidden=[];savePrefs();clearFilters();}
+else if(k==='opc'){const c=String(a.dataset.c||'');if(/^[0-9a-f-]{8,64}$/.test(c))vs.postMessage({type:'open',id:c});}
+else if(k==='cu'){const rk=String(a.dataset.k||''),c=String(a.dataset.c||''),b=String(a.dataset.b||''),w=String(a.dataset.w||'');if(/^r\d+$/.test(rk)&&/^[0-9a-f-]{8,64}$/.test(c)&&b.length<=250&&/^[ws]?\d*$/.test(w))vs.postMessage({type:'cleanup',rk:rk,id:c,rows:[{b:b||undefined,w:w||undefined}],mode:a.dataset.m==='resume'?'resume':'copy'});}
+else if(k==='cua'){const rk=String(a.dataset.k||'');if(/^r\d+$/.test(rk)&&id)vs.postMessage({type:'cleanup',rk:rk,id:id,all:true,mode:a.dataset.m==='resume'?'resume':'copy'});}
 else if(k==='row'&&id){toggleRow(id);}
 else if(id){act(k,id);}});
 $('srb').addEventListener('click',()=>pop.toggle('srb','srm'));

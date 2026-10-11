@@ -12,7 +12,7 @@ export interface CleanItem {
   proofs: Proof[]; told?: boolean; // told: only a subagent's instructions named the folder (no tool-call receipt)
   reflog?: string; reflogAt?: number; reflogMsg?: string;
   commits: CleanCommit[]; commitTotal?: number; // commits only on this branch (not on the default branch)
-  files: string[]; fileTotal: number; unpushed: number; ahead?: number; behind?: number; def: string; gone?: boolean; missing?: boolean; read: boolean; // read false: git state not read
+  files: string[]; fileTotal: number; unpushed: number; ahead?: number; behind?: number; def: string; gone?: boolean; missing?: boolean; removed?: boolean; read: boolean; // read false: git state not read
 }
 export interface CleanIn { title: string; chatId: string; root: string; items: CleanItem[]; }
 
@@ -34,6 +34,7 @@ function receipt(p: Proof, root: string, cmd: number): string {
 }
 
 function stateLine(it: CleanItem, files: number): string {
+  if (it.removed) { return 'No longer exists: neither the branch nor the worktree folder is there any more (removed after it was created).'; }
   if (it.missing) { return 'Worktree folder is gone.'; }
   if (!it.read) { return 'Git state was not read yet.'; }
   const o: string[] = [];
@@ -45,17 +46,17 @@ function stateLine(it: CleanItem, files: number): string {
 
 function block(it: CleanItem, n: number, root: string, lv: typeof LEVELS[number]): string {
   const o: string[] = [n + ') Branch ' + (it.branch || '(none)') + (it.wt ? '; worktree ' + it.wt : '; no worktree') + '; ' + (it.pr ? 'PR #' + it.pr.n + ' ' + it.pr.text : 'no pull request')];
-  const when = it.proofs.find((x) => x.t > 0)?.t ?? (it.created ? it.created * 1000 : 0);
+  const when = it.created ? it.created * 1000 : it.proofs.find((x) => x.t > 0)?.t ?? 0;
   o.push('   Created ' + (when ? utcText(when) + ', local ' + localText(when) : 'at an unknown time'));
   if (it.proofs.length) { it.proofs.slice(0, lv.proofs).forEach((x) => o.push(receipt(x, root, lv.cmd))); }
   else { o.push('   No tool-call receipt' + (it.told ? ': a subagent was only told to use this folder.' : '.')); }
-  if (it.reflogAt) { o.push('   Branch reflog (independent proof): created ' + utcText(it.reflogAt * 1000) + ', "' + (it.reflogMsg ?? '') + '"'); }
+  if (it.reflogAt) { o.push('   Branch reflog (independent proof): first entry ' + utcText(it.reflogAt * 1000) + ', "' + (it.reflogMsg ?? '') + '"'); }
   else if (it.branch) { o.push('   Branch reflog: no creation entry found.'); }
   if (lv.commits > 0 && it.commits.length) {
     const shown = it.commits.slice(0, lv.commits), total = Math.max(it.commitTotal ?? it.commits.length, it.commits.length);
     o.push('   Commits only on this branch (' + total + '): ' + shown.map((c) => c.sha + ' ' + c.au + ' ' + c.date.slice(0, 10) + ' ' + c.subject).join(' | ') + (total > shown.length ? ' | ' + more(total - shown.length, '') : ''));
   }
-  o.push('   Now: ' + stateLine(it, lv.files) + (it.pr ? ' PR ' + it.pr.text + '.' : ''));
+  o.push('   Now: ' + stateLine(it, lv.files));
   return o.join('\n');
 }
 

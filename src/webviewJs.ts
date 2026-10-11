@@ -90,6 +90,7 @@ else if(k==='git')gitOpen(id);
 else if(k==='gfile')vs.postMessage({type:'gitFile',id:id,i:Number(a.dataset.i)});
 else if(k==='xretry'){if(ex[id])ex[id].failed=false;askExpand(id,0,false);rerender();}
 else if(k==='lretry'){const lk=a.dataset.key;delete lz[lk];lzLoad(lk);rerender();}
+else if(k==='wmore'){const wk=a.dataset.key;if(wx.has(wk))wx.delete(wk);else wx.add(wk);rerender();}
 else if(k==='gpr')vs.postMessage({type:'gitPr',id:id,n:Number(a.dataset.n)});
 else if(k==='pr')addTok('pr:'+a.dataset.n);
 else if(k==='sha')addTok('sha:'+a.dataset.s);

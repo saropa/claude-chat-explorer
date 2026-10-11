@@ -12,7 +12,12 @@ export type GitPart = 'git' | 'wt' | 'unc' | 'unp';
 export const GIT_PARTS: readonly GitPart[] = ['git', 'wt', 'unc', 'unp'];
 
 /** One worktree of the chat's repository; here marks the one the chat worked in. */
-export interface WtLive { path: string; branch: string; detached: boolean; main: boolean; missing: boolean; here: boolean; }
+export interface WtLive { path: string; branch: string; detached: boolean; main: boolean; missing: boolean; here: boolean; created?: boolean; removed?: boolean; }
+/** A worktree one of the chat's tool calls (or its subagents') created: it counts as the chat's own (here), and one no longer in the repository is listed as created, now removed. */
+export interface HintWt { path: string; branch: string; removed: boolean; }
+export interface WorkHint { created: HintWt[]; }
+/** The worktrees to list for a chat: git's list plus the created ones that are gone. */
+export const hintRemoved = (h?: WorkHint): HintWt[] => (h?.created ?? []).filter((c) => c.removed);
 /** PR as the card shows it. */
 export interface PrLive { number: number; title: string; draft: boolean; review: string; }
 export interface CommitLive { sha: string; subject: string; }
@@ -23,6 +28,7 @@ export interface GitLive {
   top?: string; branch?: string; detached?: boolean; sha?: string; noCommits?: boolean; upstream?: string; gone?: boolean; ahead: number; behind: number;
   staged: number; modified: number; untracked: number; fileTotal: number; files: FileChange[];
   worktrees: WtLive[]; prs: PrLive[]; prNote?: string; commits: CommitLive[];
+  work?: unknown; // the chat's created and mentioned work (chatWork.WorkView), attached by the host to the git part
 }
 
 /** Private part kept in the host: what a click resolves against (the panel only sends an index or a number). */
@@ -88,9 +94,9 @@ export class GitLiveService {
   constructor(private readonly exec: Exec = realExec, private readonly ghExec: Exec = realExec, private readonly cache: PrCache = new PrCache()) {}
 
   /** Never throws and never waits past the deadline; a timed-out load is aborted and released. onPartial gets the git part's first step before the PR lookup ends. */
-  load(cwd: string, part: GitPart, prs: boolean, onPartial?: Partial_): Promise<Loaded> {
+  load(cwd: string, part: GitPart, prs: boolean, onPartial?: Partial_, hint?: WorkHint): Promise<Loaded> {
     if (!cwd) { return Promise.resolve({ live: blank('none', 'No working folder is recorded for this chat') }); }
-    const key = `${cwd}|${part}|${prs}`;
+    const key = `${cwd}|${part}|${prs}|${part === 'wt' && hint ? hint.created.map((c) => c.path + (c.removed ? '-' : '+')).join(',') : ''}`;
     const hit = this.running.get(key);
     if (hit) { if (onPartial) { hit.subs.add(onPartial); } return hit.p; }
     const subs = new Set<Partial_>(onPartial ? [onPartial] : []);
@@ -98,7 +104,7 @@ export class GitLiveService {
     const clock = new LoadClock(() => { ac.abort(); fire(); });
     let fire: () => void = () => undefined;
     const late = new Promise<Loaded>((res) => { fire = () => res({ live: blank('timeout', 'Git info timed out') }); });
-    const p = Promise.race([this.run(cwd, part, prs, ac.signal, (r) => subs.forEach((f) => f(r)), clock), late]).finally(() => {
+    const p = Promise.race([this.run(cwd, part, prs, ac.signal, (r) => subs.forEach((f) => f(r)), clock, hint), late]).finally(() => {
       clock.stop();
       this.running.delete(key);
     });
@@ -106,7 +112,7 @@ export class GitLiveService {
     return p;
   }
 
-  private async run(cwd: string, part: GitPart, prs: boolean, signal: AbortSignal, onPart: Partial_, clock: LoadClock): Promise<Loaded> {
+  private async run(cwd: string, part: GitPart, prs: boolean, signal: AbortSignal, onPart: Partial_, clock: LoadClock, hint?: WorkHint): Promise<Loaded> {
     try {
       const ctx: Ctx = { exec: clock.wrap(this.exec), ghExec: clock.wrap(this.ghExec), gitMs: GIT_MS, ghMs: GH_MS, flags: { gitMissing: false }, signal };
       const f = await probe(ctx, cwd);
@@ -114,7 +120,7 @@ export class GitLiveService {
       if (f.state !== 'ok' || !f.top) { return { live: f.state === 'unavailable' ? blank('error', `Git is unavailable: ${f.reason ?? 'error'}`) : blank('none', NONE[f.state]) }; }
       if (part === 'unc') { return await this.uncommitted(ctx, f); }
       if (part === 'unp') { return await this.unpushed(ctx, f); }
-      if (part === 'wt') { return await this.worktrees(ctx, f); }
+      if (part === 'wt') { return await this.worktrees(ctx, f, hint); }
       return await this.gitPart(ctx, f, prs, onPart);
     } catch (e) {
       return fail(e instanceof Error ? e.message : 'error');
@@ -140,10 +146,15 @@ export class GitLiveService {
     return { live: { ...this.base(f), upstream: t.upstream, ahead: t.ahead, commits: c } };
   }
 
-  private async worktrees(ctx: Ctx, f: FolderFacts): Promise<Loaded> {
+  private async worktrees(ctx: Ctx, f: FolderFacts, hint?: WorkHint): Promise<Loaded> {
     const repo = await repoOf(ctx, f.common ?? f.top!, f.top!);
     if (typeof repo === 'string') { return fail(repo); }
-    return { live: { ...this.base(f), worktrees: repo.worktrees.map((w) => ({ ...w, here: samePath(w.path, f.top!) })) } };
+    const norm = (x: string): string => { try { return fs.realpathSync(path.resolve(x)); } catch { return path.resolve(x); } };
+    const made = new Set((hint?.created ?? []).filter((c) => !c.removed).map((c) => norm(c.path)));
+    const listed = repo.worktrees.map((w): WtLive => { const mine = made.has(norm(w.path)); return { ...w, here: samePath(w.path, f.top!) || mine, ...(mine ? { created: true } : {}) }; });
+    const gone = hintRemoved(hint).filter((c) => !listed.some((w) => norm(w.path) === norm(c.path)))
+      .map((c): WtLive => ({ path: c.path, branch: c.branch, detached: !c.branch, main: false, missing: true, here: true, created: true, removed: true }));
+    return { live: { ...this.base(f), worktrees: listed.concat(gone) } };
   }
 
   /** Branch, upstream and ahead/behind first (cheap), then the PR lookup; the PR step's failure only sets prNote. */

@@ -12,6 +12,8 @@ const MAX_PER_CMD = 4;
 const MAX_VALUE = 300;
 export const RECEIPT_CMD_CAP = 300;
 const BRANCH_OK = /^[\p{L}\p{N}_.\/+@#-]{1,200}$/u;
+/** What names a commit rather than a folder: a remote branch, a ref, HEAD. */
+const START_POINT = /^(?:origin|upstream|refs|remotes)\/|^(?:HEAD|FETCH_HEAD|ORIG_HEAD)(?:[~^@].*)?$/;
 const UNRESOLVED = /[$`<>*?{}\\]/; // shell text that is not a literal name: a variable, a substitution, a glob
 
 /** Split one command line into simple commands at && || ; | and newlines (outside quotes) and words (quotes removed). */
@@ -68,12 +70,14 @@ function gitArgs(words: string[], cwd: string): { a: string[]; dir: string } | u
  *  and is never a path, even when the path itself is not literal ("$W") and so could not be kept. */
 function worktreeAdd(a: string[], out: Made[], dir: string): void {
   let wt = '', seen = false;
+  const pos: string[] = [];
   for (let i = 0; i < a.length; i++) {
     const v = a[i];
     if (v === '-b' || v === '-B') { const b = keepBranch(a[++i]); if (b) { out.push(['b', b]); } }
     else if (v === '--reason') { i++; }
-    else if (!v.startsWith('-') && !seen) { seen = true; wt = keepPath(v); }
+    else if (!v.startsWith('-')) { pos.push(v); if (!seen) { seen = true; wt = keepPath(v); } }
   }
+  if (pos.length > 1 && START_POINT.test(pos[0])) { wt = ''; } // `worktree add origin/main ../x` is the arguments the wrong way round: git rejects it, so no folder was made
   if (wt) { out.push(['w', dir ? resolveIn(dir, wt) : wt]); }
 }
 

@@ -1,10 +1,13 @@
 /** Gathers the live sections of the hand-over note (the same services as the chat card). No vscode dependency. */
 import { GitLiveService, GitPart, withDeadline } from './gitLive';
 import { HandoverLive } from './handover';
+import type { ChatWorkFacts } from './chatWork';
 
 export interface LiveDeps {
   request: (m: { [k: string]: unknown }) => Promise<any>; log: (where: string, e: unknown) => void;
   folders: () => string[]; prsOn: () => boolean; gitLive: Pick<GitLiveService, 'load'>;
+  /** Resolves the chat's folder through the shared matcher (chatWork); absent or failing, the chat's last cwd is used. */
+  work?: (id: string) => Promise<ChatWorkFacts>;
 }
 
 /** One overall budget for every live section; whatever has not arrived by then is written as not available. */
@@ -13,10 +16,12 @@ export const HANDOVER_LIVE_MS = 5000;
 /** Gather the card's Git, Uncommitted, Unpushed, Worktrees and Related parts in parallel; never throws, never waits past the budget. */
 export async function gatherLive(id: string, d: LiveDeps, budgetMs = HANDOVER_LIVE_MS): Promise<HandoverLive> {
   const out: HandoverLive = { prsOn: d.prsOn() };
-  const cwd = d.request({ t: 'chatCwd', chat: id, folders: d.folders() }).then((c) => (typeof c === 'string' ? c : ''));
+  const last = (): Promise<string> => d.request({ t: 'chatCwd', chat: id, folders: d.folders() }).then((c) => (typeof c === 'string' ? c : ''));
+  const facts: Promise<ChatWorkFacts | undefined> = d.work ? d.work(id).catch((e) => { d.log('hand-over folder', e); return undefined; }) : Promise.resolve(undefined);
+  const cwd = facts.then((f) => (f?.cwd ? f.cwd : last()));
   const part = async (p: GitPart): Promise<void> => {
     const onPartial = p === 'git' ? (x: { live: NonNullable<HandoverLive['git']> }): void => { out.git = x.live; } : undefined;
-    const r = await d.gitLive.load(await cwd, p, p === 'git' && out.prsOn === true, onPartial);
+    const r = await d.gitLive.load(await cwd, p, p === 'git' && out.prsOn === true, onPartial, (await facts)?.hint);
     out[p] = r.live;
     if (p === 'git') { out.prUrls = r.targets?.urls; }
   };

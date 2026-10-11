@@ -1,6 +1,7 @@
 import { git, Ctx } from './wipGit';
 import { Exec, OVERFLOW, realExec } from './wipExec';
-import { GIT_DEADLINE_MS, GitLiveService, withDeadline } from './gitLive';
+import { GIT_DEADLINE_MS, GitLiveService, TIMED_OUT, withDeadline } from './gitLive';
+import type { ChatWorkFacts } from './chatWork';
 
 const GIT_MS = 5000;
 const CACHE_MS = 30000;
@@ -14,6 +15,8 @@ export interface CountDeps {
   prsOn: () => boolean;
   post: (m: { [k: string]: unknown }) => void;
   log: (what: string, e: unknown) => void;
+  /** Resolves the chat's folder through the shared matcher (chatWork); absent, or failing, the chat's last cwd is used. */
+  work?: (id: string) => Promise<ChatWorkFacts>;
 }
 
 /** Entries of `git status --porcelain=v1 -z`; the extra path after a rename or copy is not counted. */
@@ -43,15 +46,20 @@ export class CardCounts {
   async run(id: string, rq: number): Promise<void> {
     const put = (part: CountPart, n: number | null): void => this.d.post({ type: 'counts', id, rq, part, n });
     const rel = this.cached(`rel|${id}`, () => this.related(id)).then((n) => put('rel', n));
-    let cwd = '';
+    let cwd = '', facts: ChatWorkFacts | undefined;
     try {
-      const c = await withDeadline(this.d.request({ t: 'chatCwd', chat: id, folders: this.d.folders() }), GIT_DEADLINE_MS);
-      cwd = typeof c === 'string' ? c : '';
+      if (this.d.work) { const w = await withDeadline(this.d.work(id), GIT_DEADLINE_MS); if (w !== TIMED_OUT) { facts = w; cwd = w.cwd; } }
+      if (!cwd) {
+        const c = await withDeadline(this.d.request({ t: 'chatCwd', chat: id, folders: this.d.folders() }), GIT_DEADLINE_MS);
+        cwd = typeof c === 'string' ? c : '';
+      }
     } catch (e) { this.d.log('counts folder', e); }
     if (!cwd) { put('unc', null); put('unp', null); put('wt', null); put('git', null); await rel; return; }
-    const one = (part: 'unc' | 'unp' | 'wt'): Promise<void> => this.cached(`${part}|${cwd}`, () => this.count(cwd, part)).then((n) => put(part, n));
+    const gone = facts?.removedCreated ?? 0; // created worktrees that are gone are listed in the Worktrees section too
+    const one = (part: 'unc' | 'unp' | 'wt'): Promise<void> => this.cached(`${part}|${cwd}|${part === 'wt' ? gone : ''}`, () => this.count(cwd, part).then((n) => (part === 'wt' && n !== null ? n + gone : n))).then((n) => put(part, n));
     await Promise.all([rel, one('unc'), one('unp'), one('wt')]);
-    put('git', await this.cached(`git|${cwd}|${this.d.prsOn()}`, () => this.prs(cwd)));
+    const extraPrs = facts?.prNumbers ?? [];
+    put('git', await this.cached(`git|${cwd}|${this.d.prsOn()}|${extraPrs.join(',')}`, () => this.prs(cwd, extraPrs)));
   }
 
   /** One in-flight promise per key (shared); only a success is kept for 30 s, a failure or timeout is not. */
@@ -89,10 +97,10 @@ export class CardCounts {
   }
 
   /** Open pull requests of the chat's branch; null when lookups are off or failed (no pill). */
-  private async prs(cwd: string): Promise<number | null> {
+  private async prs(cwd: string, also: number[] = []): Promise<number | null> {
     if (!this.d.prsOn()) { return null; }
     const r = await this.live.load(cwd, 'git', true);
     const l = r.live;
-    return l.state === 'ok' && !l.prPending && !l.prNote && l.branch ? l.prs.length : null;
+    return l.state === 'ok' && !l.prPending && !l.prNote && l.branch ? new Set([...l.prs.map((p) => p.number), ...also]).size : null;
   }
 }

@@ -32,6 +32,7 @@ function fakeGit(world, o) {
     if (a.startsWith('for-each-ref')) { return OKRES(a.includes('%09%(upstream:track)') ? r.repo.branches || '' : r.repo.merged); }
     if (a.startsWith('rev-list --count')) { return OKRES('0\n'); }
     if (a.startsWith('rev-list --left-right --count')) { const b = /refs\/heads\/(.+)$/.exec(a); const d = (r.repo.diverge && b && r.repo.diverge[b[1]]) || [0, 0]; return OKRES(d[1] + '\t' + d[0] + '\n'); } // behind TAB ahead of the default branch
+    if (a.startsWith('rev-list --max-count') && a.includes('%an')) { return OKRES('commit 1111111\n1111111\tAda\t2026-10-11T01:02:03+00:00\tfirst unique commit\ncommit 2222222\n2222222\tAda\t2026-10-11T02:02:03+00:00\tsecond unique commit\n'); }
     if (a.startsWith('rev-list --max-count')) { return OKRES('commit abc\nabc1234\tfirst commit\ncommit def\ndef5678\tsecond\n'); }
     return { code: 1, stdout: '', stderr: 'unexpected ' + a, timedOut: false, aborted: false };
   };
@@ -76,11 +77,15 @@ function contactsWorld() {
   const chat = (n, o) => { const c = Object.assign({ id: id(n), dir: '-w-contacts', title: 'Chat ' + n, first: T0, last: T0 + H, mtime: T0, size: 1, count: 4, files: [], rec: 'rec' + n, len: 1, cwd: C, bloom: buildBloom('') }, o || {}); texts.set(c.rec, ''); chats.push(c); subs.set(c.id, []); return c; };
   const sub = (p, aid, o) => { const c = Object.assign({ id: aid, dir: p.dir, parent: p.id, title: 'sub', first: p.first, last: p.last, mtime: 1, size: 1, count: 2, files: [], rec: 'sub' + aid, len: 1, cwd: C, bloom: buildBloom(''), desc: 'Agent ' + aid.slice(0, 4) }, o || {}); texts.set(c.rec, ''); subs.get(p.id).push(c); return c; };
   const say = (c, t) => { texts.set(c.rec, t); c.bloom = buildBloom(t.toLowerCase()); };
+  // A receipt: when the tool call ran (ms), its tool_use id, the exact command and the line of the transcript file.
+  const rc = (n, cmd, l) => ({ t: T0 + n * H + 12345, u: 'toolu_01FAKE' + String(n).padStart(4, '0'), c: cmd, l });
   const c1 = chat(1, { title: 'Pro rollout', first: T0 + 1 * H, last: T0 + 9 * H });
-  sub(c1, 'a1111111111111111', { made: [['w', '../contacts-wt-connection-icon'], ['b', 'feat/saropa-connection-cloud-icon-search']] });
+  const rcIcon = rc(2, 'git worktree add ../contacts-wt-connection-icon -b feat/saropa-connection-cloud-icon-search origin/main', 4218);
+  sub(c1, 'a1111111111111111', { made: [['w', '../contacts-wt-connection-icon', rcIcon], ['b', 'feat/saropa-connection-cloud-icon-search', rcIcon]] });
   sub(c1, 'a2222222222222222', { made: [['b', 'backup/main-before-merge-20261010_2142']] });
   const c2 = chat(2, { title: 'Nudge once', cwds: [C, C + '-wt-nudge-once'], cwd: C + '-wt-nudge-once', seen: ['main', 'fix/login-reminder-dot-fires-once'], first: T0 + 2 * H, last: T0 + 6 * H });
-  const c3 = chat(3, { title: 'Pro pill gaps', made: [['b', 'feat/pro-pill-gaps'], ['w', C + '-wt-pro-pill-gaps']], first: T0 + 3 * H, last: T0 + 7 * H });
+  const rcPill = rc(4, 'git worktree add /w/contacts-wt-pro-pill-gaps -b feat/pro-pill-gaps HEAD', 77);
+  const c3 = chat(3, { title: 'Pro pill gaps', made: [['b', 'feat/pro-pill-gaps', rcPill], ['w', C + '-wt-pro-pill-gaps', rcPill]], first: T0 + 3 * H, last: T0 + 7 * H });
   const c4 = chat(4, { title: 'Unused keys', first: T0 + 4 * H, last: T0 + 8 * H });
   sub(c4, 'a4444444444444444', { cwd: C + '-wt-unused-keys', seen: ['unused-arb-keys'] });
   const c5 = chat(5, { title: 'Agent parent', first: T0 + 5 * H, last: T0 + 6 * H });
@@ -93,7 +98,8 @@ function contactsWorld() {
   // and which ran `git worktree add ../contacts-wt-langv2 origin/main` (a relative path); another repository's chat only names the worktree; a chat holds just the owner's question.
   const LV = '22eb3898-19ee-4316-be07-d87a8384586d', LQ = 'Find the claude chat that created contacts-wt-langv2 and the branches langv2-final and langv2-spare-branch';
   const cLv = chat(9, { id: LV, title: 'Language rule design', first: T0 + 200 * H, last: T0 + 210 * H });
-  sub(cLv, 'aeb797a22e217fd5e', { made: [['i', C + '-wt-langv2'], ['w', '../contacts-wt-langv2'], ['b', 'langv2-final'], ['b', 'langv2-spare-branch']] });
+  const rcLv = rc(201, 'git worktree add ../contacts-wt-langv2 -b langv2-final origin/main', 31), rcSp = rc(202, 'git branch langv2-spare-branch origin/main', 35);
+  sub(cLv, 'aeb797a22e217fd5e', { made: [['i', C + '-wt-langv2'], ['w', '../contacts-wt-langv2', rcLv], ['b', 'langv2-final', rcLv], ['b', 'langv2-spare-branch', rcSp]] });
   const cMen = chat(10, { id: id(10), title: 'Explorer matcher', dir: '-w-explorer', cwd: '/w/claude-chat-explorer', first: T0 + 205 * H, last: T0 + 212 * H });
   say(cMen, 'The worktree contacts-wt-langv2 and its branches langv2-final and langv2-spare-branch belong to another repository; I only read about them.');
   const cQ = chat(11, { title: 'Who made it', first: T0 + 215 * H, last: T0 + 216 * H, roles: [0], ends: [LQ.length] });

@@ -56,7 +56,7 @@ function createHarness(opt) {
   const h = { page, errors, fail, clock: mkClock(), posted: [], listeners: { window: {}, document: {} } };
   if (!m) { console.error('check ' + name + ': no <script> found in the page'); process.exit(1); }
   h.script = m[1];
-  h.check = (what, cond) => { if (!cond) { fail(what, 'expected output missing'); } };
+  h.check = (what, cond) => { if (!cond) { fail(what, 'expected output missing'); if (process.env.DBGAT && what.includes(process.env.DBGAT) && h.els) { console.log('--- ' + what + '\n' + String(h.els.get('body').innerHTML).replace(/ (data-tip|title|aria-label)="[^"]*"/g, '').replace(/<svg[^]*?<\/svg>/g, '').slice(0, Number(process.env.DBGLEN) || 3000)); } } };
   h.step = (what, fn) => { try { fn(); } catch (e) { fail(what, e); } };
   try { new vm.Script(h.script, { filename: name + '.js' }); } catch (e) { fail('syntax', e); h.syntaxFailed = true; }
 
