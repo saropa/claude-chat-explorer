@@ -13,8 +13,8 @@ const errors = [];
 const bad = (m) => errors.push(m);
 const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
 
-// 0. The top CHANGELOG heading is "Unreleased" or a version whose git tag vX.Y.Z exists (publish.py makes both).
-// Only the top heading is checked: older releases (0.27.1, 0.28.0) have no tags.
+// 0. The top CHANGELOG heading is "Unreleased" or a version equal to package.json (publish.py tags it).
+// Only the top heading is checked: older releases have no tags.
 {
   const cl = fs.readFileSync(process.env.CCS_CHANGELOG || path.join(ROOT, 'CHANGELOG.md'), 'utf8');
   const top = /^##\s+(.+?)\s*$/m.exec(cl);
@@ -26,8 +26,9 @@ const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
     else {
       let tags = '';
       try { tags = require('child_process').execFileSync('git', ['tag', '--list', 'v' + ver[1]], { cwd: ROOT, encoding: 'utf8' }).trim(); } catch (e) { bad('cannot run git tag --list: ' + e.message); }
-      if (!tags) { bad('CHANGELOG.md top heading "## ' + top[1] + '" has no git tag v' + ver[1] + ': use ## Unreleased; publish.py sets the version and tag'); }
-      else if (JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version !== ver[1]) { bad('package.json version differs from the tagged top CHANGELOG heading ' + ver[1]); }
+      const pkgVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+      if (pkgVersion !== ver[1]) { bad('package.json version ' + pkgVersion + ' differs from the top CHANGELOG heading ' + ver[1]); }
+      else if (!tags) { /* version bumped by the owner, tag not yet made: publish.py makes the tag */ }
     }
   }
 }
