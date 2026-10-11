@@ -2,7 +2,7 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
-## Unreleased
+## 0.27.0
 - Changed: Info (search tips), Sort and Status filter icons moved from the search row to the view title bar, next to Open Work. Each opens a quick pick (the current sort and the number of hidden statuses show in its placeholder). The search box now uses the full row width.
 - Removed: the in-panel tips, sort and filter popovers, and the "changed" dots on the sort and filter buttons.
 

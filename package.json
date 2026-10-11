@@ -2,7 +2,7 @@
   "name": "claude-chat-explorer",
   "displayName": "Saropa Chat Explorer",
   "description": "Search your AI agent chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
