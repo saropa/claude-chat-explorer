@@ -84,7 +84,7 @@
       },
       {
         "command": "saropaChatExplorer.fileSessions.show",
-        "title": "Saropa: Related Chats"
+        "title": "Saropa: Find Related Chats"
       },
       {
         "command": "claudeChatExplorer.clearHistory",

@@ -3,6 +3,9 @@
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
 ## 0.31.0
+- Changed: the file menu command is titled "Saropa: Find Related Chats" (was "Saropa: Related Chats").
+
+## 0.31.0
 - Fixed: `file:<path>` finds chats that only mention the path in text or commands (untracked files, prose), not just chats whose tool file fields held it.
 - Changed: search ranking decays the whole score with age (smoothly, never below 30%), so recent and live chats come first among comparable matches.
 
