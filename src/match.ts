@@ -1,4 +1,4 @@
-import { mayHave } from './bloom';
+import { gramsOf, mayHave } from './bloom';
 import { startOf } from './blob';
 import { gitMatched } from './gitMatch';
 import { Chat, Compiled, Ctx, Rec, Token } from './types';
@@ -14,15 +14,29 @@ export function scoreOf(title: string, terms: RegExp[], weightSum: number, last:
   let titleScore = n * 1000 + (n > 0 && perTerm.every((c) => c > 0) ? 5000 : 0);
   const age = Math.max(0, (now - last) / DAY);
   titleScore *= 0.5 + 0.5 / (1 + age / 30);
-  return titleScore + Math.min(900, weightSum * 10);
+  // Whole score decays smoothly with age (1 now, 0.5 at 90 days, floor 0.3) so recent chats lead comparable matches.
+  const recency = 0.3 + 0.7 / (1 + age / 90);
+  return (titleScore + Math.min(900, weightSum * 10)) * recency;
 }
 
 export const weightAt = (ts: number, now: number): number => 1 / (1 + Math.max(0, (now - ts) / DAY) / 30);
 
+/** True when the record text or a command mentions the (lowercased) path, with either slash direction. */
+function textMentions(rec: Rec, v: string): boolean {
+  const alt = v.replace(/\//g, '\\');
+  const lower = rec.text.toLowerCase();
+  return lower.includes(v) || lower.includes(alt) || rec.cmds.some((x) => { const l = x.toLowerCase(); return l.includes(v) || l.includes(alt); });
+}
+
 /** Files, commands, tags or git facts matched by one token (case-insensitive substring; tags exact, of tagId); commands only inside win. */
 export function matchedBy(c: Chat, rec: Rec | undefined, t: Token, ctx: Ctx, tagId: string, win?: Win): string[] {
   const has = (s: string) => s.toLowerCase().includes(t.value);
-  if (t.kind === 'file') { return c.files.filter((f) => has(f.path)).map((f) => f.path); }
+  if (t.kind === 'file') {
+    const hit = c.files.filter((f) => has(f.path)).map((f) => f.path);
+    if (hit.length || !rec) { return hit; }
+    // Fallback: the path is only mentioned (untracked file, prose, Bash), never a tool file field.
+    return textMentions(rec, t.value) ? [t.value] : [];
+  }
   if (t.kind === 'edited') { return c.files.filter((f) => f.edited && has(f.path)).map((f) => f.path); }
   if (t.kind === 'cmd') { return rec ? rec.cmds.filter((x, i) => has(x) && (!win || inWin(win, rec, rec.cmdAt[i]))) : []; }
   if (t.kind === 'sha' || t.kind === 'pr' || t.kind === 'branch') { return gitMatched(c, t); }
@@ -88,12 +102,14 @@ function tokenSnippet(c: Compiled, found: string[][]): { snippet: string; ranges
  */
 export function matchChat(c: Chat, cmp: Compiled, ctx: Ctx, tagId: string, load: (c: Chat) => Rec, now: number, winOf?: WinOf): Hit | null {
   const cheap = cmp.tokens.map((t) => (t.kind === 'cmd' ? [] : matchedBy(c, undefined, t, ctx, tagId)));
-  if (cmp.tokens.some((t, i) => t.kind !== 'cmd' && !cheap[i].length)) { return null; }
+  // A file: token with no file-field hit falls back to the text, if the bloom says the path could be there.
+  const textFile = cmp.tokens.map((t, i) => t.kind === 'file' && !cheap[i].length);
+  if (cmp.tokens.some((t, i) => t.kind !== 'cmd' && !cheap[i].length && !(textFile[i] && mayHave(c.bloom, gramsOf(t.value))))) { return null; }
   if (cmp.grams.length && !mayHave(c.bloom, cmp.grams)) { return null; }
-  const need = cmp.terms.length > 0 || cmp.tokens.some((t) => t.kind === 'cmd');
+  const need = cmp.terms.length > 0 || cmp.tokens.some((t, i) => t.kind === 'cmd' || textFile[i]);
   const rec = need ? load(c) : undefined; // file:, edited: and tag: alone never touch the store
   const win = rec ? winOf?.(rec) : undefined;
-  const found = cmp.tokens.map((t, i) => (t.kind === 'cmd' ? matchedBy(c, rec, t, ctx, tagId, win) : cheap[i]));
+  const found = cmp.tokens.map((t, i) => (t.kind === 'cmd' || textFile[i] ? matchedBy(c, rec, t, ctx, tagId, win) : cheap[i]));
   if (found.some((f) => !f.length)) { return null; }
   const body = rec ? scanBody(rec, cmp.terms, now, win) : { counts: [], weightSum: 0, msg: -1, idx: -1, mc: 0 };
   if (body.counts.some((n) => n === 0)) { return null; }

@@ -2,6 +2,10 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## 0.31.0
+- Fixed: `file:<path>` finds chats that only mention the path in text or commands (untracked files, prose), not just chats whose tool file fields held it.
+- Changed: search ranking decays the whole score with age (smoothly, never below 30%), so recent and live chats come first among comparable matches.
+
 ## 0.30.0
 - Changed: the sidebar chat card matches a chat to its branches, worktrees and pull requests with the same matcher as Project status. The folder the card reads is the worktree the chat (or one of its subagents) created, else the worktree it ran in, else the one for the branch its rows record, else its last folder as before. Counts, the Git, Worktrees sections and the hand-over note use that folder; the pull request is looked up for that branch in that repository.
 - Added: the Git section of a chat card shows "Created by: created branch X at <local time>", a "Made here (N)" list of every branch and worktree the chat or its subagents created (live ones, and ones "created, now removed"), "Also used" worktrees and branches, and a collapsed "Mentions only (N)" row for names the chat only mentions. A row tooltip shows the command, tool_use id and transcript line. A chat that created something never shows a blank branch area.
