@@ -35,6 +35,7 @@ export interface OpenWorkDeps {
   resume: (id: string) => Promise<void>;
   copyNote: (id: string, state: (id: string, s: 'busy' | 'done' | '') => void) => Promise<void>;
   setArchived: (id: string, on: boolean) => Promise<void>;
+  setPinned: (id: string, on: boolean) => Promise<void>;
   find: (query: string) => Promise<void>;
   poke: () => void; // read the live state again
   log: (where: string, e: unknown) => void;
@@ -294,6 +295,7 @@ export class OpenWork {
     else if (m.type === 'handover') { await this.d.copyNote(id, (cid, state) => this.post({ type: 'handoverState', id: cid, state })); }
     else if (m.type === 'find') { await this.find(id); }
     else if (m.type === 'archive') { await this.archive(id, m.on !== false); }
+    else if (m.type === 'pin') { await this.d.setPinned(id, m.on !== false); }
     else if (m.type === 'done') { await this.markDone(id, m.on !== false, m.fp); }
   }
 

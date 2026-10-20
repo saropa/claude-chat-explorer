@@ -131,6 +131,14 @@
         "title": "Unarchive Chat"
       },
       {
+        "command": "saropaChatExplorer.pin",
+        "title": "Pin Chat"
+      },
+      {
+        "command": "saropaChatExplorer.unpin",
+        "title": "Unpin Chat"
+      },
+      {
         "command": "saropaChatExplorer.markRead",
         "title": "Mark as Read"
       }
@@ -205,6 +213,16 @@
           "group": "saropaChatExplorer@1"
         },
         {
+          "command": "saropaChatExplorer.pin",
+          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat' && !ccsPinned",
+          "group": "saropaChatExplorer@1"
+        },
+        {
+          "command": "saropaChatExplorer.unpin",
+          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat' && ccsPinned",
+          "group": "saropaChatExplorer@1"
+        },
+        {
           "command": "saropaChatExplorer.markRead",
           "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat' && ccsUnread",
           "group": "saropaChatExplorer@2"
@@ -229,6 +247,14 @@
         },
         {
           "command": "saropaChatExplorer.unarchive",
+          "when": "false"
+        },
+        {
+          "command": "saropaChatExplorer.pin",
+          "when": "false"
+        },
+        {
+          "command": "saropaChatExplorer.unpin",
           "when": "false"
         },
         {

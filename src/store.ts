@@ -114,9 +114,10 @@ export class Store {
   get advOpen(): boolean { return this.read<boolean>(ADV_OPEN_KEY) === true; }
   setAdvOpen(open: boolean): void { this.w.put(ADV_OPEN_KEY, !!open); }
 
-  async togglePin(id: string): Promise<void> {
+  async togglePin(id: string): Promise<void> { await this.setPinned(id, !this.pins[id]); }
+  async setPinned(id: string, on: boolean): Promise<void> {
     const p = { ...this.pins };
-    if (p[id]) { delete p[id]; } else { p[id] = Date.now(); }
+    if (on) { p[id] = p[id] ?? Date.now(); } else { delete p[id]; }
     await this.ctx.globalState.update(PIN_KEY, p);
   }
   async addTag(id: string, raw: string): Promise<void> {

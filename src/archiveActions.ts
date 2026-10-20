@@ -17,6 +17,11 @@ export class ArchiveActions {
     this.hooks.changed();
   }
 
+  async setPinned(id: string, on: boolean): Promise<void> {
+    await this.store.setPinned(id, on);
+    this.hooks.changed();
+  }
+
   /** Archive many chats at once and refresh the panel once; returns how many were newly archived. */
   async archiveMany(ids: string[]): Promise<number> {
     const { added } = await this.store.addArchived(ids);
@@ -53,6 +58,8 @@ export function registerArchiveCommands(a: ArchiveActions): vscode.Disposable[] 
   return [
     on('saropaChatExplorer.archive', (id) => a.setArchived(id, true)),
     on('saropaChatExplorer.unarchive', (id) => a.setArchived(id, false)),
+    on('saropaChatExplorer.pin', (id) => a.setPinned(id, true)),
+    on('saropaChatExplorer.unpin', (id) => a.setPinned(id, false)),
     on('saropaChatExplorer.markRead', (id) => a.markRead(id)),
     vscode.commands.registerCommand('saropaChatExplorer.importArchived', () => a.importArchived()),
   ];

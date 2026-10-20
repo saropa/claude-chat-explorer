@@ -41,7 +41,7 @@ return '<div class="hd">'+(decorated(r)?dotHtml(r.id):'<span class="dot none" ar
 +'<button class="ic'+(op?' on':'')+'" data-a="exp" data-tip="'+(op?'Hide details':'Details')+'" aria-label="'+(op?'Hide details':'Details')+'" aria-expanded="'+op+'">'+CHEV+'</button></div>';}
 function rowHtml(r){
 const now=Date.now(),op=open.has(r.id),ia=arch.has(r.id);
-return '<div class="r'+(op?' open':'')+(ia?' arc':'')+(r.id===curId?' cur':'')+'" data-id="'+esc(r.id)+'" data-vscode-context="'+esc(JSON.stringify({webviewSection:'chat',id:r.id,ccsArchived:ia,ccsUnread:(dots[r.id]||{}).s==='unread'}))+'" tabindex="0"><div class="rh">'
+return '<div class="r'+(op?' open':'')+(ia?' arc':'')+(r.id===curId?' cur':'')+'" data-id="'+esc(r.id)+'" data-vscode-context="'+esc(JSON.stringify({webviewSection:'chat',id:r.id,ccsArchived:ia,ccsPinned:pins.has(r.id),ccsUnread:(dots[r.id]||{}).s==='unread'}))+'" tabindex="0"><div class="rh">'
 +hdHtml(r,op)+metaHtml(r,now)+'<span class="chips">'+(op?'':(decorated(r)?chips(r.id):'')+tagInput(r.id))+'</span>'+sxHtml(r)+'</div>'+(op?exHtml(r):'')+'</div>';}
 function groupsHtml(a){const now=Date.now(),g={};
 a.forEach(r=>{const k=dayBucket(stamp(r),now);(g[k]=g[k]||[]).push(r);});

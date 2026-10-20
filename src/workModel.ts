@@ -142,7 +142,8 @@ export function nextStep(dot: string, g?: any): string {
 export function rowCmp(mode?: string): (a: any, b: any) => number {
   const byLast = (a: any, b: any): number => b.last - a.last;
   const text = (k: string) => (a: any, b: any): number => String(a[k] || '').toLowerCase().localeCompare(String(b[k] || '').toLowerCase()) || byLast(a, b);
-  return mode === 'name' ? text('title') : byLast;
+  const base = mode === 'name' ? text('title') : byLast;
+  return (a: any, b: any): number => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || base(a, b); // pinned chats first
 }
 
 /** Rows by band (newest first unless sort says otherwise); every band is present, empty or not. bandFn(row, dot) places a row (the page uses it to hold rows still while they are hovered). */

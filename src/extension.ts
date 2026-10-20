@@ -409,7 +409,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
     showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { ctx.subscriptions.push(hub.on('indexed', fn), hub.on('changed', fn)); } });
   registerOpenWork(ctx, new OpenWork(ctx, hub, { softRequest: (m) => client!.request(m as Parameters<WorkerClient['request']>[0], true, true), pins: () => Object.keys(store!.pins),
     archived: () => [...store!.archived], dots: () => provider.watcher?.dots ?? {}, resume: (id) => provider.resume(id), copyNote: (id, state) => provider.copyNote(id, state),
-    setArchived: (id, on) => provider.actions!.setArchived(id, on), find: (q) => provider.showQuery(q), poke: () => provider.watcher?.poke(), log: logErr,
+    setArchived: (id, on) => provider.actions!.setArchived(id, on), setPinned: (id, on) => provider.actions!.setPinned(id, on), find: (q) => provider.showQuery(q), poke: () => provider.watcher?.poke(), log: logErr,
     scan: new WorkScan({ exec: realExec, limiter, workspace: firstFolder, log: logErr, prsOn, prs: new WorkPrs({ exec: realExec, limiter: ghLimiter, cache: prCache, log: logErr }) }), workspace: firstFolder, prsOn }));
   registerDiagnostics(ctx, (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), String(ctx.extension?.packageJSON?.version ?? 'unknown'), () => done, () => provider.watcher?.info, () => provider.watcher, () => warner.atOrAbove80);
   provider.watcher.start();

@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## [Unreleased]
+- Added: Pin Chat and Unpin Chat commands in the chat row context menu, and a pin button next to Archive on the Project Status page. Pinned chats list first there, as they already do in the sidebar and results. Pins are stored as before.
+
 ## 0.33.0
 - Added: "Work week (Mon-Sun)" in chats active during keeps the old this-week behavior (since Monday 00:00); "this week" stays the rolling last 7 days.
 - Changed: "this week" in chats active during is now the rolling last 7 days (was since Monday 00:00), for active and archived chats alike.

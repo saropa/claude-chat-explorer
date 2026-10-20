@@ -28,7 +28,7 @@ const label=t+', '+(r.project||'no folder')+(stTxt?', '+stTxt:'')+(age?', active
 const hvT=hv[r.id]==='busy'?'Copying...':hv[r.id]==='done'?'Copied':'Copy note';
 const dot=d?'<span '+dotAttrs(d)+' role="img" aria-label="'+esc(words)+'"></span>':'<span class="dot none" aria-hidden="true"></span>';
 const isDone=donemap[r.id]!==undefined;
-const acts=btn('open','Open chat: '+t,'open','Open chat')+btn('handover','Copy hand-over note: '+t,hv[r.id]==='done'?'check':'copy',hvT==='Copy note'?'Copy hand-over note':hvT)+btn('find','Find in the sidebar search: '+t,'find','Find in the sidebar search')+btn('arch','Archive chat: '+t,'archive','Archive chat')
+const acts=btn('open','Open chat: '+t,'open','Open chat')+btn('handover','Copy hand-over note: '+t,hv[r.id]==='done'?'check':'copy',hvT==='Copy note'?'Copy hand-over note':hvT)+btn('find','Find in the sidebar search: '+t,'find','Find in the sidebar search')+btn('pin',(r.pinned?'Unpin chat: ':'Pin chat: ')+t,'pin',r.pinned?'Unpin chat':'Pin chat')+btn('arch','Archive chat: '+t,'archive','Archive chat')
 +(isDone?btn('undone','Show again: '+t,'undone','Show this row again'):btn('done','Mark done: '+t,'done',DONE_TIP))
 +prActs(r,t)+brAct(r,t)+(curAnn&&curAnn.cr&&curRk?ibtn('cua','Ask '+t+' about all of its leftovers: copy the prompt','askcopy','Ask this chat about all of its leftovers: copy one prompt that covers every branch, worktree and pull request it created',' data-k="'+esc(curRk)+'" data-m="copy"')+ibtn('cua','Ask '+t+' about all of its leftovers: open the chat','ask','Ask this chat about all of its leftovers: open the chat; the prompt is copied so you can paste it',' data-k="'+esc(curRk)+'" data-m="resume"'):'')
 +(c.retry?ibtn('fretry','Retry reading git: '+t,'retry',retryTip(gs[c.retry])||'Read git again',' data-k="'+esc(c.retry)+'"'):'')
@@ -72,6 +72,7 @@ function act(k,id){
 if(k==='open')vs.postMessage({type:'open',id:id});
 else if(k==='handover'){if(hv[id]!=='busy'){hv[id]='busy';render();vs.postMessage({type:'handover',id:id});}}
 else if(k==='find')vs.postMessage({type:'find',id:id});
+else if(k==='pin'){const r=rows.find(x=>x.id===id);if(!r)return;r.pinned=!r.pinned;vs.postMessage({type:'pin',id:id,on:r.pinned});render();}
 else if(k==='arch'){pend.add(id);open.delete(id);vs.postMessage({type:'archive',id:id,on:true});render();}
 else if(k==='done'){const r=rows.find(x=>x.id===id);if(!r)return;const fp=fingerprint(dotOf(id),r.last,gitView(r));donemap[id]=fp;open.delete(id);vs.postMessage({type:'done',id:id,on:true,fp:fp});render();}
 else if(k==='undone'){delete donemap[id];vs.postMessage({type:'done',id:id,on:false});render();}}
