@@ -26,7 +26,7 @@ export function html(): string {
 <div id="hdr"><div class="top">
 <div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div>
 <div class="srow"><div class="box">
-<input type="text" id="q" placeholder="Search chats" aria-label="Search chats" autofocus>
+<input type="text" id="q" placeholder="Search chats" aria-label="Search chats" title="Search the text of your chats" autofocus>
 <div class="opts">
 <button class="opt" id="cs" title="Match Case (Alt+C)" aria-label="Match Case" aria-pressed="false">Aa</button>
 <button class="opt" id="ww" title="Match Whole Word (Alt+W)" aria-label="Match Whole Word" aria-pressed="false"><u>ab</u></button>
@@ -34,7 +34,7 @@ export function html(): string {
 <button class="opt" id="re" title="Use Regular Expression (Alt+R)" aria-label="Use Regular Expression" aria-pressed="false">.*</button>
 </div></div>
 </div>
-<div id="ah" hidden>Up and Down arrows show previous searches</div>
+<div id="ah" hidden title="Press Up or Down in the empty search box to recall previous searches">Up and Down arrows show previous searches</div>
 ${ADV_HTML}
 <div id="err"></div>
 <div id="hint" hidden>Type at least 2 characters</div>

@@ -274,6 +274,12 @@
           "default": true,
           "description": "Look up open pull requests and their check results (passing, failing, pending) for the Git section of a chat card and for the Project Status page, with the gh command (GitHub CLI). This contacts GitHub using your own gh sign-in. Turn it off to never run gh."
         },
+        "saropaChatExplorer.contextRingTokens": {
+          "type": "number",
+          "default": 300000,
+          "minimum": 10000,
+          "description": "Each chat row shows a small ring that fills as the chat's context grows. This is the token count that fills it. The ring turns to the warning color at 80 percent of this number and to the error color at 100 percent or more."
+        },
         "saropaChatExplorer.animateDots": {
           "type": "boolean",
           "default": true,

@@ -29,11 +29,11 @@ export function dotText(d: { s: string; also?: string[]; win?: string }): string
   return word(d.s) + more + x;
 }
 
-/** Attributes of a dot element: class (state, plus m2 or m3 when two or three states alternate their colors) and the color variables the animation cycles. The primary color stays the plain fallback when animation is off. */
+/** Attributes of a dot element: class (state, plus m2 or m3 when two or three states alternate their colors, and c1-, c2-, c3- classes naming each state for the animation). Classes only: the webviews' CSP blocks inline style attributes. The primary color stays the plain fallback when animation is off. */
 export function dotAttrs(d: { s: string; also?: string[] }): string {
   const all = [d.s].concat(d.also || []).slice(0, 3);
   if (all.length < 2) { return 'class="dot ' + d.s + '"'; }
-  return 'class="dot ' + d.s + ' m' + all.length + '" style="' + all.map((k, i) => '--c' + (i + 1) + ':var(--k-' + k + ')').join(';') + '"';
+  return 'class="dot ' + d.s + ' m' + all.length + ' ' + all.map((k, i) => 'c' + (i + 1) + '-' + k).join(' ') + '"';
 }
 
 /** Day group of a last-active time: Today, Yesterday, This week, Last week or Earlier. */

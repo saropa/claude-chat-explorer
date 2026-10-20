@@ -41,7 +41,7 @@ export interface Rec {
 
 /** Whose messages are searched: both, only the user's (you), or only the agent's (assistant and subagent messages). */
 export type From = 'both' | 'you' | 'agent';
-export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; any?: boolean; when: string; subs: boolean; last: number; from?: From; }
+export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; any?: boolean; when: string; subs: boolean; arc?: boolean; last: number; from?: From; }
 export interface Abort { aborted: boolean; }
 
 export type TokenKind = 'file' | 'edited' | 'cmd' | 'tag' | 'sha' | 'pr' | 'branch';

@@ -2,6 +2,17 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Added: a third search scope checkbox, Archive (off by default, remembered like the others). Off: searching does not match archived chats (the Results editor already skipped them). On: search text and filters also include archived chats, which list in the Archived section. With no search text the Archived section stays visible either way.
+- Changed: the search scope checkboxes read Subs, Archive, External (was Subagents, All projects), in that order. Their settings and behavior are unchanged.
+- Added: tooltips on every filter dropdown and label, the search box, section headers, message pills, the Resume button and the status filter Reset link.
+- Added: the chat open in this window is highlighted in the list like the official sidebar (selection background, bold title). It follows the focused Claude tab and updates when you switch tabs; with no Claude tab focused it uses the last active tab, else the only live chat of this window.
+- Changed: archived chats show a dimmer title and a greyscale emoji.
+- Changed: the Archived header reads "Archived chats" in sentence case with a smaller count pill, matching the official sidebar.
+- Changed: the row size chip (Tiny, Empty, Abandoned) is replaced by a small ring that fills as the chat's context tokens grow, with a warning color at 80% and an error color at 100% or more; hover shows "136.8k of 300k tokens". New setting `saropaChatExplorer.contextRingTokens` (default 300000, minimum 10000) sets the limit and applies at once. The Tiny, Huge, Empty and Nearly full statuses and filters are unchanged.
+- Changed: the dot animation is a minor throb (scale 1.15); dots with several states cycle through their colors while throbbing; grey (idle) dots never animate.
+- Fixed: a chat with two or three states at once (for example running plus background agents) showed no dot at all in the sidebar and Project status. The colors were set with inline styles, which the webview security policy blocks; they now come from CSS classes.
+
 ## 0.32.0
 - Added: the Command Palette command "Saropa: Usage Summary" shows cost per day, week, project and model and the 10 priciest chats (click resumes one).
 - Added: a status bar item, shown only when a chat is at 80% context or more, reading "N chats near full"; click opens the sidebar on the Nearly full status. Setting `saropaChatExplorer.showUsageStatusBar` hides it.

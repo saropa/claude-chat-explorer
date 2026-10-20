@@ -14,7 +14,7 @@ let noteIn='',sessN=0;
 function takeNote(){const n=noteIn;noteIn='';return n?'<span class="sm">'+n+'</span>':'';}
 function chatsN(n){return n+(n===1?' chat':' chats');}
 function sec(key,label,n,body,cls,note){const o=!col.has(key);
-return '<div class="'+cls+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+(note||'')+(key==='sec:res'?'':'<span class="pill" role="img" aria-label="'+chatsN(n)+'" data-tip="'+chatsN(n)+'">'+n+'</span>')+'</div>'+(o?body:'');}
+return '<div class="'+cls+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'" data-tip="'+esc(label)+': click to '+(o?'collapse':'expand')+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+(note||'')+(key==='sec:res'?'':'<span class="pill" role="img" aria-label="'+chatsN(n)+'" data-tip="'+chatsN(n)+'">'+n+'</span>')+'</div>'+(o?body:'');}
 function ordered(rs,srt){const a=rs.slice(),k=srt||sort.value;
 if(k==='time')a.sort((x,y)=>stamp(y)-stamp(x));
 else if(k==='title')a.sort((x,y)=>x.title.toLowerCase().localeCompare(y.title.toLowerCase()));
@@ -29,16 +29,19 @@ function snip(r){return marked(r.snippet,r.ranges);}
 function tagActive(t){return new RegExp('(^|\\s)tag:'+reEsc(t)+'(\\s|$)','i').test(q.value);}
 function chips(id){return (tags[id]||[]).map(t=>'<span class="chip'+(tagActive(t)?' on':'')+'" data-a="tag" data-t="'+esc(t)+'" data-tip="Filter by tag" aria-label="Filter by tag '+esc(t)+'" role="button" tabindex="0"><span class="ct">'+esc(t)+'</span><b class="cx" data-a="untag" data-t="'+esc(t)+'" data-tip="Remove tag" aria-label="Remove tag '+esc(t)+'" role="button" tabindex="0">×</b></span>').join('');}
 function fileChip(f){const b=f.path.split(/[\\/]/).pop()||f.path;return '<span class="fp'+(f.edited?' ed':'')+'" data-tip="'+esc((f.edited?'Edited: ':'Read: ')+f.path)+'">'+(f.edited?'✎ ':'')+esc(b)+'</span>';}
+/* wraps each emoji of title html (outside tags, so search marks stay intact) in a span the archived style can grey out */
+const EMOJI_RE=/\p{Extended_Pictographic}(?:\uFE0F|\u20E3|[\u{1F3FB}-\u{1F3FF}]|\u200D\p{Extended_Pictographic})*/gu;
+function emojiWrap(h){return h.split(/(<[^>]*>)/).map(x=>x.charAt(0)==='<'?x:x.replace(EMOJI_RE,m=>'<span class="em">'+m+'</span>')).join('');}
 function hdHtml(r,op){const p=pins.has(r.id),ia=arch.has(r.id),tg=tagIn&&tagIn.id===r.id;
-const ti=r.titleShown&&(!op||r.titleShown===r.title)?marked(r.titleShown,r.titleRanges):esc(r.title);
+const ti0=r.titleShown&&(!op||r.titleShown===r.title)?marked(r.titleShown,r.titleRanges):esc(r.title),ti=ia?emojiWrap(ti0):ti0;
 return '<div class="hd">'+(decorated(r)?dotHtml(r.id):'<span class="dot none" aria-hidden="true"></span>')+'<span class="t" data-tip="k:title">'+ti+'</span>'+rcHtml(r,op,Date.now())+'<span class="ia">'
 +'<button class="ic tg'+(tg?' on':'')+'" data-a="addtag" data-tip="Add tag" aria-label="Add tag">'+TAG_SVG+'</button>'
-+'<button class="ic ar'+(ia?' on':'')+'" data-a="arch" data-tip="'+(ia?'Unarchive':'Archive')+'" aria-label="'+(ia?'Unarchive':'Archive')+'">'+ARCH_SVG+'</button>'
++'<button class="ic ar'+(ia?' on':'')+'" data-a="arch" data-tip="'+(ia?'Unarchive':'Archive')+'" aria-label="'+(ia?'Unarchive':'Archive')+'">'+(ia?UNARCH_SVG:ARCH_SVG)+'</button>'
 +'<button class="ic pn'+(p?' on':'')+'" data-a="pin" data-tip="'+(p?'Unpin':'Pin')+'" aria-label="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button></span>'
 +'<button class="ic'+(op?' on':'')+'" data-a="exp" data-tip="'+(op?'Hide details':'Details')+'" aria-label="'+(op?'Hide details':'Details')+'" aria-expanded="'+op+'">'+CHEV+'</button></div>';}
 function rowHtml(r){
 const now=Date.now(),op=open.has(r.id),ia=arch.has(r.id);
-return '<div class="r'+(op?' open':'')+'" data-id="'+esc(r.id)+'" data-vscode-context="'+esc(JSON.stringify({webviewSection:'chat',id:r.id,ccsArchived:ia,ccsUnread:(dots[r.id]||{}).s==='unread'}))+'" tabindex="0"><div class="rh">'
+return '<div class="r'+(op?' open':'')+(ia?' arc':'')+(r.id===curId?' cur':'')+'" data-id="'+esc(r.id)+'" data-vscode-context="'+esc(JSON.stringify({webviewSection:'chat',id:r.id,ccsArchived:ia,ccsUnread:(dots[r.id]||{}).s==='unread'}))+'" tabindex="0"><div class="rh">'
 +hdHtml(r,op)+metaHtml(r,now)+'<span class="chips">'+(op?'':(decorated(r)?chips(r.id):'')+tagInput(r.id))+'</span>'+sxHtml(r)+'</div>'+(op?exHtml(r):'')+'</div>';}
 function groupsHtml(a){const now=Date.now(),g={};
 a.forEach(r=>{const k=dayBucket(stamp(r),now);(g[k]=g[k]||[]).push(r);});

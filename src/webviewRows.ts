@@ -62,19 +62,19 @@ function mkey(s){return s.replace(/^…/,'').replace(/\s+/g,' ').slice(0,96);}
 function mgroups(r,e){const m=new Map(),out=[],lk=mkey(r.snippet||'');
 e.items.forEach((it,i)=>{if(i===0)return;const k=mkey(it.snippet),g=m.get(k);
 if(g){g.n.push(it);return;}const n={i:i,it:it,n:[it],same:k===lk};m.set(k,n);out.push(n);});return out;}
-function whoHtml(it){return it.sub!==undefined?saPill(it.sub):'<span class="who">'+(it.role==='user'?'You':'Agent')+'</span>';}
+function whoHtml(it){return it.sub!==undefined?saPill(it.sub):'<span class="who" data-tip="Who wrote this message">'+(it.role==='user'?'You':'Agent')+'</span>';}
 function miHtml(g){const it=g.it,n=g.n.length,now=Date.now();
 return '<li class="mi" data-i="'+g.i+'" data-tip="k:item"><div class="mih">'+whoHtml(it)+'<span class="d">'+esc(it.desc||'')+'</span>'
-+(n>1?'<span class="xn" role="img" aria-label="'+n+' messages with this text">×'+n+'</span>':'')
-+'<span class="mp" role="img" aria-label="'+agoLong(it.ts,now)+'">'+agoShort(it.ts,now)+'</span></div>'
++(n>1?'<span class="xn" role="img" aria-label="'+n+' messages with this text" data-tip="'+n+' messages with this text">×'+n+'</span>':'')
++'<span class="mp" role="img" aria-label="'+agoLong(it.ts,now)+'" data-tip="'+agoLong(it.ts,now)+'">'+agoShort(it.ts,now)+'</span></div>'
 +(g.same?'<div class="mib same">Same text as the latest match</div>':'<div class="mib">'+snip(it)+'</div>')+'</li>';}
 function mlHtml(r){const e=ex[r.id],a=' id="ml-'+esc(r.id)+'" aria-label="Other matches in '+esc(r.title)+'"';
 if(!e)return '<ul class="ml"'+a+'><li class="ld">Loading…</li></ul>';
 const gs=mgroups(r,e),left=e.total-e.items.length;
 return '<ul class="ml"'+a+'>'+(gs.length?gs.map(miHtml).join(''):'<li class="ld">No other matching messages</li>')
-+(left>0?'<li class="lm"><button class="lnk" data-a="more">Show '+left+' more</button></li>':'')+'</ul>';}
++(left>0?'<li class="lm"><button class="lnk" data-a="more" data-tip="Show more matching messages">Show '+left+' more</button></li>':'')+'</ul>';}
 function mxBtn(r,n,op){const w=n+' more matching message'+(n===1?'':'s');
-return '<button class="mx'+(op?' on':'')+'" data-a="mx" aria-expanded="'+op+'" aria-controls="ml-'+esc(r.id)+'" aria-label="'+(op?'Hide ':'Show ')+w+'">'+CHEV+'<span class="ls">+'+n+' more</span><span class="lt">Show less</span></button>';}
+return '<button class="mx'+(op?' on':'')+'" data-a="mx" aria-expanded="'+op+'" aria-controls="ml-'+esc(r.id)+'" aria-label="'+(op?'Hide ':'Show ')+w+'" data-tip="'+(op?'Hide ':'Show ')+w+'">'+CHEV+'<span class="ls">+'+n+' more</span><span class="lt">Show less</span></button>';}
 function sxHtml(r){const op=mOpen.has(r.id),more=(r.mc||0)-1;
 return '<div class="sx">'+(r.snippet?'<div class="s" data-tip="k:snip">'+snip(r)+'</div>':'')+(more>0?mxBtn(r,more,op):'')+(op&&more>0?mlHtml(r):'')+'</div>';}
 function mxToggle(id){if(mOpen.has(id))mOpen.delete(id);else{mOpen.add(id);if(!ex[id])askExpand(id,0,true);}rerender();rowFocus(id,'.mx');}

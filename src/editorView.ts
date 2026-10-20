@@ -28,7 +28,7 @@ const highlight = vscode.window.createTextEditorDecorationType({
   overviewRulerColor: new vscode.ThemeColor('editorOverviewRuler.findMatchForeground'),
 });
 
-const flagNames = (o: Options): string[] => [o.cs && 'Match Case', o.ww && 'Whole Word', o.any && 'Any Order', o.re && 'Regular Expression', !o.subs && 'Subagents Off', o.all && 'All Projects'].filter(Boolean) as string[];
+const flagNames = (o: Options): string[] => [o.cs && 'Match Case', o.ww && 'Whole Word', o.any && 'Any Order', o.re && 'Regular Expression', !o.subs && 'Subs Off', o.arc && 'Archive', o.all && 'External'].filter(Boolean) as string[];
 
 function paint(ed: vscode.TextEditor): void {
   const d = docs.get(ed.document.uri.toString());

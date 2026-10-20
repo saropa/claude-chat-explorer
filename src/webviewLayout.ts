@@ -7,7 +7,7 @@ export const T = {
 };
 
 const COMPACT = `
-.rc .mp.st,.rc .gi,.rc .pj,.rc .cp{display:none}`;
+.rc .gi,.rc .pj,.rc .cp{display:none}`;
 
 const XWIDE = `
 .rh{display:grid;grid-template-columns:minmax(240px,1fr) minmax(0,2fr);grid-template-rows:auto auto 1fr;column-gap:8px}
@@ -72,7 +72,7 @@ const CHART_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke=
 function hugeIcon(r){return statusesOf(r,pins.has(r.id),Date.now(),(dots[r.id]||{}).s).includes('huge')?'<span class="hg" role="img" aria-label="Huge chat" data-tip="Huge chat">'+CHART_SVG+'</span>':'';}
 function rcHtml(r,op,now){if(op)return '';const q=r.hits>0,dc=decorated(r);
 return '<span class="rc">'+(all.checked&&r.project?'<span class="pj" data-tip="Project folder">'+esc(r.project)+'</span>':'')+pinStar(r)
-+(dc?ctxPill(r)+pillHtml(r)+gitIcon(r)+hugeIcon(r):'')+timeText(stamp(r),now,q&&!!r.snipAt)+'</span>';}
++ringHtml(r)+(dc?ctxPill(r)+gitIcon(r)+hugeIcon(r):'')+timeText(stamp(r),now,q&&!!r.snipAt)+'</span>';}
 function hitsPill(r){const m=r.mc?' in '+r.mc+(r.mc===1?' matching message':' matching messages'):'';
 return '<span class="mp hit" role="img" aria-label="'+hitN(r)+(r.hits===1?' occurrence':' occurrences')+m+'" data-tip="k:hits">'+hitTxt(r)+'</span>';}
 function pinStar(r){return pins.has(r.id)?'<span class="pst" role="img" aria-label="Pinned" data-tip="Pinned">★</span>':'';}

@@ -44,6 +44,9 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .pill{margin-left:auto;flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;font-weight:400;line-height:16px;letter-spacing:0;text-align:center;text-transform:none;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
 .r{outline:none}
 .rh:hover{background:var(--vscode-list-hoverBackground)}
+.r.cur>.rh{background:var(--vscode-list-inactiveSelectionBackground);color:var(--vscode-list-inactiveSelectionForeground)}
+html:not(.nf) .r.cur>.rh{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}
+.r.cur .hd .t{font-weight:600}
 .r:focus-visible>.rh,.rr:focus-visible{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}
 .hd,.rr{display:flex;align-items:center;gap:6px;min-height:28px;padding:0 8px 0 10px;cursor:pointer;box-sizing:border-box}
 .rr{min-height:24px;padding-left:2px;}

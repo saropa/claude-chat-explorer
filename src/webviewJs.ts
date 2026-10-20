@@ -17,12 +17,12 @@ import { SUM_JS } from './webviewSum';
 
 const CORE = String.raw`
 const vs=acquireVsCodeApi();const $=id=>document.getElementById(id);
-const q=$('q'),all=$('all'),subs=$('subs'),when=$('when'),sort={value:'score'},msgSel=$('msgs'),frm=$('frm'),hint=$('hint'),st=$('status'),list=$('list'),pinEl=$('pin'),res=$('res'),bar=$('bar'),err=$('err'),tl=$('tl');
+const q=$('q'),all=$('all'),subs=$('subs'),arc=$('arc'),when=$('when'),sort={value:'score'},msgSel=$('msgs'),frm=$('frm'),hint=$('hint'),st=$('status'),list=$('list'),pinEl=$('pin'),res=$('res'),bar=$('bar'),err=$('err'),tl=$('tl');
 const flags={cs:$('cs'),ww:$('ww'),any:$('any'),re:$('re')};
 let timer,history=[],hasResults=false,busy=false,acc=[],prog=null,lastRs=[],lastMsg='',ix=null,dirty=false,sn=0,stale=false,lastQ='',sessOn=false,sess=null,sessTimer;
 const ixb=$('ixb'),ixt=$('ixt');
-let pins=new Set(),tags={},pinned=[],open=new Set(),ex={},col=new Set(),arch=new Set(),dots={},archOpen=false;
-function cur(){return{query:q.value.trim(),all:all.checked,subs:subs.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),any:flags.any.classList.contains('on'),re:flags.re.classList.contains('on'),when:when.value,last:+msgSel.value,from:frm.value,sort:sort.value};}
+let pins=new Set(),tags={},pinned=[],open=new Set(),ex={},col=new Set(),arch=new Set(),dots={},archOpen=false,curId='';
+function cur(){return{query:q.value.trim(),all:all.checked,subs:subs.checked,arc:arc.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),any:flags.any.classList.contains('on'),re:flags.re.classList.contains('on'),when:when.value,last:+msgSel.value,from:frm.value,sort:sort.value};}
 function setFlag(k,v){flags[k].classList.toggle('on',!!v);flags[k].setAttribute('aria-pressed',v?'true':'false');const rx=flags.re.classList.contains('on');flags.any.disabled=rx;flags.any.title=rx?'Match any order is off while regular expressions are on':'Match words in any order (Alt+O)';}
 function showErr(m){err.style.display=m?'block':'none';err.textContent=m||'';q.classList.toggle('bad',!!m);}
 function setBusy(b){busy=b;bar.classList.toggle('on',b);renderIdle();}
@@ -56,6 +56,7 @@ if(k&&!flags[k].disabled){e.preventDefault();histIdx=-1;setFlag(k,!flags[k].clas
 Object.keys(flags).forEach(k=>flags[k].addEventListener('click',()=>{histIdx=-1;setFlag(k,!flags[k].classList.contains('on'));go();q.focus();}));
 all.addEventListener('change',go);
 subs.addEventListener('change',go);
+arc.addEventListener('change',go);
 when.addEventListener('change',go);
 msgSel.addEventListener('change',go);
 frm.addEventListener('change',go);
@@ -110,8 +111,10 @@ if(!isSec&&!isRow){if((e.key==='Enter'||e.key===' ')&&t.getAttribute('role')==='
 if(e.key==='ArrowDown'){e.preventDefault();step(t,1);}
 else if(e.key==='ArrowUp'){e.preventDefault();step(t,-1);}
 else if(e.key==='Enter'||e.key===' '){e.preventDefault();if(isSec)toggleSec(t.dataset.sec);else openId(t.dataset.id);}});
+const setNf=()=>document.documentElement.classList.toggle('nf',!!document.hasFocus&&!document.hasFocus()); /* inactive selection colors while the sidebar is not focused */
+window.addEventListener('focus',setNf);window.addEventListener('blur',setNf);setNf();
 window.addEventListener('message',e=>{const d=e.data;const live=d.sn===undefined||(d.sn===sn&&!stale);
-if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;subs.checked=s.subs!==false;setFlag('cs',s.cs);setFlag('ww',s.ww);setFlag('any',s.any);setFlag('re',s.re);setOpts(s.when,s.last,s.from);sortSet(s.sort||'score');stLoad(d.statuses);archOpen=!!d.archOpen;advSet(!!d.advOpen,false);
+if(d.type==='restore'){const s=d.state;q.value=s.query||'';all.checked=!!s.all;subs.checked=s.subs!==false;arc.checked=!!s.arc;setFlag('cs',s.cs);setFlag('ww',s.ww);setFlag('any',s.any);setFlag('re',s.re);setOpts(s.when,s.last,s.from);sortSet(s.sort||'score');stLoad(d.statuses);archOpen=!!d.archOpen;advSet(!!d.advOpen,false);
 capN=d.max||500;tot=s.totals||null;history=d.history||[];lastQ=s.query||'';sessOn=!(s.results&&s.results.length);render(s.results||[],s.searched);if(sessOn)askSess();ahSync();}
 else if(d.type==='meta'){pins=new Set(d.pins);tags=d.tags||{};pinned=d.pinned||[];arch=new Set(d.arch||[]);tl.innerHTML=(d.all||[]).map(t=>'<option value="'+esc(t)+'">').join('');rerender();if(sessOn&&!hasResults)askSessSoon();}
 else if(d.type==='expanded'){ex[d.id]=exMerge(d);rerender();}
@@ -125,7 +128,8 @@ else if(d.type==='indexing'){ix={done:d.done,total:d.total,subs:d.subs||0,first:
 else if(d.type==='indexed'){ix=null;showIx();if(dirty){dirty=false;go();}}
 else if(d.type==='history'){history=d.history||[];histIdx=-1;if(!history.length)lastRec='';ahSync();}
 else if(d.type==='sessions'){if(d.sn!==sn)return;sess={rows:d.rows||[],total:d.total||0,arch:d.arch||[],archTotal:d.archTotal||0};capN=d.max||capN;rerender();}
-else if(d.type==='dots'){dots=d.map||{};document.documentElement.classList.toggle('noanim',d.anim===false);rerender();}
+else if(d.type==='dots'){dots=d.map||{};curId=d.cur||'';document.documentElement.classList.toggle('noanim',d.anim===false);rerender();}
+else if(d.type==='ring'){ringMax=d.max>0?d.max:300000;rerender();}
 else if(d.type==='setQuery'){q.value=d.query||'';histIdx=-1;go();}
 else if(d.type==='setSort'){sortSet(d.sort);draft();if(sessOn&&!hasResults)askSess();rerender();}
 else if(d.type==='setStatuses'){stLoad(d.checked);rerender();}

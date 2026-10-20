@@ -22,7 +22,7 @@ const BY: { [k: string]: Cmp } = {
 
 export interface SessionRows { rows: Result[]; total: number; arch: Result[]; archTotal: number; max: number; }
 
-/** Chats in scope (When, All projects) as rows, pinned first, then by sort (Score means Time); at most maxRows each for live and archived chats. total counts the live ones in scope. */
+/** Chats in scope (When, External) as rows, pinned first, then by sort (Score means Time); at most maxRows each for live and archived chats. total counts the live ones in scope. */
 export function sessionRows(ix: Source, o: Options, folders: string[], sort: string, pins: Set<string>, archived: Set<string> = new Set(), maxRows: number = DEFAULT_MAX_RESULTS): SessionRows {
   const max = clampMax(maxRows);
   const cutoff = cutoffOf(o.when);

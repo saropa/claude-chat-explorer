@@ -2,6 +2,11 @@
 export const ARCH_CSS = String.raw`
 .arh .imp{margin-left:auto;padding:0 4px;font-weight:400;letter-spacing:0;text-transform:none}
 .arh .imp+.pill{margin-left:6px}
+.sl.arh{font-weight:400;letter-spacing:0;text-transform:none;font-size:calc(var(--vscode-font-size) - 1px)}
+.sl.arh .pill{min-width:16px;height:16px;padding:0 5px;font-size:calc(var(--vscode-font-size) - 2px);line-height:16px;border-radius:8px}
+.r.arc .hd .t{color:color-mix(in srgb,var(--vscode-foreground) 65%,transparent)}
+.r.arc .hd .t .em{filter:grayscale(1)}
+.r.arc.cur .hd .t{color:inherit}
 .ic.ar.on{color:var(--vscode-foreground)}
 .ic.ar svg{width:13px;height:13px}
 `;
@@ -9,12 +14,13 @@ export const ARCH_CSS = String.raw`
 export const ARCH_JS = String.raw`
 const archEl=$('arch');
 const ARCH_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"><path d="M2 3h12v3H2zM3 6v7h10V6M6.500 9h3"/></svg>';
+const UNARCH_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"><path d="M2 3h12v3H2zM3 6v7h10V6M8 12V8.500M6.200 10L8 8.300 9.800 10"/></svg>';
 function archData(){
 if(hasResults){const a=lastRs.filter(r=>arch.has(r.id));return{rows:a,n:a.length};}
 if(sessOn&&sess&&!lastQ)return{rows:sess.arch||[],n:sess.archTotal||0};
 return{rows:[],n:0};}
 function archHtml(){const d=archData();if(!d.n)return '';const o=archOpen;
-let h='<div class="sl arh'+(o?' open':'')+'" data-sec="sec:arch" role="button" tabindex="0" aria-expanded="'+o+'">'+CHEV+'<span class="sn">Archived</span>'
+let h='<div class="sl arh'+(o?' open':'')+'" data-sec="sec:arch" role="button" tabindex="0" aria-expanded="'+o+'" data-tip="Archived chats: click to '+(o?'collapse':'expand')+'">'+CHEV+'<span class="sn">Archived chats</span>'
 +'<button type="button" class="lnk imp" data-a="import" data-tip="Import the archived chats list from the agent (read-only, once)" aria-label="Import archived chats from the agent">Import</button>'
 +'<span class="pill" role="img" aria-label="'+chatsN(d.n)+'" data-tip="'+d.n+(lastQ?' archived chats match':' archived chats')+'">'+d.n+'</span></div>';
 if(o)h+=capArch();

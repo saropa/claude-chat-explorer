@@ -57,7 +57,22 @@ export async function readHidden(db: string, run: Run = runSqlite): Promise<Hidd
 /** The global state database of this VS Code build: the folder holding the per-extension storage folders. */
 export const stateDbOf = (globalStorage: string): string => path.join(path.dirname(globalStorage), 'state.vscdb');
 
-export type TabsRead = { ok: true; ids: string[]; hash: string } | { ok: false; reason: string };
+export interface TabInfo { id: string; title: string; }
+export type TabsRead = { ok: true; ids: string[]; hash: string; info?: TabInfo[]; last?: string } | { ok: false; reason: string };
+
+/** Open tabs with their (truncated) titles, plus the last activated session id (the stored value is the id followed by a 13 digit timestamp). */
+export function parseTabInfo(out: string): { info: TabInfo[]; last?: string } | undefined {
+  try {
+    const j = JSON.parse(out.trim());
+    if (!Array.isArray(j?.panelTabSessions)) { return undefined; }
+    const info: TabInfo[] = [], seen = new Set<string>();
+    for (const t of j.panelTabSessions) {
+      if (isSessionId(t?.sessionId) && !seen.has(t.sessionId)) { seen.add(t.sessionId); info.push({ id: t.sessionId, title: typeof t.title === 'string' ? t.title : '' }); }
+    }
+    const raw = typeof j.lastActivationSessionId === 'string' ? j.lastActivationSessionId.slice(0, 36) : '';
+    return { info, last: isSessionId(raw) ? raw : undefined };
+  } catch { return undefined; }
+}
 
 /** The open tab session ids in the query output (titles are truncated, so only ids are used). */
 export function parseTabs(out: string): string[] | undefined {
@@ -90,11 +105,11 @@ export function hashesFor(root: string, folders: string[]): { all: string[]; mat
   return { all: all.sort(by).map((x) => x.h), match: match.sort(by).map((x) => x.h) };
 }
 
-async function tabsOf(db: string, run: Run): Promise<string[] | undefined> {
+async function tabsOf(db: string, run: Run): Promise<{ info: TabInfo[]; last?: string } | undefined> {
   let tmp = '';
   try {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccs-tabs-'));
-    return parseTabs(await run('sqlite3', ['-readonly', copyOut(db, tmp), SQL]));
+    return parseTabInfo(await run('sqlite3', ['-readonly', copyOut(db, tmp), SQL]));
   } catch { return undefined; } finally {
     if (tmp) { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ } }
   }
@@ -103,16 +118,18 @@ async function tabsOf(db: string, run: Run): Promise<string[] | undefined> {
 /** Open tab ids of Claude Code: the newest state.vscdb whose workspace is one of the folders, else the union over every workspace that has the key. Read-only, on temporary copies. */
 export async function readTabs(root: string, folders: string[], run: Run = runSqlite): Promise<TabsRead> {
   const { all, match } = hashesFor(root, folders);
-  const ids = new Set<string>(), used: string[] = [];
+  const ids = new Set<string>(), used: string[] = [], info = new Map<string, TabInfo>();
+  let last: string | undefined;
+  const add = (r: { info: TabInfo[]; last?: string }) => { r.info.forEach((t) => { ids.add(t.id); info.set(t.id, t); }); last ??= r.last; };
   for (const h of match.slice(0, 1)) {
     const r = await tabsOf(path.join(root, h, 'state.vscdb'), run);
-    if (r) { r.forEach((i) => ids.add(i)); used.push(h); }
+    if (r) { add(r); used.push(h); }
   }
-  if (used.length) { return { ok: true, ids: [...ids], hash: used[0] }; }
+  if (used.length) { return { ok: true, ids: [...ids], hash: used[0], info: [...info.values()], last }; }
   for (const h of all) {
     const r = await tabsOf(path.join(root, h, 'state.vscdb'), run);
-    if (r) { r.forEach((i) => ids.add(i)); used.push(h); }
+    if (r) { add(r); used.push(h); }
   }
   if (!used.length) { return { ok: false, reason: 'no workspace database has the agent tab list' }; }
-  return { ok: true, ids: [...ids], hash: used.join(',') + ' (all)' };
+  return { ok: true, ids: [...ids], hash: used.join(',') + ' (all)', info: [...info.values()] };
 }

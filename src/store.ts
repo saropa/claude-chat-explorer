@@ -24,7 +24,7 @@ export interface Saved extends Draft { results: Result[]; searched: string; tota
 export const normTag = (raw: string): string =>
   raw.trim().toLowerCase().replace(/^tag:/, '').replace(/\s+/g, '-').slice(0, 40);
 
-const BLANK: Draft = { query: '', all: false, cs: false, ww: false, re: false, any: false, when: 'any', subs: true, last: 0, from: 'both', sort: 'score' };
+const BLANK: Draft = { query: '', all: false, cs: false, ww: false, re: false, any: false, when: 'any', subs: true, arc: false, last: 0, from: 'both', sort: 'score' };
 
 /** Workspace state (last search, history) and global state (pins, tags). Workspace writes are debounced. */
 export class Store {
@@ -46,7 +46,7 @@ export class Store {
   /** Query, options and sort as last typed. Results come from the last completed search. */
   get draft(): Draft {
     const { results: _r, searched: _s, totals: _t, ...s } = this.read<Saved>(STATE_KEY) ?? BLANK as Saved; // legacy states held results; drop them
-    return { ...BLANK, ...s, subs: s.subs !== false, last: s.last || 0 }; // older states lack subs and last
+    return { ...BLANK, ...s, subs: s.subs !== false, arc: s.arc === true, last: s.last || 0 }; // older states lack subs and last
   }
   setDraft(d: Draft): void { this.w.put(STATE_KEY, d); }
 

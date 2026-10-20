@@ -1,5 +1,5 @@
 /** Search history identity and dedupe. No vscode import, so Node checks can load it. */
-export interface HistItem { query: string; all: boolean; cs: boolean; ww: boolean; re: boolean; any?: boolean; when: string; subs: boolean; last: number; from?: string; }
+export interface HistItem { query: string; all: boolean; cs: boolean; ww: boolean; re: boolean; any?: boolean; when: string; subs: boolean; arc?: boolean; last: number; from?: string; }
 
 export const HIST_MAX = 20;
 
@@ -13,7 +13,7 @@ export function dedupeHistory(list: HistItem[]): HistItem[] {
   const out: HistItem[] = [];
   for (const h of list) {
     const k = histKey(h);
-    if (!seen.has(k)) { seen.add(k); out.push({ ...h, any: !!h.any, subs: h.subs !== false, last: h.last || 0, from: h.from || 'both' }); }
+    if (!seen.has(k)) { seen.add(k); out.push({ ...h, any: !!h.any, subs: h.subs !== false, arc: !!h.arc, last: h.last || 0, from: h.from || 'both' }); }
   }
   return out.slice(0, HIST_MAX);
 }

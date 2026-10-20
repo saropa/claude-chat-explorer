@@ -128,7 +128,7 @@ export async function searchIndex(
 ): Promise<SearchOut> {
   const max = clampMax(maxRows), tally = newTally();
   const sc = scanOf(ix, c, o, ctx);
-  const todo = liveFirst(candidates(ix, o, folders, sc.cutoff), ctx.dots);
+  const todo = liveFirst(candidates(ix, o, folders, sc.cutoff).filter((x) => o.arc || !ctx.archived?.has(x.id)), ctx.dots); // Archive scope off: archived chats are not matched
   let out: Result[] = [];
   const pace = pacer();
   for (let i = 0; i < todo.length && !sig.aborted; i++) {

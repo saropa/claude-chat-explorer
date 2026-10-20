@@ -38,16 +38,9 @@ export function statusesOf(r: { msgs: number; last: number; size: number; ctx?: 
   return out.length ? out : ['normal'];
 }
 
-const PILL_ORDER = ['huge', 'empty', 'tiny', 'abandoned']; // priority of the row chip; normal, active and pinned never show one (the dot and star say it)
-
-/** The status a row pill shows (most important of the chat's statuses), or '' for none. */
-export function pillOf(statuses: string[]): string {
-  return PILL_ORDER.find((k) => statuses.includes(k)) ?? '';
-}
-
 /** Constants and function source for the webview script. */
 export const STATUS_SRC = [
   'const ACTIVE_DOTS=' + JSON.stringify(ACTIVE_DOTS), 'ABANDONED_MS=' + ABANDONED_MS, 'TINY_MAX_MSGS=' + TINY_MAX_MSGS,
   'HUGE_MIN_MSGS=' + HUGE_MIN_MSGS, 'HUGE_BYTES=' + HUGE_BYTES, 'NEARLY_PCT=' + NEARLY_PCT,
-  'PILL_ORDER=' + JSON.stringify(PILL_ORDER), 'STATUS_KEYS=' + JSON.stringify(STATUS_KEYS), 'STATUS_LABELS=' + JSON.stringify(STATUS_LABELS), 'STATUS_TIPS=' + JSON.stringify(STATUS_TIPS),
-].join(',') + ';\n' + statusesOf.toString() + '\n' + pillOf.toString() + '\n';
+  'STATUS_KEYS=' + JSON.stringify(STATUS_KEYS), 'STATUS_LABELS=' + JSON.stringify(STATUS_LABELS), 'STATUS_TIPS=' + JSON.stringify(STATUS_TIPS),
+].join(',') + ';\n' + statusesOf.toString() + '\n';

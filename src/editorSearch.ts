@@ -115,7 +115,7 @@ export async function editorIndex(
   const sc = scanOf(ix, c, o, ctx), todo = candidates(ix, o, folders, sc.cutoff), pace = pacer();
   const rows: Array<{ f: Found; r: Result }> = [];
   for (let i = 0; i < todo.length && !sig.aborted; i++) {
-    if (ctx.archived?.has(todo[i].id)) { continue; }
+    if (!o.arc && ctx.archived?.has(todo[i].id)) { continue; }
     const f = findIn(sc, todo[i]);
     if (f && statusOk(x.statuses, f, ctx, sc.now)) { rows.push({ f, r: toResult(sc, f, 0) }); }
     tick(i + 1, todo.length);

@@ -11,6 +11,6 @@ export function opts(m: any): Options {
   const last = LASTS.includes(Number(m.last)) ? Number(m.last) : 0;
   const raw = m.from === 'claude' ? 'agent' : m.from; // saved searches may hold the old name
   const from = FROMS.includes(raw) ? (raw as From) : 'both';
-  return { all: !!m.all, cs: !!m.cs, ww: !!m.ww, re: !!m.re, any: !!m.any, when, subs: m.subs !== false, last, from };
+  return { all: !!m.all, cs: !!m.cs, ww: !!m.ww, re: !!m.re, any: !!m.any, when, subs: m.subs !== false, arc: m.arc === true, last, from };
 }
 export const sortOf = (m: any): string => (SORTS.includes(m.sort) ? String(m.sort) : 'score');

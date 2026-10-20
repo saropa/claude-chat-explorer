@@ -2,6 +2,7 @@
 import { BgTracker } from './bgAgents';
 import { projectsRoot } from './files';
 import { buildDots, DotMap, LiveStatus, nextUnread, openSet, pidAlive, readLive } from './liveState';
+import { TabInfo } from './stateDb';
 import { psParents, WinInfo, windowsOf, WinMark } from './windowMarker';
 
 export const POLL_MS = 30000;
@@ -11,7 +12,7 @@ export interface WatchHost {
   dir: string;
   unread(): Set<string>;
   saveUnread(s: Set<string>): void;
-  tabs?(): Promise<{ ids: string[]; hash: string } | undefined>; // ids of Claude's open tabs; undefined when unreadable
+  tabs?(): Promise<{ ids: string[]; hash: string; info?: TabInfo[]; last?: string } | undefined>; // ids of Claude's open tabs; undefined when unreadable
   onChange(): void; // the dot map changed
   onLive?(live: Iterable<string>): void; // a poll finished: ids of live sessions
   log(msg: string): void;
@@ -26,6 +27,8 @@ export class LiveWatcher {
   private readonly bgTracker = new BgTracker(projectsRoot());
   info: WinInfo = { hostPid: process.pid, ps: false, sessions: 0, here: 0, other: 0, parents: [] }; // last poll, for Show Diagnostics
   tabIds = new Set<string>(); // last good tab list
+  tabInfo: TabInfo[] = []; // titles of those tabs (truncated)
+  lastActive?: string; // last activated session of this workspace
   tabHash = ''; // state.vscdb workspace hash it came from
   private timer?: NodeJS.Timeout;
   private running = false;
@@ -70,7 +73,7 @@ export class LiveWatcher {
   private async readTabs(): Promise<void> {
     try {
       const t = await this.h.tabs?.();
-      if (t) { this.tabIds = new Set(t.ids); this.tabHash = t.hash; }
+      if (t) { this.tabIds = new Set(t.ids); this.tabHash = t.hash; this.tabInfo = t.info ?? []; this.lastActive = t.last; }
     } catch { /* keep the last good set */ }
   }
 
@@ -88,6 +91,9 @@ export class LiveWatcher {
     const sig = JSON.stringify(this.dots);
     if (sig !== this.sig) { this.sig = sig; this.h.onChange(); }
   }
+
+  /** Ids of live sessions whose process belongs to this window. */
+  get hereIds(): string[] { return [...this.win].filter(([, w]) => w === 'this').map(([id]) => id); }
 
   dispose(): void { clearInterval(this.timer); }
 }

@@ -14,12 +14,12 @@ if(d.state==='done')setTimeout(()=>{if(hv[d.id]==='done'){delete hv[d.id];rerend
 function plur(n,w){return n+' '+w+(n===1?'':'s');}
 function pillBit(n){return n===''?'':n==='\u2026'?'<span class="pill w" aria-hidden="true">\u2026</span>':'<span class="pill'+(n===0?' z':'')+'" role="img" aria-label="'+n+'" data-tip="'+n+'">'+n+'</span>';}
 function xsec(key,label,n,body,k,pill,ov){const o=ov===undefined?!col.has(key):ov,c=n===''?'':pill?pillBit(n):'<span class="xc">'+n+'</span>',cn=n===''||n==='\u2026'?'':', '+n;
-return '<section class="'+k+'"><div class="xh'+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'" aria-label="'+esc(label+cn)+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+c+'</div>'+(o?'<div class="xb2">'+body+'</div>':'')+'</section>';}
+return '<section class="'+k+'"><div class="xh'+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'" aria-label="'+esc(label+cn)+'" data-tip="'+esc(label)+': click to '+(o?'collapse':'expand')+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+c+'</div>'+(o?'<div class="xb2">'+body+'</div>':'')+'</section>';}
 function xbtn(a,ic,label,txt,cls,extra,tip){return '<button class="xb'+(cls||'')+'" data-a="'+a+'"'+(extra||'')+' aria-label="'+label+'" data-tip="'+(tip||label)+'">'+ic+'<span class="xl'+(a==='read'||a==='copyid'||a==='handover'?' xo':'')+'">'+txt+'</span></button>';}
 function actHtml(r){const p=pins.has(r.id),ia=arch.has(r.id);
-return '<div class="xa" role="toolbar" aria-label="Chat actions"><button class="xb pri" data-a="resume" aria-label="Resume chat">'+XI.play+'<span>Resume</span></button>'
+return '<div class="xa" role="toolbar" aria-label="Chat actions"><button class="xb pri" data-a="resume" aria-label="Resume chat" data-tip="Resume this chat">'+XI.play+'<span>Resume</span></button>'
 +xbtn('pin',p?XI.starOn:XI.star,p?'Unpin':'Pin',p?'Pinned':'Pin',p?' on':'',' aria-pressed="'+p+'"')
-+xbtn('arch',ARCH_SVG,ia?'Unarchive':'Archive',ia?'Unarchive':'Archive','')
++xbtn('arch',ia?UNARCH_SVG:ARCH_SVG,ia?'Unarchive':'Archive',ia?'Unarchive':'Archive','')
 +((dots[r.id]||{}).s==='unread'?xbtn('read',XI.read,'Mark as read','Mark read',''):'')
 +'<span class="sp"></span>'+xbtn('handover',hv[r.id]==='done'?XI.read:XI.note,'Copy hand-over note',hv[r.id]==='busy'?'Copying...':hv[r.id]==='done'?'Copied':'Copy hand-over note',hv[r.id]==='busy'?' busy':'',hv[r.id]==='busy'?' aria-busy="true"':'')
 +xbtn('copyid',XI.copy,'Copy session ID','Copy ID','','','Copy session ID '+esc(r.id))+'</div>';}

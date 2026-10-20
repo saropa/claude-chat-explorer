@@ -69,8 +69,16 @@ function done() {
   check('dotText background', dotText({ s: 'background' }) === 'Background agents running');
   check('dotText lists every state', /^Unread.*\. Also: Background agents running$/.test(dotText({ s: 'unread', also: ['background'] })) && dotText({ s: 'running', also: ['background'] }) === 'Running. Also: Background agents running');
   check('dotAttrs single state is a plain class', dotAttrs({ s: 'background' }) === 'class="dot background"');
-  check('dotAttrs two states alternate', dotAttrs({ s: 'running', also: ['background'] }) === 'class="dot running m2" style="--c1:var(--k-running);--c2:var(--k-background)"');
-  check('dotAttrs three states', /m3/.test(dotAttrs({ s: 'waiting', also: ['running', 'unread'] })) && /--c3:var\(--k-unread\)/.test(dotAttrs({ s: 'waiting', also: ['running', 'unread'] })));
+  check('dotAttrs two states alternate', dotAttrs({ s: 'running', also: ['background'] }) === 'class="dot running m2 c1-running c2-background"');
+  check('dotAttrs three states', /m3/.test(dotAttrs({ s: 'waiting', also: ['running', 'unread'] })) && /c3-unread/.test(dotAttrs({ s: 'waiting', also: ['running', 'unread'] })));
+  // Regression: the webviews' CSP forbids inline styles, so a multi-state dot with a style attribute lost its colors and vanished.
+  const multi = dotAttrs({ s: 'running', also: ['background'] });
+  check('dotAttrs never emits an inline style (CSP)', !/style=/.test(multi) && !/style=/.test(dotAttrs({ s: 'waiting', also: ['running', 'unread'] })));
+  check('every c-class used by dotAttrs has a CSS rule', ['waiting', 'running', 'unread', 'background'].every((k) => [1, 2, 3].every((n) => DOT_ANIM_CSS.includes('.dot.c' + n + '-' + k + '{--c' + n + ':var(--k-' + k + ')}'))));
+  for (const f of ['webview.js', 'openWorkHtml.js']) {
+    const src = fs.readFileSync(path.join(OUT, f), 'utf8');
+    check(f + ' CSP keeps styles nonce-only (so dots must use classes)', /style-src 'nonce-/.test(src) && !/style-src[^;]*unsafe-inline/.test(src));
+  };
 
   // 4. Bands and the Active status.
   check('background is Active', statusesOf({ msgs: 10, last: Date.now(), size: 1 }, false, Date.now(), 'background').includes('active'));

@@ -11,7 +11,7 @@ const STATUS_JS = String.raw`
 let stOn=new Set(STATUS_KEYS);
 function stKeep(rs){if(stOn.size===STATUS_KEYS.length)return rs;const now=Date.now();
 return rs.filter(r=>statusesOf(r,pins.has(r.id),now,(dots[r.id]||{}).s).some(k=>stOn.has(k)));}
-function stNote(n,has){return n>0?(has?' · ':'')+n+' hidden by status filter <button type="button" class="lnk sfre">Reset</button>':'';}
+function stNote(n,has){return n>0?(has?' · ':'')+n+' hidden by status filter <button type="button" class="lnk sfre" data-tip="Show chats of every status again">Reset</button>':'';}
 function stSave(){vs.postMessage({type:'status',checked:Array.from(stOn)});}
 function stReset(){stOn=new Set(STATUS_KEYS);stSave();rerender();}
 function stLoad(a){if(Array.isArray(a))stOn=new Set(a.filter(k=>STATUS_KEYS.includes(k)));}

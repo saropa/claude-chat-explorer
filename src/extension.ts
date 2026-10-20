@@ -35,6 +35,8 @@ import { OpenWork, registerOpenWork } from './openWork';
 import { Limiter } from './execLimit';
 import { realExec } from './wipExec';
 import { dotsAnimated } from './dotAnim';
+import { currentChat } from './currentChat';
+import { contextRingTokens } from './ctxRing';
 import { WorkScan } from './workScan';
 import { WorkPrs } from './workPrs';
 import { PrCache } from './wipPrs';
@@ -127,7 +129,19 @@ class Provider implements vscode.WebviewViewProvider {
   get dotNames(): { [id: string]: string } { return stateMap(this.watcher?.dots ?? {}); }
 
   /** Push the dot map to the panel. */
-  postDots(): void { this.post({ type: 'dots', map: this.watcher?.dots ?? {}, anim: dotsAnimated() }); }
+  postDots(): void { this.post({ type: 'dots', map: this.watcher?.dots ?? {}, anim: dotsAnimated(), cur: this.currentId() }); }
+
+  /** The chat of this window: the focused Claude tab, else the last activated tab, else the only live session marked as this window. */
+  currentId(): string {
+    const w = this.watcher;
+    if (!w) { return ''; }
+    const t = vscode.window.tabGroups.activeTabGroup?.activeTab;
+    const claude = !!t && t.input instanceof vscode.TabInputWebview && /claude/i.test(t.input.viewType);
+    return currentChat({ activeLabel: claude ? t!.label : undefined, tabs: w.tabInfo, last: w.lastActive, here: w.hereIds });
+  }
+
+  /** Push the context ring limit to the panel. */
+  postRing(): void { this.post({ type: 'ring', max: contextRingTokens() }); }
 
   /** Resume a chat and clear its unread flag. */
   async resume(id: string): Promise<void> {
@@ -146,6 +160,7 @@ class Provider implements vscode.WebviewViewProvider {
     this.post({ type: 'restore', max: maxResults(), state: this.store.state, history: this.store.history, statuses: this.store.statuses,
       archOpen: this.store.archOpen, advOpen: this.store.advOpen });
     this.postDots();
+    this.postRing();
     void this.postMeta();
     if (this.progress) { this.post({ type: 'indexing', ...this.progress }); }
     this.queue.setReady(true);
@@ -331,7 +346,7 @@ class Provider implements vscode.WebviewViewProvider {
     if (!(await this.prepare(query, o, base, sn))) { return; }
     this.post({ type: 'start', sn });
     const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
-    this.client.search({ query, o, folders, max: maxResults(), ...this.ctxMsg }, (w) => this.onSearchMsg(w, base, sn),
+    this.client.search({ query, o, folders, max: maxResults(), ...this.ctxMsg, archived: [...this.store.archived] }, (w) => this.onSearchMsg(w, base, sn),
       (why) => { if (why === 'timeout') { this.post({ type: 'error', sn, message: TIMEOUT_MSG }); } });
   }
 
@@ -367,6 +382,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
   provider.watcher = new LiveWatcher({ dir: sessionsDir(), tabs: async () => { const r = await readTabs(workspaceStorageOf(ctx.globalStorageUri.fsPath), folderPaths()); return r.ok ? r : undefined; },
     unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
     onChange: () => { provider.postDots(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); } });
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.contextRingTokens')) { provider.postRing(); } }));
+  const tabMoved = () => { provider.postDots(); provider.watcher?.poke(); };
+  ctx.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(tabMoved), vscode.window.tabGroups.onDidChangeTabGroups(tabMoved));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.animateDots')) { provider.postDots(); hub.emit('dots', logErr); } }));
   ctx.subscriptions.push(vscode.window.onDidChangeWindowState((s) => { if (s.focused) { provider.watcher?.poke(); } }), { dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));
   ctx.subscriptions.push(channel, status,

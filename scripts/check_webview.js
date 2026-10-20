@@ -322,4 +322,35 @@ function handoverChecks(check) {
   }).catch((e) => fail('handover gather', e)).then(() => {});
 }
 
+// Current-chat highlight, archived row dimming and the Archived header (source and pure-function checks).
+{
+  const fs = require('fs');
+  const need = (what, cond) => { if (!cond) { fail(what, new Error('check failed')); } };
+  const src = (f) => fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8');
+  const { currentChat, tabByLabel } = require(path.join(OUT, 'currentChat.js'));
+  const { parseTabInfo } = require(path.join(OUT, 'stateDb.js'));
+  const A = '11111111-1111-4111-8111-111111111111', B = '22222222-2222-4222-8222-222222222222';
+  const tabs = [{ id: A, title: 'Fix publish.py versio…' }, { id: B, title: 'Review publish scrip…' }];
+  need('active Claude tab label picks its chat (truncated title prefix)', tabByLabel('Review publish script and docs', tabs) === B && tabByLabel('Fix publish.py version', tabs) === A);
+  need('ambiguous or unknown label picks nothing', tabByLabel('Something else', tabs) === undefined && tabByLabel('x', [{ id: A, title: 'x…' }, { id: B, title: 'x…' }]) === undefined);
+  need('focused tab wins over last activation', currentChat({ activeLabel: 'Review publish script', tabs, last: A, here: [A] }) === B);
+  need('unmatched Claude tab falls back to last activation, non-Claude editor too', currentChat({ activeLabel: 'zzz', tabs, last: A, here: [] }) === A && currentChat({ tabs, last: B, here: [] }) === B);
+  need('no tabs: the single live session of this window, never a guess among several', currentChat({ tabs: [], here: [A] }) === A && currentChat({ tabs: [], here: [A, B] }) === '');
+  const ti = parseTabInfo(JSON.stringify({ panelTabSessions: [{ sessionId: A, title: 'T' }], lastActivationSessionId: B + '1792466454852' }));
+  need('state db parse: tab titles and last activated id', ti && ti.info[0].id === A && ti.info[0].title === 'T' && ti.last === B);
+  const { RENDER } = require(path.join(OUT, 'webviewRender.js'));
+  const wrap = new Function('return (function(){' + RENDER.slice(RENDER.indexOf('const EMOJI_RE'), RENDER.indexOf('function hdHtml')) + '\nreturn emojiWrap;})()')();
+  const w = wrap('📅 Fix <mark>cal</mark> ❤️ ok');
+  need('emoji wrapped in a span outside tags, search marks intact', w === '<span class="em">📅</span> Fix <mark>cal</mark> <span class="em">❤️</span> ok' && wrap('plain 123') === 'plain 123');
+  const { ARCH_CSS, ARCH_JS } = require(path.join(OUT, 'webviewArchive.js'));
+  need('archived rows dim the title and grey the emoji', /\.r\.arc \.hd \.t\{color:color-mix/.test(ARCH_CSS) && /\.em\{filter:grayscale\(1\)\}/.test(ARCH_CSS));
+  need('Archived header: sentence case "Archived chats", no uppercase or letter-spacing, smaller pill (font-size minus 2px, 16px tall)', />Archived chats</.test(ARCH_JS) && /\.sl\.arh\{[^}]*font-weight:400;letter-spacing:0;text-transform:none/.test(ARCH_CSS) && /\.sl\.arh \.pill\{[^}]*font-size:calc\(var\(--vscode-font-size\) - 2px\);line-height:16px/.test(ARCH_CSS));
+  const css = require(path.join(OUT, 'webviewCss.js')).CSS, js = src('webviewJs.ts'), rd = src('webviewRender.ts');
+  need('current row uses list selection variables (active and inactive) and bold title', /\.r\.cur>\.rh\{background:var\(--vscode-list-inactiveSelectionBackground\)/.test(css) && /html:not\(\.nf\) \.r\.cur>\.rh\{background:var\(--vscode-list-activeSelectionBackground\)/.test(css) && /\.r\.cur \.hd \.t\{font-weight:600\}/.test(css));
+  need('row gets cur class from the dots message; focus toggles nf', /\(r\.id===curId\?' cur':''\)/.test(rd) && /curId=d\.cur\|\|''/.test(js) && /classList\.toggle\('nf'/.test(js));
+  const ext = src('extension.ts');
+  need('active tab changes repost the current chat; dots message carries cur', /tabGroups\.onDidChangeTabs\(tabMoved\)/.test(ext) && /type: 'dots'.*cur: this\.currentId\(\)/.test(ext));
+  need('no inline style in the new markup', !/style=/.test(ARCH_JS + rd.slice(rd.indexOf('function emojiWrap'), rd.indexOf('function hdHtml'))));
+}
+
 function report() { H.report('panel script ran ' + posted.length + ' posts, no exceptions'); }
