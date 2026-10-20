@@ -109,7 +109,11 @@ export class WorkScan {
   }
 
   private put(run: Run, m: object): void { if (!run.ac.signal.aborted) { run.post({ ...m, scan: run.scan }); } }
-  private postFolder(run: Run, key: string, m: object): void { this.put(run, { type: 'folder', key, ...m }); }
+  private postFolder(run: Run, key: string, m: object): void {
+    const cwd = this.byKey.get(key)?.cwd;
+    const ws = cwd !== undefined && !('ws' in m) ? { ws: this.inWs(cwd, '', undefined) } : {}; // always decided: a folder outside git is in the workspace only by its path, so other projects' chats never pass
+    this.put(run, { type: 'folder', key, ...ws, ...m });
+  }
 
   /** At most one progress message per 100 ms; a trailing one carries the last numbers. */
   private progress(run: Run, now: boolean): void {
@@ -174,6 +178,7 @@ export class WorkScan {
     run.unfinished.delete(e.key);
     if (!run.counted.has(e.key)) { run.counted.add(e.key); run.done++; }
     const msg: { [k: string]: unknown } = { state: out.state, reason: out.reason, age };
+    if (!(out.state === 'ok' && out.facts && out.common)) { msg.ws = this.inWs(e.cwd, '', undefined); } // a folder outside git is in the workspace only by its path; never left undecided
     if (out.state === 'ok' && out.facts && out.common) {
       e.wsSent = this.inWs(e.cwd, out.common, out.top);
       msg.facts = { ...out.facts, rk: this.rkeyOf(out.common), ws: e.wsSent };
