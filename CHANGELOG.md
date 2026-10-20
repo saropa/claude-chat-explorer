@@ -2,8 +2,21 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
-## 0.31.0
+## Unreleased
+- Added: the Command Palette command "Saropa: Usage Summary" shows cost per day, week, project and model and the 10 priciest chats (click resumes one).
+- Added: a status bar item, shown only when a chat is at 80% context or more, reading "N chats near full"; click opens the sidebar on the Nearly full status. Setting `saropaChatExplorer.showUsageStatusBar` hides it.
+- Added: the 90% context warning also offers "Copy hand-over note" (still once per chat per crossing; `saropaChatExplorer.contextWarnings` turns it off).
+- Added: export a chat as Markdown from the row context menu, with a save dialog.
+- Added: "Copy resume command" on the row context menu (`cd <folder> && claude --resume <id>`).
+- Added: the Command Palette command "Saropa: Archive Empty and Tiny Chats" with a modal count confirmation.
+- Added: a commit id in the Unpushed commits list searches for the chat that made it (`sha:`).
+- Added: a purple dot for a chat waiting on background agents or shells (found from the chat transcript: a launch with no finish notice yet). A chat with several states at once (for example background and unread) alternates between their colors, and the tooltip lists all of them. New color `saropaChatExplorer.dotBackground`.
+- Added: setting `saropaChatExplorer.animateDots` (default on) animates the dots; off, or with reduced motion on, they stay still and show the most important state.
 - Changed: the file menu command is titled "Saropa: Find Related Chats" (was "Saropa: Related Chats").
+- Changed: the Project status page is simpler. One header row (filter box, Filters, Sort, Refresh, "⋯" for Summary, Shortcuts, GitHub status and Show done) and one summary line ("proj — 2 need you · 4 waiting · 3 to clean up"). The group chips, the totals and the "Updated" line are gone (the update time is in the Refresh tooltip); the four state filters moved into a Filters popover with a count badge. The number next to a group always equals the rows listed in it.
+- Changed: the "Safe to remove" group is now "Cleanup" and also holds leftover folders git does not list; Cleanup and Idle start closed.
+- Changed: each Project status row has one labeled action (Open chat, Open PR, Ask to finish, Ask to clean up, Copy remove command, or "Working…"); the icon buttons moved into a Details block with the creator line, which replaces the Created column. A PR or vs default column that is "—" in every row is left out.
+- Changed: Project status reasons are short (a word plus at most 6 words, the full sentence in a tooltip), the default branch gets a small "default" badge, and row tooltips open above the row.
 
 ## 0.31.0
 - Fixed: `file:<path>` finds chats that only mention the path in text or commands (untracked files, prose), not just chats whose tool file fields held it.

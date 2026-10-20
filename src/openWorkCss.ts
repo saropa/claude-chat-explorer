@@ -1,3 +1,4 @@
+import { DOT_ANIM_CSS } from './dotCss';
 /** Open Work page styles. Fonts and colors come only from VS Code variables; no hex colors. */
 export const OW_CSS = String.raw`
 *{box-sizing:border-box}
@@ -24,7 +25,6 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .ab:focus-visible,.chip:focus-visible,.gb:focus-visible,.rb:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 .chip[aria-pressed=true],.gb[aria-expanded=true]{color:var(--vscode-button-foreground);background:var(--vscode-button-background)}
 .chip[aria-pressed=false]{opacity:.6}
-#cnt{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
 .sub{margin:6px 0 0;color:var(--vscode-descriptionForeground);overflow-wrap:anywhere}
 .sub[hidden]{display:none}
 #ixs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0 0;padding:4px 8px;color:var(--vscode-foreground);background:var(--vscode-inputValidation-infoBackground);border:1px solid var(--vscode-inputValidation-infoBorder,transparent)}
@@ -39,7 +39,7 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .msg.err{padding:4px 8px;color:var(--vscode-inputValidation-errorForeground,var(--vscode-foreground));background:var(--vscode-inputValidation-errorBackground);border:1px solid var(--vscode-inputValidation-errorBorder)}
 .band{margin:0 0 6px}
 .bh{position:relative;isolation:isolate;display:flex;align-items:center;gap:6px;padding:2px 8px;margin-bottom:0;border-left:3px solid var(--bac,var(--c-acc));border-bottom:1px solid var(--vscode-widget-border,var(--vscode-contrastBorder,transparent));color:var(--vscode-foreground)}
-.bh::before,.st::before,.chip.bc::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;background:var(--tint,currentColor);opacity:.1}
+.bh::before,.st::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;background:var(--tint,currentColor);opacity:.1}
 .bh::before{--tint:var(--bac,var(--c-acc))}
 .g-needs{--bac:var(--c-need)}.g-finish{--bac:var(--c-fin)}.g-waiting{--bac:var(--c-wait)}.g-tidy{--bac:var(--c-tidy)}.g-idle{--bac:var(--vscode-descriptionForeground)}
 .pill{flex:none;min-width:18px;padding:0 6px;border-radius:9px;line-height:16px;text-align:center;font-weight:normal;color:var(--vscode-badge-foreground);background:var(--vscode-badge-background)}
@@ -56,9 +56,11 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .dot{--dc:var(--vscode-descriptionForeground);width:8px;height:8px;border-radius:50%;background:var(--dc)}
 .dot.idle{--dc:var(--vscode-saropaChatExplorer-dotIdle,var(--vscode-descriptionForeground));opacity:.6}
 .dot.none{visibility:hidden}
-.dot.running{--dc:var(--vscode-saropaChatExplorer-dotRunning,var(--vscode-testing-iconPassed))}
-.dot.waiting{--dc:var(--vscode-saropaChatExplorer-dotWaiting,var(--vscode-focusBorder))}
-.dot.unread{--dc:var(--vscode-saropaChatExplorer-dotUnread,var(--vscode-editorWarning-foreground))}
+.dot{--k-running:var(--vscode-saropaChatExplorer-dotRunning,var(--vscode-testing-iconPassed));--k-waiting:var(--vscode-saropaChatExplorer-dotWaiting,var(--vscode-focusBorder));--k-unread:var(--vscode-saropaChatExplorer-dotUnread,var(--vscode-editorWarning-foreground));--k-background:var(--vscode-saropaChatExplorer-dotBackground,var(--vscode-charts-purple))}
+.dot.running{--dc:var(--k-running)}
+.dot.waiting{--dc:var(--k-waiting)}
+.dot.unread{--dc:var(--k-unread)}
+.dot.background{--dc:var(--k-background)}
 .st{color:var(--vscode-foreground)}
 .cx.cg{color:var(--c-tidy)}
 .cx.cy{color:var(--c-wait)}
@@ -70,13 +72,6 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .st.b-finish{color:var(--c-fin)}
 .st.b-waiting{color:var(--c-wait)}
 .st.b-tidy{color:var(--c-tidy)}
-.chip.bc{position:relative;isolation:isolate}
-.chip.bc::after{--tint:var(--bcc);opacity:0}
-.chip.bc::before{content:'';display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:var(--bcc)}
-.chip.b-needs{--bcc:var(--c-need)}.chip.b-finish{--bcc:var(--c-fin)}.chip.b-waiting{--bcc:var(--c-wait)}.chip.b-tidy{--bcc:var(--c-tidy)}
-.chip.bc[aria-pressed=true]{color:var(--vscode-foreground);background:transparent;border-color:var(--bcc)}
-.chip.bc[aria-pressed=true]::after{opacity:.22}
-.chip.bc[aria-pressed=false]::before{opacity:.6}
 .prb{font-weight:600}
 .prb.po{color:var(--c-tidy)}.prb.pm{color:var(--vscode-charts-purple,var(--c-fin))}.prb.pd{color:var(--vscode-descriptionForeground)}
 .ib{display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;padding:0;color:var(--vscode-icon-foreground,var(--vscode-foreground));background:transparent;border-color:transparent}
@@ -129,12 +124,21 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .fx{flex:1 1 220px;min-width:140px;max-width:420px;padding:3px 6px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-contrastBorder,transparent));border-radius:2px}
 .fx::placeholder{color:var(--vscode-input-placeholderForeground)}
 .fx:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
-#fr{margin:8px 0 0}
-#fch{flex:1 1 auto}
+#ctl{gap:8px}
+#fr{flex:1 1 280px;flex-wrap:nowrap}
+#fch{display:flex;flex-direction:column}
+#flc{margin-left:6px}
+#flm,#mom{padding:4px 0;min-width:min(200px,calc(100vw - 16px))}
+#flm .pt{padding:2px 10px 4px;color:var(--vscode-descriptionForeground)}
+#flm button,#mom button{display:flex;align-items:center;gap:6px;width:100%;min-height:24px;padding:0 10px;text-align:start;color:inherit;background:transparent;border:0;border-radius:0;opacity:1;cursor:pointer}
+#flm button:hover,#mom button:hover{color:var(--vscode-menu-selectionForeground);background:var(--vscode-menu-selectionBackground)}
+#flm button:focus-visible,#mom button:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
+#flm button[hidden],#mom button[hidden]{display:none}
+#flm .chip[aria-pressed=true]::after,#mom .chip[aria-pressed=true]::after{content:'\2713';margin-left:auto}
+#mom .gst{--gc:var(--vscode-descriptionForeground)}
 .lk{padding:0;cursor:pointer;color:var(--vscode-textLink-foreground);background:none;border:0;text-decoration:underline}
 .lk:hover{color:var(--vscode-textLink-activeForeground)}
 .lk:focus-visible{outline:1px solid var(--vscode-focusBorder)}
-#updw[hidden]{display:none}
 #shm{padding:4px 0}
 #shm .pt{padding:2px 10px 4px;color:var(--vscode-descriptionForeground)}
 .kb{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:0;padding:0 10px}
@@ -148,7 +152,7 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .bh .ab{color:inherit;background:transparent;border-color:transparent}
 .g-ps{--bac:var(--c-acc)}
 .ps{margin-bottom:12px}
-.psl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:4px 0 8px}
+.psl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:10px 0 8px}
 .psn{font-weight:600;color:var(--vscode-foreground)}
 .psb{padding:4px 4px 0}
 .pst-w{overflow-x:auto}
@@ -190,25 +194,34 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .bh.tg:hover .chv{opacity:.7}
 .bh.op .chv{transform:rotate(-135deg) translate(-2px,-2px)}
 
-.chip.b-idle{--bcc:var(--vscode-descriptionForeground)}
-.tot{margin-left:auto;align-self:center;color:var(--vscode-descriptionForeground)}
-.hl{margin:10px 0 8px;font-size:calc(var(--vscode-font-size) + 3px);font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.hl{font-size:calc(var(--vscode-font-size) + 3px);font-weight:600;line-height:1.3;overflow-wrap:anywhere}
 .wg{margin-bottom:10px}
-.wh,.wr{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,20ch) minmax(70px,12ch) 9ch 7ch auto;column-gap:14px;align-items:start}
+.wh,.wr{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.5fr) minmax(70px,12ch) 9ch 7ch auto;column-gap:14px;align-items:start}
+.no-pr .c-pr,.no-pr .h-pr,.no-vs .c-vs,.no-vs .h-vs{display:none}
+.no-pr .wh,.no-pr .wr{grid-template-columns:minmax(0,1.1fr) minmax(0,1.5fr) 9ch 7ch auto}
+.no-vs .wh,.no-vs .wr{grid-template-columns:minmax(0,1.1fr) minmax(0,1.5fr) minmax(70px,12ch) 7ch auto}
+.no-pr.no-vs .wh,.no-pr.no-vs .wr{grid-template-columns:minmax(0,1.1fr) minmax(0,1.5fr) 7ch auto}
 .wh{padding:2px 4px;color:var(--vscode-descriptionForeground);font-size:calc(var(--vscode-font-size) - 1px);border-bottom:1px solid var(--vscode-widget-border,transparent)}
 .wr{padding:6px 4px;border-bottom:1px solid var(--vscode-widget-border,transparent)}
 .wr:hover{background:var(--vscode-list-hoverBackground)}
-.c-nm,.c-cr{min-width:0;overflow-wrap:anywhere}
+.c-nm,.c-st,.c-cr{min-width:0;overflow-wrap:anywhere}
 .nl{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
 .bn,.bn .lk,.bn code,.bn-t{font-size:calc(var(--vscode-font-size) + 2px);font-weight:600}
 .bn code{font-family:var(--vscode-editor-font-family)}
 .wtn{font-size:calc(var(--vscode-font-size) - 1px);color:var(--vscode-descriptionForeground)}
-.why{margin-top:2px}
+.rs{cursor:default}
+.dflt{font-weight:normal}
+.pb{white-space:nowrap}
+.wd{grid-column:1/-1;margin:4px 0 0 4px;padding:4px 8px;border-left:2px solid var(--vscode-widget-border,var(--vscode-contrastBorder,transparent))}
+.wd dl{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:0}
+.wd dt{color:var(--vscode-descriptionForeground)}
+.wd dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.wda{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .vd{font-weight:600}
 .vd-needs{color:var(--c-need)}.vd-finish{color:var(--c-fin)}.vd-waiting{color:var(--c-wait)}.vd-tidy{color:var(--c-tidy)}.vd-idle{color:var(--vscode-descriptionForeground)}
 .c-cr,.c-vs,.cby{color:var(--vscode-descriptionForeground)}
 .cby .lk{color:inherit}
-.c-ac{display:flex;gap:2px;justify-content:flex-end;align-items:center}
+.c-ac{display:flex;flex-wrap:wrap;gap:4px 6px;justify-content:flex-end;align-items:center}
 .hxr{padding:0 0 4px 12px;border-bottom:1px solid var(--vscode-widget-border,transparent)}
-@media (max-width:760px){.wh{display:none}.wr{display:flex;flex-wrap:wrap;gap:4px 14px}.c-nm{flex:1 1 100%}.c-ac{margin-left:auto}.wr [data-l]::before{content:attr(data-l) ': ';color:var(--vscode-descriptionForeground)}.c-ac::before{content:none}}
-`;
+@media (max-width:760px){.wh{display:none}.wr{display:flex;flex-wrap:wrap;gap:4px 14px}.c-nm,.c-st,.wd{flex:1 1 100%}.c-ac{margin-left:auto}.wr [data-l]::before{content:attr(data-l) ': ';color:var(--vscode-descriptionForeground)}.c-ac::before{content:none}}
+` + DOT_ANIM_CSS;

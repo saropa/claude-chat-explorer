@@ -44,6 +44,7 @@ return{close:close,place:place,toggle:toggle,isOpen:()=>!!openPair()};}
 /**
  * makeTip(cfg): cfg.html(el) returns the tooltip html of an element with data-tip (empty string shows nothing);
  * cfg.bounds() returns {left,right,width} of the area the tip must stay inside; cfg.focusTarget(t) optionally maps a focused element to the one carrying data-tip.
+ * cfg.above(el) optionally returns an element (such as a table row) the tip opens above instead of below el, falling back to below it at the top edge; without it the tip sits below el.
  * Needs a hidden element with id "tip" (or cfg.id). Returns {show, hide, sync}.
  */
 export const TIP_ENGINE_JS = String.raw`
@@ -57,6 +58,8 @@ tipEl.style.maxWidth=Math.min(280,Math.floor(pr.width*0.9))+'px';tipEl.style.lef
 const w=tipEl.offsetWidth,h=tipEl.offsetHeight,vh=window.innerHeight;
 let x=a.left+a.width/2-w/2;x=Math.max(pr.left+M,Math.min(x,pr.right-M-w));
 let y=a.bottom+G;if(y+h>vh-M&&a.top-G-h>=M)y=a.top-G-h;
+const up=cfg.above?cfg.above(el):null;
+if(up){const u=up.getBoundingClientRect();y=u.top-G-h;if(y<M)y=Math.min(u.bottom+G,Math.max(M,vh-M-h));}
 tipEl.style.left=Math.round(x)+'px';tipEl.style.top=Math.round(y)+'px';}
 function show(el){const h=cfg.html(el);if(!h)return;
 tipFor=el;tipEl.innerHTML=h;tipEl.hidden=false;place(el);el.setAttribute('aria-describedby',tipEl.id||'tip');}

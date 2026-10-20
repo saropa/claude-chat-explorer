@@ -18,8 +18,8 @@ const ok = (s) => ({ code: 0, stdout: s, stderr: '', timedOut: false, aborted: f
 // Real list JSON; the one changes-requested PR that is a fork PR in the recording is made a repository PR, nothing else is edited.
 const list = JSON.parse(fs.readFileSync(FIX('cli_list.json'), 'utf8')).map((x) => (x.number === 13899 ? Object.assign({}, x, { isCrossRepository: false }) : x));
 const CASES = [
-  { n: 1, pr: 14583, branch: 'bagtoad/add-accessibility-md', band: 'Needs you', cell: /approved and its checks pass: ready to merge/, what: 'approved with passing checks' },
-  { n: 2, pr: 13899, branch: 'fix/13804-gh-issue-create-errors-after-successful', band: 'Needs you', cell: /Changes were requested/, what: 'changes requested' },
+  { n: 1, pr: 14583, branch: 'bagtoad/add-accessibility-md', band: 'Needs you', cell: /approved, ready to merge/, what: 'approved with passing checks' },
+  { n: 2, pr: 13899, branch: 'fix/13804-gh-issue-create-errors-after-successful', band: 'Needs you', cell: /Changes requested on PR/, what: 'changes requested' },
   { n: 3, pr: 14580, branch: 'bagtoad/artifact-restore-version', band: 'Waiting', cell: /needs review/, what: 'review requested' },
   { n: 4, pr: 13665, branch: 'use-actions-firewall', band: 'Waiting', cell: /approved/, what: 'approved but the checks lookup failed (unknown facts never move a row)' },
 ];
@@ -53,8 +53,8 @@ const target = (a) => { const t = { dataset: { a }, closest: (sel) => (sel === '
   for (const m of msgs) { H.deliver(m); }
   H.advance(300);
   const html = H.els.get('body').innerHTML;
-  const cnt = H.els.get('cnt').innerHTML;
-  check('e2e: the group buttons count the two PR rows that need the owner and the two waiting ones', /Needs you 2/.test(cnt) && Number((/Waiting (\d+)/.exec(cnt) || [0, 0])[1]) >= 2); // the recorded list holds 38 open pull requests: the other 34 have no worktree and wait
+  const pill = (label) => Number((new RegExp('<section[^>]*aria-label="' + label + '"[^]*?<span class="pill">(\\d+)</span>').exec(html) || [0, -1])[1]);
+  check('e2e: the group headers count the two PR rows that need the owner and the two waiting ones', pill('Needs you') === 2 && pill('Waiting') >= 2 && /2 need you/.test(/class="hl"[^>]*>([^<]*)</.exec(html)[1])); // the recorded list holds 38 open pull requests: the other 34 have no worktree and wait
   for (const c of CASES) {
     const prRow = new RegExp('<div class="wr"[^>]*data-w="w' + c.n + '"[^]*?(?=<div class="wr"|</section>)').exec(html), wtRow = prRow;
     check('e2e: PR ' + c.pr + ' (' + c.what + ') shows its review state in plain words in the one row of its branch', !!prRow && c.cell.test(prRow[0].replace(/<[^>]+>/g, ' ')) && new RegExp('#' + c.pr).test(prRow[0]));

@@ -5,7 +5,7 @@ import { POP_CSS, TIP_CSS } from './webviewPop';
 
 export const OW_TITLE = 'Claude Project Status';
 
-/** The Project status page (command id and tab type stay openWork): header, attention chips, status lines, the tables, the tooltip box and the script. */
+/** The Project status page (command id and tab type stay openWork): header (one row of controls), status lines, the tables, the tooltip box and the script. */
 export function openWorkHtml(version = ''): string {
   const ver = /^[\w.+-]{1,32}$/.test(version) ? `<sub class="ver">v${version}</sub>` : '';
   const nonce = randomBytes(18).toString('base64url');
@@ -16,21 +16,24 @@ export function openWorkHtml(version = ''): string {
 <style nonce="${nonce}">${OW_CSS}${POP_CSS}${TIP_CSS}</style></head><body>
 <div id="wrap">
 <header id="hd">
-<div class="hr"><h1 id="ttl">${OW_TITLE}${ver}</h1><span class="sp"></span>
-<button type="button" class="gst g-off" id="ghs" data-a="ghs" data-g="off" data-tip="GitHub connection" aria-label="GitHub connection"><span class="gd" aria-hidden="true"></span><span id="ght">GitHub</span></button>
+<div class="hr" id="ctl"><h1 id="ttl">${OW_TITLE}${ver}</h1>
+<div class="hr" id="fr" role="search" aria-label="Filter rows"><input type="search" id="fq" class="fx" placeholder="Filter by branch, worktree, chat title, file or PR" aria-label="Filter rows by branch, worktree, chat title, file name or pull request" maxlength="80" autocomplete="off" spellcheck="false">
+<div class="pw"><button type="button" class="gb" id="flb" data-tip="Show only rows with an open PR, failing checks, uncommitted files or unpushed commits" aria-label="Filters" aria-haspopup="true" aria-expanded="false" aria-controls="flm"><span>Filters</span><span id="flc" class="pill" hidden>0</span></button>
+<div id="flm" class="pop" role="group" aria-label="Filters" hidden><div class="pt">Show only rows with</div><div id="fch"></div></div></div></div>
+<span class="sp"></span>
 <div class="pw"><button type="button" class="gb" id="srb" data-tip="Sort the rows inside each group" aria-label="Sort rows by: Recent activity" aria-haspopup="true" aria-expanded="false" aria-controls="srm"><span id="srt">Sort: Recent activity</span></button>
 <div id="srm" class="pop" role="group" aria-label="Sort rows by" hidden></div></div>
-<button type="button" class="chip" id="dnb" data-a="showdone" aria-pressed="false" data-tip="Show or hide chats you marked done" hidden>Show done</button>
-<button type="button" class="ab ib" id="smb" data-a="summary" title="Copy a summary of everything open as text" aria-label="Copy summary"><svg class="ic" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="2.5" width="10" height="11" rx="1"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3"/></svg></button>
-<div class="pw"><button type="button" class="gb" id="shb" data-tip="Keyboard shortcuts" aria-label="Keyboard shortcuts" aria-haspopup="true" aria-expanded="false" aria-controls="shm" title="Keyboard shortcuts"><svg class="ic" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.2 6.3a1.9 1.9 0 113 1.5c-.7.5-1.2.9-1.2 1.7M8 11.6v.1"/></svg></button>
-<div id="shm" class="pop" role="group" aria-label="Keyboard shortcuts" hidden><div class="pt">Keyboard shortcuts</div><dl class="kb"><dt>j or Down</dt><dd>Next row</dd><dt>k or Up</dt><dd>Previous row</dd><dt>Home, End</dt><dd>First or last row</dd><dt>Enter</dt><dd>Open the chat</dd><dt>Space or Right</dt><dd>Expand the chat</dd><dt>Left</dt><dd>Collapse the chat</dd><dt>/</dt><dd>Go to the filter box</dd><dt>Esc</dt><dd>Close, collapse or clear</dd><dt>?</dt><dd>Show this list</dd></dl></div></div>
 <button type="button" class="ab ib" id="rf" data-a="refresh" title="Refresh: read the chat list again" aria-label="Refresh"><svg class="ic" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8a5 5 0 11-1.6-3.7M13 2.5v3h-3"/></svg></button>
+<div class="pw"><button type="button" class="gb ib" id="mob" data-tip="More: summary, keyboard shortcuts, GitHub status, done chats" aria-label="More" aria-haspopup="true" aria-expanded="false" aria-controls="mom">⋯</button>
+<div id="mom" class="pop" role="group" aria-label="More" hidden>
+<button type="button" id="smb" data-a="summary" title="Copy a summary of everything open as text" aria-label="Copy summary"><svg class="ic" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="2.5" width="10" height="11" rx="1"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3"/></svg><span>Copy summary</span></button>
+<button type="button" id="shb" aria-haspopup="true" aria-expanded="false" aria-controls="shm" title="Keyboard shortcuts"><span>Keyboard shortcuts</span></button>
+<button type="button" class="gst g-off" id="ghs" data-a="ghs" data-g="off" data-tip="GitHub connection" aria-label="GitHub connection"><span class="gd" aria-hidden="true"></span><span id="ght">GitHub</span></button>
+<button type="button" class="chip" id="dnb" data-a="showdone" aria-pressed="false" data-tip="Show or hide chats you marked done" hidden>Show done</button></div>
+<div id="shm" class="pop" role="group" aria-label="Keyboard shortcuts" hidden><div class="pt">Keyboard shortcuts</div><dl class="kb"><dt>j or Down</dt><dd>Next row</dd><dt>k or Up</dt><dd>Previous row</dd><dt>Home, End</dt><dd>First or last row</dd><dt>Enter</dt><dd>Open the chat</dd><dt>Space or Right</dt><dd>Expand the chat</dd><dt>Left</dt><dd>Collapse the chat</dd><dt>/</dt><dd>Go to the filter box</dd><dt>Esc</dt><dd>Close, collapse or clear</dd><dt>?</dt><dd>Show this list</dd></dl></div></div>
 </div>
-<div class="hr" id="fr" role="search" aria-label="Filter rows"><input type="search" id="fq" class="fx" placeholder="Filter by branch, worktree, chat title, file or PR" aria-label="Filter rows by branch, worktree, chat title, file name or pull request" maxlength="80" autocomplete="off" spellcheck="false"><span id="fch" class="hr"></span></div>
-<div id="cnt" role="group" aria-label="Rows by what to do next"></div>
 <div id="ixs" role="status" hidden><span>Indexing...</span><span>Index still building: list may be incomplete.</span><span class="ixp"><i></i></span><button type="button" class="ab ib" data-a="retry" aria-label="Retry reading the chat list" title="Retry reading the chat list"><svg class="ic" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8a5 5 0 11-1.6-3.7M13 2.5v3h-3"/></svg></button></div>
 <div id="prog" class="sub" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="" hidden></div>
-<div id="updw" class="sub" hidden><span id="upd"></span><span aria-hidden="true"> - </span><button type="button" class="ab ib" id="updr" data-a="refresh" aria-label="Refresh" title="Refresh: read the chat list and git state again"><svg class="ic" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8a5 5 0 11-1.6-3.7M13 2.5v3h-3"/></svg></button></div>
 <div id="note" class="sub"></div>
 </header>
 <main id="body" aria-busy="true"></main>
