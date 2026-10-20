@@ -204,7 +204,7 @@ export class OpenWork {
       if (!same) { this.begin(raw, wanted, all.length - wanted.length, o.force === true); } else { this.relSoon(); }
     } catch (e) {
       this.d.log('open work chats', e);
-      if (req === this.reqNo) { this.post({ type: 'chatsFailed', scan: this.scanNo, message: 'Could not load chats' }); }
+      if (req === this.reqNo) { this.post({ type: 'chatsFailed', scan: this.scanNo, message: 'Could not load sessions' }); }
     }
   }
 
@@ -277,13 +277,13 @@ export class OpenWork {
     const rows: CleanRow[] | undefined = m.all === true ? undefined : (Array.isArray(m.rows) ? m.rows.slice(0, MAX_ROWS) : [])
       .map((x: any): CleanRow => ({ b: typeof x?.b === 'string' && x.b.length <= 250 ? x.b : undefined, w: typeof x?.w === 'string' && /^[ws]?\d{1,6}$/.test(x.w) ? x.w : undefined }));
     const k = this.model;
-    const out = await buildCleanup(this.d.scan, { rel: k.rel.get(rk) as any, prs: k.prs.get(rk), checks: k.checks }, rk, id, this.titles.get(id) ?? 'this chat', projectsRoot(), rows);
-    if (!out) { void vscode.window.showInformationMessage('Nothing to ask about: this chat is not the certain creator of that row. Refresh and try again.'); return; }
+    const out = await buildCleanup(this.d.scan, { rel: k.rel.get(rk) as any, prs: k.prs.get(rk), checks: k.checks }, rk, id, this.titles.get(id) ?? 'this session', projectsRoot(), rows);
+    if (!out) { void vscode.window.showInformationMessage('Nothing to ask about: this session is not the certain creator of that row. Refresh and try again.'); return; }
     await vscode.env.clipboard.writeText(out.text);
     const what = out.n === 1 ? 'one item' : out.n + ' items';
-    if (m.mode !== 'resume') { void vscode.window.showInformationMessage(`Copied the clean-up prompt for ${what} (${out.text.length} characters). Paste it into the chat.`); return; }
+    if (m.mode !== 'resume') { void vscode.window.showInformationMessage(`Copied the clean-up prompt for ${what} (${out.text.length} characters). Paste it into the session.`); return; }
     await this.d.resume(id);
-    const pick = await vscode.window.showInformationMessage(`Opened the chat. It cannot be pre-filled, so the clean-up prompt for ${what} is on your clipboard: paste it into the chat.`, 'Copy terminal command');
+    const pick = await vscode.window.showInformationMessage(`Opened the session. It cannot be pre-filled, so the clean-up prompt for ${what} is on your clipboard: paste it into the session.`, 'Copy terminal command');
     if (pick) { await vscode.env.clipboard.writeText(resumeCommand(out.dir, id, process.platform === 'win32')); void vscode.window.showInformationMessage('Copied the terminal command. Paste the prompt after it starts (it is no longer on the clipboard).'); }
   }
 
@@ -395,7 +395,7 @@ export class OpenWork {
   private async archive(id: string, on: boolean): Promise<void> {
     await this.d.setArchived(id, on);
     if (!on) { return; }
-    const pick = await vscode.window.showInformationMessage(`Archived "${this.titles.get(id) || 'chat'}".`, 'Undo');
+    const pick = await vscode.window.showInformationMessage(`Archived "${this.titles.get(id) || 'session'}".`, 'Undo');
     if (pick === 'Undo') { await this.d.setArchived(id, false); }
   }
 }

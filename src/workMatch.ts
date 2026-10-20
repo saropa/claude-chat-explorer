@@ -92,13 +92,13 @@ class Matcher {
     const out: Array<[string, string | undefined, boolean, Proof[]?]> = [];
     const w = t.wt;
     if (w) {
-      if (p.own.cwds.some((d) => this.ownerOf(d) === w.k)) { out.push(['cwd', 'the chat ran in ' + w.name, false]); }
+      if (p.own.cwds.some((d) => this.ownerOf(d) === w.k)) { out.push(['cwd', 'the session ran in ' + w.name, false]); }
       for (const s of p.subs) { if (s.s.cwds.some((d) => this.ownerOf(d) === w.k)) { out.push(['subagent', agentNote(s.c, 'ran in ' + w.name), false]); } }
       const agent = /^agent-(.+)$/.exec(w.name);
       if (agent) { for (const s of p.subs) { if (s.c.id === agent[1]) { out.push(['subagent', agentNote(s.c, 'owns this worktree (agent id in its name)'), false]); } } }
       if (!w.main) {
         const mw = p.own.made.filter((m) => m[0] === 'w' && baseOf(m[1]) === w.name);
-        if (mw.length) { out.push(['created-by-tool-call', 'the chat ran git worktree add for ' + w.name, true, mw.flatMap((m) => proofOf(p.c, m))]); }
+        if (mw.length) { out.push(['created-by-tool-call', 'the session ran git worktree add for ' + w.name, true, mw.flatMap((m) => proofOf(p.c, m))]); }
         for (const s of p.subs) {
           const sw = s.s.made.filter((m) => m[0] === 'w' && baseOf(m[1]) === w.name);
           if (sw.length) { out.push(['subagent', agentNote(s.c, 'created ' + w.name), true, sw.flatMap((m) => proofOf(s.c, m))]); }
@@ -110,7 +110,7 @@ class Matcher {
     if (b && (!t.def || !w)) { // the default branch is told by its worktree; with none checked out, by the branch field
       if (p.own.seen.has(b)) { out.push(['git-branch-field', 'its rows record branch ' + b, false]); }
       const mb = p.own.made.filter((m) => m[0] === 'b' && m[1] === b);
-      if (mb.length) { out.push(['created-by-tool-call', 'the chat created branch ' + b, true, mb.flatMap((m) => proofOf(p.c, m))]); }
+      if (mb.length) { out.push(['created-by-tool-call', 'the session created branch ' + b, true, mb.flatMap((m) => proofOf(p.c, m))]); }
       for (const s of p.subs) {
         const sb = s.s.made.filter((m) => m[0] === 'b' && m[1] === b);
         if (sb.length) { out.push(['subagent', agentNote(s.c, 'created branch ' + b), true, sb.flatMap((m) => proofOf(s.c, m))]); }
@@ -181,8 +181,8 @@ class Matcher {
       let hit = '', where: 'agent' | 'user' | '' = '';
       for (const n of names) { const r = this.mentions(p, n); if (r && (!where || r === 'agent')) { hit = n; where = r; } if (where === 'agent') { break; } }
       if (!where) { continue; }
-      if (p.inRepo && where === 'agent' && !creator) { addTo(prob, p.c.id, 'name-in-text', 'the chat mentions "' + hit + '"'); }
-      else { addTo(men, p.c.id, 'name-in-text', (p.inRepo ? (where === 'user' ? 'only the question names "' : 'the chat only mentions "') : 'a chat of another repository names "') + hit + '"'); }
+      if (p.inRepo && where === 'agent' && !creator) { addTo(prob, p.c.id, 'name-in-text', 'the session mentions "' + hit + '"'); }
+      else { addTo(men, p.c.id, 'name-in-text', (p.inRepo ? (where === 'user' ? 'only the question names "' : 'the session only mentions "') : 'a session of another repository names "') + hit + '"'); }
     }
     const maybe = prob.size ? this.finish(prob, 'probable') : [];
     const mention = men.size ? this.finish(men, 'mention').slice(0, MAX_MENTIONS) : [];
@@ -210,11 +210,11 @@ class Matcher {
     const inWin = rows.filter((r) => r.gap === 0 || (r.gap < 0 && -r.gap <= SLACK_MS) || (r.gap > 0 && r.gap <= SLACK_MS));
     if (inWin.length) {
       inWin.sort((a, b) => Number(b.covers) - Number(a.covers) || a.span - b.span);
-      return inWin.slice(0, 3).map((r) => ({ id: r.p.c.id, why: 'time-window', conf: 'probable' as const, note: 'the chat was active when the branch was made and worked on' }));
+      return inWin.slice(0, 3).map((r) => ({ id: r.p.c.id, why: 'time-window', conf: 'probable' as const, note: 'the session was active when the branch was made and worked on' }));
     }
     rows.sort((a, b) => Math.abs(a.gap) - Math.abs(b.gap));
     const n = rows[0];
-    return n ? [{ id: n.p.c.id, why: 'time-window', conf: 'probable', near: n.gap, note: 'nearest chat by time' }] : [];
+    return n ? [{ id: n.p.c.id, why: 'time-window', conf: 'probable', near: n.gap, note: 'nearest session by time' }] : [];
   }
 
   private finish(acc: Map<string, Acc>, conf: 'certain' | 'probable' | 'mention'): RelHit[] {

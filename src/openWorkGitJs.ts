@@ -54,7 +54,7 @@ function askOpen(){open.forEach(id=>askDetail(id,false));}
 function retryDetail(id){delete detail[id];askDetail(id,true);sched();}
 function resetDetail(){Object.keys(asked).forEach(k=>clearTimeout(asked[k].t));asked={};detail={};}
 function pruneRepos(){Object.keys(repos).forEach(k=>{if(repos[k].sc!==scan){clearTimeout(fwatch[k]);delete fwatch[k];delete repos[k];}});}
-function noteUi(){let h=esc(notes.gitMissing?'Git was not found on this computer. Only chat state is shown.':prNote());
+function noteUi(){let h=esc(notes.gitMissing?'Git was not found on this computer. Only session state is shown.':prNote());
 if(notes.more>0)h+=' '+esc(notes.more+' more folders not scanned.')+' <button type="button" class="ab" data-a="more">Scan more</button>';$('note').innerHTML=h;}
 function retryKey(k){if(/^p\d+$/.test(k)){const p=prs['r'+k.slice(1)];if(p){p.st='queued';p.reason='';}pwatchKey('r'+k.slice(1));vs.postMessage({type:'retry',key:k});sched();return;}if(!/^[fr]\d+$/.test(k))return;const e=gs[k];if(e){e.st='queued';e.reason='';}const r=repos[k];if(r){r.st='queued';r.reason='';}if(!r)watchKey(k,WATCH_FOLDER_MS+5000);vs.postMessage({type:'retry',key:k});sched();}
 function cellsOf(r){
@@ -68,7 +68,7 @@ const show=f&&(e.st==='ok'||live);
 return{br:show?esc(f.detached?'detached '+(f.sha||''):f.branch||''):'',fl:fl,ah:show?aheadText(f):'',busy:live,retry:retry};}
 function aheadText(f){return (f.ahead>0?'↑'+f.ahead:'')+(f.behind>0?(f.ahead>0?' ':'')+'↓'+f.behind:'')+(f.gone?(f.ahead>0||f.behind>0?' ':'')+'gone':'');}
 function retryTip(e){return e&&e.reason?e.reason:'';}
-function exGit(r){const e=fOf(r);if(!r.fk)return[['Git','No working folder is recorded for this chat.']];
+function exGit(r){const e=fOf(r);if(!r.fk)return[['Git','No working folder is recorded for this session.']];
 if(!e||e.st==='queued'||e.st==='running'){const f0=e&&e.f;if(!f0)return[['Git','Reading git...']];}
 if(e.st==='none')return[['Git',esc(e.reason||'Not a git folder')]];
 if(!e.f)return[['Git',esc((e.st==='timeout'?'Timed out':'Could not read git')+(e.reason&&e.st!=='timeout'?': '+e.reason:''))]];
@@ -87,6 +87,6 @@ if(!d)h+='<div class="gw">Loading...</div>';else if(!d.commits)h+='<div class="g
 else h+=d.commits.map(c=>'<div class="gw"><code>'+esc(c.sha)+'</code> '+esc(c.subject)+'</div>').join('')+(f.ahead>d.commits.length?'<div class="gw gmore">+'+(f.ahead-d.commits.length)+' more</div>':'');}
 const rk=f&&f.rk,rp=rk?repos[rk]:null;
 if(rp&&rp.worktrees&&rp.worktrees.length>1){const mine=(wtOf(r)||{}).k;h+='<div class="xh">Worktrees ('+rp.worktrees.length+')</div>'+rp.worktrees.map(w=>'<div class="gw'+(w.k===mine?' here':'')+'">'+esc(w.name)+' <span class="br">'+esc(w.detached?'detached':w.branch||'')+'</span>'+(w.main?' main':'')+(w.locked?' locked':'')+(w.missing?' missing':'')+(w.k===mine?' (this one)':'')+'</div>').join('');}
-if(r.fk){const same=rows.filter(x=>x.fk===r.fk&&x.id!==r.id).slice(0,5);if(same.length)h+='<div class="xh">Other chats in this folder</div>'+same.map(x=>'<div class="gw">'+esc(x.title||'Untitled chat')+'</div>').join('');}
+if(r.fk){const same=rows.filter(x=>x.fk===r.fk&&x.id!==r.id).slice(0,5);if(same.length)h+='<div class="xh">Other sessions in this folder</div>'+same.map(x=>'<div class="gw">'+esc(x.title||'Untitled session')+'</div>').join('');}
 return h;}
 `;

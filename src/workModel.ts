@@ -40,26 +40,28 @@ export function bandOf(dot: string, g?: any, last?: number, now?: number): strin
   return 'idle';
 }
 
-/** Group headers of the Project status table (same keys as the bands, so the saved "turned off" list keeps its meaning). */
-export const GROUP_LABEL: { [k: string]: string } = { needs: 'Needs you', finish: 'Unfinished work', waiting: 'Waiting', tidy: 'Cleanup', idle: 'Idle' };
+/** Group headers of the Open Work page (same keys as the bands, so the saved "turned off" list keeps its meaning). The page merges finish into needs: one ranked "Your move" group. */
+export const GROUP_LABEL: { [k: string]: string } = { needs: 'Your move', finish: 'Your move', waiting: 'In progress', tidy: 'Safe to remove', idle: 'Everything else' };
 
 /**
  * The one verdict of a Project status row: state (one short word or phrase), group (needs, finish, waiting, tidy, idle), reason (at most 6 words),
- * full (the same reason as one plain sentence, for the tooltip) and tags (secondary facts, the page shows two at most).
+ * full (the same reason as one plain sentence, for the tooltip), tags (secondary facts, the page shows two at most), todo (the imperative headline: Answer, Read, Fix checks on, Address review on, Merge, Commit, Push, Remove worktree, Prune; empty when nothing is asked of the owner)
+ * and rank (urgency inside the Your move group, lower first: waiting session, unread, missing worktree, failing checks, changes requested, approved PR, uncommitted, unpushed).
  * i: name, defName, isDef, local, remote, stray ({git}), wt (null or {missing, main, locked, known, files, unpushed, behind, gone, merged}), a and bh (commits ahead of and behind the default branch, undefined when not read),
  *    up (the branch has a remote branch), gone, merged (merged into the default branch), pr (null or {n, checks, review, draft}), chat ('waiting', 'unread', 'running', 'background' or ''),
  *    chatTitle (title of the chat that is waiting or unread, for the unread reason).
  * First matching rule wins; unknown facts never move a row into a worse group.
  */
-export function workVerdict(i: any): { state: string; group: string; reason: string; full: string; tags: string[] } {
-  const out = (state: string, group: string, reason: string, full?: string, tags?: string[]) => ({ state, group, reason, full: full || reason, tags: tags || [] });
+export function workVerdict(i: any): { state: string; group: string; reason: string; full: string; tags: string[]; todo: string; rank: number } {
+  const out = (state: string, group: string, reason: string, full?: string, tags?: string[], todo?: string, rank?: number) => ({ state, group, reason, full: full || reason, tags: tags || [], todo: todo || '', rank: rank === undefined ? 9 : rank });
+  const ttl = (x: any): string => { const t = String(x || '').trim(), c = t.length > 40 ? t.slice(0, 39) + '…' : t; return c ? ' "' + c + '"' : ''; };
   const dn = i.defName || 'main', w = i.wt, pr = i.pr;
   const tags: string[] = [];
   if (w && w.locked && !w.main) { tags.push('locked'); }
   if (pr && pr.draft) { tags.push('draft'); }
   if (i.gone) { tags.push('remote branch deleted'); }
   if (w && w.main && !i.isDef) { tags.push('main checkout'); }
-  if (i.stray) { return out('Leftover folder', 'tidy', 'Not a git worktree', i.stray.git ? 'Git does not list this folder as a worktree: repair or remove it' : 'A plain folder left behind by a removed worktree', tags); }
+  if (i.stray) { return out('Leftover folder', 'tidy', 'Not a git worktree', i.stray.git ? 'Git does not list this folder as a worktree: repair or remove it' : 'A plain folder left behind by a removed worktree', tags, 'Remove leftover folder', 8); }
   const files = w && w.known ? w.files || 0 : 0;
   const never = !w && i.local && !i.up && !i.gone && !i.isDef && typeof i.a === 'number' && i.a > 0; // a branch with no worktree that was never pushed
   const unp = w && w.known ? w.unpushed || 0 : never ? i.a : 0;
@@ -67,24 +69,24 @@ export function workVerdict(i: any): { state: string; group: string; reason: str
   const behind = bh > 0 ? ', ' + bh + ' behind ' + (i.isDef ? 'origin' : dn) : '';
   const prWord = (p: any): string => '#' + p.n + (p.checks === 'passing' ? ', checks passing' : p.checks === 'failing' ? ', checks failing' : p.checks === 'pending' ? ', checks running' : '') + (p.review === 'approved' ? ', approved' : p.review === 'review requested' ? ', needs review' : '');
   const prFull = (p: any): string => 'PR #' + p.n + ' is open' + (p.checks === 'passing' ? ', checks passing' : p.checks === 'failing' ? ', checks failing' : p.checks === 'pending' ? ', checks running' : '') + (p.review === 'approved' ? ', approved' : p.review === 'review requested' ? ', needs review' : '');
-  if (i.chat === 'waiting') { return out('Needs you', 'needs', 'Chat waiting for your answer', 'A chat is waiting for your answer', tags); }
+  if (i.chat === 'waiting') { return out('Needs you', 'needs', 'Session waiting for your answer', 'A session is waiting for your answer', tags, 'Answer the question in' + (ttl(i.chatTitle) || ' this session'), 0); }
   if (i.chat === 'unread') {
     const t = String(i.chatTitle || '').trim(), title = t.length > 40 ? t.slice(0, 39) + '…' : t;
-    return out('Needs you', 'needs', title ? 'Unread: ' + title : 'Unread chat', 'A chat finished while you were away: read it', tags);
+    return out('Needs you', 'needs', title ? 'Unread: ' + title : 'Unread session', 'A session finished while you were away: read it', tags, 'Read' + (ttl(i.chatTitle) || ' the finished session'), 1);
   }
-  if (w && w.missing) { return out('Needs you', 'needs', 'Worktree folder is gone', 'The worktree folder is gone: prune the worktree', tags); }
-  if (pr && pr.checks === 'failing') { return out('PR failing', 'needs', 'Checks failing on PR #' + pr.n, 'Checks are failing on PR #' + pr.n, tags); }
-  if (pr && pr.review === 'changes requested') { return out('Needs you', 'needs', 'Changes requested on PR #' + pr.n, 'Changes were requested on PR #' + pr.n, tags); }
-  if (i.chat === 'running' || i.chat === 'background') { return out('Working…', 'waiting', '', 'A chat is working here right now', tags); }
-  if (files > 0) { return out('Dirty', 'finish', countWord(files, 'file') + ' uncommitted' + (unp > 0 ? ', ' + unp + ' unpushed' : ''), countWord(files, 'file') + ' not committed' + (unp > 0 ? ', ' + countWord(unp, 'commit') + ' not pushed' : '') + behind, tags); }
-  if (unp > 0) { return out('Unpushed', 'finish', countWord(unp, 'commit') + (never ? ' only on this computer' : ' not pushed'), countWord(unp, 'commit') + (never ? ' only on this computer' : ' not pushed') + behind, tags); }
-  if (pr && pr.review === 'approved' && (pr.checks === 'passing' || pr.checks === 'none')) { return out('Needs you', 'needs', 'PR #' + pr.n + ' approved, ready to merge', 'PR #' + pr.n + ' is approved and its checks pass: ready to merge', tags); }
+  if (w && w.missing) { return out('Needs you', 'needs', 'Worktree folder is gone', 'The worktree folder is gone: prune the worktree', tags, 'Prune', 2); }
+  if (pr && pr.checks === 'failing') { return out('PR failing', 'needs', 'Checks failing on PR #' + pr.n, 'Checks are failing on PR #' + pr.n, tags, 'Fix checks on PR #' + pr.n, 3); }
+  if (pr && pr.review === 'changes requested') { return out('Needs you', 'needs', 'Changes requested on PR #' + pr.n, 'Changes were requested on PR #' + pr.n, tags, 'Address review on PR #' + pr.n, 4); }
+  if (i.chat === 'running' || i.chat === 'background') { return out('Working…', 'waiting', '', 'A session is working here right now', tags); }
+  if (files > 0) { return out('Dirty', 'finish', countWord(files, 'file') + ' uncommitted' + (unp > 0 ? ', ' + unp + ' unpushed' : ''), countWord(files, 'file') + ' not committed' + (unp > 0 ? ', ' + countWord(unp, 'commit') + ' not pushed' : '') + behind, tags, 'Commit ' + countWord(files, 'file'), 6); }
+  if (unp > 0) { return out('Unpushed', 'finish', countWord(unp, 'commit') + (never ? ' only on this computer' : ' not pushed'), countWord(unp, 'commit') + (never ? ' only on this computer' : ' not pushed') + behind, tags, 'Push ' + countWord(unp, 'commit'), 7); }
+  if (pr && pr.review === 'approved' && (pr.checks === 'passing' || pr.checks === 'none')) { return out('Needs you', 'needs', 'PR #' + pr.n + ' approved, ready to merge', 'PR #' + pr.n + ' is approved and its checks pass: ready to merge', tags, 'Merge PR #' + pr.n, 5); }
   if (pr) { return out('PR open', 'waiting', prWord(pr), prFull(pr), tags); }
   const same = !i.isDef && !w?.main && typeof i.a === 'number' && i.a === 0;
   if (!i.isDef && !(w && (w.main || w.locked || w.ws || (!w.known && !w.missing))) && (i.merged || same || i.gone || (w && w.merged === true))) {
-    const tail = w ? ': the worktree can be removed' : '';
-    if (same) { return out('Merged clean', 'tidy', 'Same as ' + dn + ', nothing unique', 'Same as ' + dn + ', nothing unique' + (w ? tail : ': the branch can be deleted'), tags); }
-    if (i.gone && !i.merged) { return out('Merged clean', 'tidy', 'Remote branch deleted, nothing unpushed', 'The remote branch was deleted and nothing is unpushed', tags); }
+    const tail = w ? ': the worktree can be removed' : '', td = w ? 'Remove worktree' : 'Delete branch';
+    if (same) { return out('Merged clean', 'tidy', 'Same as ' + dn + ', nothing unique', 'Same as ' + dn + ', nothing unique' + (w ? tail : ': the branch can be deleted'), tags, td, 8); }
+    if (i.gone && !i.merged) { return out('Merged clean', 'tidy', 'Remote branch deleted, nothing unpushed', 'The remote branch was deleted and nothing is unpushed', tags, td, 8); }
     return out('Merged clean', 'tidy', 'Merged into ' + dn + ', nothing to lose', 'Merged into ' + dn + ', nothing to lose' + tail, tags);
   }
   if (!i.local && i.remote) { return out('Remote only', 'idle', 'Only on GitHub, no local copy', 'Only on GitHub, no local copy' + (typeof i.a === 'number' && i.a > 0 ? ', ' + countWord(i.a, 'commit') + ' not in ' + dn : ''), tags); }
@@ -98,20 +100,20 @@ export function workVerdict(i: any): { state: string; group: string; reason: str
 export type GroupCounts = { needs: number; finish: number; waiting: number; tidy: number; idle: number };
 
 /**
- * The answer-first line above the table: "proj — 2 need you · 1 unfinished · 4 waiting · 3 to clean up". Zero parts are left out.
- * counts: rows per group (the page passes the counts of the rows it lists). project: name put in front, left out when empty.
+ * The answer-first line above the groups: "proj — Next: Answer the question in "X" · 2 more need you · 1 waiting". Zero parts are left out.
+ * counts: rows per group (the page passes the counts of the rows it lists; finish counts with needs). project: name put in front, left out when empty.
+ * next: the todo of the top row of Your move; without it the line reads "3 need you".
  */
-export function workHeadline(counts: GroupCounts, complete = true, project = ''): string {
+export function workHeadline(counts: GroupCounts, complete = true, project = '', next = ''): string {
   const lead = project ? project + ' — ' : '';
   const n = counts.needs + counts.finish + counts.waiting + counts.tidy + counts.idle;
   if (!n) { return lead + (complete ? 'No branches besides the default one. Nothing is open.' : 'No branches besides the default one so far; some parts were not read yet.'); }
-  const parts: string[] = [];
-  if (counts.needs) { parts.push(counts.needs + (counts.needs === 1 ? ' needs you' : ' need you')); }
-  if (counts.finish) { parts.push(counts.finish + ' unfinished'); }
+  const parts: string[] = [], mv = counts.needs + counts.finish;
+  if (mv && next) { parts.push('Next: ' + next); if (mv > 1) { parts.push((mv - 1) + ' more need you'); } }
+  else if (mv) { parts.push(mv + (mv === 1 ? ' needs you' : ' need you')); }
   if (counts.waiting) { parts.push(counts.waiting + ' waiting'); }
   if (counts.tidy) { parts.push(counts.tidy + ' to clean up'); }
   if (!parts.length) { parts.push(complete ? 'Nothing is open' : 'Nothing open so far'); }
-  if (counts.idle) { parts.push(counts.idle + ' idle'); }
   return lead + parts.join(' · ');
 }
 
@@ -120,11 +122,11 @@ export function countWord(n: number, one: string, many?: string): string { retur
 
 /** One plain sentence on what to do next, from the dot state and the git view. */
 export function nextStep(dot: string, g?: any): string {
-  if (dot === 'waiting') { return 'The agent is waiting for your answer. Open the chat and reply.'; }
-  if (dot === 'unread') { return 'The agent finished while you were away. Open the chat to read it.'; }
-  if (dot === 'running') { return 'The agent is working in this chat. Nothing to do yet.'; }
-  if (dot === 'background') { return 'Background agents are still working for this chat. Nothing to do yet.'; }
-  if (!g || !g.ok) { return 'No open work is known for this chat yet. Git state is not shown.'; }
+  if (dot === 'waiting') { return 'The agent is waiting for your answer. Open the session and reply.'; }
+  if (dot === 'unread') { return 'The agent finished while you were away. Open the session to read it.'; }
+  if (dot === 'running') { return 'The agent is working in this session. Nothing to do yet.'; }
+  if (dot === 'background') { return 'Background agents are still working for this session. Nothing to do yet.'; }
+  if (!g || !g.ok) { return 'No open work is known for this session yet. Git state is not shown.'; }
   const pr = g.pr ? 'pull request #' + g.pr.n : '';
   if (pr && g.pr.checks === 'failing') { return 'A check is failing on ' + pr + '. Open the pull request and fix it.'; }
   const todo: string[] = [];
@@ -133,9 +135,9 @@ export function nextStep(dot: string, g?: any): string {
   if (todo.length) { return 'Open work: ' + todo.join(', then ') + '.'; }
   if (pr) { return g.pr.review === 'changes requested' ? 'Changes were requested on ' + pr + '. Make them and push.' : g.pr.review === 'approved' && (g.pr.checks === 'passing' || g.pr.checks === 'none') ? 'The ' + pr + ' is approved. It is ready to merge.' : 'Waiting on ' + pr + ' (review or checks).'; }
   if (g.ready) { return 'This worktree is finished. You can remove it with the copied command.'; }
-  if (g.gone) { return 'The remote branch is gone. The branch can be deleted and the chat archived.'; }
-  if (g.merged && !g.isDef) { return 'This branch is merged. It can be deleted and the chat archived.'; }
-  return 'Nothing is open. Archive the chat when you are done with it.';
+  if (g.gone) { return 'The remote branch is gone. The branch can be deleted and the session archived.'; }
+  if (g.merged && !g.isDef) { return 'This branch is merged. It can be deleted and the session archived.'; }
+  return 'Nothing is open. Archive the session when you are done with it.';
 }
 
 /** Row order: 'recent' (newest first, the default) or 'name' (title). */
@@ -232,7 +234,7 @@ export function summaryOf(items: any[], days: number): { text: string; n: number
   const order = ['needs', 'finish', 'waiting', 'tidy'];
   const labels: { [k: string]: string } = { needs: 'Needs you', finish: 'To finish', waiting: 'Waiting on others', tidy: 'Ready to tidy' };
   const open = items.filter((x) => order.indexOf(x.band) >= 0);
-  const out: string[] = ['# Open work: ' + countWord(open.length, 'item'), '', 'Chats from the last ' + countWord(days, 'day') + ', and worktrees without a chat.', ''];
+  const out: string[] = ['# Open work: ' + countWord(open.length, 'item'), '', 'Sessions from the last ' + countWord(days, 'day') + ', and worktrees without a session.', ''];
   out.push(order.map((b) => labels[b] + ' ' + open.filter((x) => x.band === b).length).join(', ') + '.');
   for (const b of order) {
     const list = open.filter((x) => x.band === b);

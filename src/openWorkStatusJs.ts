@@ -1,10 +1,10 @@
 /** Project status layer of the page script: ONE overview table "Work", a row per branch (its worktree and pull request folded in, plus pull-request-only rows, remote-only branches and folders git does not list),
- *  grouped by what the owner has to do (Needs you, Unfinished work, Waiting, Cleanup, Idle), with a headline in plain words on top, the chats inside the row they belong to (closed by default,
- *  the creator chat named in the row's details), and "Chats without a branch" at the bottom, closed.
+ *  grouped by what the owner has to do (Your move, In progress, Safe to remove, Everything else), each row "do X, because Y" with one action, a headline in plain words on top, the chats inside the row they belong to (closed by default,
+ *  the creator chat named in the row's overflow popover), and the chats without a branch inside Everything else.
  *  Shares the page's top-level scope (GIT_JS, PR_JS and VIEW_JS run before it, CORE after); nothing here touches the page at load. */
 export const OW_STATUS_JS = String.raw`
-const BAND_RANK=['needs','finish','waiting','tidy','idle'];
-let tabDone={},curAnn=null,curRk='',rels={},psMore={};
+const BAND_RANK=['needs','waiting','tidy','idle'];
+let waitN=0,tabDone={},curAnn=null,curRk='',rels={},psMore={};
 const PS_PAGE=5,PS_STEP=20,PR_NOTE='Pull request author is not shown: the read-only pull request list does not return it.';
 /** The chats of one row that are listed now: the 5 newest, and 20 more per click on Show more. */
 function psList(it){const l=it.vis.concat(it.nr||[]),lim=PS_PAGE+(psMore[it.hk]||0);return{l:l.slice(0,lim),left:Math.max(0,l.length-lim)};}
@@ -13,19 +13,19 @@ function hxKeyS(x){return 'x:'+String(x).slice(0,60);}
 /** A row's chat list is closed until opened. */
 function hxOn(it){const v=sec[hxKeyS(it.hk)];return v!==undefined?v:false;}
 function hxSet(x,on){sec[hxKeyS(x)]=on;refocus='[data-a="hx"][data-x="'+x.replace(/[^A-Za-z0-9:_-]/g,'')+'"]';saveView();render();}
-function psRow(r,it){const t=r.id===tabId&&!tabDone[r.id];if(t)tabDone[r.id]=1;curAnn=it&&it.an?it.an[r.id]||null:null;const h=rowHtml(r,t);curAnn=null;return h;}
-const REL_NAME={'cwd':'ran in the folder','git-branch-field':'its rows record the branch','created-by-tool-call':'created it','subagent':'via a subagent','name-in-text':'name in the chat','files-touched':'touched its files','time-window':'active at that time'};
+function psRow(r,it){curHk=it&&it.hk?it.hk:'nb';const t=r.id===tabId&&!tabDone[r.id];if(t)tabDone[r.id]=1;curAnn=it&&it.an?it.an[r.id]||null:null;const h=rowHtml(r,t);curAnn=null;curHk='';return h;}
+const REL_NAME={'cwd':'ran in the folder','git-branch-field':'its rows record the branch','created-by-tool-call':'created it','subagent':'via a subagent','name-in-text':'name in the session','files-touched':'touched its files','time-window':'active at that time'};
 const REL_SHORT={'cwd':'folder','git-branch-field':'branch','created-by-tool-call':'created','subagent':'subagent','name-in-text':'name','files-touched':'files','time-window':'time'};
 function relBadge(a){if(!a)return '';const nr=a.n!==undefined;return '<span class="bd '+(a.c==='certain'?'bd-info':'bd-muted')+'" data-rel="'+esc(a.c)+'">'+esc(nr?'nearest by time (probable)':a.c==='mention'?'mention only':(a.c==='probable'?'probable: ':'')+(REL_SHORT[a.y]||a.y))+'</span> ';}
 function relTip(a){if(!a)return '';const o=a.n!==undefined?[]:['Related by: '+(REL_NAME[a.y]||a.y)+' ('+a.c+')'];if(a.m&&a.m.length)o.push('Also: '+a.m.map(x=>REL_NAME[x]||x).join(', '));if(a.t&&a.n===undefined)o.push(a.t);
 if(a.n!==undefined){const h=Math.round(Math.abs(a.n)/3600000);o.push('Nearest by time (probable): '+(a.n===0?'overlaps':a.n<0?'ended '+(h<48?h+' h':Math.round(h/24)+' days')+' before the branch was made':'started '+(h<48?h+' h':Math.round(h/24)+' days')+' after the branch was last changed'));}
-if(a.c==='probable')o.push('Probable: no chat is certain for this row');if(a.c==='mention')o.push('Mention only: the chat contains the name but did not create it or work in it');return o.join('\n');}
+if(a.c==='probable')o.push('Probable: no session is certain for this row');if(a.c==='mention')o.push('Mention only: the session contains the name but did not create it or work in it');return o.join('\n');}
 function relAnn(h){return{y:h.why,c:h.conf,m:h.more,t:h.note,n:h.near,cr:h.cr===true,rc:h.rc};}
 function mxKey(it){return it.hk+':m';}
 function mxOn(it){return sec[hxKeyS(mxKey(it))]===true;}
 /** The chats of one row: those the folder or branch logic found (certain), merged with the matcher's hits. crs: the creators (a tool call of the chat or of its subagent made the row), with their receipts. */
 function psMerge(rl,kind,key,base,byId,shown,sort){const hits=rl&&rl[kind]&&Array.isArray(rl[kind][key])?rl[kind][key]:[],have={},rows=[],an={},near=[],men=[],crs=[];let relN=0;
-base.forEach(r=>{have[r.id]=1;rows.push(r);an[r.id]={y:'cwd',c:'certain',t:kind==='w'?'The chat ran in this worktree':'The chat folder has this branch checked out'};});
+base.forEach(r=>{have[r.id]=1;rows.push(r);an[r.id]={y:'cwd',c:'certain',t:kind==='w'?'The session ran in this worktree':'The session folder has this branch checked out'};});
 hits.forEach(h=>{if(h.cr===true&&h.conf==='certain')crs.push({id:h.id,rc:Array.isArray(h.rc)?h.rc:[]});const r=byId[h.id];if(h.near!==undefined){if(r&&shown(r))near.push(r),an[r.id]=relAnn(h);return;}
 if(!r){relN++;return;}if(have[h.id]){if(h.conf!=='mention')an[h.id]=relAnn(h);return;}have[h.id]=1;an[h.id]=relAnn(h);if(h.conf==='mention'){if(shown(r))men.push(r);return;}rows.push(r);});
 rows.sort(sort);men.sort(sort);return{rows:rows,an:an,near:near,men:men,relN:relN,crs:crs};}
@@ -39,12 +39,12 @@ return{rows:rows,an:an,near:near,men:men,relN:a.relN+b.relN,crs:crs};}
 function psCreator(crs){let best=null;crs.forEach(c=>{const t=c.rc.length?Math.min.apply(null,c.rc.map(p=>p.t||Infinity)):Infinity;if(!best||t<best.t)best={id:c.id,rc:c.rc,t:t};});return best;}
 function psUtc(ms){return new Date(ms).toISOString().slice(0,19).replace('T',' ')+' UTC';}
 /** Created cell tooltip: the exact time and, per receipt, the tool call time, the command and the transcript line. */
-function psCreatedTip(it){const o=[];const ms=it.created?it.created*1000:0;if(ms)o.push('Created '+psUtc(ms)+', local '+new Date(ms).toLocaleString()+(it.crTitle?' by chat "'+it.crTitle+'"':''));else if(it.crTitle)o.push('Created by chat "'+it.crTitle+'"');
+function psCreatedTip(it){const o=[];const ms=it.created?it.created*1000:0;if(ms)o.push('Created '+psUtc(ms)+', local '+new Date(ms).toLocaleString()+(it.crTitle?' by session "'+it.crTitle+'"':''));else if(it.crTitle)o.push('Created by session "'+it.crTitle+'"');
 (it.cr?it.cr.rc:[]).slice(0,2).forEach(p=>{o.push('Tool call at '+(p.t?psUtc(p.t):'unknown time'));o.push('Command: '+(p.c||'').slice(0,200));o.push('Transcript line '+p.l+', tool_use '+(p.u||'?')+(p.a?', subagent '+String(p.a).slice(0,8):''));});
-if(!o.length)o.push(it.info&&it.info.au?'Last commit by '+it.info.au+'. No chat is known to have created this.':'No creation time is known.');return o.join('\n');}
+if(!o.length)o.push(it.info&&it.info.au?'Last commit by '+it.info.au+'. No session is known to have created this.':'No creation time is known.');return o.join('\n');}
 function psEvid(k,rp,info,w,hasNear){const rl=rels[k],busy=rp.st==='running'||rp.st==='queued'||scanLive;
-if(!rl&&busy)return 'Matching chats...';
-return !rl?'chat matching not finished':!rl.ok?(rl.indexing?'chats are still being indexed':'chat matching unavailable'):'no matching chat found'+(hasNear?'; nearest by time is listed':'');}
+if(!rl&&busy)return 'Matching sessions...';
+return !rl?'session matching not finished':!rl.ok?(rl.indexing?'sessions are still being indexed':'session matching unavailable'):'no matching session found'+(hasNear?'; nearest by time is listed':'');}
 function psKey(){return Object.keys(repos).filter(k=>{const rp=repos[k];return rp&&rp.name&&rp.ws;}).sort()[0]||'';}
 function psHit(hay){return !fq||filterMatch(hay,fq);}
 function hxKey(p,n){return p+':'+String(n).replace(/[^A-Za-z0-9_-]/g,'_');}
@@ -70,10 +70,10 @@ function psPrCell(k,pr){if(!pr)return '<span class="nb">—</span>';const c=pr.c
 const num=pr.link?'<button type="button" class="lk" data-a="pr" data-k="'+esc(k)+'" data-n="'+pr.n+'" data-tip="'+esc('Open pull request #'+pr.n+(pr.title?': '+pr.title:'')+(pr.review?' ('+pr.review+')':''))+'">#'+pr.n+'</button>':'<span data-tip="'+esc(pr.title||'')+'">#'+pr.n+'</span>';
 return num+(pr.draft?' <span class="q">draft</span>':'')+' '+ck;}
 function psChatsCell(it){const nr=it.nr||[],n=it.vis.length+nr.length;
-if(!n)return '<span class="nb" data-tip="'+esc(it.ev||'')+'">'+(it.relN>0?'0':'—')+'</span>'+(it.relN>0?' <span class="q hid" data-tip="'+esc(countWord(it.relN,'chat')+' relate to this row but are older than the days shown')+'">+'+it.relN+'</span>':'')+((it.mn||[]).length?' <span class="q" data-tip="Chats that only contain the name">'+it.mn.length+' mention'+(it.mn.length===1?'':'s')+'</span>':'');
-const on=hxOn(it);return '<button type="button" class="ab hxb" data-a="hx" data-x="'+esc(it.hk)+'" data-on="'+(on?1:0)+'" aria-expanded="'+on+'" aria-label="'+esc(countWord(n,'chat')+' in '+it.name)+'" data-tip="'+esc((on?'Hide ':'Show ')+countWord(n,'chat')+' in '+it.name+(nr.length&&!it.vis.length?'. '+it.ev+' (nearest by time, probable)':''))+'"><span class="car" aria-hidden="true"></span>'+n+'</button>';}
-function psMen(it){const mn=it.mn||[];if(!mn.length)return '';const on=mxOn(it);return '<p class="sub mnp"><button type="button" class="ab hxb mnb" data-a="hx" data-x="'+esc(mxKey(it))+'" data-on="'+(on?1:0)+'" aria-expanded="'+on+'" data-tip="'+esc('Chats that only contain the name of '+it.name+': none of them created it or worked in it')+'"><span class="car" aria-hidden="true"></span>Mentions only ('+mn.length+')</button></p>'+(on?'<div class="nest mnl" role="list" aria-label="'+esc('Chats that only mention '+it.name)+'">'+mn.map(r=>psRow(r,it)).join('')+'</div>':'');}
-function psChatRow(it){if(!hxOn(it))return '';const o=psList(it),mp=psMen(it);return o.l.length||mp?'<div class="hxr" role="row">'+(o.l.length?'<div class="nest" role="list" aria-label="'+esc('Chats in '+it.name)+'">'+o.l.map(r=>psRow(r,it)).join('')+(o.left>0?'<p class="sub"><button type="button" class="ab" data-a="hxm" data-x="'+esc(it.hk)+'">Show '+Math.min(PS_STEP,o.left)+' more</button> <span class="q">'+o.left+' not listed yet, newest first</span></p>':'')+'</div>':'')+mp+'</div>':'';}
+if(!n){const o=[];if(it.relN>0)o.push('<span class="q hid" data-tip="'+esc(countWord(it.relN,'session')+' relate to this row but are older than the days shown')+'">+'+it.relN+' older</span>');if((it.mn||[]).length)o.push('<span class="q" data-tip="Sessions that only contain the name">'+it.mn.length+' mention'+(it.mn.length===1?'':'s')+'</span>');return o.join(' ');}
+const on=hxOn(it);return '<button type="button" class="ab hxb" data-a="hx" data-x="'+esc(it.hk)+'" data-on="'+(on?1:0)+'" aria-expanded="'+on+'" aria-label="'+esc(countWord(n,'chat')+' in '+it.name)+'" data-tip="'+esc((on?'Hide ':'Show ')+countWord(n,'chat')+' in '+it.name+(nr.length&&!it.vis.length?'. '+it.ev+' (nearest by time, probable)':''))+'">'+countWord(n,'chat')+' <span class="car" aria-hidden="true"></span></button>';}
+function psMen(it){const mn=it.mn||[];if(!mn.length)return '';const on=mxOn(it);return '<p class="sub mnp"><button type="button" class="ab hxb mnb" data-a="hx" data-x="'+esc(mxKey(it))+'" data-on="'+(on?1:0)+'" aria-expanded="'+on+'" data-tip="'+esc('Sessions that only contain the name of '+it.name+': none of them created it or worked in it')+'"><span class="car" aria-hidden="true"></span>Mentions only ('+mn.length+')</button></p>'+(on?'<div class="nest mnl" role="list" aria-label="'+esc('Sessions that only mention '+it.name)+'">'+mn.map(r=>psRow(r,it)).join('')+'</div>':'');}
+function psChatRow(it){if(!hxOn(it))return '';const o=psList(it),mp=psMen(it);return o.l.length||mp?'<div class="hxr" role="row">'+(o.l.length?'<div class="nest" role="list" aria-label="'+esc('Sessions in '+it.name)+'">'+o.l.map(r=>psRow(r,it)).join('')+(o.left>0?'<p class="sub"><button type="button" class="ab" data-a="hxm" data-x="'+esc(it.hk)+'">Show '+Math.min(PS_STEP,o.left)+' more</button> <span class="q">'+o.left+' not listed yet, newest first</span></p>':'')+'</div>':'')+mp+'</div>':'';}
 /** The creator line of a row: "Created 4d ago by <chat>", or "" when nothing is known. */
 function psCrLine(it){const ms=it.created?it.created*1000:0,ago=ms?psAgo(ms):'',by=it.crTitle||(it.info&&it.info.au&&ms?it.info.au:'');
 if(!ago&&!by)return '';return 'Created'+(ago?' '+ago+(ago==='now'?'':' ago'):'')+(by?' by '+by:'');}
@@ -82,41 +82,47 @@ function psTags(v){const t=v.tags||[];if(!t.length)return '';return t.slice(0,2)
 function psAskAttrs(k,it){return ' data-k="'+esc(k)+'" data-c="'+esc(it.cr?it.cr.id:'')+'" data-b="'+esc(it.r?it.r.name:'')+'" data-w="'+esc(it.w?it.w.k:it.s?it.s.k:'')+'"';}
 function psTxtBtn(a,label,tip,extra){return '<button type="button" class="ab pb" data-a="'+a+'"'+(extra||'')+' data-tip="'+esc(tip)+'">'+esc(label)+'</button>';}
 /** The one labeled button of a row, from what the row needs: open the waiting or unread chat, open the pull request, ask the creator chat to finish or clean up, copy the remove command; "Working…" text while a chat runs; nothing for an idle row. */
-function psPrimary(k,it){const v=it.v,w=it.w,q=it.pr,ask=(label,tip)=>it.cr?psTxtBtn('cu',label,tip+' (opens '+(it.crTitle||'the creator chat')+'; the prompt is copied so you can paste it)',psAskAttrs(k,it)+' data-m="resume"'):'';
+function psPrimary(k,it){const v=it.v,w=it.w,q=it.pr,ask=(label,tip)=>it.cr?psTxtBtn('cu',label,tip+' (opens '+(it.crTitle||'the creator session')+'; the prompt is copied so you can paste it)',psAskAttrs(k,it)+' data-m="resume"'):'';
 if(it.cid)return psTxtBtn('opc','Open chat','Open the chat: '+it.cTitle,' data-c="'+esc(it.cid)+'"');
 if(q&&q.link&&((q.c&&q.c.st==='failing')||q.review==='changes requested'||q.review==='approved'))return psTxtBtn('pr','Open PR','Open pull request #'+q.n+' on GitHub',' data-k="'+esc(k)+'" data-n="'+q.n+'"');
-if(v.state==='Dirty'||v.state==='Unpushed')return ask('Ask to finish','Ask the chat that made this branch to finish it');
-if(it.s)return ask('Ask to clean up','Ask the chat that made this folder to clean it up');
+if(v.state==='Dirty'||v.state==='Unpushed')return ask('Ask to finish','Ask the session that made this branch to finish it');
+if(it.s)return ask('Ask to clean up','Ask the session that made this folder to clean it up');
 if(v.group==='tidy'&&w&&!w.main&&it.ready)return psTxtBtn('rm','Copy remove command','Copy a '+cw()+'command that removes this finished worktree. Nothing is run.',' data-k="'+esc(w.k)+'"');
-if(v.state==='Working…')return '<span class="q">Working…</span>';
 return '';}
-function psDetKey(it){return it.hk+':d';}
-function psDetOn(it){return sec[hxKeyS(psDetKey(it))]===true;}
-/** The details of a row, opened by its Details button: the full status sentence, who created it and when (with the receipts in the tooltip), the folder, and the secondary actions. */
-function psDetails(k,it){const v=it.v,w=it.w,kv=[['Status',esc(v.state+(v.reason?': '+v.full:''))]];
-const cre='<span class="cw" data-tip="'+esc(psCreatedTip(it))+'">'+(it.created?esc(psAgo(it.created*1000))+(psAgo(it.created*1000)==='now'?'':' ago'):'<span class="nb">not known</span>')+'</span>'+(it.crTitle?'<span class="cby"> by '+(it.cr&&it.cr.id?'<button type="button" class="lk" data-a="opc" data-c="'+esc(it.cr.id)+'" data-tip="'+esc('Open the chat that created this: '+it.crTitle)+'">'+esc(it.crTitle)+'</button>':esc(it.crTitle))+'</span>':it.info&&it.info.au&&it.created?'<span class="cby q"> by '+esc(it.info.au)+'</span>':'');
-kv.push(['Created','<span class="c-cr">'+cre+'</span>']);
+function psDetKey(it){return 'b:'+it.hk;}
+function psDetOn(it){return menuKey===psDetKey(it);}
+/** The overflow popover of a row, opened by its "..." button: the full status sentence, who created it and when (with the receipts in the tooltip), the folder, and the secondary actions. */
+function psDetails(k,it){const v=it.v,w=it.w,rp=repos[k]||{},kv=[['Status',esc(v.state+(v.reason?': '+v.full:''))]];
+if(w&&!w.main&&it.r)kv.push(['Worktree',esc(w.name)]);
+const cre='<span class="cw" data-tip="'+esc(psCreatedTip(it))+'">'+(it.created?esc(psAgo(it.created*1000))+(psAgo(it.created*1000)==='now'?'':' ago'):'<span class="nb">not known</span>')+'</span>'+(it.crTitle?'<span class="cby"> by '+(it.cr&&it.cr.id?'<button type="button" class="lk" data-a="opc" data-c="'+esc(it.cr.id)+'" data-tip="'+esc('Open the session that created this: '+it.crTitle)+'">'+esc(it.crTitle)+'</button>':esc(it.crTitle))+'</span>':it.info&&it.info.au&&it.created?'<span class="cby q"> by '+esc(it.info.au)+'</span>':'');
+kv.push(['Creator','<span class="c-cr">'+cre+'</span>']);
 const path=w?w.path||'':it.s?it.s.path:'';if(path)kv.push(['Folder',esc(path)]);
-const x=psAskAttrs(k,it),t=it.crTitle||'the creator chat';
-const acts=(it.cr?psTxtBtn('cu','Copy clean-up prompt','Copy a prompt for '+t+' with receipts: what it created, when, the command, the reflog and the current state',x+' data-m="copy"')+psTxtBtn('cu','Ask '+t+' to clean up','Open '+t+'; the prompt is copied so you can paste it',x+' data-m="resume"'):'')
+if(!(it.vis.length+(it.nr||[]).length))kv.push(['Chats',esc(it.ev||'')]);
+const x=psAskAttrs(k,it),t=it.crTitle||'the creator session';
+const acts=(w&&!w.main&&it.ready?psTxtBtn('rm','Copy remove command','Copy a '+cw()+'command that removes this finished worktree. Nothing is run.',' data-k="'+esc(w.k)+'"'):'')
++(rp.gh&&it.r?psTxtBtn('brl','Open on GitHub',it.pr&&it.pr.link?'Open pull request #'+it.pr.n+' on GitHub':'Open the branch on GitHub',' data-k="'+esc(k)+'" data-b="'+esc(it.r.name)+'" data-n="'+(it.pr&&it.pr.link?it.pr.n:0)+'"'):'')
 +(it.pr&&it.pr.link?psTxtBtn('prc','Copy PR link','Copy the link of pull request #'+it.pr.n,' data-k="'+esc(k)+'" data-n="'+it.pr.n+'"'):'')
-+(w&&!w.main&&it.ready?psTxtBtn('rm','Copy remove command','Copy a '+cw()+'command that removes this finished worktree. Nothing is run.',' data-k="'+esc(w.k)+'"'):'');
-return '<div class="wd"><dl>'+kv.map(e=>'<dt>'+e[0]+'</dt><dd>'+e[1]+'</dd>').join('')+'</dl>'+(acts?'<div class="wda">'+acts+'</div>':'')+'</div>';}
-/** One row of the Work table: branch, status (a short word and at most 6 words of reason; the full sentence in its tooltip), pull request, distance from the default branch, chats, the one action. */
-function psWrow(k,B,it){const rp=B.rp,v=it.v,w=it.w,r=it.r,cl=psCrLine(it);
++(it.cr?psTxtBtn('cu','Copy clean-up prompt','Copy a prompt for '+t+' with receipts: what it created, when, the command, the reflog and the current state',x+' data-m="copy"')+psTxtBtn('cu','Ask '+t+' to clean up','Open '+t+'; the prompt is copied so you can paste it',x+' data-m="resume"'):'');
+return '<div class="ovp wd" role="dialog" aria-label="'+esc('More about '+it.name)+'"><dl>'+kv.map(e=>'<dt>'+e[0]+'</dt><dd>'+e[1]+'</dd>').join('')+'</dl>'+(acts?'<div class="wda">'+acts+'</div>':'')+'</div>';}
+/** One row of the Work list, two lines. Line 1: a colored dot, the headline "do X" (the verdict's todo, else its reason; the full sentence in the tooltip) and the one action. Line 2: only the facts that mean something (branch, PR, ahead or behind, tags, chats toggle, age). The "..." button opens the popover with the rest. */
+function psWrow(k,B,it){const rp=B.rp,v=it.v,w=it.w,r=it.r,cl=[w&&!w.main&&w.path?w.path:'',psCrLine(it)].filter(Boolean).join('\n'),head=v.todo||v.reason||v.state;
 const nm=it.s?'<span class="pn bn" data-tip="'+esc(it.s.path+(cl?'\n'+cl:''))+'">'+esc(it.name)+'</span>':'<span class="bn">'+(r?psBr(k,rp,r.name,it.pr&&it.pr.link?it.pr.n:0,cl):'<span class="bn-t" data-tip="'+esc((w?w.path||'':'')+(cl?'\n'+cl:''))+'">'+esc(it.name)+(w&&w.detached?' <span class="q">detached '+esc(w.sha||'')+'</span>':'')+'</span>')+'</span>';
-const wtn=w&&!w.main&&r?' <span class="wtn pn" data-tip="'+esc(w.path||w.name)+'">'+esc(w.name)+'</span>':'';
-const dflt=it.isDef?' <span class="bd bd-muted dflt">default</span>':'';
-const why='<span class="vd vd-'+v.group+'">'+esc(v.state)+'</span>'+(v.reason?' <span class="rs" data-tip="'+esc(v.full)+'">'+esc(v.reason)+'</span>':'')+' '+psTags(v);
-const on=psDetOn(it),dt='<button type="button" class="ab hxb dtb" data-a="hx" data-x="'+esc(psDetKey(it))+'" data-on="'+(on?1:0)+'" aria-expanded="'+on+'" aria-label="'+esc((on?'Hide':'Show')+' details of '+it.name)+'" data-tip="'+esc((on?'Hide':'Show')+' details: who created it, and more actions')+'"><span class="car" aria-hidden="true"></span>Details</button>';
-return '<div class="wr" role="row" data-g="'+v.group+'"'+(w?' data-w="'+esc(w.k)+'"':'')+(r?' data-b="'+esc(r.name)+'"':'')+(it.s?' data-s="'+esc(it.s.k)+'"':'')+'><div class="c-nm" role="cell"><div class="nl">'+nm+wtn+dflt+'</div></div>'
-+'<div class="c-st why" role="cell" data-g="'+v.group+'">'+why+'</div>'
-+'<div class="c-pr" role="cell" data-l="PR">'+psPrCell(k,it.pr)+'</div><div class="c-vs" role="cell" data-l="vs default">'+(it.s?'<span class="nb">—</span>':psAb(it.va,it.vb))+'</div><div class="c-ch" role="cell" data-l="Chats">'+psChatsCell(it)+'</div><div class="c-ac acts2" role="cell">'+psPrimary(k,it)+dt+'</div>'
+const mp=[nm];
+if(it.pr)mp.push('PR '+psPrCell(k,it.pr));
+if(!it.s&&typeof it.va==='number'&&typeof it.vb==='number'&&(it.va>0||it.vb>0))mp.push(psAb(it.va,it.vb));
+const tg=psTags({tags:(v.tags||[]).filter(x=>!(x==='draft'&&it.pr))});if(tg)mp.push(tg);
+const ch=psChatsCell(it);if(ch)mp.push(ch);
+const ag=it.ts?psAgo(it.ts*1000):'';if(ag)mp.push('<span class="q" data-tip="Last activity on this branch or in its chats">'+esc(ag)+'</span>');
+const on=psDetOn(it),ov='<button type="button" class="ab ib ovb" data-a="mnu" data-x="'+esc(psDetKey(it))+'" aria-haspopup="true" aria-expanded="'+on+'" aria-label="'+esc('More about '+it.name)+'" data-tip="More: who created it, and more actions">⋯</button>';
+return '<div class="wr" role="row" data-g="'+v.group+'"'+(w?' data-w="'+esc(w.k)+'"':'')+(r?' data-b="'+esc(r.name)+'"':'')+(it.s?' data-s="'+esc(it.s.k)+'"':'')+'><div class="wl1"><span class="dt dt-'+v.group+'" role="img" aria-label="'+esc(v.state)+'" data-tip="'+esc(v.state)+'"></span><span class="todo" data-tip="'+esc(v.full)+'">'+esc(head)+'</span><span class="c-ac acts2">'+psPrimary(k,it)+'</span>'+ov+'</div>'
++'<div class="meta wl2">'+mp.join(' <span class="sep" aria-hidden="true">·</span> ')+'</div>'
 +(on?psDetails(k,it):'')+'</div>'+psChatRow(it);}
-function psHead(){return '<div class="wh" role="row"><span role="columnheader">Branch</span><span role="columnheader">Status</span><span class="h-pr" role="columnheader" data-tip="'+esc(prsOn?PR_NOTE:PRS_OFF+' '+PR_NOTE)+'">PR</span><span class="h-vs" role="columnheader" data-tip="Commits ahead of and behind the default branch">vs default</span><span role="columnheader">Chats</span><span role="columnheader">Action</span></div>';}
 /** One group: header with its count (read from psCounts, so the number equals the rows listed) and its rows. */
-function psGroup(k,B,g,list,C){const open=secOpen('g:'+g),t=GROUP_LABEL[g];
-return '<section class="band ps wg g-'+g+'" aria-label="'+esc(t)+'"><h2 class="bh tg g-'+g+(open?' op':'')+'" role="heading" aria-level="2"><button type="button" class="ab" data-a="sec" data-s="g:'+g+'" aria-expanded="'+open+'" data-tip="'+esc((open?'Collapse ':'Expand ')+t)+'">'+esc(t)+'</button><span class="pill">'+C[g]+'</span><span class="chv" aria-hidden="true"></span></h2>'+(open?'<div class="wk" role="table" aria-label="'+esc(t)+'">'+list.map(it=>psWrow(k,B,it)).join('')+'</div>':'')+'</section>';}
+function psGroup(k,B,g,list,C){const open=secOpen('g:'+g),t=GROUP_LABEL[g],n=g==='idle'?C.idle+B.nb.length:C[g];
+const nbl=g==='idle'&&B.nb.length?'<p class="sub nbh">Chats without a branch</p><div class="nest" role="list" aria-label="Chats without a branch">'+B.nb.map(r=>psRow(r)).join('')+'</div>':'';
+return '<section class="band ps wg g-'+g+'" aria-label="'+esc(t)+'"><h2 class="bh tg g-'+g+(open?' op':'')+'" role="heading" aria-level="2"><button type="button" class="ab" data-a="sec" data-s="g:'+g+'" aria-expanded="'+open+'" data-tip="'+esc((open?'Collapse ':'Expand ')+t)+'">'+esc(t)+'</button><span class="pill">'+n+'</span><span class="chv" aria-hidden="true"></span></h2>'+(open?'<div class="wk" role="table" aria-label="'+esc(t)+'">'+list.map(it=>psWrow(k,B,it)).join('')+'</div>'+nbl:'')+'</section>';}
+/** The group a verdict lists under: unfinished work joins Your move. */
+function psUi(g){return g==='finish'?'needs':g;}
 function psSort(a,b){if(sortMode==='name')return a.name.localeCompare(b.name);return b.ts-a.ts||a.name.localeCompare(b.name);}
 /** Everything the page shows: one item per branch (with its worktree and pull request), per worktree without a branch, per unregistered folder; verdict, creator, chats. */
 function psBuild(k,vis){tabDone={};curRk=k;const M=psModel(k),rp=M.rp,chats=vis.filter(r=>r.kind!=='wt'),byW={},byB={},nb=[];
@@ -133,14 +139,14 @@ const mk=(r,w,s)=>{const name=s?s.name:r?r.name:w.name,pr=r?r.pr:null,info=r?r.i
 const m=psJoin(w?mg('w',w.k,byW[w.k]||[]):s?mg('w',s.k,[]):null,r?mg('b',r.name,byB[r.name]||[]):null)||{rows:[],an:{},near:[],men:[],relN:0,crs:[]};
 const cr=psCreator(m.crs),crr=cr?byId[cr.id]:null,chatSt=m.rows.some(c=>dotOf(c.id)==='waiting')?'waiting':m.rows.some(c=>dotOf(c.id)==='unread')?'unread':m.rows.some(c=>dotOf(c.id)==='running')?'running':m.rows.some(c=>dotOf(c.id)==='background')?'background':'';
 const isDef=!!r&&r.name===def&&!(w&&w.detached);
-const pickC=d=>m.rows.filter(c=>dotOf(c.id)===d).sort((a,b)=>(b.last||0)-(a.last||0))[0],cp=pickC('waiting')||pickC('unread'); /* the newest waiting chat, else the newest unread one: what Open chat opens */
+const pickC=d=>m.rows.filter(c=>dotOf(c.id)===d).sort((a,b)=>(b.last||0)-(a.last||0))[0],cp=pickC('waiting')||pickC('unread'); /* the newest waiting session, else the newest unread one: what Open session opens */
 const v=workVerdict({name:name,defName:def,isDef:isDef,local:!!(r&&r.local)||(!r&&!!w),remote:!!(r&&r.remote),stray:s?{git:!!s.git}:null,
 wt:w?{missing:!!w.missing,main:!!w.main,locked:!!w.locked,ws:!!w.ws,known:ok,unread:ok?'':rp.st==='timeout'?'timed out':rp.st==='error'?'error':(rp.st==='running'||rp.st==='queued'||scanLive)?'still reading':'no answer',files:ok?f.fileTotal:0,unpushed:ok?f.ahead:0,behind:w.db||0,gone:ok?!!f.gone:false,merged:w.merged}:null,
 a:isDef&&ok?f.ahead:w&&typeof w.da==='number'?w.da:info&&typeof info.a==='number'?info.a:undefined,bh:isDef&&ok?f.behind:w&&typeof w.db==='number'?w.db:info&&typeof info.b==='number'?info.b:undefined,
 up:info?!!info.up:ok?!!f.upstream:false,gone:ok?!!f.gone:!!(info&&info.gone),merged:psIsMerged(rp,name),
-pr:pr?{n:pr.n,checks:psPrFact(pr).checks,review:pr.review||'',draft:!!pr.draft}:null,chat:chatSt,chatTitle:cp?cp.title||'Untitled chat':''});
+pr:pr?{n:pr.n,checks:psPrFact(pr).checks,review:pr.review||'',draft:!!pr.draft}:null,chat:chatSt,chatTitle:cp?cp.title||'Untitled session':''});
 const lastC=m.rows.reduce((a,c)=>Math.max(a,c.last||0),0);
-const it={w:w,r:r,s:s||null,pr:pr,info:info,g:g,name:name,hk:hxKey(s?'s':w?'w':'b',s?s.k:w?w.k:name),chatsAll:m.rows,vis:m.rows,nr:m.near,mn:m.men,an:m.an,relN:m.relN,v:v,cr:cr,crTitle:cr?(crr?crr.title||'Untitled chat':'an older chat'):'',isDef:isDef,cs:chatSt,cid:cp?cp.id:'',cTitle:cp?cp.title||'Untitled chat':'',
+const it={w:w,r:r,s:s||null,pr:pr,info:info,g:g,name:name,hk:hxKey(s?'s':w?'w':'b',s?s.k:w?w.k:name),chatsAll:m.rows,vis:m.rows,nr:m.near,mn:m.men,an:m.an,relN:m.relN,v:v,cr:cr,crTitle:cr?(crr?crr.title||'Untitled session':'an older session'):'',isDef:isDef,cs:chatSt,cid:cp?cp.id:'',cTitle:cp?cp.title||'Untitled session':'',
 created:(info&&info.cr)||(cr&&cr.t&&cr.t!==Infinity?Math.round(cr.t/1000):0)||0,ts:Math.max(info?info.ts:0,lastC/1000),ready:!!(w&&!w.main&&g.ready),
 va:isDef&&ok?f.ahead:w&&typeof w.da==='number'?w.da:info?info.a:undefined,vb:isDef&&ok?f.behind:w&&typeof w.db==='number'?w.db:info?info.b:undefined};
 it.ev=psEvid(k,rp,info,w,m.near.length>0);
@@ -149,27 +155,24 @@ const own=!filtering()||(psHit(hay)&&flagPass(g,flt));it.show=own||m.rows.length
 M.list.forEach(r=>mk(r,r.wt,null));
 M.wts.forEach(w=>{if(w.detached&&!w.main)mk(null,w,null);});
 (rp.stray||[]).forEach(s=>mk(null,null,s));
-const quiet=it=>it.isDef&&(it.v.group==='idle'||it.v.group==='tidy'),all=items.filter(it=>!(quiet(it)&&!it.chatsAll.length&&!it.nr.length&&!it.mn.length)); /* the default branch is listed when it has something open or chats; a quiet one with no chat says nothing */
-const shown=all.filter(it=>it.show),grp={needs:[],finish:[],waiting:[],tidy:[],idle:[]};
-shown.forEach(it=>grp[it.v.group].push(it));BAND_RANK.forEach(g=>{grp[g].sort(psSort);});
-const nb2=nb.filter(r=>!used[r.id]);
+const quiet=it=>it.isDef&&it.v.group==='idle',all=items.filter(it=>!quiet(it)); /* the default branch is listed only when its verdict is outside idle; the chats of a hidden one move to the chats without a branch */
+const shown=all.filter(it=>it.show),grp={needs:[],waiting:[],tidy:[],idle:[]};
+shown.forEach(it=>grp[psUi(it.v.group)].push(it));BAND_RANK.forEach(g=>{grp[g].sort(g==='needs'?(a,b)=>a.v.rank-b.v.rank||psSort(a,b):psSort);});waitN=grp.waiting.length;
+const nb2=nb.filter(r=>!used[r.id]),seenNb={};nb2.forEach(r=>{seenNb[r.id]=1;});items.filter(quiet).forEach(it=>it.chatsAll.forEach(r=>{if(!seenNb[r.id]&&(!filtering()||it.show)){seenNb[r.id]=1;nb2.push(r);}}));nb2.sort(srt);
 return{M:M,rp:rp,p:M.p,all:all,shown:shown,grp:grp,nb:nb2,nbAll:nb2.length};}
-function psOrder(B){const o=[],seen={},add=r=>{if(!seen[r.id]){seen[r.id]=1;o.push(r.id);}};BAND_RANK.forEach(g=>{if(secOpen('g:'+g))B.grp[g].forEach(it=>{if(hxOn(it))psList(it).l.forEach(add);});});if(secOpen('nb'))B.nb.forEach(add);return o;}
+function psOrder(B){const o=[],seen={},add=r=>{if(!seen[r.id]){seen[r.id]=1;o.push(r.id);}};BAND_RANK.forEach(g=>{if(secOpen('g:'+g))B.grp[g].forEach(it=>{if(hxOn(it))psList(it).l.forEach(add);});});if(secOpen('g:idle'))B.nb.forEach(add);return o;}
 /** The state of the pull request lookup, in the repository line: looking up, or why it is unknown with a retry. */
 function psPrState(k,M){if(!prsOn)return '';const p=M.p;if(!p||p.st==='queued'||p.st==='checking')return ' '+SPINP+' <span class="q">Looking up pull requests</span>';
 if(p.st==='unavailable'){const rt=prRetryKey({p:p,rk:k});return ' '+prUnk(p.reason)+(rt?' '+ibtn('fretry','Retry the pull request lookup','retry','Look up the pull requests again',' data-k="'+esc(rt)+'"'):'');}return '';}
 /** Rows per group, counted from B.shown (the rows psRepo lists in its groups): every number next to a group, and the headline, reads from here. */
-function psCounts(B){const c={needs:0,finish:0,waiting:0,tidy:0,idle:0};B.shown.forEach(it=>{c[it.v.group]++;});return c;}
-function psHeadline(B,C,name){return workHeadline(C,scanComplete(),name);}
+function psCounts(B){const c={needs:0,finish:0,waiting:0,tidy:0,idle:0};B.shown.forEach(it=>{c[psUi(it.v.group)]++;});return c;}
+function psHeadline(B,C,name){const top=B.grp.needs[0];return workHeadline(C,scanComplete(),name,top?top.v.todo||top.v.reason||top.v.state:'');}
 function psRepo(k,B){const rp=B.rp,busy=rp.st==='running'||rp.st==='queued',bad=rp.st==='timeout'||rp.st==='error',M=B.M,C=psCounts(B),ready=M.wts.length>0||!busy;
 let h='<div class="psl" data-rk="'+esc(k)+'">'+(ready?'<span class="hl" role="status">'+esc(psHeadline(B,C,rp.name))+'</span>':'<span class="pn psn">'+esc(rp.name)+'</span>')+(rp.gh?ibtn('repolink','Open '+rp.name+' on GitHub','open','Open the repository on GitHub',' data-k="'+esc(k)+'"'):'')
 +(busy?' '+SPIN:'')+(bad?' <span class="q">'+esc(rp.st==='timeout'?'timed out':'error')+'</span> '+ibtn('fretry','Retry reading '+rp.name,'retry','Read this repository again',' data-k="'+esc(k)+'"'):'')+psPrState(k,M)+'</div>';
 if(!ready)return h+'<p class="sub">Reading git...</p>';
-let t='';BAND_RANK.forEach(g=>{if(B.grp[g].length)t+=psGroup(k,B,g,B.grp[g],C);});
-/* a column that is "—" in every listed row is left out */
-const noPr=!B.shown.some(it=>it.pr),noVs=!B.shown.some(it=>!it.s&&typeof it.va==='number'&&typeof it.vb==='number');
-if(t)h+='<div class="wtab'+(noPr?' no-pr':'')+(noVs?' no-vs':'')+'">'+psHead()+t+'</div>';
-if(B.nbAll>0)h+='<section class="band ps" aria-label="Chats without a branch"><h2 class="bh tg g-ps'+(secOpen('nb')?' op':'')+'" role="heading" aria-level="2"><button type="button" class="ab" data-a="sec" data-s="nb" aria-expanded="'+secOpen('nb')+'" data-tip="'+(secOpen('nb')?'Collapse':'Expand')+' Chats without a branch. Chats whose folder is not in this repository, is not a git folder, or whose branch was not found.">Chats without a branch</button> <span class="pill">'+B.nb.length+'</span><span class="chv" aria-hidden="true"></span></h2>'+(secOpen('nb')?'<div class="nest" role="list">'+B.nb.map(psRow).join('')+'</div>':'')+'</section>';
+let t='';BAND_RANK.forEach(g=>{if(B.grp[g].length||(g==='idle'&&B.nb.length))t+=psGroup(k,B,g,B.grp[g],C);});
+if(t)h+='<div class="wtab">'+t+'</div>';
 return h;}
 function noRepoHtml(){return wsN===0||(ended&&!scanLive)||notes.gitMissing?'<p class="msg" role="status">Open a git repository folder.</p>':'<p class="msg" role="status">Reading git...</p>';}
 `;

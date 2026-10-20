@@ -4,7 +4,7 @@ export const STATE_VER = 3;
 const SORTS = ['recent', 'name'];
 const FIND_MAX_CHARS = 80;
 
-export interface View { q: string; f: { pr: boolean; fail: boolean; dirty: boolean; push: boolean }; sort: string; sec: { [k: string]: boolean }; }
+export interface View { q: string; f: { pr: boolean; fail: boolean; dirty: boolean; push: boolean }; sort: string; density: string; sec: { [k: string]: boolean }; }
 
 /** The state chips the user turned off: only for state saved by this version; anything older (or malformed) means none, so every chip starts on. */
 export function prefsHidden(p: any, bands: string[]): string[] {
@@ -21,7 +21,7 @@ function secOf(x: any): { [k: string]: boolean } {
 /** A stored or posted view, cleaned: text up to 80 characters, booleans for the four state filters, a known sort. */
 export function cleanView(v: any): View {
   const f = v && typeof v.f === 'object' && v.f ? v.f : {};
-  return { q: typeof v?.q === 'string' ? v.q.slice(0, FIND_MAX_CHARS) : '', f: { pr: f.pr === true, fail: f.fail === true, dirty: f.dirty === true, push: f.push === true }, sort: SORTS.includes(String(v?.sort)) ? String(v.sort) : 'recent', sec: secOf(v?.sec) };
+  return { q: typeof v?.q === 'string' ? v.q.slice(0, FIND_MAX_CHARS) : '', f: { pr: f.pr === true, fail: f.fail === true, dirty: f.dirty === true, push: f.push === true }, sort: SORTS.includes(String(v?.sort)) ? String(v.sort) : 'recent', density: v?.density === 'compact' ? 'compact' : 'relaxed', sec: secOf(v?.sec) };
 }
 
 /** The stored view, or the default (no filter, everything on) when it was saved by another version. */
