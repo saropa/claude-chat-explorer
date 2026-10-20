@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { ContextWarner, warnText, WarnState } from './contextWarn';
 
 const STATE_KEY = 'saropaChatExplorer.contextWarned';
-const OPEN = 'Open chat', COPY = 'Copy hand-over note', DISMISS = 'Dismiss';
+const OPEN = 'Open session', COPY = 'Copy hand-over note', DISMISS = 'Dismiss';
 
 export interface WarnHost {
   request: (m: { [k: string]: any }, bg?: boolean) => Promise<any>;
