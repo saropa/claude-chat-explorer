@@ -2,7 +2,7 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
-## Unreleased
+## 0.33.0
 - Added: "Work week (Mon-Sun)" in chats active during keeps the old this-week behavior (since Monday 00:00); "this week" stays the rolling last 7 days.
 - Changed: "this week" in chats active during is now the rolling last 7 days (was since Monday 00:00), for active and archived chats alike.
 - Added: a third search scope checkbox, Archive (off by default, remembered like the others). Off: searching does not match archived chats (the Results editor already skipped them). On: search text and filters also include archived chats, which list in the Archived section. With no search text the Archived section stays visible either way.
