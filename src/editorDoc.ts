@@ -14,7 +14,7 @@ const plu = (n: number, w: string) => `${n.toLocaleString('en-US')} ${w}${n === 
 export function headerLines(out: EdOut, m: DocMeta): string[] {
   const l = [`# Query: ${m.query}`];
   if (m.flags.length) { l.push(`# Flags: ${m.flags.join(' ')}`); }
-  l.push(`${plu(out.results, 'result')} - ${plu(out.chats.length, 'chat')}`);
+  l.push(`${plu(out.results, 'result')} - ${plu(out.chats.length, 'session')}`);
   if (out.chatsCapped) { l.push(`Showing the top ${out.chats.length.toLocaleString('en-US')} of ${out.totalChats.toLocaleString('en-US')} chats. Be more specific in your search to narrow down the results.`); }
   if (out.resultsCapped) { l.push(`Stopped at ${plu(out.results, 'result')}. Be more specific in your search to narrow down the results.`); }
   return l.concat('');

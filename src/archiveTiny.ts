@@ -23,10 +23,10 @@ export function tinyIds(rows: UsageRow[], d: Pick<TinyDeps, 'archived' | 'pins' 
 
 export async function archiveTiny(d: TinyDeps): Promise<void> {
   const ids = tinyIds(await d.rows(), d, Date.now());
-  if (!ids.length) { void vscode.window.showInformationMessage('No empty or tiny chats to archive.'); return; }
-  const ok = await vscode.window.showWarningMessage(`Archive ${ids.length} empty and tiny chats?`,
-    { modal: true, detail: 'Chats with no messages or 1 to 3 messages move to the Archived section. Pinned chats and chats open now are skipped. Nothing is deleted: Unarchive brings a chat back.' }, 'Archive');
+  if (!ids.length) { void vscode.window.showInformationMessage('No empty or tiny sessions to archive.'); return; }
+  const ok = await vscode.window.showWarningMessage(`Archive ${ids.length} empty and tiny sessions?`,
+    { modal: true, detail: 'Sessions with no messages or 1 to 3 messages move to the Archived section. Pinned sessions and sessions open now are skipped. Nothing is deleted: Unarchive brings a session back.' }, 'Archive');
   if (ok !== 'Archive') { return; }
   const n = await d.archive(ids);
-  void vscode.window.showInformationMessage(`Archived ${n} chats`);
+  void vscode.window.showInformationMessage(`Archived ${n} sessions`);
 }

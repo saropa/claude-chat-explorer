@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-const TIP = 'Saropa Chat Explorer is indexing your chats. Search works on what is indexed so far.';
+const TIP = 'Saropa Chat Explorer is indexing your sessions. Search works on what is indexed so far.';
 const MIN_GAP_MS = 250;
 
 /** Left status bar item shown while chats are indexed; updates are throttled. */
@@ -14,7 +14,7 @@ export class IndexStatus implements vscode.Disposable {
     const now = Date.now();
     if (now - this.last < MIN_GAP_MS) { return; }
     this.last = now;
-    this.item.text = `$(sync~spin) Indexing chats ${done}/${total}` + (subs ? ` (${subs} subagent files)` : '');
+    this.item.text = `$(sync~spin) Indexing sessions ${done}/${total}` + (subs ? ` (${subs} subagent files)` : '');
     this.item.show();
   }
 

@@ -41,7 +41,7 @@ export class ArchiveActions {
     const r = await readHidden(stateDbOf(this.globalStorage));
     if (!r.ok) { void vscode.window.showInformationMessage('Saropa Chat Explorer: nothing imported. ' + r.reason); return; }
     const { added, already } = await this.store.addArchived(r.ids);
-    void vscode.window.showInformationMessage(`Imported ${added} archived chats (${already} already archived)`);
+    void vscode.window.showInformationMessage(`Imported ${added} archived sessions (${already} already archived)`);
     this.hooks.changed();
   }
 }

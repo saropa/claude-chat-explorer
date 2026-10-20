@@ -95,7 +95,7 @@ export class GitLiveService {
 
   /** Never throws and never waits past the deadline; a timed-out load is aborted and released. onPartial gets the git part's first step before the PR lookup ends. */
   load(cwd: string, part: GitPart, prs: boolean, onPartial?: Partial_, hint?: WorkHint): Promise<Loaded> {
-    if (!cwd) { return Promise.resolve({ live: blank('none', 'No working folder is recorded for this chat') }); }
+    if (!cwd) { return Promise.resolve({ live: blank('none', 'No working folder is recorded for this session') }); }
     const key = `${cwd}|${part}|${prs}|${part === 'wt' && hint ? hint.created.map((c) => c.path + (c.removed ? '-' : '+')).join(',') : ''}`;
     const hit = this.running.get(key);
     if (hit) { if (onPartial) { hit.subs.add(onPartial); } return hit.p; }

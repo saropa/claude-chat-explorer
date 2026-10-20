@@ -3,7 +3,7 @@
  * embeds their source via Function.toString(); Node checks import the same functions.
  */
 
-export const DAY_ORDER = ['Today', 'Yesterday', 'This week', 'Last week', 'Earlier'];
+export const DAY_ORDER = ['All Sessions', 'Yesterday', 'This Week', 'Older'];
 
 /** Short relative time: now, 28m, 1h, 3d, 2w, 4mo, 1y. */
 export function shortAgo(ms: number, now: number): string {
@@ -36,21 +36,16 @@ export function dotAttrs(d: { s: string; also?: string[] }): string {
   return 'class="dot ' + d.s + ' m' + all.length + ' ' + all.map((k, i) => 'c' + (i + 1) + '-' + k).join(' ') + '"';
 }
 
-/** Day group of a last-active time: Today, Yesterday, This week, Last week or Earlier. */
+/** Day group of a last-active time: All Sessions (today), Yesterday, This Week (rolling last 7 days, excluding today and yesterday) or Older. */
 export function dayBucket(ms: number, now: number): string {
   const t = new Date(now);
   t.setHours(0, 0, 0, 0);
   const today = t.getTime();
-  if (ms >= today) { return 'Today'; }
+  if (ms >= today) { return 'All Sessions'; }
   const y = new Date(today);
   y.setDate(y.getDate() - 1);
   if (ms >= y.getTime()) { return 'Yesterday'; }
-  const wk = new Date(today);
-  wk.setDate(wk.getDate() - ((t.getDay() + 6) % 7)); // Monday of this week
-  if (ms >= wk.getTime()) { return 'This week'; }
-  const lw = new Date(wk.getTime());
-  lw.setDate(lw.getDate() - 7);
-  return ms >= lw.getTime() ? 'Last week' : 'Earlier';
+  return ms >= now - 7 * 86400000 ? 'This Week' : 'Older';
 }
 
 /** Duration such as "2h 14m", "5m", "1d 3h" or "<1m". */

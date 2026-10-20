@@ -12,13 +12,13 @@ export const STATUS_KEYS = ['normal', 'active', 'empty', 'tiny', 'huge', 'nearly
 /** Filter list tooltips; Mid-size is the plain-words name of the key 'normal' (kept so saved filters still load). */
 export const STATUS_TIPS: { [k: string]: string } = {
   normal: `Mid-size: ${TINY_MAX_MSGS + 1} to ${HUGE_MIN_MSGS - 1} messages, ${HUGE_BYTES / 1048576} MB or less, active in the last ${ABANDONED_MS / 86400000} days, context under ${NEARLY_PCT}% full, not pinned, and not running, waiting, unread or waiting on background agents`,
-  active: 'Open chats that are running, waiting for you, unread or waiting on background agents',
+  active: 'Open sessions that are running, waiting for you, unread or waiting on background agents',
   empty: 'No messages',
   tiny: `1 to ${TINY_MAX_MSGS} messages`,
   huge: `${HUGE_MIN_MSGS} messages or more, or a transcript over ${HUGE_BYTES / 1048576} MB`,
   nearly: `Context window ${NEARLY_PCT}% full or more`,
   abandoned: `Last active more than ${ABANDONED_MS / 86400000} days ago`,
-  pinned: 'Pinned chats',
+  pinned: 'Pinned sessions',
 };
 export const STATUS_LABELS: { [k: string]: string } = {
   normal: 'Mid-size', active: 'Active', empty: 'Empty', tiny: 'Tiny', huge: 'Huge', nearly: 'Nearly full', abandoned: 'Abandoned', pinned: 'Pinned',

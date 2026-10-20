@@ -80,7 +80,15 @@ export class Store {
     this.w.put(STATUS_KEY, Array.isArray(checked) ? STATUS_KEYS.filter((k) => checked.includes(k)) : [...STATUS_KEYS]);
   }
 
-  get pins(): { [id: string]: number } { return this.ctx.globalState.get(PIN_KEY) ?? {}; }
+  /** Pins are per-workspace. First read migrates any legacy global pins into this workspace (global left untouched). */
+  get pins(): { [id: string]: number } {
+    const own = this.ctx.workspaceState.get<{ [id: string]: number }>(PIN_KEY);
+    if (own !== undefined) { return own; }
+    const legacy = this.ctx.globalState.get<{ [id: string]: number }>(PIN_KEY);
+    if (legacy === undefined) { return {}; }
+    void this.ctx.workspaceState.update(PIN_KEY, legacy);
+    return legacy;
+  }
   get tags(): { [id: string]: string[] } { return this.ctx.globalState.get(TAG_KEY) ?? {}; }
   get allTags(): string[] { return [...new Set(Object.values(this.tags).flat())].sort(); }
 
@@ -118,7 +126,7 @@ export class Store {
   async setPinned(id: string, on: boolean): Promise<void> {
     const p = { ...this.pins };
     if (on) { p[id] = p[id] ?? Date.now(); } else { delete p[id]; }
-    await this.ctx.globalState.update(PIN_KEY, p);
+    await this.ctx.workspaceState.update(PIN_KEY, p);
   }
   async addTag(id: string, raw: string): Promise<void> {
     const t = normTag(raw);

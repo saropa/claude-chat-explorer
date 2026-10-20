@@ -17,6 +17,7 @@ import { copyHandover } from './handoverRun';
 import { copyResume } from './copyResume';
 import { exportChatMd } from './exportMdRun';
 import { archiveTiny } from './archiveTiny';
+import { regenTitles } from './regenTitlesRun';
 import { registerUsage } from './usageUi';
 import { QueryQueue } from './queryQueue';
 import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './query';
@@ -35,6 +36,7 @@ import { OpenWork, registerOpenWork } from './openWork';
 import { Limiter } from './execLimit';
 import { realExec } from './wipExec';
 import { dotsAnimated } from './dotAnim';
+import { searchContextLines } from './ctxLines';
 import { currentChat } from './currentChat';
 import { contextRingTokens } from './ctxRing';
 import { WorkScan } from './workScan';
@@ -116,7 +118,7 @@ class Provider implements vscode.WebviewViewProvider {
     this.post({ type: 'indexed' });
     if (was?.first) {
       const n = was.total - was.subs;
-      void vscode.window.showInformationMessage(`Saropa Chat Explorer: indexed ${n} chats and ${was.subs} subagent files.`);
+      void vscode.window.showInformationMessage(`Saropa Chat Explorer: indexed ${n} sessions and ${was.subs} subagent files.`);
     }
   }
 
@@ -140,7 +142,17 @@ class Provider implements vscode.WebviewViewProvider {
     return currentChat({ activeLabel: claude ? t!.label : undefined, tabs: w.tabInfo, last: w.lastActive, here: w.hereIds });
   }
 
+  /** The chat being looked at: the active tab is a Claude chat and the window is focused, else ''. */
+  viewingId(): string {
+    const t = vscode.window.tabGroups.activeTabGroup?.activeTab;
+    return vscode.window.state.focused && !!t && t.input instanceof vscode.TabInputWebview && /claude/i.test(t.input.viewType) ? this.currentId() : '';
+  }
+
+  /** Clear unread of the chat being looked at. */
+  clearViewed(): void { const id = this.viewingId(); if (id) { void this.actions?.markRead(id); } }
+
   /** Push the context ring limit to the panel. */
+  postCtxLines(): void { this.post({ type: 'ctxlines', n: searchContextLines() }); }
   postRing(): void { this.post({ type: 'ring', max: contextRingTokens() }); }
 
   /** Resume a chat and clear its unread flag. */
@@ -160,6 +172,7 @@ class Provider implements vscode.WebviewViewProvider {
     this.post({ type: 'restore', max: maxResults(), state: this.store.state, history: this.store.history, statuses: this.store.statuses,
       archOpen: this.store.archOpen, advOpen: this.store.advOpen });
     this.postDots();
+    this.postCtxLines();
     this.postRing();
     void this.postMeta();
     if (this.progress) { this.post({ type: 'indexing', ...this.progress }); }
@@ -288,10 +301,10 @@ class Provider implements vscode.WebviewViewProvider {
     this.relBusy.add(id);
     try {
       const r = await this.client.request({ t: 'related', chat: id }, true, true);
-      if (Array.isArray(r)) { this.post({ type: 'related', id, related: r }); } else { this.post({ type: 'relatedFailed', id, reason: 'This chat is not indexed yet' }); }
+      if (Array.isArray(r)) { this.post({ type: 'related', id, related: r }); } else { this.post({ type: 'relatedFailed', id, reason: 'This session is not indexed yet' }); }
     } catch (e) {
       logErr('related chats', e);
-      this.post({ type: 'relatedFailed', id, reason: 'Could not load related chats' });
+      this.post({ type: 'relatedFailed', id, reason: 'Could not load related sessions' });
     } finally { this.relBusy.delete(id); }
   }
 
@@ -380,13 +393,14 @@ export function activate(ctx: vscode.ExtensionContext): void {
   provider.actions = new ArchiveActions(store, ctx.globalStorageUri.fsPath, { changed, rebuild: () => provider.watcher?.rebuild() });
   const warner = createWarner(ctx, { request: (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), open: (id) => provider.resume(id), log, copyNote: (id) => provider.copyNote(id, () => undefined) });
   provider.watcher = new LiveWatcher({ dir: sessionsDir(), tabs: async () => { const r = await readTabs(workspaceStorageOf(ctx.globalStorageUri.fsPath), folderPaths()); return r.ok ? r : undefined; },
-    unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
+    viewing: () => provider.viewingId(), unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
     onChange: () => { provider.postDots(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); } });
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.search.contextLines')) { provider.postCtxLines(); } }));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.contextRingTokens')) { provider.postRing(); } }));
-  const tabMoved = () => { provider.postDots(); provider.watcher?.poke(); };
+  const tabMoved = () => { provider.clearViewed(); provider.postDots(); provider.watcher?.poke(); };
   ctx.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(tabMoved), vscode.window.tabGroups.onDidChangeTabGroups(tabMoved));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.animateDots')) { provider.postDots(); hub.emit('dots', logErr); } }));
-  ctx.subscriptions.push(vscode.window.onDidChangeWindowState((s) => { if (s.focused) { provider.watcher?.poke(); } }), { dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));
+  ctx.subscriptions.push(vscode.window.onDidChangeWindowState((s) => { if (s.focused) { provider.clearViewed(); provider.watcher?.poke(); } }), { dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));
   ctx.subscriptions.push(channel, status,
     vscode.commands.registerCommand('claudeChatExplorer.clearHistory', () => {
       provider.clearHistory();
@@ -398,6 +412,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
   ctx.subscriptions.push(
     ...[['saropaChatExplorer.copyResume', (id: string) => provider.copyResumeCmd(id)], ['saropaChatExplorer.exportChatMarkdown', (id: string) => provider.exportMd(id)]].map(([cmd, fn]) =>
       vscode.commands.registerCommand(cmd as string, (arg?: { id?: unknown }) => (isSessionId(arg?.id) ? (fn as (id: string) => Promise<void>)(arg.id) : undefined))),
+    vscode.commands.registerCommand('saropaChatExplorer.regenTitles', () => regenTitles({ currentId: () => provider.currentId(), refresh: () => { provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); }, log: logErr }, channel)),
     vscode.commands.registerCommand('saropaChatExplorer.archiveTiny', () => archiveTiny({ rows: usageRows, archived: () => store!.archived, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
       archive: (ids) => provider.actions!.archiveMany(ids) })));
   registerUsage(ctx, { rows: usageRows, resume: (id) => provider.resume(id), log: logErr, onIndex: (fn) => { ctx.subscriptions.push(hub.on('indexed', fn), hub.on('changed', fn)); },

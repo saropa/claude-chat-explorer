@@ -53,10 +53,10 @@ export async function readLive(dir: string, alive: (pid: number) => boolean = pi
   return { exists: true, live, bad: rows.filter((r) => !r).length, pids };
 }
 
-/** Unread set after a poll: a session seen busy or waiting that is now idle becomes unread; ids that are not open (live or a tab) are dropped. No previous poll marks nothing. */
-export function nextUnread(prev: Map<string, LiveStatus> | undefined, next: Map<string, LiveStatus>, unread: Set<string>, open: Set<string> = new Set(next.keys())): Set<string> {
+/** Unread set after a poll: a session seen busy or waiting that is now idle becomes unread unless it is the chat being viewed; ids that are not open (live or a tab) are dropped. No previous poll marks nothing. */
+export function nextUnread(prev: Map<string, LiveStatus> | undefined, next: Map<string, LiveStatus>, unread: Set<string>, open: Set<string> = new Set(next.keys()), viewing = ''): Set<string> {
   const out = new Set(unread);
-  if (prev) { for (const [id, was] of prev) { if (was !== 'idle' && next.get(id) === 'idle') { out.add(id); } } }
+  if (prev) { for (const [id, was] of prev) { if (was !== 'idle' && next.get(id) === 'idle' && id !== viewing) { out.add(id); } } }
   return new Set([...out].filter((id) => open.has(id)));
 }
 

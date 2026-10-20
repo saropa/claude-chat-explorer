@@ -39,7 +39,7 @@ export function registerHeaderCommands(ctx: vscode.ExtensionContext, h: HeaderHo
       const on = new Set(h.statuses());
       const items = STATUS_KEYS.map((k) => ({ label: STATUS_LABELS[k], detail: STATUS_TIPS[k], picked: on.has(k), key: k }));
       const off = STATUS_KEYS.length - on.size;
-      const picks = await vscode.window.showQuickPick(items, { title: 'Filter by status', canPickMany: true, placeHolder: off ? `Show chats that are (${off} of ${STATUS_KEYS.length} turned off)` : 'Show chats that are' });
+      const picks = await vscode.window.showQuickPick(items, { title: 'Filter by status', canPickMany: true, placeHolder: off ? `Show sessions that are (${off} of ${STATUS_KEYS.length} turned off)` : 'Show sessions that are' });
       if (!picks) { return; }
       const checked = picks.map((p) => p.key);
       h.setStatuses(checked);

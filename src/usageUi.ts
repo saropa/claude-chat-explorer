@@ -20,16 +20,16 @@ export interface UsageDeps {
 
 type Item = vscode.QuickPickItem & { id?: string };
 const section = (label: string, gs: Group[]): Item[] => (gs.length
-  ? [{ label, kind: vscode.QuickPickItemKind.Separator }, ...gs.map((g) => ({ label: g.label, description: usd(g.usd), detail: `${g.chats} ${g.chats === 1 ? 'chat' : 'chats'}` }))]
+  ? [{ label, kind: vscode.QuickPickItemKind.Separator }, ...gs.map((g) => ({ label: g.label, description: usd(g.usd), detail: `${g.chats} ${g.chats === 1 ? 'session' : 'sessions'}` }))]
   : []);
 
 async function showSummary(d: UsageDeps): Promise<void> {
   const s = summarize(await d.rows(), Date.now());
-  if (!s.total) { void vscode.window.showInformationMessage('No chat cost has been indexed yet.'); return; }
-  const top: Item[] = s.top.length ? [{ label: 'Priciest chats (click to resume)', kind: vscode.QuickPickItemKind.Separator },
+  if (!s.total) { void vscode.window.showInformationMessage('No session cost has been indexed yet.'); return; }
+  const top: Item[] = s.top.length ? [{ label: 'Priciest sessions (click to resume)', kind: vscode.QuickPickItemKind.Separator },
     ...s.top.map((r) => ({ label: r.title, description: usd(r.usd), detail: `${r.project} - last active ${when(r.last)}`, id: r.id }))] : [];
-  const items: Item[] = [...section('Per day', s.days), ...section('Per week', s.weeks), ...section('Per project', s.projects), ...section('Per model (costliest model of each chat)', s.models), ...top];
-  const pick = await vscode.window.showQuickPick(items, { title: `Usage Summary: ${usd(s.total)} in all indexed chats`, placeHolder: 'A chat is counted on the day it was last active', matchOnDescription: true, matchOnDetail: true });
+  const items: Item[] = [...section('Per day', s.days), ...section('Per week', s.weeks), ...section('Per project', s.projects), ...section('Per model (costliest model of each session)', s.models), ...top];
+  const pick = await vscode.window.showQuickPick(items, { title: `Usage Summary: ${usd(s.total)} in all indexed sessions`, placeHolder: 'A session is counted on the day it was last active', matchOnDescription: true, matchOnDetail: true });
   if (pick?.id) { await d.resume(pick.id); }
 }
 
@@ -54,8 +54,8 @@ class UsageBar implements vscode.Disposable {
     try {
       const n = nearlyFull(await this.d.rows(), NEARLY_PCT);
       if (!n) { this.item.hide(); return; }
-      this.item.text = `$(warning) ${n} ${n === 1 ? 'chat' : 'chats'} near full`;
-      this.item.tooltip = `${n} ${n === 1 ? 'chat is' : 'chats are'} ${NEARLY_PCT}% full or more. Click to list them in the panel.`;
+      this.item.text = `$(warning) ${n} ${n === 1 ? 'session' : 'sessions'} near full`;
+      this.item.tooltip = `${n} ${n === 1 ? 'session is' : 'sessions are'} ${NEARLY_PCT}% full or more. Click to list them in the panel.`;
       this.item.show();
     } catch (e) { this.item.hide(); this.d.log('usage status bar', e); }
   }

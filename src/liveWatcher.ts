@@ -15,6 +15,7 @@ export interface WatchHost {
   tabs?(): Promise<{ ids: string[]; hash: string; info?: TabInfo[]; last?: string } | undefined>; // ids of Claude's open tabs; undefined when unreadable
   onChange(): void; // the dot map changed
   onLive?(live: Iterable<string>): void; // a poll finished: ids of live sessions
+  viewing?(): string; // the chat being looked at (active Claude tab in a focused window), else ''
   log(msg: string): void;
 }
 
@@ -60,7 +61,7 @@ export class LiveWatcher {
       await this.markWindows(r.pids, r.live.size);
       await this.readTabs();
       try { this.bg = await this.bgTracker.running(r.live.keys()); } catch { this.bg = new Set(); }
-      const was = this.h.unread(), un = nextUnread(this.prev, r.live, was, openSet(r.live, this.tabIds));
+      const was = this.h.unread(), un = nextUnread(this.prev, r.live, was, openSet(r.live, this.tabIds), this.h.viewing?.() ?? '');
       this.prev = this.live = r.live;
       if (un.size !== was.size || [...un].some((id) => !was.has(id))) { this.h.saveUnread(un); }
       this.rebuild();

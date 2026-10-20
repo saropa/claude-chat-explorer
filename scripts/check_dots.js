@@ -7,7 +7,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const OUT = process.env.CCS_OUT || path.join(ROOT, 'out');
-const { dotState, buildDots, stateMap } = require(path.join(OUT, 'liveState.js'));
+const { dotState, buildDots, stateMap, nextUnread } = require(path.join(OUT, 'liveState.js'));
 const { BgTracker, feed } = require(path.join(OUT, 'bgAgents.js'));
 const { dotText, dotAttrs } = require(path.join(OUT, 'group.js'));
 const { statusesOf } = require(path.join(OUT, 'status.js'));
@@ -20,14 +20,16 @@ const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // 1. State priority: waiting, running, unread, background; s is the first, also the rest; old shapes are unchanged.
 check('idle dot has no also', eq(dotState('idle', false), { s: 'idle' }) && eq(dotState(undefined, false), { s: 'idle' }));
 check('plain running, waiting, unread keep their old shape', eq(dotState('busy', false), { s: 'running' }) && eq(dotState('waiting', false), { s: 'waiting' }) && eq(dotState('idle', true), { s: 'unread' }) && eq(dotState(undefined, true), { s: 'unread' }));
-check('busy chat is running even when marked unread', eq(dotState('busy', true), { s: 'running' }));
-check('a dormant chat with background agents is background', eq(dotState('idle', false, undefined, true), { s: 'background' }));
+check('busy session is running even when marked unread', eq(dotState('busy', true), { s: 'running' }));
+check('a dormant session with background agents is background', eq(dotState('idle', false, undefined, true), { s: 'background' }));
 check('unread + background: unread first', eq(dotState('idle', true, undefined, true), { s: 'unread', also: ['background'] }));
 check('running + background: running first', eq(dotState('busy', false, undefined, true), { s: 'running', also: ['background'] }));
 check('waiting wins over background', eq(dotState('waiting', false, undefined, true), { s: 'waiting', also: ['background'] }));
-check('window mark is kept for live chats only', dotState('idle', false, 'this', true).win === 'this' && dotState(undefined, true, 'this').win === undefined);
+check('window mark is kept for live sessions only', dotState('idle', false, 'this', true).win === 'this' && dotState(undefined, true, 'this').win === undefined);
 const dots = buildDots(new Map([['a', 'idle'], ['b', 'busy']]), new Set(['a']), undefined, ['t'], new Set(['a', 'b', 't']));
 check('buildDots: background only for live sessions', eq(dots.a, { s: 'unread', also: ['background'] }) && eq(dots.b, { s: 'running', also: ['background'] }) && eq(dots.t, { s: 'idle' }));
+const was = new Map([['a', 'busy'], ['b', 'busy']]), now = new Map([['a', 'idle'], ['b', 'idle']]);
+check('nextUnread: finished session becomes unread, except the one being viewed', eq([...nextUnread(was, now, new Set())], ['a', 'b']) && eq([...nextUnread(was, now, new Set(), undefined, 'a')], ['b']));
 check('stateMap keeps the primary state only', eq(stateMap(dots), { a: 'unread', b: 'running', t: 'idle' }));
 
 // 2. Background detection: a launch counts until its task-notification names it.

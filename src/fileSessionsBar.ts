@@ -33,7 +33,7 @@ export class FileSessionsBar implements vscode.Disposable {
       const reply = await this.svc.get(doc.uri.fsPath);
       if (vscode.window.activeTextEditor?.document !== doc) { return; } // the editor changed while waiting
       if (reply.indexing || reply.total < 1) { this.item.hide(); return; }
-      const s = reply.total === 1 ? 'chat' : 'chats';
+      const s = reply.total === 1 ? 'session' : 'sessions';
       this.item.text = `$(comment-discussion) ${reply.total}`;
       this.item.tooltip = `${reply.total} ${s} touched this file (${reply.edited} edited it). Click to search for them in the panel.`;
       this.item.show();
