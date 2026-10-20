@@ -3,6 +3,8 @@
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
 ## Unreleased
+- Added: "Work week (Mon-Sun)" in chats active during keeps the old this-week behavior (since Monday 00:00); "this week" stays the rolling last 7 days.
+- Changed: "this week" in chats active during is now the rolling last 7 days (was since Monday 00:00), for active and archived chats alike.
 - Added: a third search scope checkbox, Archive (off by default, remembered like the others). Off: searching does not match archived chats (the Results editor already skipped them). On: search text and filters also include archived chats, which list in the Archived section. With no search text the Archived section stays visible either way.
 - Changed: the search scope checkboxes read Subs, Archive, External (was Subagents, All projects), in that order. Their settings and behavior are unchanged.
 - Added: tooltips on every filter dropdown and label, the search box, section headers, message pills, the Resume button and the status filter Reset link.
