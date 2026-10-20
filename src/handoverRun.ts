@@ -13,7 +13,7 @@ export async function copyHandover(id: string, query: string, d: HandoverDeps): 
   try {
     const live = gatherLive(id, d);
     const data: HandoverData | null = await d.request({ t: 'handover', chat: id, query });
-    if (!data) { void vscode.window.showInformationMessage('This chat is not indexed yet. Try again in a moment.'); return; }
+    if (!data) { void vscode.window.showInformationMessage('This session is not indexed yet. Try again in a moment.'); return; }
     await vscode.env.clipboard.writeText(handoverText(data, d.roots(), Date.now(), await live));
     ok = true;
     void vscode.window.showInformationMessage('Copied hand-over note');

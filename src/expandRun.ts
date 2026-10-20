@@ -12,7 +12,7 @@ export async function runExpand(client: Req, id: string, m: any, ctx: object, po
   try {
     // Soft background request: a stall rejects this card only and never restarts the worker or kills a running search.
     const ex = await client.request({ t: 'expand', chat: id, query, o, offset, lite, ...ctx }, true, true);
-    if (ex) { post({ type: 'expanded', id, offset, lite, ...ex }); } else { fail('This chat is not indexed yet'); }
+    if (ex) { post({ type: 'expanded', id, offset, lite, ...ex }); } else { fail('This session is not indexed yet'); }
   } catch (e) {
     logErr('expand', e);
     fail('Could not load details');

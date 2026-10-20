@@ -78,18 +78,18 @@ function unpLines(g: GitLive): string[] {
 
 function wtLines(g: GitLive): string[] {
   if (!g.worktrees.length) { return ['No worktrees found']; }
-  return g.worktrees.map((w) => `- ${w.path} [${w.detached ? 'detached' : w.branch}]${w.main ? ' (main checkout)' : ''}${w.here ? " (this chat's)" : ''}${w.missing ? ' (missing)' : ''}`);
+  return g.worktrees.map((w) => `- ${w.path} [${w.detached ? 'detached' : w.branch}]${w.main ? ' (main checkout)' : ''}${w.here ? " (this session's)" : ''}${w.missing ? ' (missing)' : ''}`);
 }
 
 function relLines(rel: Related[] | undefined): string[] {
-  if (!rel) { return ['', '## Related chats', NA]; }
-  const rows = rel.length ? rel.map((r) => `- ${r.title.replace(/\s+/g, ' ')} (${r.id}) - ${r.shared} shared file${r.shared === 1 ? '' : 's'}`) : ['No other chat touched the same files'];
-  return ['', `## Related chats (${rel.length})`, ...rows];
+  if (!rel) { return ['', '## Related sessions', NA]; }
+  const rows = rel.length ? rel.map((r) => `- ${r.title.replace(/\s+/g, ' ')} (${r.id}) - ${r.shared} shared file${r.shared === 1 ? '' : 's'}`) : ['No other session touched the same files'];
+  return ['', `## Related sessions (${rel.length})`, ...rows];
 }
 
 /** Markdown note; file paths are workspace-relative when inside a workspace folder. Live parts are optional. */
 export function handoverText(d: HandoverData, roots: string[], now = Date.now(), live?: HandoverLive): string {
-  const lines = ['# Hand-over note', '', `Chat: ${d.title.replace(/\s+/g, ' ')}`, `Session id: ${d.id}`, `Project folder: ${d.folder}`];
+  const lines = ['# Hand-over note', '', `Session: ${d.title.replace(/\s+/g, ' ')}`, `Session id: ${d.id}`, `Project folder: ${d.folder}`];
   if (d.branch) { lines.push(`Git branch: ${d.branch}`); }
   lines.push(`Last active: ${ago(d.last, now)} (${stamp(d.last)})`);
   if (d.pct !== undefined) { lines.push(`Context: ${d.pct}% full`); }

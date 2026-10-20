@@ -21,6 +21,6 @@ export function chatMarkdown(ix: Source, chat: Chat, now: number): string {
 
 /** Default save name: <title words>_<YYYYMMDD>.md, safe for any file system. */
 export function mdName(title: string, d: Date): string {
-  const slug = title.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'chat';
+  const slug = title.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'session';
   return `${slug}_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.md`;
 }

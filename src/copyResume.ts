@@ -10,7 +10,7 @@ export async function copyResume(id: string, d: ResumeDeps): Promise<void> {
   if (!isSessionId(id)) { return; }
   try {
     const dir = await d.cwd(id);
-    if (!dir) { void vscode.window.showInformationMessage('This chat has no known folder, so there is no resume command to copy.'); return; }
+    if (!dir) { void vscode.window.showInformationMessage('This session has no known folder, so there is no resume command to copy.'); return; }
     await vscode.env.clipboard.writeText(resumeCommand(dir, id, process.platform === 'win32'));
     void vscode.window.showInformationMessage('Copied resume command');
   } catch (e) { d.log('copy resume command', e); void vscode.window.showErrorMessage('Could not copy the resume command: ' + (e as Error).message); }
