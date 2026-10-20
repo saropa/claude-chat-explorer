@@ -23,7 +23,7 @@ function drive() {
   const NOW = Date.now(), H = 3600e3;
   const id = (n) => '00000000-0000-4000-8000-00000000000' + n;
   const row = (n, o) => Object.assign({
-    file: '/x/' + id(n) + '.jsonl', id: id(n), title: 'Chat ' + n, hits: 0, last: NOW - n * H, snippet: '', ranges: [], score: 0, project: 'proj',
+    file: '/x/' + id(n) + '.jsonl', id: id(n), title: 'Session ' + n, hits: 0, last: NOW - n * H, snippet: '', ranges: [], score: 0, project: 'proj',
     msgs: 120, first: NOW - (n + 30) * H, edited: 4, size: 123456, cost: 12.5, add: 280, rem: 64, models: ['sonnet', 'opus'], commits: 2,
     ctx: { pct: 61, tokens: 619392, window: 1000000, model: 'sonnet-5-5', comp: 9, pend: false, approx: false },
   }, o || {});
@@ -100,17 +100,17 @@ function drive() {
   check('Git pill and PR rendered', /class="pill"[^>]*>5</.test(secOf('git')) && /#7 A PR/.test(secOf('git')));
   // Created work: badge with the time, the created list with state, receipt tooltip, PR pill, a collapsed Mentions only row, never a blank branch area.
   const mk = (n, state) => ({ kind: 'wt', name: 'proj-wt-' + n, branch: 'feat/' + n, state, at: '2026-10-11 01:04', pr: n === 'a' ? { number: 42, title: 'Alive work', draft: false, review: 'APPROVED' } : undefined, tip: 'Created by a tool call at 2026-10-11 01:04\nCommand: git worktree add ../proj-wt-' + n + '\ntool_use: toolu_' + n + '\nTranscript: p/s/subagents/agent-1.jsonl line 12' });
-  const work = { badge: 'created branch feat/a at 2026-10-11 01:04', folder: '/r/proj-wt-a', branch: 'feat/a', how: 'created', created: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((n, i) => mk(n, i === 0 ? 'exists' : 'removed')), createdTotal: 20, createdGone: 19, worked: [{ name: 'proj-wt-w', branch: 'feat/w', how: 'cwd', state: 'removed' }], mentions: [{ name: 'feat/zzz', note: 'the chat only mentions "feat/zzz"' }], mentionsTotal: 3 };
+  const work = { badge: 'created branch feat/a at 2026-10-11 01:04', folder: '/r/proj-wt-a', branch: 'feat/a', how: 'created', created: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((n, i) => mk(n, i === 0 ? 'exists' : 'removed')), createdTotal: 20, createdGone: 19, worked: [{ name: 'proj-wt-w', branch: 'feat/w', how: 'cwd', state: 'removed' }], mentions: [{ name: 'feat/zzz', note: 'the session only mentions "feat/zzz"' }], mentionsTotal: 3 };
   step('git with created work', () => deliver({ type: 'gitLive', id: id(1), part: 'git', data: Object.assign({}, git, { work }) }));
   const gs = () => secOf('git');
   check('created badge shows "created branch X at <time>" with the receipt in its tooltip', /created branch feat\/a at 2026-10-11 01:04/.test(gs()) && /tool_use: toolu_a/.test(gs()) && /agent-1\.jsonl line 12/.test(gs()) && /git worktree add \.\.\/proj-wt-a/.test(gs()));
   check('created list shows state and PR, the removed ones as "created, now removed", and only the newest rows with a +N more toggle', /created 2026-10-11 01:04/.test(gs()) && /created, now removed 2026-10-11 01:04/.test(gs()) && /#42/.test(gs()) && /\+14 more created/.test(gs()) && !/proj-wt-g/.test(gs().replace(/data-tip="[^"]*"/g, '')) && /Made here \(20\)/.test(gs()));
-  check('the worktree the card reads is called out as created by this chat, and the used (not created) worktree is listed', /created by this chat/.test(gs()) && /feat\/w[\s\S]*ran in[\s\S]*now removed/.test(gs()));
+  check('the worktree the card reads is called out as created by this session, and the used (not created) worktree is listed', /created by this session/.test(gs()) && /feat\/w[\s\S]*ran in[\s\S]*now removed/.test(gs()));
   check('Mentions only is collapsed by default: a count and no names', /Mentions only \(3\)/.test(gs()) && !/feat\/zzz <span/.test(gs()));
   step('expand mentions and created', () => run("wx.add('wm:' + " + JSON.stringify(id(1)) + ");wx.add('wc:' + " + JSON.stringify(id(1)) + ');rerender();', 'wmore'));
-  check('opening Mentions only lists the names with why, and opening +N more lists every created row sent', /feat\/zzz <span/.test(gs()) && /the chat only mentions/.test(gs()) && /Hide/.test(gs()) && /feat\/h <span/.test(gs()));
+  check('opening Mentions only lists the names with why, and opening +N more lists every created row sent', /feat\/zzz <span/.test(gs()) && /the session only mentions/.test(gs()) && /Hide/.test(gs()) && /feat\/h <span/.test(gs()));
   step('git unreachable with created work', () => deliver({ type: 'gitLive', id: id(1), part: 'git', data: { state: 'none', reason: 'The working folder no longer exists', work } }));
-  check('a chat that created something never shows a blank branch area, even when its folder is gone', /no longer exists/.test(gs()) && /created branch feat\/a at/.test(gs()));
+  check('a session that created something never shows a blank branch area, even when its folder is gone', /no longer exists/.test(gs()) && /created branch feat\/a at/.test(gs()));
   step('git restored', () => deliver({ type: 'gitLive', id: id(1), part: 'git', data: git }));
   step('open Unpushed and Worktrees', () => { run("toggleSec('unp:' + " + JSON.stringify(id(1)) + ');', 'unp'); run("toggleSec('wt:' + " + JSON.stringify(id(1)) + ');', 'wt'); });
   check('Unpushed and Worktrees requests', asked('gitLive', 'unp', 1) === 1 && asked('gitLive', 'wt', 1) === 1);
@@ -118,13 +118,13 @@ function drive() {
   check('Unpushed lists commits', /abc1234/.test(secOf('unp')) && /class="pill"[^>]*>4</.test(secOf('unp')));
   check('Worktrees lists both', /r-wt/.test(secOf('wt')) && /class="pill"[^>]*>2</.test(secOf('wt')));
   step('wt list marks created and removed', () => deliver({ type: 'gitLive', id: id(1), part: 'wt', data: Object.assign({}, git, { worktrees: [{ path: '/r/proj-wt-a', branch: 'feat/a', detached: false, main: false, missing: false, here: true, created: true }, { path: '/r/proj-wt-b', branch: 'feat/b', detached: false, main: false, missing: true, here: true, created: true, removed: true }] }) }));
-  check('Worktrees section: created by this chat, and created, now removed', /created by this chat/.test(secOf('wt')) && /created, now removed/.test(secOf('wt')));
+  check('Worktrees section: created by this session, and created, now removed', /created by this session/.test(secOf('wt')) && /created, now removed/.test(secOf('wt')));
   check('Related not asked until opened', asked('related', '', 1) === 0);
   step('open Related', () => run("toggleSec('rel:' + " + JSON.stringify(id(1)) + ');', 'rel'));
   check('Related request sent on open', asked('related', '', 1) === 1);
   step('related reply', () => deliver({ type: 'related', id: id(1), related: [{ id: id(8), title: 'Related one', shared: 13, last: NOW - 5 * H, score: 33 }, { id: id(9), title: 'Related two', shared: 1, last: NOW - 50 * H, score: 3 }] }));
-  check('Related chats rendered with pill', /Related one/.test(list.innerHTML) && /class="pill"[^>]*>2</.test(secOf('rel')));
-  step('related failed', () => { run("lz['rel:' + " + JSON.stringify(id(1)) + "]={s:'loading'};", 'rel reset'); deliver({ type: 'relatedFailed', id: id(1), reason: 'Could not load related chats' }); });
+  check('Related sessions rendered with pill', /Related one/.test(list.innerHTML) && /class="pill"[^>]*>2</.test(secOf('rel')));
+  step('related failed', () => { run("lz['rel:' + " + JSON.stringify(id(1)) + "]={s:'loading'};", 'rel reset'); deliver({ type: 'relatedFailed', id: id(1), reason: 'Could not load related sessions' }); });
   check('failed Related shows Retry', /data-a="lretry"/.test(secOf('rel')));
   step('unc timeout', () => deliver({ type: 'gitLive', id: id(1), part: 'unc', data: { state: 'timeout', reason: 'Git info timed out' } }));
   check('timed-out section shows Retry', /data-a="lretry"/.test(secOf('unc')));
@@ -160,13 +160,13 @@ function drive() {
     deliver({ type: 'sessions', sn: 0, rows: [row(5), row(6), row(7)], total: 3, arch: [], archTotal: 0, max: 500 });
   });
   const ordered = () => at('data-id="' + id(7) + '"') >= 0 && at('data-id="' + id(7) + '"') < at('class="osep"') && at('class="osep"') < at('data-id="' + id(5) + '"') && at('data-id="' + id(5) + '"') < at('data-id="' + id(6) + '"');
-  check('open chat sorts above newer chats that are not open, with a divider (time sort)', ordered());
+  check('open session sorts above newer sessions that are not open, with a divider (time sort)', ordered());
   step('title sort order', () => { run("sortSet('title');rerender();", 'sort title'); });
-  check('open chats first under another sort too', at('data-id="' + id(7) + '"') < at('class="osep"') && at('class="osep"') < at('data-id="' + id(5) + '"'));
-  step('no open chats', () => { run("sortSet('time');", 'sort time'); deliver({ type: 'dots', map: {} }); });
-  check('no divider when no chat is open', at('class="osep"') < 0);
+  check('open sessions first under another sort too', at('data-id="' + id(7) + '"') < at('class="osep"') && at('class="osep"') < at('data-id="' + id(5) + '"'));
+  step('no open sessions', () => { run("sortSet('time');", 'sort time'); deliver({ type: 'dots', map: {} }); });
+  check('no divider when no session is open', at('class="osep"') < 0);
   step('all open', () => deliver({ type: 'dots', map: { [id(5)]: { s: 'idle' }, [id(6)]: { s: 'idle' }, [id(7)]: { s: 'idle' } } }));
-  check('no divider when every chat is open', at('class="osep"') < 0);
+  check('no divider when every session is open', at('class="osep"') < 0);
   step('reset dots', () => deliver({ type: 'dots', map: {} }));
 
   // Sort, status filter and search tips live in the view title bar; the host posts setSort, setStatuses and setQuery.
@@ -176,7 +176,7 @@ function drive() {
   check('the three header icon buttons and popovers are gone from the page', !/id="(srb|sfb|tpb|srm|sfm|tpm)"/.test(page) && !/class="hbs"/.test(page));
   check('tips list every parser prefix with an example', KNOWN.every((k) => tipEx.some((e) => e.startsWith(k))) && tipEx.length === KNOWN.length);
   check('sort list matches the sort keys the script accepts', run('JSON.stringify(SORTS.map(o=>o[0]))', 'sorts') === JSON.stringify(SORT_LIST.map((o) => o[0])));
-  check('placeholder is the short text and the long hint is gone', /placeholder="Search chats"/.test(page) && !/placeholder="[^"]*file:/.test(page));
+  check('placeholder is the short text and the long hint is gone', /placeholder="Search sessions"/.test(page) && !/placeholder="[^"]*file:/.test(page));
   step('host sets a sort', () => deliver({ type: 'setSort', sort: 'time' }));
   check('setSort applies and saves the sort', run('sort.value', 'sort') === 'time' && posted.some((p) => p.type === 'draft' && p.sort === 'time'));
   step('host sets a bad sort', () => deliver({ type: 'setSort', sort: 'bogus' }));
@@ -227,7 +227,7 @@ function drive() {
   step('related count failed', () => { deliver({ type: 'counts', id: id(3), rq: rq3, part: 'rel', n: null }); run('rerender();', 'rr2'); });
   check('Related header still shows the dimmed 0 pill when the count is unknown', /class="pill z"[^>]*>0</.test(relSec(3)));
   step('open empty Related', () => { run("toggleSec('rel:' + " + JSON.stringify(id(3)) + ');', 'rel3'); deliver({ type: 'related', id: id(3), related: [] }); });
-  check('empty Related opens and says so', /No other chat touched the same files/.test(list.innerHTML) && /class="pill z"[^>]*>0</.test(relSec(3)));
+  check('empty Related opens and says so', /No other session touched the same files/.test(list.innerHTML) && /class="pill z"[^>]*>0</.test(relSec(3)));
   // Hand-over button feedback.
   step('handover busy', () => deliver({ type: 'handoverState', id: id(1), state: 'busy' }));
   check('hand-over button shows busy', /aria-busy="true"/.test(list.innerHTML) && /Copying\.\.\./.test(list.innerHTML));
@@ -296,17 +296,17 @@ function handoverChecks(check) {
     prs: [{ number: 7, title: 'A PR', draft: true, review: 'approved' }] };
   const live = { git: ok, prUrls: new Map([[7, 'https://example.com/pr/7']]), prsOn: true, unc: ok, unp: ok, wt: ok, rel: [{ id: '00000000-0000-4000-8000-000000000009', title: 'Related one', shared: 3, last: 0, score: 9 }] };
   const t = h.handoverText(d, [], Date.now(), live);
-  const heads = ['## Git', '## Uncommitted files', '## Unpushed commits', '## Worktrees', '## Related chats'];
+  const heads = ['## Git', '## Uncommitted files', '## Unpushed commits', '## Worktrees', '## Related sessions'];
   check('hand-over note has every card section heading', heads.every((x) => t.includes(x)));
-  check('hand-over note keeps the existing fields', /Chat: Fix the thing/.test(t) && /Session id: 0000/.test(t) && /Project folder: \/Users\/x\/proj/.test(t) && /Git branch: feat\/x/.test(t) && /Last active:/.test(t) && /Context: 61% full/.test(t));
+  check('hand-over note keeps the existing fields', /Session: Fix the thing/.test(t) && /Session id: 0000/.test(t) && /Project folder: \/Users\/x\/proj/.test(t) && /Git branch: feat\/x/.test(t) && /Last active:/.test(t) && /Context: 61% full/.test(t));
   check('hand-over Git section has branch, ahead/behind and PR number, title and url', /ahead 25, behind 2/.test(t) && /Pull request: #7 A PR \(open, draft, approved\) https:\/\/example\.com\/pr\/7/.test(t));
   check('hand-over lists at most 20 uncommitted files and 20 commits with the rest counted', (t.match(/^- M f\d+\.ts/gm) || []).length === 20 && /\(\+13 more\)/.test(t) && (t.match(/^- abc\d+ subject/gm) || []).length === 20 && /\(\+5 more\)/.test(t));
-  check('hand-over worktrees mark this chat and related lists title, id and shared files', /proj-wt \[fix\/y\]/.test(t) && /\(this chat's\)/.test(t) && /Related one \(0000.*0009\) - 3 shared files/.test(t));
+  check('hand-over worktrees mark this session and related lists title, id and shared files', /proj-wt \[fix\/y\]/.test(t) && /\(this session's\)/.test(t) && /Related one \(0000.*0009\) - 3 shared files/.test(t));
   check('hand-over note has no "claude"', !/claude/i.test(t));
   const none = h.handoverText(d, [], Date.now(), {});
   check('missing parts are written as not available, never dropped', heads.every((x) => none.includes(x)) && (none.match(/Not available/g) || []).length === 5);
   check('a failed git part says why', /Not available: Git is unavailable/.test(h.handoverText(d, [], Date.now(), { git: { state: 'error', reason: 'Git is unavailable: x' } })));
-  check('empty related says so', /No other chat touched the same files/.test(h.handoverText(d, [], Date.now(), { rel: [] })));
+  check('empty related says so', /No other session touched the same files/.test(h.handoverText(d, [], Date.now(), { rel: [] })));
   const hang = new Promise(() => {});
   const deps = (load, request) => ({ request, log() {}, folders: () => [], prsOn: () => true, gitLive: { load } });
   const fast = async (cwd, part) => ({ live: Object.assign({}, ok, { fileTotal: 1 }), targets: part === 'git' ? { urls: new Map([[7, 'u']]) } : undefined });
@@ -331,7 +331,7 @@ function handoverChecks(check) {
   const { parseTabInfo } = require(path.join(OUT, 'stateDb.js'));
   const A = '11111111-1111-4111-8111-111111111111', B = '22222222-2222-4222-8222-222222222222';
   const tabs = [{ id: A, title: 'Fix publish.py versio…' }, { id: B, title: 'Review publish scrip…' }];
-  need('active Claude tab label picks its chat (truncated title prefix)', tabByLabel('Review publish script and docs', tabs) === B && tabByLabel('Fix publish.py version', tabs) === A);
+  need('active Claude tab label picks its session (truncated title prefix)', tabByLabel('Review publish script and docs', tabs) === B && tabByLabel('Fix publish.py version', tabs) === A);
   need('ambiguous or unknown label picks nothing', tabByLabel('Something else', tabs) === undefined && tabByLabel('x', [{ id: A, title: 'x…' }, { id: B, title: 'x…' }]) === undefined);
   need('focused tab wins over last activation', currentChat({ activeLabel: 'Review publish script', tabs, last: A, here: [A] }) === B);
   need('unmatched Claude tab falls back to last activation, non-Claude editor too', currentChat({ activeLabel: 'zzz', tabs, last: A, here: [] }) === A && currentChat({ tabs, last: B, here: [] }) === B);
@@ -344,12 +344,12 @@ function handoverChecks(check) {
   need('emoji wrapped in a span outside tags, search marks intact', w === '<span class="em">📅</span> Fix <mark>cal</mark> <span class="em">❤️</span> ok' && wrap('plain 123') === 'plain 123');
   const { ARCH_CSS, ARCH_JS } = require(path.join(OUT, 'webviewArchive.js'));
   need('archived rows dim the title and grey the emoji', /\.r\.arc \.hd \.t\{color:color-mix/.test(ARCH_CSS) && /\.em\{filter:grayscale\(1\)\}/.test(ARCH_CSS));
-  need('Archived header: sentence case "Archived chats", no uppercase or letter-spacing, smaller pill (font-size minus 2px, 16px tall)', />Archived chats</.test(ARCH_JS) && /\.sl\.arh\{[^}]*font-weight:400;letter-spacing:0;text-transform:none/.test(ARCH_CSS) && /\.sl\.arh \.pill\{[^}]*font-size:calc\(var\(--vscode-font-size\) - 2px\);line-height:16px/.test(ARCH_CSS));
+  need('Archived header: "Archived sessions", same style as other section headers, smaller pill (font-size minus 2px, 16px tall)', />Archived sessions</.test(ARCH_JS) && /\.sl \.pill\{[^}]*font-size:calc\(var\(--vscode-font-size\) - 2px\);line-height:16px/.test(ARCH_CSS));
   const css = require(path.join(OUT, 'webviewCss.js')).CSS, js = src('webviewJs.ts'), rd = src('webviewRender.ts');
   need('current row uses list selection variables (active and inactive) and bold title', /\.r\.cur>\.rh\{background:var\(--vscode-list-inactiveSelectionBackground\)/.test(css) && /html:not\(\.nf\) \.r\.cur>\.rh\{background:var\(--vscode-list-activeSelectionBackground\)/.test(css) && /\.r\.cur \.hd \.t\{font-weight:600\}/.test(css));
   need('row gets cur class from the dots message; focus toggles nf', /\(r\.id===curId\?' cur':''\)/.test(rd) && /curId=d\.cur\|\|''/.test(js) && /classList\.toggle\('nf'/.test(js));
   const ext = src('extension.ts');
-  need('active tab changes repost the current chat; dots message carries cur', /tabGroups\.onDidChangeTabs\(tabMoved\)/.test(ext) && /type: 'dots'.*cur: this\.currentId\(\)/.test(ext));
+  need('active tab changes repost the current session; dots message carries cur', /tabGroups\.onDidChangeTabs\(tabMoved\)/.test(ext) && /type: 'dots'.*cur: this\.currentId\(\)/.test(ext));
   need('no inline style in the new markup', !/style=/.test(ARCH_JS + rd.slice(rd.indexOf('function emojiWrap'), rd.indexOf('function hdHtml'))));
 }
 

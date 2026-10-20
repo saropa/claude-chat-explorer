@@ -17,7 +17,7 @@ let tot=null,capN=500;
 function nf(n){return Number(n).toLocaleString();}
 function capBox(line,cls){return '<div class="cn'+(cls||'')+'">'+(line?'<div class="cl">'+esc(line)+'</div>':'')+'<div class="cw">'+WARN_SVG+'<span>'+WARN_TXT+'</span></div></div>';}
 function capSearch(){const m=tot.hitsCapped?nf(1000000)+'+':nf(tot.totalHits);
-return 'Showing the top '+nf(tot.max)+' of '+nf(tot.totalChats)+' chats ('+m+(tot.totalHits===1&&!tot.hitsCapped?' match':' matches')+')';}
+return 'Showing the top '+nf(tot.max)+' of '+nf(tot.totalChats)+' sessions ('+m+(tot.totalHits===1&&!tot.hitsCapped?' match':' matches')+')';}
 function capSess(){return sessOn&&!!sess&&!hasResults&&sess.total>sess.rows.length;}
 function capShown(){return hasResults?!!(tot&&tot.capped):capSess();}
 function capHtml(){if(hasResults)return tot&&tot.capped?capBox(capSearch()):'';

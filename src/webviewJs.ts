@@ -28,7 +28,7 @@ function showErr(m){err.style.display=m?'block':'none';err.textContent=m||'';q.c
 function setBusy(b){busy=b;bar.classList.toggle('on',b);renderIdle();}
 function draft(){vs.postMessage(Object.assign({type:'draft'},cur()));}
 function subTxt(){return ix.subs?' (including '+ix.subs+' subagent files)':'';}
-function showIx(){ixb.hidden=!ix;if(ix)ixt.textContent=ix.first?'Building the search index for the first time: '+ix.done+' of '+ix.total+subTxt()+'. Later launches are much faster.':'Indexing your chats: '+ix.done+' of '+ix.total+subTxt()+'. Results may be incomplete until this finishes.';}
+function showIx(){ixb.hidden=!ix;if(ix)ixt.textContent=ix.first?'Building the search index for the first time: '+ix.done+' of '+ix.total+subTxt()+'. Later launches are much faster.':'Indexing your sessions: '+ix.done+' of '+ix.total+subTxt()+'. Results may be incomplete until this finishes.';}
 function go(){clearTimeout(timer);clearTimeout(histTimer);const c=cur();showErr('');hint.hidden=true;draft();dirty=!!ix;
 stale=false;res.classList.remove('stale');res.scrollTop=0;acc=[];prog=null;open.clear();mOpen.clear();ex={};lzClear();sn++;sess=null;lastQ=c.query;sessOn=!c.query;
 tot=null;hasResults=false;lastRs=[];lastMsg=c.query?'Searching...':'';setBusy(!!c.query);
@@ -129,6 +129,7 @@ else if(d.type==='indexed'){ix=null;showIx();if(dirty){dirty=false;go();}}
 else if(d.type==='history'){history=d.history||[];histIdx=-1;if(!history.length)lastRec='';ahSync();}
 else if(d.type==='sessions'){if(d.sn!==sn)return;sess={rows:d.rows||[],total:d.total||0,arch:d.arch||[],archTotal:d.archTotal||0};capN=d.max||capN;rerender();}
 else if(d.type==='dots'){dots=d.map||{};curId=d.cur||'';document.documentElement.classList.toggle('noanim',d.anim===false);rerender();}
+else if(d.type==='ctxlines'){document.documentElement.style.setProperty('--ctxl',String(d.n>=1&&d.n<=4?Math.round(d.n):1));rerender();}
 else if(d.type==='ring'){ringMax=d.max>0?d.max:300000;rerender();}
 else if(d.type==='setQuery'){q.value=d.query||'';histIdx=-1;go();}
 else if(d.type==='setSort'){sortSet(d.sort);draft();if(sessOn&&!hasResults)askSess();rerender();}

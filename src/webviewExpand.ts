@@ -17,7 +17,7 @@ function xsec(key,label,n,body,k,pill,ov){const o=ov===undefined?!col.has(key):o
 return '<section class="'+k+'"><div class="xh'+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'" aria-label="'+esc(label+cn)+'" data-tip="'+esc(label)+': click to '+(o?'collapse':'expand')+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+c+'</div>'+(o?'<div class="xb2">'+body+'</div>':'')+'</section>';}
 function xbtn(a,ic,label,txt,cls,extra,tip){return '<button class="xb'+(cls||'')+'" data-a="'+a+'"'+(extra||'')+' aria-label="'+label+'" data-tip="'+(tip||label)+'">'+ic+'<span class="xl'+(a==='read'||a==='copyid'||a==='handover'?' xo':'')+'">'+txt+'</span></button>';}
 function actHtml(r){const p=pins.has(r.id),ia=arch.has(r.id);
-return '<div class="xa" role="toolbar" aria-label="Chat actions"><button class="xb pri" data-a="resume" aria-label="Resume chat" data-tip="Resume this chat">'+XI.play+'<span>Resume</span></button>'
+return '<div class="xa" role="toolbar" aria-label="Session actions"><button class="xb pri" data-a="resume" aria-label="Resume session" data-tip="Resume this session">'+XI.play+'<span>Resume</span></button>'
 +xbtn('pin',p?XI.starOn:XI.star,p?'Unpin':'Pin',p?'Pinned':'Pin',p?' on':'',' aria-pressed="'+p+'"')
 +xbtn('arch',ia?UNARCH_SVG:ARCH_SVG,ia?'Unarchive':'Archive',ia?'Unarchive':'Archive','')
 +((dots[r.id]||{}).s==='unread'?xbtn('read',XI.read,'Mark as read','Mark read',''):'')
@@ -25,16 +25,16 @@ return '<div class="xa" role="toolbar" aria-label="Chat actions"><button class="
 +xbtn('copyid',XI.copy,'Copy session ID','Copy ID','','','Copy session ID '+esc(r.id))+'</div>';}
 function statCell(l,v,tip,a){return '<div data-tip="'+esc(tip)+'"><dt>'+l+'</dt><dd'+(a?' aria-label="'+a+'"':'')+'>'+v+'</dd></div>';}
 function statsHtml(r){let h='';const now=Date.now();
-if(r.msgs)h+=statCell('Messages',r.msgs,plur(r.msgs,'message')+' in this chat');
+if(r.msgs)h+=statCell('Messages',r.msgs,plur(r.msgs,'message')+' in this session');
 h+=statCell('Last active',esc(agoLong(r.last,now)),'Last active '+agoLong(r.last,now)+'\n'+full(r.last));
 if(r.last>r.first)h+=statCell('Active for',esc(durText(r.first,r.last)),'Active for '+durText(r.first,r.last)+'\nFirst message to last message');
-if(r.edited>0)h+=statCell('Files edited',r.edited,plur(r.edited,'file')+' edited in this chat');
+if(r.edited>0)h+=statCell('Files edited',r.edited,plur(r.edited,'file')+' edited in this session');
 h+=statCell('Size',sizeText(r.size),'Transcript size on disk: '+sizeText(r.size));
 if(r.ctx)h+=statCell('Context',esc(ctxStat(r.ctx)),'Context window use\n'+ctxStat(r.ctx));
-if(r.cost>0){const c=r.cost<0.01?'<$0.01':'$'+r.cost.toFixed(2);h+=statCell('Cost',esc(c),'Estimated cost of this chat: '+c);}
-if(r.add||r.rem)h+=statCell('Lines','<span class="add">+'+(r.add||0)+'</span> <span class="rem">\u2212'+(r.rem||0)+'</span>','+'+plur(r.add||0,'line')+' added, -'+plur(r.rem||0,'line')+' removed in this chat\'s edits',plur(r.add||0,'line')+' added, '+(r.rem||0)+' removed');
+if(r.cost>0){const c=r.cost<0.01?'<$0.01':'$'+r.cost.toFixed(2);h+=statCell('Cost',esc(c),'Estimated cost of this session: '+c);}
+if(r.add||r.rem)h+=statCell('Lines','<span class="add">+'+(r.add||0)+'</span> <span class="rem">\u2212'+(r.rem||0)+'</span>','+'+plur(r.add||0,'line')+' added, -'+plur(r.rem||0,'line')+' removed in this session\'s edits',plur(r.add||0,'line')+' added, '+(r.rem||0)+' removed');
 if(r.models&&r.models.length)h+='<div class="wide" data-tip="'+esc('Models used\n'+r.models.join(', '))+'"><dt>Models</dt><dd>'+esc(r.models.join(', '))+'</dd></div>';
-return '<dl class="xs" aria-label="Chat stats">'+h+'</dl>';}
+return '<dl class="xs" aria-label="Session stats">'+h+'</dl>';}
 function tagInput(id){return tagIn&&tagIn.id===id
 ?'<span class="xin"><input class="tin" list="tl" placeholder="Add tag" maxlength="40" aria-label="New tag. Enter adds, Escape cancels" aria-description="Enter to add, Escape to cancel" data-tip="Enter to add · Esc to cancel" value="'+esc(tagIn.v)+'"></span>':'';}
 function tagLine(id){return chips(id)+tagInput(id);}

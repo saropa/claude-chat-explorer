@@ -17,14 +17,14 @@ function plu(n,w){return nf(n)+' '+w+(n===1?'':'s');}
 function sumCounts(){const rs=lastRs;
 const hits=tot?tot.totalHits:rs.reduce((a,r)=>a+(r.hits||0),0),chats=tot?tot.totalChats:rs.length;
 const x=tot&&tot.hitsCapped?nf(1000000)+'+ results':plu(hits,'result');
-return x+' in '+plu(chats,'chat');}
+return x+' in '+plu(chats,'session');}
 function fromNow(){const m=/(?:^|\s)from:(you|agent|claude|both)(?=\s|$)/i.exec(q.value);const v=m?m[1].toLowerCase():frm.value;return v==='claude'?'agent':v;}
 function fromNote(){const f=fromNow();return f==='you'?' · from you only':f==='agent'?' · from agent only':'';}
-function sumPlain(){const on=!hasResults&&sessOn&&sess&&sessN>0&&!busy&&err.style.display!=='block';sumEl.hidden=!on;sumEl.textContent=on?plu(sessN,'chat'):'';}
+function sumHide(){sumEl.hidden=true;sumEl.textContent='';}
 function sumSync(){const has=!!q.value.trim()&&!!lastQ;
-if(!has||err.style.display==='block'){sumPlain();return;}
+if(!has||err.style.display==='block'){sumHide();return;}
 if(busy){sumEl.hidden=!lastMsg;sumEl.textContent=lastMsg;return;}
-if(!hasResults){sumPlain();return;}
+if(!hasResults){sumHide();return;}
 sumEl.hidden=false;sumEl.innerHTML=esc(sumCounts())+fromNote()+' - <a id="oie" role="button" tabindex="0" title="Show every match in a read-only editor tab">Open in editor</a>';}
 function openEd(){recordHist(true);vs.postMessage(Object.assign({type:'openEditor',statuses:Array.from(stOn)},cur()));}
 sumEl.addEventListener('click',e=>{if(e.target.closest('#oie')){e.preventDefault();openEd();}});

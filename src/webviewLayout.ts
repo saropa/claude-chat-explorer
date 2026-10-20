@@ -36,7 +36,6 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 .rc{display:flex;align-items:center;flex:none;gap:6px;max-width:60%}
 .hg{display:inline-flex;flex:none;color:var(--vscode-descriptionForeground)}
 .hg svg{width:12px;height:12px}
-.mp.hit{background:var(--vscode-editor-findMatchHighlightBackground);color:var(--vscode-foreground)}
 .mt .pj{flex:0 1 auto;min-width:0;max-width:40%;line-height:16px}
 .rh>.chips{display:flex;flex-wrap:wrap;max-width:none;overflow:visible;padding:0 8px 3px 24px}
 .rh>.chips:empty{display:none}
@@ -52,14 +51,13 @@ input[type=text]{padding-right:72px}
 
 export const LAYOUT_CSS = BASE + tier(T.compact, COMPACT) + tier(T.xwide, XWIDE);
 
-/** Webview script: relative time text, meta line, hit pill and the active-query body flag. */
+/** Webview script: relative time text, meta line and the active-query body flag. */
 export const LAYOUT_JS = String.raw`
 function agoLong(ms,now){const m=Math.floor(Math.max(0,now-ms)/60000);
 if(m<1)return 'just now';
 const u=m<60?[m,'minute']:m<1440?[Math.floor(m/60),'hour']:m<43200?[Math.floor(m/1440),'day']:m<525600?[Math.floor(m/43200),'month']:[Math.floor(m/525600),'year'];
 return u[0]+' '+u[1]+(u[0]===1?'':'s')+' ago';}
 function hitN(r){return r.hits>9999?nf(9999)+'+':nf(r.hits);}
-function hitTxt(r){return r.hits?hitN(r)+(r.hits===1?' hit':' hits'):'';}
 function msgTxt(r){return r.msgs?r.msgs+(r.msgs===1?' message':' messages'):'';}
 function agoShort(ms,now){const m=Math.floor(Math.max(0,now-ms)/60000);if(m<1)return 'now';const d=Math.floor(m/1440);
 const u=m<60?[m,'min']:m<1440?[Math.floor(m/60),'hr']:d<7?[d,'day']:d<30?[Math.floor(d/7),'wk']:d<365?[Math.floor(d/30),'mo']:[Math.floor(d/365),'yr'];
@@ -69,16 +67,14 @@ return m<60?m+'m':m<1440?Math.floor(m/60)+'h':d<7?d+'d':d<30?Math.floor(d/7)+'w'
 function timeText(ms,now,latest){const a=agoLong(ms,now);
 return '<span class="tm" role="img" aria-label="'+(latest?'latest match ':'active ')+a+'" data-tip="'+(latest?'k:time':esc(a+'\n'+full(ms)))+'">'+agoCompact(ms,now)+'</span>';}
 const CHART_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M3 13V8M8 13V3M13 13V6"/></svg>';
-function hugeIcon(r){return statusesOf(r,pins.has(r.id),Date.now(),(dots[r.id]||{}).s).includes('huge')?'<span class="hg" role="img" aria-label="Huge chat" data-tip="Huge chat">'+CHART_SVG+'</span>':'';}
+function hugeIcon(r){return statusesOf(r,pins.has(r.id),Date.now(),(dots[r.id]||{}).s).includes('huge')?'<span class="hg" role="img" aria-label="Huge session" data-tip="Huge session">'+CHART_SVG+'</span>':'';}
 function rcHtml(r,op,now){if(op)return '';const q=r.hits>0,dc=decorated(r);
 return '<span class="rc">'+(all.checked&&r.project?'<span class="pj" data-tip="Project folder">'+esc(r.project)+'</span>':'')+pinStar(r)
 +ringHtml(r)+(dc?ctxPill(r)+gitIcon(r)+hugeIcon(r):'')+timeText(stamp(r),now,q&&!!r.snipAt)+'</span>';}
-function hitsPill(r){const m=r.mc?' in '+r.mc+(r.mc===1?' matching message':' matching messages'):'';
-return '<span class="mp hit" role="img" aria-label="'+hitN(r)+(r.hits===1?' occurrence':' occurrences')+m+'" data-tip="k:hits">'+hitTxt(r)+'</span>';}
 function pinStar(r){return pins.has(r.id)?'<span class="pst" role="img" aria-label="Pinned" data-tip="Pinned">★</span>':'';}
-function metaHtml(r,now){const q=r.hits>0;
-if(!q&&!(decorated(r)&&r.touch))return '';
-return '<div class="mt">'+(q?hitsPill(r):'')+touchPill(r)+(q&&r.snipSub!==undefined?saPill(r.snipSub,'k:snipsub'):'')+'</div>';}
+function metaHtml(r,now){const q=r.hits>0,t=touchPill(r),sp=q&&r.snipSub!==undefined?saPill(r.snipSub,'k:snipsub'):'';
+if(!t&&!sp)return '';
+return '<div class="mt">'+t+sp+'</div>';}
 function qSync(){document.body.classList.toggle('qa',!!q.value.trim());}
 q.addEventListener('input',qSync);window.addEventListener('message',qSync);qSync();
 `;

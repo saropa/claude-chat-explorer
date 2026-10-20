@@ -26,7 +26,7 @@ export function html(): string {
 <div id="hdr"><div class="top">
 <div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div>
 <div class="srow"><div class="box">
-<input type="text" id="q" placeholder="Search chats" aria-label="Search chats" title="Search the text of your chats" autofocus>
+<input type="text" id="q" placeholder="Search sessions" aria-label="Search sessions" title="Search the text of your sessions" autofocus>
 <div class="opts">
 <button class="opt" id="cs" title="Match Case (Alt+C)" aria-label="Match Case" aria-pressed="false">Aa</button>
 <button class="opt" id="ww" title="Match Whole Word (Alt+W)" aria-label="Match Whole Word" aria-pressed="false"><u>ab</u></button>
@@ -42,6 +42,7 @@ ${SUM_HTML}
 <div id="bar"><i></i></div>
 <datalist id="tl"></datalist>
 </div></div>
+<div id="frow"></div>
 <div id="res"><div id="cap"></div><div id="status" role="status" aria-live="polite"></div><div id="pin"></div><div id="list"></div><div id="arch"></div></div>
 <div id="tip" role="tooltip" hidden></div>
 <script nonce="${nonce}">${SCRIPT}</script></body></html>`;

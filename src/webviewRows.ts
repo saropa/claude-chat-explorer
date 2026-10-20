@@ -6,9 +6,10 @@ const BASE = String.raw`
 .sa svg{width:11px;height:11px;flex:none}
 .sa span{overflow:hidden;text-overflow:ellipsis}
 .who{flex:none;font-weight:600}
-.sx{min-width:0;padding-bottom:2px}
+.sx{min-width:0;padding-bottom:2px;display:flex;flex-wrap:wrap;justify-content:flex-end}
+.sx>.s,.sx>.ml{flex:1 1 100%;min-width:0}
 .s{padding:0 10px 0 24px;color:var(--vscode-descriptionForeground);word-break:break-word}
-.mx{display:inline-flex;align-items:center;gap:2px;height:18px;margin:2px 0 0 20px;padding:0 6px 0 2px;border:none;border-radius:9px;background:transparent;color:var(--vscode-descriptionForeground);font:inherit;cursor:pointer;white-space:nowrap}
+.mx{display:inline-flex;align-items:center;gap:2px;height:18px;margin:2px 0 0 auto;padding:0 6px 0 2px;border:none;border-radius:9px;background:transparent;color:var(--vscode-descriptionForeground);font:inherit;cursor:pointer;white-space:nowrap}
 .mx .chev{width:14px;height:14px}
 .mx:hover,.mx.on{color:var(--vscode-foreground)}
 .mx:hover{background:var(--vscode-toolbar-hoverBackground)}
@@ -27,7 +28,7 @@ const BASE = String.raw`
 .mib.same{font-style:italic}
 .ml .lnk{margin:4px 0 2px;}
 .ml .ld{padding:4px 0;color:var(--vscode-descriptionForeground)}
-.s,.mib{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.s,.mib{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:var(--ctxl,1);overflow:hidden}
 .mib.same{-webkit-line-clamp:1}
 `;
 
@@ -39,7 +40,6 @@ const COMPACT = String.raw`
 .ml{margin-left:16px;margin-right:4px;padding-left:6px}
 .s,.mt{padding-left:16px}
 .s{word-break:break-all}
-.mx{margin-left:12px}
 `;
 
 const MEDIUM = '.mih .sa span{display:none}.mih .sa{padding:0 3px}';
@@ -47,7 +47,6 @@ const MEDIUM = '.mih .sa span{display:none}.mih .sa{padding:0 3px}';
 const XWIDE = String.raw`
 .rh>.sx{grid-column:2;grid-row:1/4;padding-top:6px}
 .sx>.s{padding:0 10px 0 0}
-.sx>.mx{margin-left:-4px}
 .sx>.ml{margin-left:0}`;
 
 export const ROWS_CSS = BASE + tier(T.compact, COMPACT) + tier('(max-width:520px)', MEDIUM) + tier(T.xwide, XWIDE);
@@ -73,8 +72,8 @@ if(!e)return '<ul class="ml"'+a+'><li class="ld">Loading…</li></ul>';
 const gs=mgroups(r,e),left=e.total-e.items.length;
 return '<ul class="ml"'+a+'>'+(gs.length?gs.map(miHtml).join(''):'<li class="ld">No other matching messages</li>')
 +(left>0?'<li class="lm"><button class="lnk" data-a="more" data-tip="Show more matching messages">Show '+left+' more</button></li>':'')+'</ul>';}
-function mxBtn(r,n,op){const w=n+' more matching message'+(n===1?'':'s');
-return '<button class="mx'+(op?' on':'')+'" data-a="mx" aria-expanded="'+op+'" aria-controls="ml-'+esc(r.id)+'" aria-label="'+(op?'Hide ':'Show ')+w+'" data-tip="'+(op?'Hide ':'Show ')+w+'">'+CHEV+'<span class="ls">+'+n+' more</span><span class="lt">Show less</span></button>';}
+function mxBtn(r,n,op){const w=n+' more matching message'+(n===1?'':'s'),oc=r.hits>0?' ('+hitN(r)+(r.hits===1?' occurrence':' occurrences')+' total)':'';
+return '<button class="mx'+(op?' on':'')+'" data-a="mx" aria-expanded="'+op+'" aria-controls="ml-'+esc(r.id)+'" aria-label="'+(op?'Hide ':'Show ')+w+oc+'" data-tip="'+(op?'Hide ':'Show ')+w+oc+'">'+CHEV+'<span class="ls">+'+n+' more</span><span class="lt">Show less</span></button>';}
 function sxHtml(r){const op=mOpen.has(r.id),more=(r.mc||0)-1;
 return '<div class="sx">'+(r.snippet?'<div class="s" data-tip="k:snip">'+snip(r)+'</div>':'')+(more>0?mxBtn(r,more,op):'')+(op&&more>0?mlHtml(r):'')+'</div>';}
 function mxToggle(id){if(mOpen.has(id))mOpen.delete(id);else{mOpen.add(id);if(!ex[id])askExpand(id,0,true);}rerender();rowFocus(id,'.mx');}

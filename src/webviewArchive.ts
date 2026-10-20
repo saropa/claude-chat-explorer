@@ -2,8 +2,7 @@
 export const ARCH_CSS = String.raw`
 .arh .imp{margin-left:auto;padding:0 4px;font-weight:400;letter-spacing:0;text-transform:none}
 .arh .imp+.pill{margin-left:6px}
-.sl.arh{font-weight:400;letter-spacing:0;text-transform:none;font-size:calc(var(--vscode-font-size) - 1px)}
-.sl.arh .pill{min-width:16px;height:16px;padding:0 5px;font-size:calc(var(--vscode-font-size) - 2px);line-height:16px;border-radius:8px}
+.sl .pill{min-width:16px;height:16px;padding:0 5px;font-size:calc(var(--vscode-font-size) - 2px);line-height:16px;border-radius:8px}
 .r.arc .hd .t{color:color-mix(in srgb,var(--vscode-foreground) 65%,transparent)}
 .r.arc .hd .t .em{filter:grayscale(1)}
 .r.arc.cur .hd .t{color:inherit}
@@ -20,9 +19,9 @@ if(hasResults){const a=lastRs.filter(r=>arch.has(r.id));return{rows:a,n:a.length
 if(sessOn&&sess&&!lastQ)return{rows:sess.arch||[],n:sess.archTotal||0};
 return{rows:[],n:0};}
 function archHtml(){const d=archData();if(!d.n)return '';const o=archOpen;
-let h='<div class="sl arh'+(o?' open':'')+'" data-sec="sec:arch" role="button" tabindex="0" aria-expanded="'+o+'" data-tip="Archived chats: click to '+(o?'collapse':'expand')+'">'+CHEV+'<span class="sn">Archived chats</span>'
-+'<button type="button" class="lnk imp" data-a="import" data-tip="Import the archived chats list from the agent (read-only, once)" aria-label="Import archived chats from the agent">Import</button>'
-+'<span class="pill" role="img" aria-label="'+chatsN(d.n)+'" data-tip="'+d.n+(lastQ?' archived chats match':' archived chats')+'">'+d.n+'</span></div>';
+let h='<div class="sl arh'+(o?' open':'')+'" data-sec="sec:arch" role="button" tabindex="0" aria-expanded="'+o+'" data-tip="Archived sessions: click to '+(o?'collapse':'expand')+'">'+CHEV+'<span class="sn">Archived sessions</span>'
++'<button type="button" class="lnk imp" data-a="import" data-tip="Import the archived sessions list from the agent (read-only, once)" aria-label="Import archived sessions from the agent">Import</button>'
++'<span class="pill" role="img" aria-label="'+chatsN(d.n)+'" data-tip="'+d.n+(lastQ?' archived sessions match':' archived sessions')+'">'+d.n+'</span></div>';
 if(o)h+=capArch();
 if(o)h+=ordered(stKeep(d.rows),lastQ?undefined:(sort.value==='score'?'time':sort.value)).map(rowHtml).join('');
 return h;}

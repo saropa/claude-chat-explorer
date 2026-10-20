@@ -36,7 +36,7 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 #res.stale{opacity:.4;pointer-events:none}
 #pin:empty+#list>.sl:first-child,#pin>.sl:first-child{margin-top:0;border-top:none}
 .sl,.gh{display:flex;align-items:center;gap:4px;padding:4px 8px 4px 6px;cursor:pointer;user-select:none;color:var(--vscode-descriptionForeground)}
-.sl{margin-top:6px;border-top:1px solid var(--vscode-widget-border,transparent);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.sl{margin-top:6px;border-top:1px solid var(--vscode-widget-border,transparent);font-weight:400;font-size:calc(var(--vscode-font-size) - 1px)}
 .gh{font-weight:normal}
 .sl:hover,.gh:hover,.sl:focus-visible,.gh:focus-visible{color:var(--vscode-foreground);outline:none}
 .chev{width:16px;height:16px;flex:none;transition:transform .12s}
@@ -61,7 +61,7 @@ html:not(.nf) .r.cur>.rh{background:var(--vscode-list-activeSelectionBackground)
 .dot.background{--dc:var(--k-background)}
 .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pj{flex:none;max-width:25%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--vscode-descriptionForeground)}
-.tm{flex:none;min-width:22px;text-align:right;color:var(--vscode-descriptionForeground)}
+.tm{flex:none;min-width:22px;text-align:right;font-size:calc(var(--vscode-font-size) - 2px);color:var(--vscode-descriptionForeground)}
 .r:focus-visible>.rh .tm,.r:focus-visible>.rh .s,.r:focus-visible>.rh .pj,.rr:focus-visible .tm{color:inherit;opacity:.85}
 .hd{--cw:16px;position:relative;padding-right:4px}
 .ia{display:none;position:absolute;right:calc(var(--cw) + 6px);top:50%;transform:translateY(-50%);align-items:center;gap:2px}

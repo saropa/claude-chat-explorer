@@ -10,9 +10,9 @@ function resOf(id){return lastRs.concat(pinned,sess?sess.rows.concat(sess.arch||
 function reEsc(t){return t.replace(/[.*+?^$\x7b\x7d()|[\]\\]/g,'\\$&');}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function full(ms){return new Date(ms).toLocaleString();}
-let noteIn='',sessN=0;
+let noteIn='';
 function takeNote(){const n=noteIn;noteIn='';return n?'<span class="sm">'+n+'</span>':'';}
-function chatsN(n){return n+(n===1?' chat':' chats');}
+function chatsN(n){return n+(n===1?' session':' sessions');}
 function sec(key,label,n,body,cls,note){const o=!col.has(key);
 return '<div class="'+cls+(o?' open':'')+'" data-sec="'+esc(key)+'" role="button" tabindex="0" aria-expanded="'+o+'" data-tip="'+esc(label)+': click to '+(o?'collapse':'expand')+'">'+CHEV+'<span class="sn">'+esc(label)+'</span>'+(note||'')+(key==='sec:res'?'':'<span class="pill" role="img" aria-label="'+chatsN(n)+'" data-tip="'+chatsN(n)+'">'+n+'</span>')+'</div>'+(o?body:'');}
 function ordered(rs,srt){const a=rs.slice(),k=srt||sort.value;
@@ -52,7 +52,7 @@ function resultsHtml(rs){const a=ordered(rs);if(!a.length)return '';
 if(sort.value==='time')return groupsHtml(a);
 if(!pinShown())return a.map(rowHtml).join('');
 return sec('sec:res','Results',a.length,a.map(rowHtml).join(''),'sl',takeNote());}
-function openFirst(a){const t=[],r=[],on=!lastQ&&lastMsg!=='No matches'; /* open chats first: All sessions list only, never while searching */
+function openFirst(a){const t=[],r=[],on=!lastQ&&lastMsg!=='No matches'; /* open sessions first: All sessions list only, never while searching */
 a.forEach(x=>{if(on&&dots[x.id])t.push(x);else r.push(x);});return{top:t,rest:r};}
 function sessBody(a){return sort.value==='time'?groupsHtml(a):a.map(rowHtml).join('');}
 function sessRows(a){const g=openFirst(a);if(!g.top.length||!g.rest.length)return sessBody(a);
@@ -69,7 +69,7 @@ function sessBase(){return hasResults||!sessOn||!sess?[]:(pinShown()?sess.rows.f
 function renderPinned(){
 if(!pinShown()){pinEl.innerHTML='';return;}
 const pl=pinnedLive();pinEl.innerHTML=sec('sec:pin','Pinned',pl.length,pl.map(rowHtml).join(''),'sl');}
-function progTxt(d,t){return d<t?'Searched '+d+' of '+t+' chats':'';}
+function progTxt(d,t){return d<t?'Searched '+d+' of '+t+' sessions':'';}
 function noteText(){return '';}
 function nkey(x,seen){const b=x.dataset.sec?'s:'+x.dataset.sec:'r:'+(x.dataset.id||x.className);seen[b]=(seen[b]||0)+1;return b+'#'+seen[b];}
 function topOf(el,x){while(x&&x.parentNode!==el)x=x.parentNode;return x;}
@@ -84,9 +84,10 @@ const ref=prev?prev.nextSibling:el.firstChild;if(node!==ref)el.insertBefore(node
 old.forEach(o=>o.remove());
 if(ak&&!act.isConnected){const s3={},f=Array.from(el.children).find(c=>nkey(c,s3)===ak);if(f)refocus(f,fd);}}
 function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;
-const base=hasResults?rs.filter(r=>!arch.has(r.id)):sessBase(),keep=stKeep(base);sessN=hasResults?0:keep.length;
+const base=hasResults?rs.filter(r=>!arch.has(r.id)):sessBase(),keep=stKeep(base);
 const capOn=capShown(),t=capOn?'':noteText(),hid=base.length-keep.length;
 noteIn=t||hid?esc(t)+stNote(hid,!!t):'';
+fbSync(base);
 patch(list,hasResults?resultsHtml(keep):sessHtml(keep));
 const used=noteIn==='';st.classList.toggle('vh',used);st.textContent=t+(hid?(t?' · ':'')+hid+' hidden by status filter':'');
 if(!used){st.innerHTML=noteIn;noteIn='';}
