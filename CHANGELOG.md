@@ -2,6 +2,23 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Changed: the Open Work page is redesigned around "do X, because Y". Needs you and Unfinished are one ranked "Your move" group, followed by In progress, Safe to remove and Everything else (which also holds chats without a branch). Each branch is two lines with a headline (Answer, Read, Fix checks on, Address review on, Merge, Commit, Push, Remove worktree, Prune), one action and a "..." popover for the details. The header reads "Next: ... · N more need you · N waiting". Chat rows open the chat on click; star and mark-read appear on hover or focus. Sort and filters share one View menu.
+- Added: a Density option in the View menu of the Open Work page. Relaxed (default) gives rows more room; Compact restores the tight layout. The choice is saved with the view.
+- Fixed: pinned sessions are now stored per workspace instead of being shared across all VS Code projects. Existing pins are copied into each workspace the first time it is opened; after that they are independent.
+- Changed: search result rows no longer show the "N hits" pill. The occurrence count is now in the tooltip of the "+N more" button.
+- Changed: the "+N more" button now sits at the right edge of the search result row.
+- Added: setting `saropaChatExplorer.search.contextLines` (1 to 4, default 1) sets how many lines of each matching snippet a search result row shows.
+- Changed: user-visible "chats" wording is now "sessions".
+- Removed: the "N sessions" label above the Pinned section. It repeated the count badge on the All sessions header.
+- Changed: the session list groups are now "All Sessions" (today), "Yesterday", "This Week" (the last 7 days, not counting today or yesterday) and "Older".
+- Changed: the relative-time label on each session row is smaller.
+- Changed: the status filter moved from the view title bar to a filter row above the session list. It is a dropdown button (funnel and chevron) with a count pill when a filter is on, and a menu of statuses with counts. The Filter by Status command still works from the Command Palette.
+- Added: an "Active" quick-filter chip with a count that shows only open chats that are running, waiting, unread or waiting on background agents.
+- Added: "Regenerate Session Titles" command and a sparkle button in the view toolbar. Pick This project or All projects, preview old and new titles first, then write; each transcript is backed up under ~/.claude/backups/session_titles first. Live sessions (active or edited in the last 5 minutes) are skipped.
+- Fixed: the orange unread dot no longer stays on the chat you are looking at. It clears when you switch to that Claude tab or refocus the window, and is not set while that tab is active in a focused window.
+- Changed: the Pinned, All sessions and Archived headers share one style (normal weight, same size, no uppercase). "Archived chats" is now "Archived sessions".
+
 ## 0.34.0
 - Added: Pin Chat and Unpin Chat commands in the chat row context menu, and a pin button next to Archive on the Project Status page. Pinned chats list first there, as they already do in the sidebar and results. Pins are stored as before.
 

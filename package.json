@@ -1,7 +1,7 @@
 {
   "name": "claude-chat-explorer",
   "displayName": "Saropa Chat Explorer",
-  "description": "Search your AI agent chat history in VS Code: full-text search of every session, including subagents, then resume the chat you find.",
+  "description": "Search your AI agent session history in VS Code: full-text search of every session, including subagents, then resume the session you find.",
   "version": "0.34.0",
   "icon": "images/icon.png",
   "license": "MIT",
@@ -27,7 +27,7 @@
   "keywords": [
     "agent",
     "ai-agent",
-    "chat history",
+    "session history",
     "search",
     "explorer",
     "session",
@@ -68,11 +68,16 @@
       },
       {
         "command": "saropaChatExplorer.usageBar.show",
-        "title": "Saropa: Show Nearly Full Chats"
+        "title": "Saropa: Show Nearly Full Sessions"
       },
       {
         "command": "saropaChatExplorer.archiveTiny",
-        "title": "Saropa: Archive Empty and Tiny Chats"
+        "title": "Saropa: Archive Empty and Tiny Sessions"
+      },
+      {
+        "command": "saropaChatExplorer.regenTitles",
+        "title": "Saropa Chat Explorer: Regenerate Session Titles",
+        "icon": "$(sparkle)"
       },
       {
         "command": "saropaChatExplorer.copyResume",
@@ -80,7 +85,7 @@
       },
       {
         "command": "saropaChatExplorer.exportChatMarkdown",
-        "title": "Saropa: Export Chat as Markdown"
+        "title": "Saropa: Export Session as Markdown"
       },
       {
         "command": "claudeChatExplorer.openWork",
@@ -104,7 +109,7 @@
       },
       {
         "command": "saropaChatExplorer.fileSessions.show",
-        "title": "Saropa: Find Related Chats"
+        "title": "Saropa: Find Related Sessions"
       },
       {
         "command": "claudeChatExplorer.clearHistory",
@@ -116,7 +121,7 @@
       },
       {
         "command": "saropaChatExplorer.importArchived",
-        "title": "Saropa Chat Explorer: Import Archived Chats from the Agent"
+        "title": "Saropa Chat Explorer: Import Archived Sessions from the Agent"
       },
       {
         "command": "saropaChatExplorer.diagnostics",
@@ -124,19 +129,19 @@
       },
       {
         "command": "saropaChatExplorer.archive",
-        "title": "Archive Chat"
+        "title": "Archive Session"
       },
       {
         "command": "saropaChatExplorer.unarchive",
-        "title": "Unarchive Chat"
+        "title": "Unarchive Session"
       },
       {
         "command": "saropaChatExplorer.pin",
-        "title": "Pin Chat"
+        "title": "Pin Session"
       },
       {
         "command": "saropaChatExplorer.unpin",
-        "title": "Unpin Chat"
+        "title": "Unpin Session"
       },
       {
         "command": "saropaChatExplorer.markRead",
@@ -177,14 +182,14 @@
           "group": "navigation@2"
         },
         {
-          "command": "claudeChatExplorer.filterStatus",
-          "when": "view == claudeChatExplorer.view",
-          "group": "navigation@3"
-        },
-        {
           "command": "claudeChatExplorer.openWork",
           "when": "view == claudeChatExplorer.view",
           "group": "navigation"
+        },
+        {
+          "command": "saropaChatExplorer.regenTitles",
+          "when": "view == claudeChatExplorer.view",
+          "group": "navigation@4"
         },
         {
           "command": "claudeChatExplorer.clearHistory",
@@ -269,54 +274,61 @@
         "saropaChatExplorer.showFileSessionsStatusBar": {
           "type": "boolean",
           "default": true,
-          "description": "Show a status bar count of the chats that touched the active file."
+          "description": "Show a status bar count of the sessions that touched the active file."
         },
         "saropaChatExplorer.showUsageStatusBar": {
           "type": "boolean",
           "default": true,
-          "description": "Show a status bar item with the number of chats whose context is 80 percent full or more (hidden when there are none). Click it to list those chats in the panel."
+          "description": "Show a status bar item with the number of sessions whose context is 80 percent full or more (hidden when there are none). Click it to list those sessions in the panel."
         },
         "saropaChatExplorer.contextWarnings": {
           "type": "boolean",
           "default": true,
-          "description": "Show a notification when a live chat reaches 80 and 90 percent of its context window. The 90 percent notification also offers Copy hand-over note."
+          "description": "Show a notification when a live session reaches 80 and 90 percent of its context window. The 90 percent notification also offers Copy hand-over note."
         },
         "saropaChatExplorer.maxResults": {
           "type": "number",
           "default": 500,
           "minimum": 50,
           "maximum": 2000,
-          "description": "The most chats listed in search results and in All sessions. Chats beyond it are still counted, and the panel says so."
+          "description": "The most sessions listed in search results and in All sessions. Sessions beyond it are still counted, and the panel says so."
         },
         "saropaChatExplorer.openWorkDays": {
           "type": "number",
           "default": 14,
           "minimum": 1,
           "maximum": 90,
-          "description": "How many days of chats the Project Status page lists. Chats that are open now are always listed. Archived chats are left out."
+          "description": "How many days of sessions the Project Status page lists. Sessions that are open now are always listed. Archived sessions are left out."
         },
         "saropaChatExplorer.lookupPullRequests": {
           "type": "boolean",
           "default": true,
-          "description": "Look up open pull requests and their check results (passing, failing, pending) for the Git section of a chat card and for the Project Status page, with the gh command (GitHub CLI). This contacts GitHub using your own gh sign-in. Turn it off to never run gh."
+          "description": "Look up open pull requests and their check results (passing, failing, pending) for the Git section of a session card and for the Project Status page, with the gh command (GitHub CLI). This contacts GitHub using your own gh sign-in. Turn it off to never run gh."
         },
         "saropaChatExplorer.contextRingTokens": {
           "type": "number",
           "default": 300000,
           "minimum": 10000,
-          "description": "Each chat row shows a small ring that fills as the chat's context grows. This is the token count that fills it. The ring turns to the warning color at 80 percent of this number and to the error color at 100 percent or more."
+          "description": "Each session row shows a small ring that fills as the session's context grows. This is the token count that fills it. The ring turns to the warning color at 80 percent of this number and to the error color at 100 percent or more."
+        },
+        "saropaChatExplorer.search.contextLines": {
+          "type": "integer",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 4,
+          "description": "How many lines of each matching message (the snippet and the extra matching messages) a search result row shows before cutting it off. Narrow side bars always show one line."
         },
         "saropaChatExplorer.animateDots": {
           "type": "boolean",
           "default": true,
-          "description": "Animate the chat dots: running, waiting and background dots throb, and a chat with several states at once (for example background agents and unread) alternates between their colors. Turn it off for still dots that show the most important state; the tooltip lists them all. Dots are also still when your system asks for reduced motion."
+          "description": "Animate the session dots: running, waiting and background dots throb, and a session with several states at once (for example background agents and unread) alternates between their colors. Turn it off for still dots that show the most important state; the tooltip lists them all. Dots are also still when your system asks for reduced motion."
         }
       }
     },
     "colors": [
       {
         "id": "saropaChatExplorer.dotRunning",
-        "description": "Chat dot: the agent is running.",
+        "description": "Session dot: the agent is running.",
         "defaults": {
           "dark": "#89d185",
           "light": "#89d185",
@@ -326,7 +338,7 @@
       },
       {
         "id": "saropaChatExplorer.dotWaiting",
-        "description": "Chat dot: the agent is waiting for you.",
+        "description": "Session dot: the agent is waiting for you.",
         "defaults": {
           "dark": "#3b82f6",
           "light": "#3b82f6",
@@ -336,7 +348,7 @@
       },
       {
         "id": "saropaChatExplorer.dotUnread",
-        "description": "Chat dot: finished while you were away.",
+        "description": "Session dot: finished while you were away.",
         "defaults": {
           "dark": "#d97757",
           "light": "#d97757",
@@ -346,7 +358,7 @@
       },
       {
         "id": "saropaChatExplorer.dotBackground",
-        "description": "Chat dot: waiting on background agents or tasks that are still running.",
+        "description": "Session dot: waiting on background agents or tasks that are still running.",
         "defaults": {
           "dark": "#b180d7",
           "light": "#b180d7",
@@ -356,7 +368,7 @@
       },
       {
         "id": "saropaChatExplorer.dotIdle",
-        "description": "Chat dot: idle.",
+        "description": "Session dot: idle.",
         "defaults": {
           "dark": "#9d9d9d66",
           "light": "#61616166",
@@ -369,7 +381,7 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "tsc -p .",
-    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_scan.js && node scripts/check_prs.js && node scripts/check_prs_e2e.js && node scripts/check_guards.js && node scripts/check_dots.js",
+    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_scan.js && node scripts/check_prs.js && node scripts/check_prs_e2e.js && node scripts/check_guards.js && node scripts/check_dots.js && node scripts/check_regen.js",
     "package": "npx @vscode/vsce package --allow-missing-repository --skip-license"
   },
   "devDependencies": {
