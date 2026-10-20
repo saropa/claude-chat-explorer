@@ -63,6 +63,10 @@
     },
     "commands": [
       {
+        "command": "saropaChatExplorer.options",
+        "title": "Saropa Chat Explorer: Options"
+      },
+      {
         "command": "saropaChatExplorer.usageSummary",
         "title": "Saropa: Usage Summary"
       },
@@ -192,6 +196,10 @@
           "group": "navigation@4"
         },
         {
+          "command": "saropaChatExplorer.options",
+          "when": "view == claudeChatExplorer.view"
+        },
+        {
           "command": "claudeChatExplorer.clearHistory",
           "when": "view == claudeChatExplorer.view"
         }
@@ -271,6 +279,11 @@
     "configuration": {
       "title": "Saropa Chat Explorer",
       "properties": {
+        "saropaChatExplorer.webSessions.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show Claude Code Web (cloud) sessions in a Web tab. Uses an unofficial, undocumented Anthropic API with your Claude Code login token (read-only; never stored or logged). It may break or change without notice. Off by default: when off, no network call and no credential read is made."
+        },
         "saropaChatExplorer.showFileSessionsStatusBar": {
           "type": "boolean",
           "default": true,
@@ -381,7 +394,7 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "tsc -p .",
-    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_scan.js && node scripts/check_prs.js && node scripts/check_prs_e2e.js && node scripts/check_guards.js && node scripts/check_dots.js && node scripts/check_regen.js",
+    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_scan.js && node scripts/check_prs.js && node scripts/check_prs_e2e.js && node scripts/check_guards.js && node scripts/check_dots.js && node scripts/check_regen.js && node scripts/check_web.js && node scripts/check_options.js",
     "package": "npx @vscode/vsce package --allow-missing-repository --skip-license"
   },
   "devDependencies": {

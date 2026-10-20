@@ -18,6 +18,7 @@ import { copyResume } from './copyResume';
 import { exportChatMd } from './exportMdRun';
 import { archiveTiny } from './archiveTiny';
 import { regenTitles } from './regenTitlesRun';
+import { registerOptions } from './optionsPanel';
 import { registerUsage } from './usageUi';
 import { QueryQueue } from './queryQueue';
 import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './query';
@@ -42,6 +43,7 @@ import { contextRingTokens } from './ctxRing';
 import { WorkScan } from './workScan';
 import { WorkPrs } from './workPrs';
 import { PrCache } from './wipPrs';
+import { WebSessions } from './webSessions';
 
 const POST_GAP_MS = 100;
 const REVEAL_CMD = 'workbench.view.extension.claudeChatExplorer'; // opens the Saropa Chat Explorer container and its view
@@ -72,6 +74,7 @@ class Provider implements vscode.WebviewViewProvider {
   private readonly queue = new QueryQueue((m) => this.post(m), () => vscode.commands.executeCommand(REVEAL_CMD), logErr);
   watcher?: LiveWatcher; // live state of Claude sessions
   actions?: ArchiveActions;
+  web?: WebSessions;
   private readonly gitLive = new GitLiveService(uiExec, ghUiExec, prCache);
   private readonly work = new ChatWork({
     request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), exec: uiExec, ghExec: ghUiExec, cache: prCache, folders: folderPaths, prsOn,
@@ -131,7 +134,14 @@ class Provider implements vscode.WebviewViewProvider {
   get dotNames(): { [id: string]: string } { return stateMap(this.watcher?.dots ?? {}); }
 
   /** Push the dot map to the panel. */
-  postDots(): void { this.post({ type: 'dots', map: this.watcher?.dots ?? {}, anim: dotsAnimated(), cur: this.currentId() }); }
+  postDots(): void { this.post({ type: 'dots', map: this.watcher?.dots ?? {}, anim: dotsAnimated(), cur: this.currentId() }); this.updateBadge(); }
+
+  /** Blue count badge on the activity-bar icon: sessions waiting for the user; cleared at 0. */
+  private updateBadge(): void {
+    if (!this.view) { return; }
+    const n = Object.values(this.watcher?.dots ?? {}).filter((d) => d.s === 'waiting').length;
+    this.view.badge = n > 0 ? { value: n, tooltip: `${n} ${n === 1 ? 'session is' : 'sessions are'} waiting for you` } : undefined;
+  }
 
   /** The chat of this window: the focused Claude tab, else the last activated tab, else the only live session marked as this window. */
   currentId(): string {
@@ -172,6 +182,7 @@ class Provider implements vscode.WebviewViewProvider {
     this.post({ type: 'restore', max: maxResults(), state: this.store.state, history: this.store.history, statuses: this.store.statuses,
       archOpen: this.store.archOpen, advOpen: this.store.advOpen });
     this.postDots();
+    this.web?.announce();
     this.postCtxLines();
     this.postRing();
     void this.postMeta();
@@ -185,6 +196,7 @@ class Provider implements vscode.WebviewViewProvider {
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
     view.title = NAME;
+    this.updateBadge();
     view.webview.options = { enableScripts: true, localResourceRoots: [] };
     view.webview.html = html();
     const sub = view.webview.onDidReceiveMessage((m) => { void this.onMessage(m); });
@@ -207,6 +219,8 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'histAdd') { this.histAdd(m); }
       else if (m.type === 'advOpen') { this.store.setAdvOpen(!!m.open); }
       else if (m.type === 'archOpen') { this.store.setArchOpen(!!m.open); }
+      else if (m.type === 'webLoad') { await this.web?.load(); }
+      else if (m.type === 'webOpen') { await this.web?.open(m.id); }
       else if (m.type === 'importArchived') { await this.actions?.importArchived(); }
       else { await this.onChatMessage(m); }
     } catch (e) { logErr('message ' + String(m?.type), e); }
@@ -391,6 +405,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const provider = new Provider(store, client, status, hub);
   const changed = () => { void provider.postMeta(); hub.emit('archived', logErr); };
   provider.actions = new ArchiveActions(store, ctx.globalStorageUri.fsPath, { changed, rebuild: () => provider.watcher?.rebuild() });
+  provider.web = new WebSessions(ctx, (m) => provider.post(m), logErr);
   const warner = createWarner(ctx, { request: (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), open: (id) => provider.resume(id), log, copyNote: (id) => provider.copyNote(id, () => undefined) });
   provider.watcher = new LiveWatcher({ dir: sessionsDir(), tabs: async () => { const r = await readTabs(workspaceStorageOf(ctx.globalStorageUri.fsPath), folderPaths()); return r.ok ? r : undefined; },
     viewing: () => provider.viewingId(), unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
@@ -408,6 +423,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
     }),
     vscode.window.registerWebviewViewProvider('claudeChatExplorer.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
+  registerOptions(ctx, logErr);
   const usageRows = async () => (await client!.request({ t: 'usage' }, true, true)) ?? [];
   ctx.subscriptions.push(
     ...[['saropaChatExplorer.copyResume', (id: string) => provider.copyResumeCmd(id)], ['saropaChatExplorer.exportChatMarkdown', (id: string) => provider.exportMd(id)]].map(([cmd, fn]) =>

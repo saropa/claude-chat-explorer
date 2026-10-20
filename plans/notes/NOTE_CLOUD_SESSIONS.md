@@ -1,58 +1,17 @@
 # Note: Cloud / web Claude sessions in the extension
 
-Date: 2026-10-19
-Status: Not feasible today. No work planned.
+Date: 2026-10-20 (updated)
+Status: Decision: opt-in read-only implemented (`saropaChatExplorer.webSessions.enabled`, default off). Code: `src/webApi.ts`, `src/webSessions.ts`, `src/webviewWeb.ts`; test: `scripts/check_web.js`.
 
-## Question
+## Findings (from the official extension's Session Manager "Web" tab; undocumented API)
 
-Can the extension show a user's cloud/web Claude sessions (claude.ai/code)?
+- List: `GET https://api.anthropic.com/v1/code/sessions?limit=200` (fallback `GET /v1/sessions`). `{data:[{id,title,updated_at,session_status,session_context:{sources}}]}`.
+- Transcript: `GET /v1/code/sessions/{id}/teleport-events?limit=1000&cursor=<next_cursor>`, paged until no `next_cursor`. `{data:[{payload}], next_cursor}`.
+- Headers: `Authorization: Bearer <OAuth access token>`, `anthropic-version: 2023-06-01`, `anthropic-beta: ccr-byoc-2025-07-29`, `x-organization-uuid` (optional; read from `~/.claude.json` `oauthAccount.organizationUuid`).
+- Token: `claudeAiOauth.accessToken` and `expiresAt` from the macOS keychain (service `Claude Code-credentials`, via `security find-generic-password -w`), else `~/.claude/.credentials.json`. Read only: never refreshed, written, logged or persisted. Expired or missing: "Sign in with the Claude Code CLI (claude auth login) and retry".
 
-## Answer
+## Risks
 
-No. No official API exists for it.
-
-## Findings
-
-- The extension reads local JSONL transcripts from `~/.claude/projects` (`src/files.ts`). It has no code for claude.ai or remote sessions.
-- Web sessions are stored on Anthropic's servers. No local file exists for them.
-- No documented API lists or downloads web session transcripts or routine runs.
-- The Agent SDK `listSessions()` and `getSessionMessages()` read only local JSONL files.
-- Auth for web-session features needs a claude.ai login (`claude auth login`). An API key is not sufficient. Bedrock, Vertex and other third-party providers are refused. The org setting `allow_remote_sessions` must be on.
-- The CLI's login token is internal and short-lived. No documented way for a third-party extension to use it.
-- Calling private claude.ai endpoints with a session cookie would work only unofficially and could break at any time. Not recommended.
-
-## Documented CLI commands
-
-| Command | Effect |
-|---|---|
-| `claude --teleport` | Interactive picker of web sessions. Loads the chosen session's history into the terminal and checks out its branch. |
-| `claude -p "msg" --cloud <id>` | Sends a message into a web session. Prints `{ok, session_id, url}`. Does not read history. |
-| `claude --resume` | Lists local sessions only. Does not list web sessions. |
-
-## Unknowns
-
-- Whether `--teleport` writes a JSONL under `~/.claude/projects`. The docs do not say. Likely yes, since local sessions are saved there. Not verified.
-- Whether an undocumented session API exists outside the docs checked.
-
-## Test to resolve the first unknown
-
-1. In a git repo with a web session, run `ls -t ~/.claude/projects/*/*.jsonl | head -3`. Note the top file.
-2. Run `claude --teleport`. Pick a web session. Exit after it loads.
-3. Run the `ls` command again.
-
-- New file: the extension shows teleported sessions after a refresh. Document "teleport to import" in the README.
-- No new file: the extension cannot show web sessions.
-
-The picker is interactive. An agent cannot run this test.
-
-## Recommendation
-
-- Do not build cloud import.
-- Run the test above. If a file appears, add a README tip.
-- Request an export API from Anthropic with `/feedback` in Claude Code.
-
-## Sources
-
-- https://code.claude.com/docs/en/claude-code-on-the-web.md
-- https://code.claude.com/docs/en/sessions.md
-- https://code.claude.com/docs/en/agent-sdk/sessions.md
+- Unofficial and undocumented: may break or change without notice; may be subject to Anthropic's terms. Hence opt-in, a one-time confirm dialog, and failures confined to the Web tab.
+- Unverified: the keychain service name, and that transcript payloads match the local JSONL row shape (user/assistant rows are mapped; anything else shows as raw JSON).
+- The extension has no in-panel transcript viewer; a web session opens as a read-only Markdown document (same layout as the Markdown export).
