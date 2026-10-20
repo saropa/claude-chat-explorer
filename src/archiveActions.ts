@@ -17,6 +17,13 @@ export class ArchiveActions {
     this.hooks.changed();
   }
 
+  /** Archive many chats at once and refresh the panel once; returns how many were newly archived. */
+  async archiveMany(ids: string[]): Promise<number> {
+    const { added } = await this.store.addArchived(ids);
+    this.hooks.changed();
+    return added;
+  }
+
   /** Clear the unread flag of a chat (resumed, or Mark as Read). */
   async markRead(id: string): Promise<void> {
     if (!this.store.unread.has(id)) { return; }

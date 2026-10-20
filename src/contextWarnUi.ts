@@ -3,11 +3,12 @@ import * as vscode from 'vscode';
 import { ContextWarner, warnText, WarnState } from './contextWarn';
 
 const STATE_KEY = 'saropaChatExplorer.contextWarned';
-const OPEN = 'Open chat', DISMISS = 'Dismiss';
+const OPEN = 'Open chat', COPY = 'Copy hand-over note', DISMISS = 'Dismiss';
 
 export interface WarnHost {
   request: (m: { [k: string]: any }, bg?: boolean) => Promise<any>;
   open: (id: string) => Promise<void>;
+  copyNote: (id: string) => Promise<void>;
   log: (msg: string) => void;
 }
 
@@ -21,8 +22,9 @@ export function createWarner(ctx: vscode.ExtensionContext, h: WarnHost): Context
     save: (s) => { void ctx.globalState.update(STATE_KEY, s); },
     log: h.log,
     show: (w) => {
-      void vscode.window.showInformationMessage(warnText(w.title, w.level), OPEN, DISMISS)
-        .then((c) => (c === OPEN ? h.open(w.id) : undefined), (e) => h.log('context toast: ' + String(e)));
+      const buttons = w.level >= 90 ? [OPEN, COPY, DISMISS] : [OPEN, DISMISS]; // the hand-over note is offered at 90 percent, when a new chat is near
+      void vscode.window.showInformationMessage(warnText(w.title, w.level), ...buttons)
+        .then((c) => (c === OPEN ? h.open(w.id) : c === COPY ? h.copyNote(w.id) : undefined), (e) => h.log('context toast: ' + String(e)));
     },
   });
 }

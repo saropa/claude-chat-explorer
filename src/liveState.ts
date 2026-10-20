@@ -6,8 +6,8 @@ import { isSessionId } from './sessionId';
 import { WinMark } from './windowMarker';
 
 export type LiveStatus = 'busy' | 'waiting' | 'idle';
-/** Dot of one chat (present only for open chats): s is running, waiting, unread or idle; win says in which window (tooltip only, absent when unknown). */
-export interface Dot { s: string; win?: WinMark; }
+/** Dot of one chat (present only for open chats): s is the main state (waiting, running, unread, background or idle); also lists the other states true at once, in priority order (absent when none); win says in which window (tooltip only, absent when unknown). */
+export interface Dot { s: string; also?: string[]; win?: WinMark; }
 export type DotMap = { [id: string]: Dot };
 export interface LiveRead { exists: boolean; live: Map<string, LiveStatus>; bad: number; pids: Map<string, number[]>; }
 
@@ -60,9 +60,11 @@ export function nextUnread(prev: Map<string, LiveStatus> | undefined, next: Map<
   return new Set([...out].filter((id) => open.has(id)));
 }
 
-/** Dot of one chat from its live status (undefined for a tab with no live process) and unread flag. */
-export function dotState(live: LiveStatus | undefined, unread: boolean, win?: WinMark): Dot {
-  const d: Dot = live === 'busy' ? { s: 'running' } : live === 'waiting' ? { s: 'waiting' } : { s: unread ? 'unread' : 'idle' };
+/** Dot of one chat from its live status (undefined for a tab with no live process), unread flag and whether background agents or shells are still running. Priority: waiting, running, unread, background; the first is s, the rest go in also. Unread counts only while the chat is idle. */
+export function dotState(live: LiveStatus | undefined, unread: boolean, win?: WinMark, background = false): Dot {
+  const all = [live === 'waiting' && 'waiting', live === 'busy' && 'running', unread && (live === undefined || live === 'idle') && 'unread', background && 'background'].filter((x): x is string => !!x);
+  const d: Dot = { s: all[0] ?? 'idle' };
+  if (all.length > 1) { d.also = all.slice(1); }
   if (live && win) { d.win = win; }
   return d;
 }
@@ -71,9 +73,9 @@ export function dotState(live: LiveStatus | undefined, unread: boolean, win?: Wi
 export const openSet = (live: Map<string, LiveStatus>, tabs: Iterable<string>): Set<string> => new Set([...live.keys(), ...tabs]);
 
 /** Dots of every open chat (live or a tab); a tab with no live session is idle, a live status wins. Every other chat has no dot. */
-export function buildDots(live: Map<string, LiveStatus>, unread: Set<string>, win?: Map<string, WinMark>, tabs: Iterable<string> = []): DotMap {
+export function buildDots(live: Map<string, LiveStatus>, unread: Set<string>, win?: Map<string, WinMark>, tabs: Iterable<string> = [], background: Set<string> = new Set()): DotMap {
   const out: DotMap = {};
-  for (const id of openSet(live, tabs)) { out[id] = dotState(live.get(id), unread.has(id), win?.get(id)); }
+  for (const id of openSet(live, tabs)) { out[id] = dotState(live.get(id), unread.has(id), win?.get(id), live.has(id) && background.has(id)); } // a tab with no live process has no background work
   return out;
 }
 

@@ -1,4 +1,6 @@
 /** Polls Claude Code's session files in the extension host and keeps the dot map and the unread set current. */
+import { BgTracker } from './bgAgents';
+import { projectsRoot } from './files';
 import { buildDots, DotMap, LiveStatus, nextUnread, openSet, pidAlive, readLive } from './liveState';
 import { psParents, WinInfo, windowsOf, WinMark } from './windowMarker';
 
@@ -20,6 +22,8 @@ export class LiveWatcher {
   private prev?: Map<string, LiveStatus>; // in memory only, so a restart marks nothing unread
   private live = new Map<string, LiveStatus>();
   private win = new Map<string, WinMark>();
+  private bg = new Set<string>(); // live sessions with background agents or shells still running
+  private readonly bgTracker = new BgTracker(projectsRoot());
   info: WinInfo = { hostPid: process.pid, ps: false, sessions: 0, here: 0, other: 0, parents: [] }; // last poll, for Show Diagnostics
   tabIds = new Set<string>(); // last good tab list
   tabHash = ''; // state.vscdb workspace hash it came from
@@ -52,6 +56,7 @@ export class LiveWatcher {
       }
       await this.markWindows(r.pids, r.live.size);
       await this.readTabs();
+      try { this.bg = await this.bgTracker.running(r.live.keys()); } catch { this.bg = new Set(); }
       const was = this.h.unread(), un = nextUnread(this.prev, r.live, was, openSet(r.live, this.tabIds));
       this.prev = this.live = r.live;
       if (un.size !== was.size || [...un].some((id) => !was.has(id))) { this.h.saveUnread(un); }
@@ -79,7 +84,7 @@ export class LiveWatcher {
 
   /** Recompute the dot map (after a poll or a change to the unread set) and announce a change. */
   rebuild(): void {
-    this.dots = buildDots(this.live, this.h.unread(), this.win, this.tabIds);
+    this.dots = buildDots(this.live, this.h.unread(), this.win, this.tabIds, this.bg);
     const sig = JSON.stringify(this.dots);
     if (sig !== this.sig) { this.sig = sig; this.h.onChange(); }
   }

@@ -1,7 +1,7 @@
 /** Chat status definitions, shared by the extension and the webview script. Change thresholds here. */
 
 // Not exported on purpose: statusesOf is stringified into the webview and must see bare names.
-const ACTIVE_DOTS = ['running', 'waiting', 'unread']; // Active: open chats that are running, waiting for you or unread (dots exist only for open chats)
+const ACTIVE_DOTS = ['running', 'waiting', 'unread', 'background']; // Active: open chats that are running, waiting for you, unread or waiting on background agents (dots exist only for open chats)
 const ABANDONED_MS = 30 * 24 * 60 * 60 * 1000; // Abandoned: last active longer ago than this
 const TINY_MAX_MSGS = 3; // Tiny: this many messages or fewer (but not zero)
 const HUGE_MIN_MSGS = 300; // Huge: this many messages or more
@@ -11,8 +11,8 @@ const NEARLY_PCT = 80; // Nearly full: context window this full or more
 export const STATUS_KEYS = ['normal', 'active', 'empty', 'tiny', 'huge', 'nearly', 'abandoned', 'pinned'];
 /** Filter list tooltips; Mid-size is the plain-words name of the key 'normal' (kept so saved filters still load). */
 export const STATUS_TIPS: { [k: string]: string } = {
-  normal: `Mid-size: ${TINY_MAX_MSGS + 1} to ${HUGE_MIN_MSGS - 1} messages, ${HUGE_BYTES / 1048576} MB or less, active in the last ${ABANDONED_MS / 86400000} days, context under ${NEARLY_PCT}% full, not pinned, and not running, waiting or unread`,
-  active: 'Open chats that are running, waiting for you or unread',
+  normal: `Mid-size: ${TINY_MAX_MSGS + 1} to ${HUGE_MIN_MSGS - 1} messages, ${HUGE_BYTES / 1048576} MB or less, active in the last ${ABANDONED_MS / 86400000} days, context under ${NEARLY_PCT}% full, not pinned, and not running, waiting, unread or waiting on background agents`,
+  active: 'Open chats that are running, waiting for you, unread or waiting on background agents',
   empty: 'No messages',
   tiny: `1 to ${TINY_MAX_MSGS} messages`,
   huge: `${HUGE_MIN_MSGS} messages or more, or a transcript over ${HUGE_BYTES / 1048576} MB`,

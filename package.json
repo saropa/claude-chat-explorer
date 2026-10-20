@@ -63,6 +63,26 @@
     },
     "commands": [
       {
+        "command": "saropaChatExplorer.usageSummary",
+        "title": "Saropa: Usage Summary"
+      },
+      {
+        "command": "saropaChatExplorer.usageBar.show",
+        "title": "Saropa: Show Nearly Full Chats"
+      },
+      {
+        "command": "saropaChatExplorer.archiveTiny",
+        "title": "Saropa: Archive Empty and Tiny Chats"
+      },
+      {
+        "command": "saropaChatExplorer.copyResume",
+        "title": "Saropa: Copy Resume Command"
+      },
+      {
+        "command": "saropaChatExplorer.exportChatMarkdown",
+        "title": "Saropa: Export Chat as Markdown"
+      },
+      {
         "command": "claudeChatExplorer.openWork",
         "title": "Saropa Chat Explorer: Project Status",
         "icon": "$(checklist)"
@@ -165,6 +185,16 @@
       ],
       "webview/context": [
         {
+          "command": "saropaChatExplorer.copyResume",
+          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat'",
+          "group": "saropaChatExplorer@3"
+        },
+        {
+          "command": "saropaChatExplorer.exportChatMarkdown",
+          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat'",
+          "group": "saropaChatExplorer@4"
+        },
+        {
           "command": "saropaChatExplorer.archive",
           "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat' && !ccsArchived",
           "group": "saropaChatExplorer@1"
@@ -181,6 +211,18 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "saropaChatExplorer.copyResume",
+          "when": "false"
+        },
+        {
+          "command": "saropaChatExplorer.exportChatMarkdown",
+          "when": "false"
+        },
+        {
+          "command": "saropaChatExplorer.usageBar.show",
+          "when": "false"
+        },
         {
           "command": "saropaChatExplorer.archive",
           "when": "false"
@@ -203,10 +245,15 @@
           "default": true,
           "description": "Show a status bar count of the chats that touched the active file."
         },
+        "saropaChatExplorer.showUsageStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a status bar item with the number of chats whose context is 80 percent full or more (hidden when there are none). Click it to list those chats in the panel."
+        },
         "saropaChatExplorer.contextWarnings": {
           "type": "boolean",
           "default": true,
-          "description": "Show a notification when a live chat reaches 80 and 90 percent of its context window."
+          "description": "Show a notification when a live chat reaches 80 and 90 percent of its context window. The 90 percent notification also offers Copy hand-over note."
         },
         "saropaChatExplorer.maxResults": {
           "type": "number",
@@ -226,6 +273,11 @@
           "type": "boolean",
           "default": true,
           "description": "Look up open pull requests and their check results (passing, failing, pending) for the Git section of a chat card and for the Project Status page, with the gh command (GitHub CLI). This contacts GitHub using your own gh sign-in. Turn it off to never run gh."
+        },
+        "saropaChatExplorer.animateDots": {
+          "type": "boolean",
+          "default": true,
+          "description": "Animate the chat dots: running, waiting and background dots throb, and a chat with several states at once (for example background agents and unread) alternates between their colors. Turn it off for still dots that show the most important state; the tooltip lists them all. Dots are also still when your system asks for reduced motion."
         }
       }
     },
@@ -261,6 +313,16 @@
         }
       },
       {
+        "id": "saropaChatExplorer.dotBackground",
+        "description": "Chat dot: waiting on background agents or tasks that are still running.",
+        "defaults": {
+          "dark": "#b180d7",
+          "light": "#b180d7",
+          "highContrast": "#b180d7",
+          "highContrastLight": "#b180d7"
+        }
+      },
+      {
         "id": "saropaChatExplorer.dotIdle",
         "description": "Chat dot: idle.",
         "defaults": {
@@ -275,7 +337,7 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "tsc -p .",
-    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_scan.js && node scripts/check_prs.js && node scripts/check_prs_e2e.js && node scripts/check_guards.js",
+    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_scan.js && node scripts/check_prs.js && node scripts/check_prs_e2e.js && node scripts/check_guards.js && node scripts/check_dots.js",
     "package": "npx @vscode/vsce package --allow-missing-repository --skip-license"
   },
   "devDependencies": {

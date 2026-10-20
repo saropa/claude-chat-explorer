@@ -12,6 +12,8 @@ import { relInOf, relOf } from './workMatch';
 import { clampMax, Tally, totalsOf } from './limits';
 import { expandChat, searchIndex } from './search';
 import { ctxReply } from './contextWarn';
+import { chatMarkdown, mdName } from './exportMd';
+import { usageRows } from './usageRows';
 import { rowOf, sessionRows } from './sessions';
 import { Abort, Compiled, Ctx, Result } from './types';
 
@@ -183,10 +185,25 @@ async function hitsOf(m: any): Promise<unknown> {
   return ix && i ? chatHits(ix, i) : { w: {}, b: {} };
 }
 
+/** One row per chat for the usage summary, the status bar and the bulk archive. */
+async function usage(): Promise<unknown> {
+  await loaded;
+  return ix ? usageRows(ix) : [];
+}
+
+/** One chat as Markdown with a suggested file name; null when the chat is not indexed. */
+async function chatMd(m: any): Promise<unknown> {
+  await loaded;
+  const chat = ix?.find(String(m.chat ?? ''));
+  return ix && chat ? { text: chatMarkdown(ix, chat, Date.now()), name: mdName(chat.title, new Date()) } : null;
+}
+
 async function request(m: any): Promise<unknown> {
   if (m.t === 'chatCwd') { return cwdOf(m); }
   if (m.t === 'chatFacts') { return factsOf(m); }
   if (m.t === 'chatHits') { return hitsOf(m); }
+  if (m.t === 'usage') { return usage(); }
+  if (m.t === 'chatMd') { return chatMd(m); }
   if (m.t === 'expand') { return expand(m); }
   if (m.t === 'related') { return related(m); }
   if (m.t === 'sessions') { return sessions(m); }

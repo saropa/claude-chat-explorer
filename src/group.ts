@@ -20,14 +20,20 @@ export function shortAgo(ms: number, now: number): string {
   return Math.floor(d / 365) + 'y';
 }
 
-/** Words for a dot: Running, Waiting for you, Unread (approximate) or Idle, plus the window when known. */
-export function dotText(d: { s: string; win?: string }): string {
+/** Words for a dot: Running, Waiting for you, Unread (approximate), Background agents running or Idle, then every other state it has at once (also), plus the window when known. */
+export function dotText(d: { s: string; also?: string[]; win?: string }): string {
   const w = d.win === 'this' ? 'Open in this window' : d.win === 'other' ? 'Open in another window' : '';
   const x = w ? '. ' + w : '';
-  if (d.s === 'running') { return 'Running' + x; }
-  if (d.s === 'waiting') { return 'Waiting for you' + x; }
-  if (d.s === 'unread') { return 'Unread' + ': finished while you were away (approximate)' + x; }
-  return 'Idle' + x;
+  const word = (k: string): string => k === 'running' ? 'Running' : k === 'waiting' ? 'Waiting for you' : k === 'unread' ? 'Unread: finished while you were away (approximate)' : k === 'background' ? 'Background agents running' : 'Idle';
+  const more = d.also && d.also.length ? '. Also: ' + d.also.map(word).join(', ') : '';
+  return word(d.s) + more + x;
+}
+
+/** Attributes of a dot element: class (state, plus m2 or m3 when two or three states alternate their colors) and the color variables the animation cycles. The primary color stays the plain fallback when animation is off. */
+export function dotAttrs(d: { s: string; also?: string[] }): string {
+  const all = [d.s].concat(d.also || []).slice(0, 3);
+  if (all.length < 2) { return 'class="dot ' + d.s + '"'; }
+  return 'class="dot ' + d.s + ' m' + all.length + '" style="' + all.map((k, i) => '--c' + (i + 1) + ':var(--k-' + k + ')').join(';') + '"';
 }
 
 /** Day group of a last-active time: Today, Yesterday, This week, Last week or Earlier. */
@@ -101,5 +107,5 @@ export function ctxLevel(pct: number): number {
 }
 
 /** Source of the helpers above, for the webview script. */
-export const SHARED_SRC = [shortAgo, dotText, dayBucket, durText, sizeText, costText, statsText, tokText, ctxStat, ctxLevel]
+export const SHARED_SRC = [shortAgo, dotText, dotAttrs, dayBucket, durText, sizeText, costText, statsText, tokText, ctxStat, ctxLevel]
   .map((f) => f.toString()).join('\n') + '\nconst DAY_ORDER=' + JSON.stringify(DAY_ORDER) + ';\n';

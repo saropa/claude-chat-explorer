@@ -21,7 +21,8 @@ return '<div class="xa" role="toolbar" aria-label="Chat actions"><button class="
 +xbtn('pin',p?XI.starOn:XI.star,p?'Unpin':'Pin',p?'Pinned':'Pin',p?' on':'',' aria-pressed="'+p+'"')
 +xbtn('arch',ARCH_SVG,ia?'Unarchive':'Archive',ia?'Unarchive':'Archive','')
 +((dots[r.id]||{}).s==='unread'?xbtn('read',XI.read,'Mark as read','Mark read',''):'')
-+'<span class="sp"></span>'+xbtn('handover',hv[r.id]==='done'?XI.read:XI.note,'Copy hand-over note',hv[r.id]==='busy'?'Copying...':hv[r.id]==='done'?'Copied':'Copy hand-over note',hv[r.id]==='busy'?' busy':'',hv[r.id]==='busy'?' aria-busy="true"':'')+xbtn('copyid',XI.copy,'Copy session ID','Copy ID','','','Copy session ID '+esc(r.id))+'</div>';}
++'<span class="sp"></span>'+xbtn('handover',hv[r.id]==='done'?XI.read:XI.note,'Copy hand-over note',hv[r.id]==='busy'?'Copying...':hv[r.id]==='done'?'Copied':'Copy hand-over note',hv[r.id]==='busy'?' busy':'',hv[r.id]==='busy'?' aria-busy="true"':'')
++xbtn('copyid',XI.copy,'Copy session ID','Copy ID','','','Copy session ID '+esc(r.id))+'</div>';}
 function statCell(l,v,tip,a){return '<div data-tip="'+esc(tip)+'"><dt>'+l+'</dt><dd'+(a?' aria-label="'+a+'"':'')+'>'+v+'</dd></div>';}
 function statsHtml(r){let h='';const now=Date.now();
 if(r.msgs)h+=statCell('Messages',r.msgs,plur(r.msgs,'message')+' in this chat');

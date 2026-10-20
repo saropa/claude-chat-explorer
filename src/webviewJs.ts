@@ -125,7 +125,7 @@ else if(d.type==='indexing'){ix={done:d.done,total:d.total,subs:d.subs||0,first:
 else if(d.type==='indexed'){ix=null;showIx();if(dirty){dirty=false;go();}}
 else if(d.type==='history'){history=d.history||[];histIdx=-1;if(!history.length)lastRec='';ahSync();}
 else if(d.type==='sessions'){if(d.sn!==sn)return;sess={rows:d.rows||[],total:d.total||0,arch:d.arch||[],archTotal:d.archTotal||0};capN=d.max||capN;rerender();}
-else if(d.type==='dots'){dots=d.map||{};rerender();}
+else if(d.type==='dots'){dots=d.map||{};document.documentElement.classList.toggle('noanim',d.anim===false);rerender();}
 else if(d.type==='setQuery'){q.value=d.query||'';histIdx=-1;go();}
 else if(d.type==='setSort'){sortSet(d.sort);draft();if(sessOn&&!hasResults)askSess();rerender();}
 else if(d.type==='setStatuses'){stLoad(d.checked);rerender();}

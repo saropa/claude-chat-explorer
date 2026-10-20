@@ -1,3 +1,4 @@
+import { DOT_ANIM_CSS } from './dotCss';
 export const CSS = String.raw`
 button,input,select{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);font-weight:normal;line-height:normal}
 body{padding:6px 0;line-height:normal;font-weight:normal;color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
@@ -50,9 +51,11 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .dot.idle{opacity:.4}
 .dot.none{visibility:hidden}
 .rh:hover .hd .rc,.r:focus-within .hd .rc{visibility:hidden}
-.dot.running{--dc:#89d185}
-.dot.waiting{--dc:#3b82f6}
-.dot.unread{--dc:#d97757}
+.dot{--k-running:#89d185;--k-waiting:#3b82f6;--k-unread:#d97757;--k-background:#b180d7;--k-idle:#9d9d9d}
+.dot.running{--dc:var(--k-running)}
+.dot.waiting{--dc:var(--k-waiting)}
+.dot.unread{--dc:var(--k-unread)}
+.dot.background{--dc:var(--k-background)}
 .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pj{flex:none;max-width:25%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--vscode-descriptionForeground)}
 .tm{flex:none;min-width:22px;text-align:right;color:var(--vscode-descriptionForeground)}
@@ -81,4 +84,4 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .fi{font-family:var(--vscode-editor-font-family);word-break:break-all;color:var(--vscode-descriptionForeground)}
 mark{background:var(--vscode-editor-findMatchHighlightBackground);color:inherit}
 a{color:var(--vscode-textLink-foreground);cursor:pointer}
-`;
+` + DOT_ANIM_CSS;

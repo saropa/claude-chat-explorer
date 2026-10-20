@@ -8,6 +8,7 @@ import { isSessionId } from './sessionId';
 import { capDone } from './workModel';
 import { cleanView, prefsHidden, savedView, STATE_VER, View } from './workState';
 import { MAX_FOLDERS, WorkScan } from './workScan';
+import { dotsAnimated } from './dotAnim';
 import { projectsRoot } from './files';
 import { buildCleanup, CleanRow, MAX_ROWS, resumeCommand } from './workCleanHost';
 
@@ -167,7 +168,7 @@ export class OpenWork {
   /** A chat that stopped running changed its folder: read that folder again 10 s later. */
   private onDots(): void {
     const dots = this.d.dots();
-    this.post({ type: 'dots', map: dots });
+    this.post({ type: 'dots', map: dots, anim: dotsAnimated() });
     const now = new Set(Object.keys(dots).filter((id) => dots[id]?.s === 'running'));
     for (const id of this.prevRunning) {
       const fk = now.has(id) ? undefined : this.chatFk.get(id);
@@ -231,7 +232,7 @@ export class OpenWork {
   private replay(): void {
     const p = this.prefs;
     this.post({ type: 'init', v: 4, prsOn: this.d.prsOn(), days: openWorkDays(), hidden: p.hidden, ws: this.d.workspace().length, done: Object.fromEntries(this.done), view: this.view, win: process.platform === 'win32' });
-    this.post({ type: 'dots', map: this.d.dots() });
+    this.post({ type: 'dots', map: this.d.dots(), anim: dotsAnimated() });
     const k = this.model;
     if (!k.chats) { void this.refresh(); return; }
     [k.chats, k.notes, k.gh, ...k.folder.values(), ...k.repo.values(), ...k.rel.values(), ...k.prs.values(), ...k.checks.values(), k.progress, k.end].forEach((m) => { if (m) { this.post(m); } });

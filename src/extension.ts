@@ -14,6 +14,10 @@ import { gitHint } from './gitMatch';
 import { registerDiagnostics } from './diagnostics';
 import { registerFileSessions } from './fileSessionsUi';
 import { copyHandover } from './handoverRun';
+import { copyResume } from './copyResume';
+import { exportChatMd } from './exportMdRun';
+import { archiveTiny } from './archiveTiny';
+import { registerUsage } from './usageUi';
 import { QueryQueue } from './queryQueue';
 import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './query';
 import { copyId, isSessionId, openChat } from './resume';
@@ -30,6 +34,7 @@ import { registerHeaderCommands } from './headerCommands';
 import { OpenWork, registerOpenWork } from './openWork';
 import { Limiter } from './execLimit';
 import { realExec } from './wipExec';
+import { dotsAnimated } from './dotAnim';
 import { WorkScan } from './workScan';
 import { WorkPrs } from './workPrs';
 import { PrCache } from './wipPrs';
@@ -122,7 +127,7 @@ class Provider implements vscode.WebviewViewProvider {
   get dotNames(): { [id: string]: string } { return stateMap(this.watcher?.dots ?? {}); }
 
   /** Push the dot map to the panel. */
-  postDots(): void { this.post({ type: 'dots', map: this.watcher?.dots ?? {} }); }
+  postDots(): void { this.post({ type: 'dots', map: this.watcher?.dots ?? {}, anim: dotsAnimated() }); }
 
   /** Resume a chat and clear its unread flag. */
   async resume(id: string): Promise<void> {
@@ -223,6 +228,14 @@ class Provider implements vscode.WebviewViewProvider {
 
   /** Copy the hand-over note for another page; state reports busy and done to that page. */
   copyNote(id: string, state: (id: string, s: 'busy' | 'done' | '') => void): Promise<void> { return this.handover(id, '', state); }
+
+  /** Copy the "cd <folder> && claude --resume <id>" command of a chat. */
+  copyResumeCmd(id: string): Promise<void> {
+    return copyResume(id, { cwd: async (cid) => String(await this.client.request({ t: 'chatCwd', chat: cid, folders: folderPaths() }, true, true) ?? ''), log: logErr });
+  }
+
+  /** Save one chat as a Markdown file. */
+  exportMd(id: string): Promise<void> { return exportChatMd(id, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), log: logErr }); }
 
   private async handover(id: string, query: string, state: (id: string, s: 'busy' | 'done' | '') => void = (cid, s) => this.post({ type: 'handoverState', id: cid, state: s })): Promise<void> {
     await copyHandover(id, query, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), roots: folderPaths, log: logErr,
@@ -350,10 +363,11 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const provider = new Provider(store, client, status, hub);
   const changed = () => { void provider.postMeta(); hub.emit('archived', logErr); };
   provider.actions = new ArchiveActions(store, ctx.globalStorageUri.fsPath, { changed, rebuild: () => provider.watcher?.rebuild() });
-  const warner = createWarner(ctx, { request: (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), open: (id) => provider.resume(id), log });
+  const warner = createWarner(ctx, { request: (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), open: (id) => provider.resume(id), log, copyNote: (id) => provider.copyNote(id, () => undefined) });
   provider.watcher = new LiveWatcher({ dir: sessionsDir(), tabs: async () => { const r = await readTabs(workspaceStorageOf(ctx.globalStorageUri.fsPath), folderPaths()); return r.ok ? r : undefined; },
     unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
     onChange: () => { provider.postDots(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); } });
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.animateDots')) { provider.postDots(); hub.emit('dots', logErr); } }));
   ctx.subscriptions.push(vscode.window.onDidChangeWindowState((s) => { if (s.focused) { provider.watcher?.poke(); } }), { dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));
   ctx.subscriptions.push(channel, status,
     vscode.commands.registerCommand('claudeChatExplorer.clearHistory', () => {
@@ -362,6 +376,14 @@ export function activate(ctx: vscode.ExtensionContext): void {
     }),
     vscode.window.registerWebviewViewProvider('claudeChatExplorer.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
+  const usageRows = async () => (await client!.request({ t: 'usage' }, true, true)) ?? [];
+  ctx.subscriptions.push(
+    ...[['saropaChatExplorer.copyResume', (id: string) => provider.copyResumeCmd(id)], ['saropaChatExplorer.exportChatMarkdown', (id: string) => provider.exportMd(id)]].map(([cmd, fn]) =>
+      vscode.commands.registerCommand(cmd as string, (arg?: { id?: unknown }) => (isSessionId(arg?.id) ? (fn as (id: string) => Promise<void>)(arg.id) : undefined))),
+    vscode.commands.registerCommand('saropaChatExplorer.archiveTiny', () => archiveTiny({ rows: usageRows, archived: () => store!.archived, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
+      archive: (ids) => provider.actions!.archiveMany(ids) })));
+  registerUsage(ctx, { rows: usageRows, resume: (id) => provider.resume(id), log: logErr, onIndex: (fn) => { ctx.subscriptions.push(hub.on('indexed', fn), hub.on('changed', fn)); },
+    showNearly: async () => { await vscode.commands.executeCommand(REVEAL_CMD); store!.setStatuses(['nearly']); provider.post({ type: 'setStatuses', checked: ['nearly'] }); } });
   registerHeaderCommands(ctx, { reveal: () => vscode.commands.executeCommand(REVEAL_CMD), post: (m) => provider.post(m), sort: () => store!.draft.sort, statuses: () => store!.statuses, setStatuses: (c) => store!.setStatuses(c) });
   registerEditorView(ctx, { client, ctxMsg: () => provider.searchCtx, archived: () => [...store!.archived], log: logErr, resume: (id) => provider.resume(id) },
     () => ({ ...store!.draft, statuses: store!.statuses }));
