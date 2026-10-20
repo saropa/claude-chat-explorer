@@ -2,7 +2,7 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
-## Unreleased
+## 0.32.0
 - Added: the Command Palette command "Saropa: Usage Summary" shows cost per day, week, project and model and the 10 priciest chats (click resumes one).
 - Added: a status bar item, shown only when a chat is at 80% context or more, reading "N chats near full"; click opens the sidebar on the Nearly full status. Setting `saropaChatExplorer.showUsageStatusBar` hides it.
 - Added: the 90% context warning also offers "Copy hand-over note" (still once per chat per crossing; `saropaChatExplorer.contextWarnings` turns it off).
