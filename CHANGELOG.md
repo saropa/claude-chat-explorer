@@ -2,7 +2,7 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
-## [Unreleased]
+## 0.34.0
 - Added: Pin Chat and Unpin Chat commands in the chat row context menu, and a pin button next to Archive on the Project Status page. Pinned chats list first there, as they already do in the sidebar and results. Pins are stored as before.
 
 ## 0.33.0
