@@ -2,7 +2,7 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
-## Unreleased
+## 0.36.0
 - Changed: on the Project Status page, branches and worktrees created by the same session fold into one row titled with that session, with a collapsed "N branches" list. A branch with its own pull request, uncommitted or unpushed work, or its own need stays a separate row. Section counts and the headline count the folded row once.
 - Fixed: on the Project Status page, one session that created many worktrees no longer repeats its "Answer the question" or "Working..." state on every one of those rows. The state shows on one row only.
 
