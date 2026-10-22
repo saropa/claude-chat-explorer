@@ -2,6 +2,10 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Changed: on the Project Status page, branches and worktrees created by the same session fold into one row titled with that session, with a collapsed "N branches" list. A branch with its own pull request, uncommitted or unpushed work, or its own need stays a separate row. Section counts and the headline count the folded row once.
+- Fixed: on the Project Status page, one session that created many worktrees no longer repeats its "Answer the question" or "Working..." state on every one of those rows. The state shows on one row only.
+
 ## 0.35.0
 - Added: an Options screen ("..." menu of the view, command "Options") that edits every Saropa Chat Explorer setting. The form is built from the extension's settings list, so new settings appear automatically. Each setting has Reset to default, changes made elsewhere show live, and Web sessions still asks for its one-time consent.
 - Added: opt-in, read-only Web (cloud) sessions. Setting `saropaChatExplorer.webSessions.enabled` (default off) adds a Local | Web toggle; the Web list shows title and age, and opening one fetches its transcript on demand into a read-only Markdown tab. It uses an unofficial, undocumented Anthropic API with your Claude Code login token (read-only, never stored, refreshed or logged) and asks you to confirm once before the first call. Failures show a notice in the Web tab only. If you are signed out it says to run `claude auth login`. With the setting off there is no network call and no credential read.

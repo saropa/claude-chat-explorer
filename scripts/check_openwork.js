@@ -33,7 +33,7 @@ const mainRepo = (scan, fks, o) => repoMsg(scan, [wtm('w1', 'proj', 'main', { ma
 /** The count next to a group header (its pill), or -1 when the group is not listed. */
 const pillOf = (html, label) => { const m = new RegExp('<section[^>]*aria-label="' + label + '"[^]*?<span class="pill">(\\d+)</span>').exec(html); return m ? Number(m[1]) : -1; };
 /** True when, for every group listed and open, the number next to it equals the rows listed in it. */
-const groupsAgree = (html) => [...html.matchAll(/<section class="band ps wg[^>]*aria-label="([^"]+)"[^]*?<\/section>/g)].every((m) => { const pill = /<span class="pill">(\d+)<\/span>/.exec(m[0]); const nbAt = m[0].indexOf('aria-label="Chats without a branch"'); return !/<div class="wk"/.test(m[0]) || (m[0].match(/<div class="wr"/g) || []).length + (nbAt < 0 ? 0 : (m[0].slice(nbAt).match(/class="row"/g) || []).length) === Number(pill[1]); });
+const groupsAgree = (html) => [...html.matchAll(/<section class="band ps wg[^>]*aria-label="([^"]+)"[^]*?<\/section>/g)].every((m) => { const pill = /<span class="pill">(\d+)<\/span>/.exec(m[0]); const nbAt = m[0].indexOf('aria-label="Chats without a branch"'); return !/<div class="wk"/.test(m[0]) || (m[0].match(/<div class="wr"/g) || []).length - (m[0].match(/<div class="wr"[^>]*data-kid="1"/g) || []).length + (nbAt < 0 ? 0 : (m[0].slice(nbAt).match(/class="row"/g) || []).length) === Number(pill[1]); });
 /** The visible text of the summary line. */
 const hlOf = (html) => { const m = /class="hl"[^>]*>([^<]*)</.exec(html); return m ? m[1] : ''; };
 /** Open every collapsed group (Cleanup and Idle start closed), like a reader who clicked them. */
@@ -931,7 +931,7 @@ function relatedScenario(W) {
   openGroups(R); advance(300);
   const withOv = (a, v) => { if (/class="ovp wd"/.test(trSlice(body, a, v))) { return trSlice(body, a, v); } fire(body, 'click', { target: target('mnu', '', { dataset: { a: 'mnu', x: 'b:' + a + ':' + v.replace(/[^A-Za-z0-9_-]/g, '_') } }) }); return trSlice(body, a, v); };
   check(tag('before the matcher answers a row with no session says it is matching, not blank'), /Matching sessions/.test(withOv('b', 'ancient-nothing-branch')) && /Last commit|Created/.test(trSlice(body, 'b', 'ancient-nothing-branch')));
-  const openRows = () => { openGroups(R); for (const m of [...body.innerHTML.matchAll(/data-a="hx" data-x="([^"]*)" data-on="0"/g)]) { if (!/:m$/.test(m[1])) { fire(body, 'click', { target: target('hx', '', { dataset: { a: 'hx', x: m[1], on: '0' } }) }); } } advance(300); };
+  const openRows = () => { openGroups(R); for (let pass = 0; pass < 3; pass++) { /* a pass can reveal folded branch rows with toggles of their own */ for (const m of [...body.innerHTML.matchAll(/data-a="hx" data-x="([^"]*)" data-on="0"/g)]) { if (!/:m$/.test(m[1])) { fire(body, 'click', { target: target('hx', '', { dataset: { a: 'hx', x: m[1], on: '0' } }) }); } } advance(300); } };
   step('matcher answers', () => { deliver({ type: 'rel', scan: 1, rk: 'r1', ok: true, w: out.w, b: out.b }); deliver({ type: 'end', scan: 1, open: [], gitMissing: false }); advance(300); openRows(); });
   const h = body.innerHTML;
   const wtIn = world.input.wts.filter((w) => !w.main), brIn = world.input.brs.filter((b) => b.n !== 'main'); /* an idle default branch is not listed */
@@ -940,6 +940,7 @@ function relatedScenario(W) {
   const blank = wtRows.concat(brRows).filter((t) => !/class="ab hxb"/.test(t) && !/no matching session found/.test(t));
   check(tag('no Sessions cell is blank: each has a session count or the evidence line (' + blank.length + ' blank)'), blank.length === 0);
   check(tag('the sessions cell never reads a bare 0'), wtRows.concat(brRows).every((t) => !/<div class="c-ch"[^>]*><span class="nb"[^>]*>0<\/span><\/div>/.test(t)));
+  check(tag('branches made by one session fold into one row titled with that session, with an "N branches" toggle, and the children are listed once opened'), (() => { const m = /data-a="hx" data-x="[^"]*:f" data-on="1"[^>]*>(\d+) branches/.exec(h); return !!m && Number(m[1]) >= 2 && (h.match(/data-kid="1"/g) || []).length >= Number(m[1]) - 0 && /class="hxr fxr"/.test(h); })());
   check(tag('a worktree made by a subagent shows its session count, and the session sits in the worktree row, open'), /class="ab hxb"[^>]*>1 chat </.test(trSlice(body, 'w', 'w2')) && /Pro rollout/.test(h) && /aria-label="Sessions in feat\/saropa-connection-cloud-icon-search"/.test(h));
   const sub = (name) => { const i = h.indexOf('aria-label="Sessions in ' + name + '"'); const js = ['<div class="wr"', '</section>'].map((m) => h.indexOf(m, i)).filter((v) => v >= 0); return i < 0 ? '' : h.slice(i, Math.min(...js)); };
   check(tag('a certain session has the normal style and a reason badge with its tooltip (reason and confidence)'), (() => { const t = sub('feat/saropa-connection-cloud-icon-search'); return /data-rel="c"/.test(t) && /class="bd bd-info" data-rel="certain">subagent</.test(t) && /Related by: via a subagent \(certain\)/.test(t) && /created contacts-wt-connection-icon/.test(t) && !/data-rel="p"/.test(t); })());

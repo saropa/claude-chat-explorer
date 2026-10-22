@@ -21,6 +21,8 @@ function relTip(a){if(!a)return '';const o=a.n!==undefined?[]:['Related by: '+(R
 if(a.n!==undefined){const h=Math.round(Math.abs(a.n)/3600000);o.push('Nearest by time (probable): '+(a.n===0?'overlaps':a.n<0?'ended '+(h<48?h+' h':Math.round(h/24)+' days')+' before the branch was made':'started '+(h<48?h+' h':Math.round(h/24)+' days')+' after the branch was last changed'));}
 if(a.c==='probable')o.push('Probable: no session is certain for this row');if(a.c==='mention')o.push('Mention only: the session contains the name but did not create it or work in it');return o.join('\n');}
 function relAnn(h){return{y:h.why,c:h.conf,m:h.more,t:h.note,n:h.near,cr:h.cr===true,rc:h.rc};}
+function fxKey(it){return it.hk+':f';}
+function fxOn(it){return sec[hxKeyS(fxKey(it))]===true;}
 function mxKey(it){return it.hk+':m';}
 function mxOn(it){return sec[hxKeyS(mxKey(it))]===true;}
 /** The chats of one row: those the folder or branch logic found (certain), merged with the matcher's hits. crs: the creators (a tool call of the chat or of its subagent made the row), with their receipts. */
@@ -105,18 +107,19 @@ const acts=(w&&!w.main&&it.ready?psTxtBtn('rm','Copy remove command','Copy a '+c
 +(it.cr?psTxtBtn('cu','Copy clean-up prompt','Copy a prompt for '+t+' with receipts: what it created, when, the command, the reflog and the current state',x+' data-m="copy"')+psTxtBtn('cu','Ask '+t+' to clean up','Open '+t+'; the prompt is copied so you can paste it',x+' data-m="resume"'):'');
 return '<div class="ovp wd" role="dialog" aria-label="'+esc('More about '+it.name)+'"><dl>'+kv.map(e=>'<dt>'+e[0]+'</dt><dd>'+e[1]+'</dd>').join('')+'</dl>'+(acts?'<div class="wda">'+acts+'</div>':'')+'</div>';}
 /** One row of the Work list, two lines. Line 1: a colored dot, the headline "do X" (the verdict's todo, else its reason; the full sentence in the tooltip) and the one action. Line 2: only the facts that mean something (branch, PR, ahead or behind, tags, chats toggle, age). The "..." button opens the popover with the rest. */
-function psWrow(k,B,it){const rp=B.rp,v=it.v,w=it.w,r=it.r,cl=[w&&!w.main&&w.path?w.path:'',psCrLine(it)].filter(Boolean).join('\n'),head=v.todo||v.reason||v.state;
+function psWrow(k,B,it,kid){const rp=B.rp,v=it.v,w=it.w,r=it.r,cl=[w&&!w.main&&w.path?w.path:'',psCrLine(it)].filter(Boolean).join('\n'),head=v.todo||v.reason||v.state;
 const nm=it.s?'<span class="pn bn" data-tip="'+esc(it.s.path+(cl?'\n'+cl:''))+'">'+esc(it.name)+'</span>':'<span class="bn">'+(r?psBr(k,rp,r.name,it.pr&&it.pr.link?it.pr.n:0,cl):'<span class="bn-t" data-tip="'+esc((w?w.path||'':'')+(cl?'\n'+cl:''))+'">'+esc(it.name)+(w&&w.detached?' <span class="q">detached '+esc(w.sha||'')+'</span>':'')+'</span>')+'</span>';
-const mp=[nm];
+const fd=it.fold&&!kid,mp=[fd?'<span class="bn"><span class="bn-t" data-tip="'+esc('Created by '+(it.crTitle||'one session')+'\n'+it.fold.map(x=>x.name).join('\n'))+'">'+esc(it.crTitle||'Untitled session')+'</span></span>':nm];
+if(fd){const fo=fxOn(it);mp.push('<button type="button" class="ab hxb fxb" data-a="hx" data-x="'+esc(fxKey(it))+'" data-on="'+(fo?1:0)+'" aria-expanded="'+fo+'" aria-label="'+esc(it.fold.length+' branches from '+(it.crTitle||'this session'))+'" data-tip="'+esc((fo?'Hide ':'Show ')+'the '+it.fold.length+' branches and worktrees this session created')+'">'+it.fold.length+' branches <span class="car" aria-hidden="true"></span></button>');}
 if(it.pr)mp.push('PR '+psPrCell(k,it.pr));
 if(!it.s&&typeof it.va==='number'&&typeof it.vb==='number'&&(it.va>0||it.vb>0))mp.push(psAb(it.va,it.vb));
 const tg=psTags({tags:(v.tags||[]).filter(x=>!(x==='draft'&&it.pr))});if(tg)mp.push(tg);
 const ch=psChatsCell(it);if(ch)mp.push(ch);
 const ag=it.ts?psAgo(it.ts*1000):'';if(ag)mp.push('<span class="q" data-tip="Last activity on this branch or in its chats">'+esc(ag)+'</span>');
-const on=psDetOn(it),ov='<button type="button" class="ab ib ovb" data-a="mnu" data-x="'+esc(psDetKey(it))+'" aria-haspopup="true" aria-expanded="'+on+'" aria-label="'+esc('More about '+it.name)+'" data-tip="More: who created it, and more actions">⋯</button>';
-return '<div class="wr" role="row" data-g="'+v.group+'"'+(w?' data-w="'+esc(w.k)+'"':'')+(r?' data-b="'+esc(r.name)+'"':'')+(it.s?' data-s="'+esc(it.s.k)+'"':'')+'><div class="wl1"><span class="dt dt-'+v.group+'" role="img" aria-label="'+esc(v.state)+'" data-tip="'+esc(v.state)+'"></span><span class="todo" data-tip="'+esc(v.full)+'">'+esc(head)+'</span><span class="c-ac acts2">'+psPrimary(k,it)+'</span>'+ov+'</div>'
+const dk=psDetKey(it)+(fd?':f':''),on=menuKey===dk,ov='<button type="button" class="ab ib ovb" data-a="mnu" data-x="'+esc(dk)+'" aria-haspopup="true" aria-expanded="'+on+'" aria-label="'+esc('More about '+it.name)+'" data-tip="More: who created it, and more actions">⋯</button>';
+return '<div class="wr" role="row" data-g="'+v.group+'"'+(fd?' data-f="1"':(w?' data-w="'+esc(w.k)+'"':'')+(r?' data-b="'+esc(r.name)+'"':'')+(it.s?' data-s="'+esc(it.s.k)+'"':'')+(kid?' data-kid="1"':''))+'><div class="wl1"><span class="dt dt-'+v.group+'" role="img" aria-label="'+esc(v.state)+'" data-tip="'+esc(v.state)+'"></span><span class="todo" data-tip="'+esc(v.full)+'">'+esc(head)+'</span><span class="c-ac acts2">'+psPrimary(k,it)+'</span>'+ov+'</div>'
 +'<div class="meta wl2">'+mp.join(' <span class="sep" aria-hidden="true">·</span> ')+'</div>'
-+(on?psDetails(k,it):'')+'</div>'+psChatRow(it);}
++(on?psDetails(k,it):'')+'</div>'+psChatRow(it)+(fd&&fxOn(it)?'<div class="hxr fxr" role="row"><div class="nest" role="list" aria-label="'+esc('Branches from '+(it.crTitle||'one session'))+'">'+it.fold.filter(m=>m.show).map(m=>psWrow(k,B,m,1)).join('')+'</div></div>':'');}
 /** One group: header with its count (read from psCounts, so the number equals the rows listed) and its rows. */
 function psGroup(k,B,g,list,C){const open=secOpen('g:'+g),t=GROUP_LABEL[g],n=g==='idle'?C.idle+B.nb.length:C[g];
 const nbl=g==='idle'&&B.nb.length?'<p class="sub nbh">Chats without a branch</p><div class="nest" role="list" aria-label="Chats without a branch">'+B.nb.map(r=>psRow(r)).join('')+'</div>':'';
@@ -134,12 +137,16 @@ if(br)(byB[br.name]=byB[br.name]||[]).push(r);
 if(!w&&!br)nb.push(r);});
 const rl=rels[k]&&rels[k].ok?rels[k]:null,byId={},used={},srt=rowCmp(sortMode),def=rp.defLocal||'';chats.forEach(r=>{byId[r.id]=r;});
 const mg=(kind,key,base)=>{const m=psMerge(rl,kind,key,base,byId,()=>true,srt);m.rows.concat(m.near,m.men).forEach(r=>{used[r.id]=1;});return m;};
-const items=[];
+const items=[],claim={};
+/* A chat that relates to several rows (it created many worktrees) drives the state of ONE row: the row of its folder or branch, else the first row that lists it. The other rows still list it but do not repeat its question. */
+Object.keys(byB).forEach(n=>byB[n].forEach(r=>{claim[r.id]='b:'+n;}));
+M.wts.forEach(w=>(byW[w.k]||[]).forEach(r=>{if(!claim[r.id])claim[r.id]=w.detached||!w.branch?'w:'+w.k:'b:'+w.branch;}));
+const ownRows=(rows,key)=>rows.filter(c=>{if(!claim[c.id])claim[c.id]=key;return claim[c.id]===key;});
 const mk=(r,w,s)=>{const name=s?s.name:r?r.name:w.name,pr=r?r.pr:null,info=r?r.info:null,f=w?psWFacts(w):null,ok=!!(f&&f.ok),g=w?psWView(rp,w,pr):{ok:true,files:0,ahead:0,gone:!!(info&&info.gone),branch:name,pr:psPrFact(pr)};
 const m=psJoin(w?mg('w',w.k,byW[w.k]||[]):s?mg('w',s.k,[]):null,r?mg('b',r.name,byB[r.name]||[]):null)||{rows:[],an:{},near:[],men:[],relN:0,crs:[]};
-const cr=psCreator(m.crs),crr=cr?byId[cr.id]:null,chatSt=m.rows.some(c=>dotOf(c.id)==='waiting')?'waiting':m.rows.some(c=>dotOf(c.id)==='unread')?'unread':m.rows.some(c=>dotOf(c.id)==='running')?'running':m.rows.some(c=>dotOf(c.id)==='background')?'background':'';
+const mine=ownRows(m.rows,s?'s:'+s.k:r?'b:'+r.name:'w:'+w.k),cr=psCreator(m.crs),crr=cr?byId[cr.id]:null,chatSt=mine.some(c=>dotOf(c.id)==='waiting')?'waiting':mine.some(c=>dotOf(c.id)==='unread')?'unread':mine.some(c=>dotOf(c.id)==='running')?'running':mine.some(c=>dotOf(c.id)==='background')?'background':'';
 const isDef=!!r&&r.name===def&&!(w&&w.detached);
-const pickC=d=>m.rows.filter(c=>dotOf(c.id)===d).sort((a,b)=>(b.last||0)-(a.last||0))[0],cp=pickC('waiting')||pickC('unread'); /* the newest waiting session, else the newest unread one: what Open session opens */
+const pickC=d=>mine.filter(c=>dotOf(c.id)===d).sort((a,b)=>(b.last||0)-(a.last||0))[0],cp=pickC('waiting')||pickC('unread'); /* the newest waiting session, else the newest unread one: what Open session opens */
 const v=workVerdict({name:name,defName:def,isDef:isDef,local:!!(r&&r.local)||(!r&&!!w),remote:!!(r&&r.remote),stray:s?{git:!!s.git}:null,
 wt:w?{missing:!!w.missing,main:!!w.main,locked:!!w.locked,ws:!!w.ws,known:ok,unread:ok?'':rp.st==='timeout'?'timed out':rp.st==='error'?'error':(rp.st==='running'||rp.st==='queued'||scanLive)?'still reading':'no answer',files:ok?f.fileTotal:0,unpushed:ok?f.ahead:0,behind:w.db||0,gone:ok?!!f.gone:false,merged:w.merged}:null,
 a:isDef&&ok?f.ahead:w&&typeof w.da==='number'?w.da:info&&typeof info.a==='number'?info.a:undefined,bh:isDef&&ok?f.behind:w&&typeof w.db==='number'?w.db:info&&typeof info.b==='number'?info.b:undefined,
@@ -155,12 +162,15 @@ const own=!filtering()||(psHit(hay)&&flagPass(g,flt));it.show=own||m.rows.length
 M.list.forEach(r=>mk(r,r.wt,null));
 M.wts.forEach(w=>{if(w.detached&&!w.main)mk(null,w,null);});
 (rp.stray||[]).forEach(s=>mk(null,null,s));
-const quiet=it=>it.isDef&&it.v.group==='idle',all=items.filter(it=>!quiet(it)); /* the default branch is listed only when its verdict is outside idle; the chats of a hidden one move to the chats without a branch */
+/* Branches and worktrees that one chat created collapse into ONE row for that chat. A row with its own need (pull request, unpushed or dirty work, a need that is not the shared chat) stays on its own; fewer than two foldable rows stay as they are. */
+const byCr={};items.forEach(it=>{const v=it.v;if(it.isDef||it.s||(it.w&&it.w.main)||!it.cr||!it.cr.id||it.pr||v.state==='Dirty'||v.state==='Unpushed'||(!it.cs&&(v.group==='needs'||v.group==='finish')))return;(byCr[it.cr.id]=byCr[it.cr.id]||[]).push(it);});
+Object.keys(byCr).forEach(id=>{const l=byCr[id];if(l.length<2)return;l.sort(psSort);const par=l.find(x=>x.cs)||l[0];par.fold=l;par.show=l.some(x=>x.show);l.forEach(x=>{if(x!==par)x.folded=true;});});
+const quiet=it=>it.isDef&&it.v.group==='idle',all=items.filter(it=>!quiet(it)&&!it.folded); /* the default branch is listed only when its verdict is outside idle; the chats of a hidden one move to the chats without a branch */
 const shown=all.filter(it=>it.show),grp={needs:[],waiting:[],tidy:[],idle:[]};
 shown.forEach(it=>grp[psUi(it.v.group)].push(it));BAND_RANK.forEach(g=>{grp[g].sort(g==='needs'?(a,b)=>a.v.rank-b.v.rank||psSort(a,b):psSort);});waitN=grp.waiting.length;
 const nb2=nb.filter(r=>!used[r.id]),seenNb={};nb2.forEach(r=>{seenNb[r.id]=1;});items.filter(quiet).forEach(it=>it.chatsAll.forEach(r=>{if(!seenNb[r.id]&&(!filtering()||it.show)){seenNb[r.id]=1;nb2.push(r);}}));nb2.sort(srt);
 return{M:M,rp:rp,p:M.p,all:all,shown:shown,grp:grp,nb:nb2,nbAll:nb2.length};}
-function psOrder(B){const o=[],seen={},add=r=>{if(!seen[r.id]){seen[r.id]=1;o.push(r.id);}};BAND_RANK.forEach(g=>{if(secOpen('g:'+g))B.grp[g].forEach(it=>{if(hxOn(it))psList(it).l.forEach(add);});});if(secOpen('g:idle'))B.nb.forEach(add);return o;}
+function psOrder(B){const o=[],seen={},add=r=>{if(!seen[r.id]){seen[r.id]=1;o.push(r.id);}};BAND_RANK.forEach(g=>{if(secOpen('g:'+g))B.grp[g].forEach(it=>{if(hxOn(it))psList(it).l.forEach(add);if(it.fold&&fxOn(it))it.fold.forEach(m=>{if(m.show&&hxOn(m))psList(m).l.forEach(add);});});});if(secOpen('g:idle'))B.nb.forEach(add);return o;}
 /** The state of the pull request lookup, in the repository line: looking up, or why it is unknown with a retry. */
 function psPrState(k,M){if(!prsOn)return '';const p=M.p;if(!p||p.st==='queued'||p.st==='checking')return ' '+SPINP+' <span class="q">Looking up pull requests</span>';
 if(p.st==='unavailable'){const rt=prRetryKey({p:p,rk:k});return ' '+prUnk(p.reason)+(rt?' '+ibtn('fretry','Retry the pull request lookup','retry','Look up the pull requests again',' data-k="'+esc(rt)+'"'):'');}return '';}
