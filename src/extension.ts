@@ -12,6 +12,7 @@ import { maxResults, pickTotals, Totals } from './maxResults';
 import { opts, sortOf } from './msgOpts';
 import { gitHint } from './gitMatch';
 import { registerDiagnostics } from './diagnostics';
+import { ChatExplorerApi, makeApi } from './api';
 import { registerFileSessions } from './fileSessionsUi';
 import { copyHandover } from './handoverRun';
 import { copyResume } from './copyResume';
@@ -395,7 +396,7 @@ let client: WorkerClient | undefined;
 let store: Store | undefined;
 let done = false; // set at the end of activate()
 
-export function activate(ctx: vscode.ExtensionContext): void {
+export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   const dir = ctx.globalStorageUri.fsPath;
   try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { logErr('create storage folder', e); } // the worker retries
   client = new WorkerClient(dir);
@@ -436,7 +437,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
   registerHeaderCommands(ctx, { reveal: () => vscode.commands.executeCommand(REVEAL_CMD), post: (m) => provider.post(m), sort: () => store!.draft.sort, statuses: () => store!.statuses, setStatuses: (c) => store!.setStatuses(c) });
   registerEditorView(ctx, { client, ctxMsg: () => provider.searchCtx, archived: () => [...store!.archived], log: logErr, resume: (id) => provider.resume(id) },
     () => ({ ...store!.draft, statuses: store!.statuses }));
-  registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
+  const fileSessions = registerFileSessions(ctx, { client, log: logErr, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
     showQuery: (q) => provider.showQuery(q), onIndex: (fn) => { ctx.subscriptions.push(hub.on('indexed', fn), hub.on('changed', fn)); } });
   registerOpenWork(ctx, new OpenWork(ctx, hub, { softRequest: (m) => client!.request(m as Parameters<WorkerClient['request']>[0], true, true), pins: () => Object.keys(store!.pins),
     archived: () => [...store!.archived], dots: () => provider.watcher?.dots ?? {}, resume: (id) => provider.resume(id), copyNote: (id, state) => provider.copyNote(id, state),
@@ -447,6 +448,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
   done = true;
   log(`activated ${String(ctx.extension?.packageJSON?.version ?? 'unknown')}`);
   client.start(); // indexing runs in the worker; activation never waits for it
+  return makeApi(fileSessions);
 }
 
 export async function deactivate(): Promise<void> {
