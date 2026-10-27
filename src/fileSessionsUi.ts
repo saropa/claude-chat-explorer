@@ -32,9 +32,10 @@ async function show(host: FileSessionsHost, arg: unknown): Promise<void> {
 }
 
 /** Register the command and the status bar item. */
-export function registerFileSessions(ctx: vscode.ExtensionContext, host: FileSessionsHost): void {
+export function registerFileSessions(ctx: vscode.ExtensionContext, host: FileSessionsHost): FileSessionsService {
   const svc = new FileSessionsService(host.client, roots, host.pins, host.dots);
   const bar = new FileSessionsBar(svc, host.log);
   host.onIndex(() => { svc.invalidate(); bar.schedule(); });
   ctx.subscriptions.push(bar, vscode.commands.registerCommand(SHOW_CMD, (arg?: unknown) => show(host, arg)));
+  return svc;
 }
