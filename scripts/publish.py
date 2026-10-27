@@ -96,7 +96,7 @@ def die(code: str, reason: str) -> None:
 def run(cmd: list[str], env: dict | None = None) -> subprocess.CompletedProcess:
     """Run a command in the repo root, capturing text output."""
     try:
-        return subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
+        return subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True, stdin=subprocess.DEVNULL)
     except FileNotFoundError:
         return subprocess.CompletedProcess(cmd, 127, "", f"{cmd[0]}: not found")
 
@@ -137,13 +137,10 @@ def ask(prompt: str, default: str, lower: bool = True) -> str:
 
 
 def check_tsc() -> None:
-    """Require tsc; offer to run npm ci when missing (TTY only)."""
+    """Require tsc; install dependencies automatically when missing."""
     res = run(["npx", "tsc", "--version"])
     if res.returncode != 0:
-        if not sys.stdin.isatty():
-            die("PREREQUISITE", "tsc (TypeScript) not found; run: npm ci")
-        if ask("tsc (TypeScript) not found. Run npm ci to install? ([yes]/n)", "yes") not in ("y", "yes"):
-            die("PREREQUISITE", "tsc (TypeScript) not found; run: npm ci")
+        warn("tsc (TypeScript) not found; installing dependencies")
         cmd = ["npm", "ci"] if (ROOT / "package-lock.json").is_file() else ["npm", "install"]
         inst = run(cmd)
         if inst.returncode != 0:
