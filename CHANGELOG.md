@@ -2,7 +2,7 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
-## Unreleased
+## 0.37.0
 - Added: a public API for other Saropa extensions. `activate` now returns `chatsForFile(path)`, the sessions that read or edited a file (id, title, edited, last used, branch), cached 30 seconds per file. The Saropa Workspace Release Board uses it to show which sessions touched a document.
 
 ## 0.36.0
