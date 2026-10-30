@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Added: a read-only Claude Config screen (command "Claude Config", "..." menu of the view). It lists your global (`~/.claude`) and project Claude Code configuration (CLAUDE.md, settings, permissions, hooks, MCP servers, rules, skills, agents, commands) with findings by category: bloat, duplication, redundancy, gaps, opportunities and risks. Shows the chat retention setting `cleanupPeriodDays` (3650 = 10 years) and flags large values. A "Copy for AI" button copies the facts, findings and an optimisation prompt as one Markdown block.
+
 ## 0.38.0
 - Added: automatic session titles (setting `saropaChatExplorer.autoTitle.enabled`, default off). A live session is named once after its first prompt (topic emoji plus the first sentence, up to 50 characters) and renamed once after its third prompt, by appending a title line to the session file. Only the head and tail of the file are read, nothing runs on the prompt path, and sessions you named yourself are skipped. The emoji comes from keyword rules: 26 built-in areas, extendable with `saropaChatExplorer.emojiRules` (`emojiRulesReplaceDefaults` drops the built-in ones). `autoTitle.useHaiku` (default off) asks Haiku in the background instead. Replaces the local session-title hook.
 - Added: cumulative token totals per session and per branch or pull request (input, output, cache read, cache write, kept separate, no price). Shown as a Tokens figure beside the context figure in the sidebar card, in the expanded detail of an Open Work chat, and as a per-branch total on each Open Work branch row. /compact never lowers them, and sub-agent replies count. Other extensions can read them with `tokensForChat(id)` and `tokensForWork(key)`; every method is described in docs/API.md. Existing session caches rebuild once.

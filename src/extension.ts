@@ -20,6 +20,7 @@ import { exportChatMd } from './exportMdRun';
 import { archiveTiny } from './archiveTiny';
 import { regenTitles } from './regenTitlesRun';
 import { AutoTitler } from './autoTitleRun';
+import { registerClaudeConfig } from './claudeConfigPanel';
 import { registerOptions } from './optionsPanel';
 import { registerUsage } from './usageUi';
 import { QueryQueue } from './queryQueue';
@@ -434,6 +435,7 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
     vscode.window.registerWebviewViewProvider('claudeChatExplorer.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
   registerOptions(ctx, logErr);
+  registerClaudeConfig(ctx, logErr);
   const autoKey = 'saropaChatExplorer.autoTitle.enabled';
   const autoCfg = () => vscode.workspace.getConfiguration();
   const syncAuto = () => { void vscode.commands.executeCommand('setContext', 'saropaChatExplorer.autoTitleEnabled', autoCfg().get(autoKey) === true); };
