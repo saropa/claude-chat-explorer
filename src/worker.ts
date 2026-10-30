@@ -14,6 +14,7 @@ import { expandChat, searchIndex } from './search';
 import { ctxReply } from './contextWarn';
 import { chatMarkdown, mdName } from './exportMd';
 import { usageRows } from './usageRows';
+import { accountData } from './accountScan';
 import { rowOf, sessionRows } from './sessions';
 import { Abort, Compiled, Ctx, Result } from './types';
 
@@ -203,6 +204,7 @@ async function request(m: any): Promise<unknown> {
   if (m.t === 'chatFacts') { return factsOf(m); }
   if (m.t === 'chatHits') { return hitsOf(m); }
   if (m.t === 'usage') { return usage(); }
+  if (m.t === 'acct') { return accountData(Date.now(), log); }
   if (m.t === 'chatMd') { return chatMd(m); }
   if (m.t === 'expand') { return expand(m); }
   if (m.t === 'related') { return related(m); }

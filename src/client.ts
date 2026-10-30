@@ -2,6 +2,8 @@ import * as path from 'path';
 import { Worker } from 'worker_threads';
 
 export const TIMEOUT_MS = 3000;
+/** Account & Usage scans every transcript (about 7 s cold on 2,000+ files), so it gets a longer request timeout. */
+export const ACCT_TIMEOUT_MS = 60000;
 export const TIMEOUT_MSG = 'Search timed out: simplify the pattern';
 export const RESTART_MSG = 'Search worker restarted';
 export const EDITOR_MSG = 'Open in editor interrupted: the search worker restarted. Try again.';
@@ -150,14 +152,14 @@ export class WorkerClient {
   }
 
   /** One request with its own timeout; rejects on timeout, restarting the worker; a background request restarts it only while no job runs; a soft request never restarts it. */
-  request(m: Msg, background = false, soft = false): Promise<any> {
+  request(m: Msg, background = false, soft = false, timeoutMs = TIMEOUT_MS * 2): Promise<any> {
     const req = ++this.seq;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.reqs.delete(req);
         if (soft) { /* reject only: a slow detail request must not kill a running search */ } else if (!background) { void this.restart('error'); } else if (this.jobs.size === 0 && this.canRestart()) { void this.restart('error'); }
         reject(new Error(TIMEOUT_MSG));
-      }, TIMEOUT_MS * 2);
+      }, timeoutMs);
       this.reqs.set(req, { resolve, reject, timer });
       if (!this.send({ ...m, req })) { clearTimeout(timer); this.reqs.delete(req); reject(new Error('Search worker is not running')); }
     });

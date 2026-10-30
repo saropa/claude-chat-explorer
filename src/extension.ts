@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { readTabs, workspaceStorageOf } from './stateDb';
 import * as fs from 'fs';
 import * as path from 'path';
-import { TIMEOUT_MSG, WorkerClient } from './client';
+import { ACCT_TIMEOUT_MS, TIMEOUT_MSG, WorkerClient } from './client';
 import { runExpand } from './expandRun';
 import { GIT_PARTS, GitLive, GitLiveService, GitPart, GitTargets, timedOutLive, withDeadline, TIMED_OUT, GIT_DEADLINE_MS } from './gitLive';
 import { CardCounts } from './cardCounts';
@@ -221,11 +221,18 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'histAdd') { this.histAdd(m); }
       else if (m.type === 'advOpen') { this.store.setAdvOpen(!!m.open); }
       else if (m.type === 'archOpen') { this.store.setArchOpen(!!m.open); }
+      else if (m.type === 'acctLoad') { await this.account(); }
       else if (m.type === 'webLoad') { await this.web?.load(); }
       else if (m.type === 'webOpen') { await this.web?.open(m.id); }
       else if (m.type === 'importArchived') { await this.actions?.importArchived(); }
       else { await this.onChatMessage(m); }
     } catch (e) { logErr('message ' + String(m?.type), e); }
+  }
+
+  /** Account & Usage section: ask the worker (soft, so a slow scan never restarts it) and tell the panel. */
+  private async account(): Promise<void> {
+    try { this.post({ type: 'acct', ...(await this.client.request({ t: 'acct' }, true, true, ACCT_TIMEOUT_MS)) }); }
+    catch (e) { logErr('account usage', e); this.post({ type: 'acct', failed: true }); }
   }
 
   /** Empty the search history (Clear Search History command) and tell the panel. */
