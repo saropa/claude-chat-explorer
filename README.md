@@ -207,6 +207,10 @@ One page answers: what is still open in this repository, and what do I do to clo
 | `saropaChatExplorer.openWorkDays` | 14 | Days of sessions on Project Status (1 to 90). |
 | `saropaChatExplorer.lookupPullRequests` | true | Run `gh` for open pull requests and checks. Off: `gh` never starts. |
 | `saropaChatExplorer.animateDots` | true | Animate status dots. |
+| `saropaChatExplorer.autoTitle.enabled` | false | Name sessions automatically: topic emoji plus the first sentence of the first prompt, renamed once after the third prompt. Skips sessions you named yourself. |
+| `saropaChatExplorer.autoTitle.useHaiku` | false | Let `claude -p --model haiku` write the title in the background instead of the rules. Falls back to the rules on failure. |
+| `saropaChatExplorer.emojiRules` | [] | Your own `{ "emoji": "🐾", "keywords": ["dog", "cat"] }` rules. Same emoji as a built-in rule replaces its keywords; others are added. |
+| `saropaChatExplorer.emojiRulesReplaceDefaults` | false | Ignore the built-in emoji rules and use only yours. |
 
 Dot colors are theme colors: `saropaChatExplorer.dotRunning`, `dotWaiting`, `dotUnread`, `dotBackground`, `dotIdle`.
 

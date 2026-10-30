@@ -16,7 +16,7 @@ const callClaude = (data: string, signal: AbortSignal): Promise<string> => new P
   p.stdin?.end(buildPrompt(data));
 });
 
-async function generate(data: string, signal: AbortSignal): Promise<string> {
+export async function generate(data: string, signal: AbortSignal): Promise<string> {
   let last: unknown;
   for (let i = 0; i < 3; i++) {
     if (signal.aborted) { throw new Error('cancelled'); }

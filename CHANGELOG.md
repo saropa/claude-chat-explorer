@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Added: automatic session titles (setting `saropaChatExplorer.autoTitle.enabled`, default off). A live session is named once after its first prompt (topic emoji plus the first sentence, up to 50 characters) and renamed once after its third prompt, by appending a title line to the session file. Only the head and tail of the file are read, nothing runs on the prompt path, and sessions you named yourself are skipped. The emoji comes from keyword rules: 26 built-in areas, extendable with `saropaChatExplorer.emojiRules` (`emojiRulesReplaceDefaults` drops the built-in ones). `autoTitle.useHaiku` (default off) asks Haiku in the background instead. Replaces the local session-title hook.
+
 ## 0.37.0
 - Added: a public API for other Saropa extensions. `activate` now returns `chatsForFile(path)`, the sessions that read or edited a file (id, title, edited, last used, branch), cached 30 seconds per file. The Saropa Workspace Release Board uses it to show which sessions touched a document.
 

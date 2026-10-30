@@ -318,6 +318,34 @@
           "default": true,
           "description": "Look up open pull requests and their check results (passing, failing, pending) for the Git section of a session card and for the Project Status page, with the gh command (GitHub CLI). This contacts GitHub using your own gh sign-in. Turn it off to never run gh."
         },
+        "saropaChatExplorer.autoTitle.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Name new Claude Code sessions automatically: an emoji for the topic plus the first sentence of your first prompt, renamed once after your third prompt. Works in the background from the session file; a session you already named yourself is left alone."
+        },
+        "saropaChatExplorer.autoTitle.useHaiku": {
+          "type": "boolean",
+          "default": false,
+          "description": "Let the claude command (Haiku model) write the automatic session title and emoji instead of the rules. Runs in the background and starts a claude process; if it fails, the rule-based title is used. Only applies when automatic titles are on."
+        },
+        "saropaChatExplorer.emojiRules": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "properties": {
+              "emoji": { "type": "string", "description": "One emoji." },
+              "keywords": { "type": "array", "items": { "type": "string" }, "description": "Whole words that choose this emoji; the emoji with the most matches wins." }
+            },
+            "required": ["emoji", "keywords"]
+          },
+          "description": "Your own emoji rules for automatic session titles. A rule with the same emoji as a built-in one replaces that one's keywords; other rules are added and win ties."
+        },
+        "saropaChatExplorer.emojiRulesReplaceDefaults": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use only your emoji rules and ignore the built-in ones."
+        },
         "saropaChatExplorer.contextRingTokens": {
           "type": "number",
           "default": 300000,
@@ -394,7 +422,7 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "tsc -p .",
-    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_scan.js && node scripts/check_prs.js && node scripts/check_prs_e2e.js && node scripts/check_guards.js && node scripts/check_dots.js && node scripts/check_regen.js && node scripts/check_web.js && node scripts/check_options.js",
+    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_scan.js && node scripts/check_prs.js && node scripts/check_prs_e2e.js && node scripts/check_guards.js && node scripts/check_dots.js && node scripts/check_regen.js && node scripts/check_autotitle.js && node scripts/check_web.js && node scripts/check_options.js",
     "package": "npx --yes @vscode/vsce package --allow-missing-repository --skip-license"
   },
   "devDependencies": {

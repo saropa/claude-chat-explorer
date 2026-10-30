@@ -19,6 +19,7 @@ import { copyResume } from './copyResume';
 import { exportChatMd } from './exportMdRun';
 import { archiveTiny } from './archiveTiny';
 import { regenTitles } from './regenTitlesRun';
+import { AutoTitler } from './autoTitleRun';
 import { registerOptions } from './optionsPanel';
 import { registerUsage } from './usageUi';
 import { QueryQueue } from './queryQueue';
@@ -408,9 +409,10 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   provider.actions = new ArchiveActions(store, ctx.globalStorageUri.fsPath, { changed, rebuild: () => provider.watcher?.rebuild() });
   provider.web = new WebSessions(ctx, (m) => provider.post(m), logErr);
   const warner = createWarner(ctx, { request: (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), open: (id) => provider.resume(id), log, copyNote: (id) => provider.copyNote(id, () => undefined) });
+  const titler = new AutoTitler(ctx.globalState, logErr, () => { provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); });
   provider.watcher = new LiveWatcher({ dir: sessionsDir(), tabs: async () => { const r = await readTabs(workspaceStorageOf(ctx.globalStorageUri.fsPath), folderPaths()); return r.ok ? r : undefined; },
     viewing: () => provider.viewingId(), unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
-    onChange: () => { provider.postDots(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); } });
+    onChange: () => { provider.postDots(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); titler.onLive(ids); } });
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.search.contextLines')) { provider.postCtxLines(); } }));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.contextRingTokens')) { provider.postRing(); } }));
   const tabMoved = () => { provider.clearViewed(); provider.postDots(); provider.watcher?.poke(); };
