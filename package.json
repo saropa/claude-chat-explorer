@@ -2,7 +2,7 @@
   "name": "claude-chat-explorer",
   "displayName": "Saropa Chat Explorer",
   "description": "Search your AI agent session history in VS Code: full-text search of every session, including subagents, then resume the session you find.",
-  "version": "0.37.0",
+  "version": "0.38.0",
   "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
@@ -358,10 +358,22 @@
           "items": {
             "type": "object",
             "properties": {
-              "emoji": { "type": "string", "description": "One emoji." },
-              "keywords": { "type": "array", "items": { "type": "string" }, "description": "Whole words that choose this emoji; the emoji with the most matches wins." }
+              "emoji": {
+                "type": "string",
+                "description": "One emoji."
+              },
+              "keywords": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Whole words that choose this emoji; the emoji with the most matches wins."
+              }
             },
-            "required": ["emoji", "keywords"]
+            "required": [
+              "emoji",
+              "keywords"
+            ]
           },
           "description": "Your own emoji rules for automatic session titles. A rule with the same emoji as a built-in one replaces that one's keywords; other rules are added and win ties."
         },
