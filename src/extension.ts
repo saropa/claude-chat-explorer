@@ -434,6 +434,13 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
     vscode.window.registerWebviewViewProvider('claudeChatExplorer.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
   registerOptions(ctx, logErr);
+  const autoKey = 'saropaChatExplorer.autoTitle.enabled';
+  const autoCfg = () => vscode.workspace.getConfiguration();
+  const syncAuto = () => { void vscode.commands.executeCommand('setContext', 'saropaChatExplorer.autoTitleEnabled', autoCfg().get(autoKey) === true); };
+  syncAuto();
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration(autoKey)) { syncAuto(); } }),
+    vscode.commands.registerCommand('saropaChatExplorer.autoTitleOn', () => autoCfg().update(autoKey, true, vscode.ConfigurationTarget.Global)),
+    vscode.commands.registerCommand('saropaChatExplorer.autoTitleOff', () => autoCfg().update(autoKey, false, vscode.ConfigurationTarget.Global)));
   const usageRows = async () => (await client!.request({ t: 'usage' }, true, true)) ?? [];
   ctx.subscriptions.push(
     ...[['saropaChatExplorer.copyResume', (id: string) => provider.copyResumeCmd(id)], ['saropaChatExplorer.exportChatMarkdown', (id: string) => provider.exportMd(id)]].map(([cmd, fn]) =>

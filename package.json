@@ -84,6 +84,14 @@
         "icon": "$(sparkle)"
       },
       {
+        "command": "saropaChatExplorer.autoTitleOn",
+        "title": "Auto-title sessions"
+      },
+      {
+        "command": "saropaChatExplorer.autoTitleOff",
+        "title": "$(check) Auto-title sessions"
+      },
+      {
         "command": "saropaChatExplorer.copyResume",
         "title": "Saropa: Copy Resume Command"
       },
@@ -196,6 +204,14 @@
           "group": "navigation@4"
         },
         {
+          "command": "saropaChatExplorer.autoTitleOn",
+          "when": "view == claudeChatExplorer.view && !saropaChatExplorer.autoTitleEnabled"
+        },
+        {
+          "command": "saropaChatExplorer.autoTitleOff",
+          "when": "view == claudeChatExplorer.view && saropaChatExplorer.autoTitleEnabled"
+        },
+        {
           "command": "saropaChatExplorer.options",
           "when": "view == claudeChatExplorer.view"
         },
@@ -242,6 +258,14 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "saropaChatExplorer.autoTitleOn",
+          "when": "false"
+        },
+        {
+          "command": "saropaChatExplorer.autoTitleOff",
+          "when": "false"
+        },
         {
           "command": "saropaChatExplorer.copyResume",
           "when": "false"
