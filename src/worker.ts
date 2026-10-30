@@ -7,13 +7,14 @@ import { fileSessionsOf, FileSessionsReply } from './fileSessions';
 import { handoverData } from './handover';
 import { chatCwd } from './wipChats';
 import { chatFacts, chatHits, hitsInOf } from './chatFacts';
-import { openWorkRows } from './workChats';
+import { chatTotals, openWorkRows, workTotals } from './workChats';
 import { relInOf, relOf } from './workMatch';
 import { clampMax, Tally, totalsOf } from './limits';
 import { expandChat, searchIndex } from './search';
 import { ctxReply } from './contextWarn';
 import { chatMarkdown, mdName } from './exportMd';
 import { usageRows } from './usageRows';
+import { allChats, allWork, chatBase } from './apiChats';
 import { accountData } from './accountScan';
 import { rowOf, sessionRows } from './sessions';
 import { Abort, Compiled, Ctx, Result } from './types';
@@ -214,6 +215,11 @@ async function request(m: any): Promise<unknown> {
   if (m.t === 'openWork') { return openWork(m); }
   if (m.t === 'openWorkRel') { return openWorkRel(m); }
   if (m.t === 'ctx') { await loaded; return ctxReply((id) => ix?.find(id), Array.isArray(m.ids) ? m.ids.filter((x: unknown) => typeof x === 'string') : []); }
+  if (m.t === 'tokChat') { await loaded; const c = ix?.find(String(m.id ?? '')); return ix && c && !c.parent ? chatTotals(ix, c) : undefined; }
+  if (m.t === 'tokWork') { await loaded; return ix ? workTotals(ix, String(m.key ?? '')) : undefined; }
+  if (m.t === 'apiChats') { await loaded; return ix ? allChats(ix) : []; }
+  if (m.t === 'apiChat') { await loaded; const c = ix?.find(String(m.id ?? '')); return ix && c && !c.parent ? chatBase(ix, c) : undefined; }
+  if (m.t === 'apiWork') { await loaded; return ix ? allWork(ix) : []; }
   if (m.t === 'pinned') { return pinned(m.ids ?? [], m.subs !== false); }
   if (m.t === 'stats') { return { chats: ix?.size ?? 0, heap: process.memoryUsage().heapUsed, rss: process.memoryUsage().rss, buf: process.memoryUsage().arrayBuffers }; }
   if (m.t === 'dispose') { await ix?.dispose(); return true; }

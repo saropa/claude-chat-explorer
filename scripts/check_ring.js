@@ -8,8 +8,8 @@ const { CTX_JS, CTX_CSS } = require(path.join(OUT, 'webviewCtx.js'));
 const failures = [];
 const check = (what, cond) => { if (!cond) { failures.push(what); } };
 
-const make = new Function('return (function(){' + CTX_JS + '\nreturn {ringHtml, setMax(n){ringMax=n;}};})()');
-const ring = make();
+const make = new Function('esc', 'tokTotalText', 'return (function(){' + CTX_JS + '\nreturn {ringHtml, setMax(n){ringMax=n;}};})()');
+const ring = make((x) => String(x), (t) => 'in ' + t.input);
 const html = (tokens, max) => { if (max) { ring.setMax(max); } return ring.ringHtml(tokens === undefined ? {} : { ctx: { tokens } }); };
 
 check('no ring without context data', html(undefined, 300000) === '' && ring.ringHtml({ ctx: { tokens: 0 } }) === '');
@@ -19,6 +19,8 @@ check('half-full ring has the normal color and a proportional dash', !/ rw| re/.
 check('warning from 80 percent', / rw"/.test(html(240000, 300000)) && !/ rw"/.test(html(239000, 300000)));
 check('error from 100 percent, dash capped at the full circle', / re"/.test(html(300000, 300000)) && / re"/.test(html(900000, 300000)) && /stroke-dasharray="37\.7 37\.7"/.test(html(900000, 300000)));
 check('the limit setting moves the steps (1M limit)', !/ rw| re/.test(html(500000, 1000000).match(/class="rg[^"]*"/)[0]) && /500k of 1M tokens/.test(html(500000, 1000000)));
+const withTok = ring.ringHtml({ ctx: { tokens: 1000 }, tok: { input: 5, output: 1, cacheRead: 0, cacheWrite: 0 } });
+check('tooltip adds the cumulative total line only when r.tok exists', /\nTotal used so far \(not reset by \/compact\): in 5"/.test(withTok) && !/Total used/.test(a) && /aria-label="1k of 1M tokens"|aria-label="1k of /.test(withTok));
 check('no inline style attribute in the ring', !/style=/.test(a));
 check('ring CSS uses theme variables and has warning and error colors', /\.rg\.rw/.test(CTX_CSS) && /\.rg\.re/.test(CTX_CSS) && /--vscode-editorWarning-foreground/.test(CTX_CSS) && /--vscode-editorError-foreground/.test(CTX_CSS));
 

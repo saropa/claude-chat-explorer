@@ -43,7 +43,7 @@ return '<div class="row" role="listitem" data-id="'+esc(r.id)+'"'+(curAnn?' data
 +'<span class="meta"><span class="pj" title="'+esc(r.project||'')+'">'+esc(r.project||'')+'</span><span class="br" title="'+(c.br?'Branch: '+c.br:'No branch')+'">'+brCell(r,c)+'</span><span class="fl">'+c.fl+'</span><span class="ah">'+esc(c.ah)+'</span>'+(prsOn?'<span class="pr">'+pc.pr+'</span><span class="kc">'+pc.ck+'</span>':'')+'<span class="cx '+(r.ctx?pctClass(r.ctx.pct):'')+'"'+(r.ctx?' title="Context window used: '+esc(r.ctx.pct)+'%"':'')+'>'+(r.ctx?r.ctx.pct+'%':'')+'</span><span class="st'+(stTxt?' b-'+(bnd==='idle'?(s==='running'||s==='background'?'waiting':'tidy'):bnd):'')+'">'+esc(stTxt)+'</span><span class="tm">'+esc(age)+'</span></span></button>'
 +'<div class="acts">'+acts+'</div></div>'
 +(isOpen?exHtml(r,words,g):'')+'</div>';}
-function exHtml(r,words,g){const kv=[['Session',esc(r.title||'Untitled session')],['Folder',esc(r.project||'')],['Last active',esc(new Date(r.last).toLocaleString())],['Context',r.ctx?esc(ctxStat(r.ctx)):''],['State',esc(words)]];
+function exHtml(r,words,g){const kv=[['Session',esc(r.title||'Untitled session')],['Folder',esc(r.project||'')],['Last active',esc(new Date(r.last).toLocaleString())],['Context',r.ctx?esc(ctxStat(r.ctx)):''],['Tokens used',r.tok?esc(tokTotalText(r.tok)):''],['State',esc(words)]];
 exGit(r).forEach(x=>kv.push(x));kv.push(['Next step',esc(nextStep(dotOf(r.id),g))]);
 return '<div class="ex"><dl>'+kv.filter(x=>x[1]!=='').map(x=>'<dt>'+x[0]+'</dt><dd>'+x[1]+'</dd>').join('')+'</dl>'+exLists(r)+'</div>';}
 function visibleRows(){return rows.filter(r=>!pend.has(r.id)).concat(wtRows()).filter(r=>wsOk(r)&&(showDone||!doneOf(r)));}

@@ -1199,7 +1199,7 @@ if (!/Content-Security-Policy[^>]*default-src 'none'/.test(page)) { bad('page ke
   const mk = (idv, last, o) => Object.assign({ id: idv, dir: '-x-proj', title: 't' + idv, last, first: last, count: 1, files: [], size: 1, mtime: 1, rec: '', len: 0, bloom: new Uint8Array(0) }, o || {});
   const DAY = 86400000, now = 1e12, days = 14, since = now - days * DAY;
   const chats = [mk('in', since), mk('out', since - 1), mk('live', since - 5 * DAY), mk('arch', now), mk('pin', now - 1)];
-  const r = wc.openWorkRows({ tops: () => chats }, { days, now, live: new Set(['live']), archived: new Set(['arch']), pins: new Set(['pin']) });
+  const r = wc.openWorkRows({ tops: () => chats, subsOf: () => [] }, { days, now, live: new Set(['live']), archived: new Set(['arch']), pins: new Set(['pin']) });
   const idsOut = r.rows.map((x) => x.id).join();
   if (idsOut !== 'pin,in,live' && idsOut !== 'pin,live,in') { bad('rows: boundary session in, one ms older out, live in, archived out, newest first (' + idsOut + ')'); }
   if (!r.rows[0].pinned || r.rows[1].pinned || r.total !== 3 || r.rows[0].project !== 'proj') { bad('rows carry pinned, project and total'); }

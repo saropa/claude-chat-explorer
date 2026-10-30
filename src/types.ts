@@ -9,6 +9,10 @@ export interface Git { commits: Array<[string, string]>; branches: string[]; prs
 
 /** Context facts of a chat: tokens of the last main-thread request, its model, the most tokens seen, its time, whether the figure lags one turn, and the compaction count. */
 export interface Usage { tokens: number; model: string; max: number; at: number; pending: boolean; comp: number; }
+/** Cumulative tokens of a chat file: input, output, cache read, cache write, billed replies. */
+export type Tok = [number, number, number, number, number];
+/** Cumulative tokens as shown and as the public API returns them: kept separate, no price; compactions never reduce them. */
+export interface TokenTotals { input: number; output: number; cacheRead: number; cacheWrite: number; replies: number; compactions: number; }
 /** Context usage as shown: percent (0 to 100), tokens, window size, short model id, compactions, lag flag, and approx when the window was inferred. */
 export interface CtxInfo { pct: number; tokens: number; window: number; model: string; comp: number; pend: boolean; approx: boolean; }
 
@@ -25,6 +29,7 @@ export interface Chat {
   files: FileRef[];
   rec: string; len: number; // record file name, and body length in bytes
   cost?: Cost; git?: Git; use?: Usage;
+  tok?: Tok; // cumulative tokens of this file (main and sidechain rows); a parent's total across its subagent files is summed on demand
   cwd?: string; // working folder of the chat: the last cwd recorded in its rows
   cwds?: string[]; // every distinct cwd (only when it changed during the chat)
   seen?: string[]; // every distinct gitBranch of its rows, most used first
@@ -63,7 +68,7 @@ export interface Result {
   id: string; title: string; hits: number; last: number; project: string;
   snippet: string; ranges: Array<[number, number]>; score: number;
   msgs: number; first: number; edited: number; size: number;
-  cost?: number; add?: number; rem?: number; models?: string[]; prs?: number; commits?: number; ctx?: CtxInfo; // cost info, git counts and context usage
+  cost?: number; add?: number; rem?: number; models?: string[]; prs?: number; commits?: number; ctx?: CtxInfo; tok?: TokenTotals; // cost info, git counts and context usage
   titleShown?: string; titleRanges?: Array<[number, number]>; // title with the match kept in view
   self?: boolean; // false when only subagents matched
   snipAt?: number; snipSub?: string; snipDesc?: string; snipRole?: string; mc?: number; // newest match: time, subagent type and description, role; mc = matching messages (own and subagents)
