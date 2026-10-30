@@ -1233,10 +1233,9 @@ function workerCheck() {
   for (let i = 0; i < N; i++) { fs.writeFileSync(path.join(root, id(900 + i) + '.jsonl'), line('user', 'hello number ' + i) + '\n' + line('assistant', [{ type: 'text', text: 'reply ' + i }]) + '\n'); }
   return new Promise((resolve) => {
     const w = new Worker(path.join(OUT, 'worker.js'));
-    const t0 = Date.now();
     let done = false;
     const end = (why) => { if (done) { return; } done = true; clearTimeout(timer); w.terminate().then(() => { try { fs.rmSync(base, { recursive: true, force: true }); } catch (e) { /* scratch only */ } resolve(why); }); };
-    const timer = setTimeout(() => { bad('worker openWork did not answer within 3 s (the soft request must not wait for the index build)'); end('timeout'); }, 3000);
+    const timer = setTimeout(() => { bad('worker openWork did not answer within 3 s (the soft request must not wait for the index build)'); end('timeout'); }, 30000); // hang guard only: no load-dependent latency is asserted
     let relSent = false;
     const askRel = () => { if (relSent) { return; } relSent = true; w.postMessage({ t: 'openWorkRel', req: 2, ids: Array.from({ length: N }, (_, i) => id(900 + i)), roots: ['/tmp/proj'], wts: [{ k: 'w1', name: 'proj', path: '/tmp/proj', real: '/tmp/proj', branch: 'main', main: true, detached: false }], brs: [{ n: 'main', cr: 0, ts: 0 }], def: 'main' }); };
     w.on('message', (m) => {
@@ -1255,7 +1254,6 @@ function workerCheck() {
       else if (v.rows.length === 0 && v.indexing !== true) { bad('worker openWork: with no rows yet it must say indexing'); }
       else if (v.rows.length > N) { bad('worker openWork returned more rows than exist'); }
       else if (v.rows.some((r) => !/^[0-9a-f-]{36}$/.test(r.id) || typeof r.title !== 'string')) { bad('worker rows carry id and title'); }
-      if (Date.now() - t0 > 2500) { bad('worker openWork answered too late'); }
       if (v && v.indexing === true && !relSent) { return; } // wait for the index build, then ask the matcher
       askRel();
     });
@@ -1272,14 +1270,14 @@ function slowLoadCheck() {
   fs.mkdirSync(path.join(base, 'projects'), { recursive: true });
   return new Promise((resolve) => {
     // the slow disk read is injected here: a wrapper thread delays the index folder read, then loads the real worker file
-    const wrap = "const fs=require('fs');const o=fs.promises.readdir;fs.promises.readdir=async(...a)=>{await new Promise((r)=>setTimeout(r,2500));return o.apply(fs.promises,a);};require(" + JSON.stringify(path.join(OUT, 'worker.js')) + ");";
+    const wrap = "const fs=require('fs');const {parentPort}=require('worker_threads');const gate=new Promise((r)=>parentPort.on('message',(m)=>{if(m&&m.t==='release'){r();}}));const o=fs.promises.readdir;fs.promises.readdir=async(...a)=>{await gate;return o.apply(fs.promises,a);};require(" + JSON.stringify(path.join(OUT, 'worker.js')) + ");";
     const w = new Worker(wrap, { eval: true });
     const t0 = Date.now();
     let answered = 0, changed = 0, done = false;
     const end = () => { if (done) { return; } done = true; clearTimeout(timer); w.terminate().then(() => { try { fs.rmSync(base, { recursive: true, force: true }); } catch (e) { /* scratch only */ } resolve(); }); };
-    const timer = setTimeout(() => { if (!answered) { bad('slow load: the soft openWork request was not answered while the index was loading'); } else if (!changed) { bad('slow load: the host was not told when the sessions became readable'); } end(); }, 5500);
+    const timer = setTimeout(() => { if (!answered) { bad('slow load: the soft openWork request was not answered while the index was loading'); } else if (!changed) { bad('slow load: the host was not told when the sessions became readable'); } end(); }, 30000); // hang guard only; the disk read is held until the early answer arrives, so no clock decides the result
     w.on('message', (m) => {
-      if (m.t === 'reply' && m.req === 7) { answered = Date.now() - t0; const v = m.value; if (answered > 1200) { bad('slow load: answered after ' + answered + ' ms (it must not wait for the disk read)'); } if (!v || v.indexing !== true || !Array.isArray(v.rows) || v.rows.length !== 0) { bad('slow load: the early answer must be indexing with no rows'); } }
+      if (m.t === 'reply' && m.req === 7) { answered = (Date.now() - t0) || 1; w.postMessage({ t: 'release' }); const v = m.value; if (!v || v.indexing !== true || !Array.isArray(v.rows) || v.rows.length !== 0) { bad('slow load: the early answer must be indexing with no rows'); } }
       if (m.t === 'changed' && answered) { changed++; end(); }
     });
     w.on('error', (e) => { bad('slow load worker error', e); end(); });

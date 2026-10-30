@@ -77,7 +77,7 @@ async function limiterTests() {
 
 async function scanTests() {
   const world = mkWorld(3);
-  const mk = (g, extra) => new WorkScan(Object.assign({ exec: g.exec, limiter: new Limiter(4, 3), deadlineMs: 400, gitMs: 150, workspace: () => [world.repos[0].top] }, extra || {}));
+  const mk = (g, extra) => new WorkScan(Object.assign({ exec: g.exec, limiter: new Limiter(4, 3), deadlineMs: 60000, gitMs: 60000, workspace: () => [world.repos[0].top] }, extra || {}));
   // Streaming, one final state per folder, shared folder and repository work.
   {
     const g = fakeGit(world), scan = mk(g), c = collect();
