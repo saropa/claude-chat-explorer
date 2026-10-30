@@ -6,7 +6,7 @@ export const OPT_PROMPT = 'Review the Claude Code configuration above. For each 
 const section = (title: string, lv: Level | undefined): string => {
   if (!lv) { return ''; }
   const f = lv.facts.map((x) => '- ' + x.label + ': ' + x.value).join('\n') || '- (none found)';
-  const n = lv.findings.map((x) => '- [' + x.category + ', ' + x.severity + '] ' + x.text).join('\n') || '- (none)';
+  const n = lv.findings.map((x) => '- [' + x.category + ', ' + x.severity + '] ' + (x.md ?? x.text)).join('\n') || '- (none)';
   return '## ' + title + '\n\n### Facts\n' + f + '\n\n### Findings\n' + n + '\n\n';
 };
 

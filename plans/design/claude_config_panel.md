@@ -3,7 +3,7 @@
 Read-only panel showing Claude Code configuration at global (`~/.claude`) and project (`<workspace>/.claude`, `CLAUDE.md`) level, with findings and a copy-to-AI handover.
 
 ## Decisions (owner confirmed)
-- Placement: new editor tab, opened by a command and a sidebar kebab item. Reuses `optionsPanel.ts` webview plumbing.
+- Placement: new editor tab, opened by a command and a sidebar kebab item. Follows the `optionsPanel.ts` pattern.
 - Findings: deterministic rules in code. No AI call.
 - Handover: one Copy button producing a single Markdown block: facts + findings + an optimisation prompt. Same pattern as `copyResume.ts`.
 - Not editable.

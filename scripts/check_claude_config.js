@@ -16,7 +16,7 @@ const files = {
   [G + '/settings.local.json']: '{bad',
   [P + '/.claude/settings.json']: JSON.stringify({ permissions: { allow: ['Read'] } }),
 };
-const dirs = { [G + '/rules']: ['a.md'], [G + '/skills']: [], [P + '/.claude/rules']: ['a.md'] };
+const dirs = { [G + '/rules']: ['a.md', '.DS_Store'], [G + '/skills']: [], [P + '/.claude/rules']: ['a.md'] };
 const rep = c.analyse(rd(files, dirs), G, P);
 const g = rep.global, p = rep.project;
 check('retention fact', g.facts.some((f) => f.label === 'cleanupPeriodDays' && f.value === '3650 days (10 years)'));
@@ -36,7 +36,14 @@ check('no project when no root', none.project === undefined);
 check('global gaps + opportunity', has(none.global, 'gaps', /CLAUDE\.md/) && has(none.global, 'opportunities', /allow/));
 check('small retention ok', !has(c.analyse(rd({ [G + '/settings.json']: '{"cleanupPeriodDays":30}' }), G).global, 'risks', /cleanupPeriodDays/));
 check('retention text', c.retentionText(30) === '30 days' && c.retentionText(365) === '365 days (1 year)' && c.retentionText(730) === '730 days (2 years)');
+check('rules counts only .md', g.facts.some((f) => f.label === 'rules/' && f.value === '1 entries'));
+check('dup msg two files', has(c.analyse(rd({ [G + '/settings.json']: '{"permissions":{"allow":["Read"]}}', [G + '/settings.local.json']: '{"permissions":{"allow":["Read"]}}' }), G).global, 'duplication', /settings\.json and settings\.local\.json/));
+check('dup msg same file', has(g, 'duplication', /twice in settings\.json/));
+check('same folder skips project', c.analyse(rd({}), G, '/h').project === undefined);
+check('bad cleanupPeriodDays', (() => { const l = c.analyse(rd({ [G + '/settings.json']: '{"cleanupPeriodDays":"x"}' }), G).global; return l.facts.some((f) => f.label === 'cleanupPeriodDays' && f.value === '"x"') && l.findings.some((f) => f.severity === 'warn' && /invalid value/.test(f.text)); })());
+check('opportunity needs no allow anywhere', !has(c.analyse(rd({ [P + '/.claude/settings.json']: '{"permissions":{"allow":["Read"]}}' }), G, P).global, 'opportunities', /allow/) && has(c.analyse(rd({}), G, P).global, 'opportunities', /allow/));
 const md = m.configMarkdown(rep);
+check('markdown has no secrets', !md.includes('Bash(*)') && !md.includes('Edit(x)') && !md.includes('xxxx') && md.includes('Bash allow entry') && md.includes('Edit entry'));
 check('markdown', md.includes('## Global') && md.includes('### Findings') && md.includes('[risks, high]') && md.includes(m.OPT_PROMPT));
 const html = h.configHtml({ global: { facts: [{ label: '<b>', value: 'v' }], findings: [] } });
 check('html escapes + button', !html.includes('<b>') && html.includes('id="copy"') && html.includes('No workspace folder'));
