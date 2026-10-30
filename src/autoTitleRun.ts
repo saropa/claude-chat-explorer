@@ -17,7 +17,7 @@ export class AutoTitler {
   private readonly misses = new Map<string, number>(); // id -> when locate last failed
   private readonly size = new Map<string, number>(); // file size at the last look: unchanged means nothing new to read
 
-  constructor(private readonly state: vscode.Memento, private readonly log: (where: string, e: unknown) => void, private readonly wrote: () => void) {}
+  constructor(private readonly state: vscode.Memento, private readonly log: (where: string, e: unknown) => void, private readonly wrote: (id: string, title: string) => void) {}
 
   /** A watcher poll finished. Never blocks it: one pass at a time, and none when the setting is off. */
   onLive(ids: Iterable<string>): void {
@@ -67,7 +67,7 @@ export class AutoTitler {
         delete all[id]; // re-insert last so pruning keeps active sessions
         all[id] = { n: plan.final ? 3 : Math.max(1, plan.prompts.length), t: title };
         dirty = true;
-        this.wrote();
+        this.wrote(id, title);
       } catch (e) { this.files.delete(id); this.log('autoTitle ' + id, e); }
     }
     if (dirty) {

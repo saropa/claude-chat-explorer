@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Fixed: the "Auto-title sessions" toggle in the "..." menu now says when it fails (for example when the window must be reloaded to pick up the setting, with a Reload Window button) and confirms the new state. Each session it titles is logged in the output channel.
+
 ## 0.39.0
 - Added: a read-only Claude Config screen (command "Claude Config", "..." menu of the view). It lists your global (`~/.claude`) and project Claude Code configuration (CLAUDE.md, settings, permissions, hooks, MCP servers, rules, skills, agents, commands) with findings by category: bloat, duplication, redundancy, gaps, opportunities and risks. Shows the chat retention setting `cleanupPeriodDays` (3650 = 10 years) and flags large values. A "Copy for AI" button copies the facts, findings and an optimisation prompt as one Markdown block.
 

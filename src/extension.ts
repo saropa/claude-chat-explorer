@@ -417,7 +417,7 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   provider.actions = new ArchiveActions(store, ctx.globalStorageUri.fsPath, { changed, rebuild: () => provider.watcher?.rebuild() });
   provider.web = new WebSessions(ctx, (m) => provider.post(m), logErr);
   const warner = createWarner(ctx, { request: (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), open: (id) => provider.resume(id), log, copyNote: (id) => provider.copyNote(id, () => undefined) });
-  const titler = new AutoTitler(ctx.globalState, logErr, () => { provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); });
+  const titler = new AutoTitler(ctx.globalState, logErr, (id, title) => { log(`auto-title: ${id} -> ${title}`); provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); });
   provider.watcher = new LiveWatcher({ dir: sessionsDir(), tabs: async () => { const r = await readTabs(workspaceStorageOf(ctx.globalStorageUri.fsPath), folderPaths()); return r.ok ? r : undefined; },
     viewing: () => provider.viewingId(), unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
     onChange: () => { provider.postDots(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); titler.onLive(ids); } });
@@ -441,8 +441,19 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   const syncAuto = () => { void vscode.commands.executeCommand('setContext', 'saropaChatExplorer.autoTitleEnabled', autoCfg().get(autoKey) === true); };
   syncAuto();
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration(autoKey)) { syncAuto(); } }),
-    vscode.commands.registerCommand('saropaChatExplorer.autoTitleOn', () => autoCfg().update(autoKey, true, vscode.ConfigurationTarget.Global)),
-    vscode.commands.registerCommand('saropaChatExplorer.autoTitleOff', () => autoCfg().update(autoKey, false, vscode.ConfigurationTarget.Global)));
+    ...[['saropaChatExplorer.autoTitleOn', true], ['saropaChatExplorer.autoTitleOff', false]].map(([cmd, on]) => vscode.commands.registerCommand(cmd as string, async () => {
+      try {
+        await autoCfg().update(autoKey, on, vscode.ConfigurationTarget.Global);
+        void vscode.window.showInformationMessage(on ? 'Auto-title sessions is on. New sessions get an emoji and a title after your first prompt.' : 'Auto-title sessions is off.');
+      } catch (e) {
+        logErr('autoTitle toggle', e);
+        const msg = e instanceof Error ? e.message : String(e);
+        const stale = /not a registered configuration/i.test(msg);
+        const reload = 'Reload Window';
+        void vscode.window.showErrorMessage(stale ? 'Could not change Auto-title sessions: VS Code does not know this setting yet, because the window still runs an older version of the extension. Run "Developer: Reload Window".' : `Could not change Auto-title sessions: ${msg}`, ...(stale ? [reload] : []))
+          .then((pick) => { if (pick === reload) { return vscode.commands.executeCommand('workbench.action.reloadWindow'); } return undefined; });
+      }
+    })));
   const usageRows = async () => (await client!.request({ t: 'usage' }, true, true)) ?? [];
   ctx.subscriptions.push(
     ...[['saropaChatExplorer.copyResume', (id: string) => provider.copyResumeCmd(id)], ['saropaChatExplorer.exportChatMarkdown', (id: string) => provider.exportMd(id)]].map(([cmd, fn]) =>
