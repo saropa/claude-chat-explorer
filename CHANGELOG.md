@@ -2,7 +2,7 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
-## Unreleased
+## 0.40.0
 - Fixed: the "Auto-title sessions" toggle can no longer fail. If VS Code refuses to write the setting, the choice is kept in the extension and applied at once, and a plain message offers Reload Window. The output channel logs the extension version and install path at start.
 - Fixed: the "Auto-title sessions" toggle in the "..." menu now says when it fails (for example when the window must be reloaded to pick up the setting, with a Reload Window button) and confirms the new state. Each session it titles is logged in the output channel.
 - Changed: the Account & Usage section is easier to read in the narrow sidebar. Tokens are plain rows (input, output, cache write, cache read, total) instead of a bracketed cache figure, for six windows (last 5 hours, today, yesterday, last 3, 5 and 7 days) shown as collapsible blocks with the total in the heading, the 7 days also show tokens per model (top 4), labels no longer wrap, long values wrap instead of being cut off, spacing is wider, a shimmer placeholder shows while loading, and every element has a tooltip.
