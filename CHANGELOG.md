@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Added: an "Account & Usage" section at the top of the sidebar (closed until opened). It shows your Claude Code email, name, organization and plan from `~/.claude.json`, or "Not signed in", and the tokens used in the last 5 hours and last 7 days (input plus output, with cache tokens beside them), summed from your local transcripts. Offline and read-only: no keychain, no network. Limits are set by Anthropic, so no percent of limit is shown.
+
 ## 0.37.0
 - Added: a public API for other Saropa extensions. `activate` now returns `chatsForFile(path)`, the sessions that read or edited a file (id, title, edited, last used, branch), cached 30 seconds per file. The Saropa Workspace Release Board uses it to show which sessions touched a document.
 

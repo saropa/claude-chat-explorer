@@ -14,6 +14,7 @@ import { TIP_CSS } from './webviewTip';
 import { CTX_CSS } from './webviewCtx';
 import { TOUCH_CSS } from './webviewTouch';
 import { SUM_CSS, SUM_HTML } from './webviewSum';
+import { ACCT_CSS, ACCT_HTML } from './webviewAcct';
 import { WEB_BODY, WEB_CSS, WEB_HTML } from './webviewWeb';
 
 export const NAME = 'Saropa Chat Explorer';
@@ -23,8 +24,9 @@ export function html(): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${NAME}</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${SORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}${ROWS_CSS}${TIP_CSS}${CTX_CSS}${TOUCH_CSS}${SUM_CSS}${WEB_CSS}</style></head><body>
+<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${SORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}${ROWS_CSS}${TIP_CSS}${CTX_CSS}${TOUCH_CSS}${SUM_CSS}${WEB_CSS}${ACCT_CSS}</style></head><body>
 <div id="hdr"><div class="top">
+${ACCT_HTML}
 ${WEB_HTML}
 <div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div>
 <div class="srow"><div class="box">
