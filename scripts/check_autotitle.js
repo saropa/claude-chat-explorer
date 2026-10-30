@@ -2,6 +2,8 @@
 const path = require('path');
 const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
 const a = require(path.join(OUT, 'autoTitle.js'));
+const fs = require('fs');
+const os = require('os');
 const fails = [];
 const check = (w, c) => { if (!c) { fails.push(w); } };
 check('defaults', a.DEFAULT_RULES.length >= 26 && a.DEFAULT_RULES.every((r) => r.emoji && r.keywords.length));
@@ -25,7 +27,7 @@ check('title 50', long.length <= 50 && long.startsWith('Alpha') && !long.endsWit
 check('skip', a.isSkippable('/clear') && a.isSkippable('fix it now') && a.isSkippable('<task-notification> a b c d e f') && a.isSkippable('read the tool-use-id please now ok') && !a.isSkippable('fix the login screen layout please'));
 check('custom title', a.customTitleOf('x\n{"type":"custom-title","customTitle":"A"}\n{"type":"custom-title","customTitle":"B"}\n{"type":"custom-ti') === 'B' && a.customTitleOf('{}') === undefined);
 const P = ['fix the login screen layout please', 'ok', 'now the database migration'];
-check('build', a.buildTitle(P, rules) === '🎨 Fix the login screen layout please' || a.buildTitle(P, rules).endsWith('Fix the login screen layout please'));
+check('build', a.buildTitle(P, rules) === '🎨 Fix the login screen layout please');
 check('build none', a.buildTitle(['/x', 'hi'], rules) === undefined);
 const p1 = a.planTitle({ prompts: [P[0]] }, undefined);
 check('stage1', !p1.skip && !p1.final);
@@ -36,5 +38,36 @@ check('already done', a.planTitle({ prompts: P }, { n: 3, t: 'T' }).skip === tru
 check('user titled', a.planTitle({ prompts: P, custom: 'Mine' }, undefined).final === true && a.planTitle({ prompts: P, custom: 'Mine' }, { n: 1, t: 'T' }).skip === true);
 check('own title not user', !a.planTitle({ prompts: P, custom: 'T' }, { n: 1, t: 'T' }).skip);
 check('no usable prompt', a.planTitle({ prompts: ['/clear'] }, undefined).skip === true);
+check('bare <', a.cleanPrompt('use a < b and then fix the thing\nnext line') === 'use a < b and then fix the thing next line' && a.makeTitle('make x < y work in the parser today') === 'Make x < y work in the parser today');
+check('[WIP] not skipped', !a.isSkippable('[WIP] fix login flow for users') && a.isSkippable('[Request interrupted by user for tool use]') && !a.isSkippable('<div> is not rendering in the page'));
+check('generic words dropped', ['how', 'why', 'play', 'level', 'card', 'panel', 'style'].every((w) => !a.DEFAULT_RULES.some((r) => r.keywords.includes(w))));
+const live = (n, t) => ({ n, t });
+const all = { a: live(3, 'A'), b: live(1, 'B'), c: live(3, 'C'), d: live(3, 'D'), e: live(1, 'E') };
+a.prune(all, ['a'], 3);
+check('prune finished first, live kept', Object.keys(all).join() === 'a,b,e');
+a.prune(all, ['a', 'b'], 2);
+check('prune in-progress last, live kept', Object.keys(all).join() === 'a,b');
+check('evicted own title reads as finished', a.planTitle({ prompts: P, custom: 'T' }, undefined).final === true);
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'autotitle-'));
+const uline = (t) => JSON.stringify({ type: 'user', message: { content: t } });
+const filler = JSON.stringify({ type: 'assistant', message: { content: 'x'.repeat(40000) } });
+const f1 = path.join(dir, 's1.jsonl');
+fs.writeFileSync(f1, [uline('fix the login screen layout please'), filler, uline('ok then continue with that'), filler, uline('now the database migration work')].join('\n') + '\n');
+a.scanPrompts(f1).then(async (r) => {
+  check('3rd prompt past 32KB', r.prompts.length === 3 && r.prompts[2].startsWith('now the database') && r.size > 65536);
+  const f2 = path.join(dir, 's2.jsonl');
+  fs.writeFileSync(f2, uline('fix the login screen layout please'));
+  check('append ok', (await a.safeAppend(f2, 'T1 title', 's2', undefined)) === true);
+  const lines = fs.readFileSync(f2, 'utf8').split('\n').filter(Boolean);
+  check('newline-less append', lines.length === 3 && JSON.parse(lines[0]).type === 'user' && JSON.parse(lines[1]).customTitle === 'T1 title');
+  check('own previous title ok', (await a.safeAppend(f2, 'T2 title', 's2', 'T1 title')) === true);
+  fs.appendFileSync(f2, JSON.stringify({ type: 'custom-title', customTitle: 'Mine', sessionId: 's2' }) + '\n');
+  const before = fs.readFileSync(f2, 'utf8');
+  check('user rename aborts', (await a.safeAppend(f2, 'T3 title', 's2', 'T2 title')) === false && fs.readFileSync(f2, 'utf8') === before);
+  fs.rmSync(dir, { recursive: true, force: true });
+  done();
+}).catch((e) => { fails.push('scan threw ' + e); done(); });
+function done() {
 if (fails.length) { console.error('AutoTitle check FAILED:\n - ' + fails.join('\n - ')); process.exit(1); }
 console.log('AutoTitle check passed.');
+}

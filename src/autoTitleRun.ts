@@ -3,27 +3,18 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { projectsRoot } from './files';
-import { Done, buildTitle, customTitleOf, mergeRules, parseRules, planTitle } from './autoTitle';
-import { promptData, readInfo, titleLines } from './regenTitles';
+import { Done, buildTitle, mergeRules, parseRules, planTitle, prune, safeAppend, scanPrompts } from './autoTitle';
+import { promptData } from './regenTitles';
 import { generate } from './regenTitlesRun';
 
 const KEY = 'saropaChatExplorer.autoTitleDone';
 const KEEP = 500;
-const HEAD = 32768, TAIL = 16384;
-
-async function slice(file: string, at: (size: number) => [number, number]): Promise<{ text: string; size: number }> {
-  const h = await fs.promises.open(file, 'r');
-  try {
-    const size = (await h.stat()).size, [pos, len] = at(size);
-    const buf = Buffer.alloc(len);
-    const { bytesRead } = await h.read(buf, 0, len, pos);
-    return { text: buf.toString('utf8', 0, bytesRead), size };
-  } finally { await h.close(); }
-}
+const MISS_MS = 30000, HAIKU_MS = 30000;
 
 export class AutoTitler {
   private running = false;
   private readonly files = new Map<string, string>();
+  private readonly misses = new Map<string, number>(); // id -> when locate last failed
   private readonly size = new Map<string, number>(); // file size at the last look: unchanged means nothing new to read
 
   constructor(private readonly state: vscode.Memento, private readonly log: (where: string, e: unknown) => void, private readonly wrote: () => void) {}
@@ -39,6 +30,7 @@ export class AutoTitler {
   private async locate(id: string): Promise<string | undefined> {
     const known = this.files.get(id);
     if (known) { return known; }
+    if (Date.now() - (this.misses.get(id) ?? 0) < MISS_MS) { return undefined; }
     const root = projectsRoot();
     let dirs: fs.Dirent[] = [];
     try { dirs = await fs.promises.readdir(root, { withFileTypes: true }); } catch { return undefined; }
@@ -46,6 +38,7 @@ export class AutoTitler {
       const f = path.join(root, d.name, id + '.jsonl');
       try { await fs.promises.access(f); this.files.set(id, f); return f; } catch { /* not in this project */ }
     }
+    this.misses.set(id, Date.now());
     return undefined;
   }
 
@@ -59,26 +52,26 @@ export class AutoTitler {
       const file = await this.locate(id);
       if (!file) { continue; }
       try {
-        const head = await slice(file, (size) => [0, Math.min(size, HEAD)]);
-        if (this.size.get(id) === head.size) { continue; }
-        this.size.set(id, head.size);
-        const tail = head.size > HEAD ? await slice(file, (size) => [Math.max(0, size - TAIL), Math.min(size, TAIL)]) : head;
-        const info = readInfo(head.text);
-        const plan = planTitle({ prompts: info.prompts, custom: customTitleOf(tail.text) ?? customTitleOf(head.text) }, all[id]);
+        const size = (await fs.promises.stat(file)).size;
+        if (this.size.get(id) === size) { continue; }
+        const info = await scanPrompts(file);
+        this.size.set(id, info.size);
+        const plan = planTitle({ prompts: info.prompts, custom: info.custom }, all[id]);
         if (plan.skip) { if (plan.final) { all[id] = { n: 3, t: '' }; dirty = true; } continue; }
         let title = buildTitle(plan.prompts, rules);
-        if (haiku && title) { title = await generate(promptData(plan.prompts), new AbortController().signal).catch(() => title); }
+        // Hard 30s cap for the whole background call (generate stops retrying once the signal fires).
+        if (haiku && title) { title = await generate(promptData(plan.prompts), AbortSignal.timeout(HAIKU_MS)).catch(() => title); }
         if (!title) { continue; }
-        await fs.promises.appendFile(file, titleLines(title, id), 'utf8');
+        if (!(await safeAppend(file, title, id, all[id]?.t))) { all[id] = { n: 3, t: '' }; dirty = true; continue; }
         this.size.delete(id);
+        delete all[id]; // re-insert last so pruning keeps active sessions
         all[id] = { n: plan.final ? 3 : Math.max(1, plan.prompts.length), t: title };
         dirty = true;
         this.wrote();
-      } catch (e) { this.log('autoTitle ' + id, e); }
+      } catch (e) { this.files.delete(id); this.log('autoTitle ' + id, e); }
     }
     if (dirty) {
-      const keys = Object.keys(all);
-      for (const k of keys.slice(0, Math.max(0, keys.length - KEEP))) { delete all[k]; }
+      prune(all, ids, KEEP);
       await this.state.update(KEY, all);
     }
   }
