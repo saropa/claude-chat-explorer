@@ -1,4 +1,4 @@
-// Fails the build when the Account & Usage maths breaks: account parsing, usage lines (repeat drop) and the rolling 5-hour and 7-day sums. Drives out/accountUsage.js.
+// Fails the build when the Account & Usage maths breaks: account parsing, usage lines (repeat drop), the six windows (rolling 5 hours, 3, 5 and 7 days, today and yesterday at local midnight), the four-way token split and the per-model 7-day split. Drives out/accountUsage.js.
 const path = require('path');
 const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
 const { accountOf, dedupe, eventOf, shortModel, totals } = require(path.join(OUT, 'accountUsage.js'));

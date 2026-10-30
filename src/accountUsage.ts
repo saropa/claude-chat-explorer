@@ -8,7 +8,7 @@ export interface Account { email: string; name: string; org: string; plan: strin
 export type Ev = [number, number, number, number, number, string, string];
 /** io is input plus output, cache is cache read plus write; i, o, cr and cw are the four parts. */
 export interface Tokens { io: number; cache: number; i: number; o: number; cr: number; cw: number; }
-/** model is the short name; id the full model id of its first event. */
+/** model is the short name; id the full model ids merged into it, comma separated. */
 export interface ModelTokens { model: string; id: string; io: number; }
 export interface Totals { h5: Tokens; today: Tokens; yest: Tokens; d3: Tokens; d5: Tokens; d7: Tokens; models: ModelTokens[]; }
 
@@ -71,7 +71,7 @@ export function totals(evs: Iterable<Ev>, now: number): Totals {
     if (now - at < WINDOWS.d5) { hit.push(t.d5); }
     if (now - at < WINDOWS.d7) {
       hit.push(t.d7);
-      if (i + o > 0) { const n = shortModel(model), m = byModel.get(n) ?? { model: n, id: model || n, io: 0 }; m.io += i + o; byModel.set(n, m); }
+      if (i + o > 0) { const n = shortModel(model), m = byModel.get(n) ?? { model: n, id: model || n, io: 0 }; m.io += i + o; if (model && !m.id.split(', ').includes(model)) { m.id += ', ' + model; } byModel.set(n, m); }
     }
     for (const w of hit) { w.i += i; w.o += o; w.cr += cr; w.cw += cw; w.io += i + o; w.cache += cr + cw; }
   }
