@@ -41,8 +41,8 @@ interface ChatBase {
 interface ChatInfo extends ChatBase { pinned: boolean; archived: boolean; tags: string[]; state?: string; }
 interface WorkItem { kind: 'branch' | 'pr'; key: string; chatIds: string[]; tokens: TokenTotals; }
 interface Account { email: string; name: string; org: string; plan: string; }
-interface Tokens { io: number; cache: number; } // io = input + output, cache = cache read + write
-interface AccountUsage { account: Account | null; usage: { h5: Tokens; d7: Tokens } }
+interface Tokens { io: number; cache: number; i: number; o: number; cr: number; cw: number; } // io = input + output, cache = cache read + write; i, o, cr, cw = the four parts
+interface AccountUsage { account: Account | null; usage: { h5: Tokens; today: Tokens; yest: Tokens; d3: Tokens; d5: Tokens; d7: Tokens; models: { model: string; id: string; io: number }[] } }
 interface ChatExplorerApi {
   apiVersion: number;
   chatsForFile(file: string): Promise<ChatsForFile>;
@@ -116,7 +116,7 @@ Every branch and pull request any chat knows. `key` is the branch name, or `"#12
 The Account & Usage section of the sidebar. Account email is included.
 
 - `account` is the signed-in Claude Code account from `~/.claude.json` (`email`, `name`, `org`, `plan`), or `null` when not signed in.
-- `usage.h5` and `usage.d7` are token sums over the rolling last 5 hours and 7 days from local transcripts: `io` is input plus output, `cache` is cache read plus write. Anthropic's limits are not known, so there is no percent of limit.
+- `usage.h5`, `d3`, `d5` and `d7` are token sums over the rolling last 5 hours and 3, 5 and 7 days; `today` is since local midnight and `yest` the previous local calendar day; `models` is the top 4 models of the last 7 days by input plus output. All come from local transcripts: `io` is input plus output, `cache` is cache read plus write. Anthropic's limits are not known, so there is no percent of limit.
 - Returns `undefined` if the worker returns nothing. Scans every transcript (about 7 s cold); waits up to 60 s and rejects on worker failure or timeout.
 
 ## Example
