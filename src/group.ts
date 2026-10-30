@@ -96,11 +96,16 @@ export function ctxStat(c: { pct: number; tokens: number; window: number; model:
   return c.pct + '% (' + tokText(c.tokens) + ' of ' + tokText(c.window) + ', ' + c.model + ')';
 }
 
+/** Card stat: "2.1M in, 340k out, 18M cache read, 1.2M cache write" (cumulative, compactions do not reset it). */
+export function tokTotalText(t: { input: number; output: number; cacheRead: number; cacheWrite: number }): string {
+  return tokText(t.input) + ' in, ' + tokText(t.output) + ' out, ' + tokText(t.cacheRead) + ' cache read, ' + tokText(t.cacheWrite) + ' cache write';
+}
+
 /** Warning level of a context percent: 0 below 60, 1 from 60, 2 from 80, 3 from 90. */
 export function ctxLevel(pct: number): number {
   return pct >= 90 ? 3 : pct >= 80 ? 2 : pct >= 60 ? 1 : 0;
 }
 
 /** Source of the helpers above, for the webview script. */
-export const SHARED_SRC = [shortAgo, dotText, dotAttrs, dayBucket, durText, sizeText, costText, statsText, tokText, ctxStat, ctxLevel]
+export const SHARED_SRC = [shortAgo, dotText, dotAttrs, dayBucket, durText, sizeText, costText, statsText, tokText, ctxStat, tokTotalText, ctxLevel]
   .map((f) => f.toString()).join('\n') + '\nconst DAY_ORDER=' + JSON.stringify(DAY_ORDER) + ';\n';

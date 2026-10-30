@@ -146,6 +146,10 @@ The chevron opens the row as a card with an action bar (Resume, Pin, Archive, Ma
 
 Right-click a file in the Explorer, the editor or its tab and choose "Saropa: Find Related Sessions". The panel opens and searches `file:<path>`. Each row has an edited or read pill, and edited sessions rank first. The status bar shows the count for the active file (`saropaChatExplorer.showFileSessionsStatusBar`).
 
+## API for other extensions
+
+Other extensions can ask which sessions touched a file and how many tokens a session or branch used. See [docs/API.md](docs/API.md).
+
 ## Project Status page
 
 One page answers: what is still open in this repository, and what do I do to close it? Open it with "Saropa Chat Explorer: Project Status" or the checklist icon in the sidebar title bar. It covers the repository of the first workspace folder. With no git repository there, it says "Open a git repository folder".

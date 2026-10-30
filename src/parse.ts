@@ -1,8 +1,9 @@
-import { FileRef, Cost, Git, Receipt, Usage } from './types';
+import { FileRef, Cost, Git, Receipt, Tok, Usage } from './types';
 import { finishExtras, GitAcc, newGitAcc, takeExtra } from './gitInfo';
 import { scanLines } from './scan';
 import { takeCwd } from './cwdInfo';
 import { Made, intendedOf, madeByTool, madeOf } from './workMade';
+import { finishTok, newTokAcc, takeTokens, TokAcc } from './tokens';
 import { finishUsage, newUseAcc, takeOther, takeUsage, UseAcc } from './contextUsage';
 
 export const MSG_CAP = 20000; // chars of text kept per message of a top-level chat
@@ -26,7 +27,7 @@ export interface Parsed {
   title: string; last: number; first: number; count: number;
   files: FileRef[]; cmds: string[]; cmdAt: number[]; ts: number[]; roles: number[]; texts: string[];
   lines: number[]; // 1-based JSONL line of each kept message
-  cost?: Cost; git?: Git; use?: Usage;
+  cost?: Cost; git?: Git; use?: Usage; tok?: Tok;
   cwd?: string; // last non-empty cwd of the rows
   cwds?: string[]; // every distinct cwd of the rows (capped)
   seen?: string[]; // every distinct gitBranch of the rows, most used first (capped)
@@ -36,7 +37,7 @@ export interface Parsed {
 interface Acc {
   custom: string; ai: string; lastPrompt: string; summary: string; firstUser: string;
   lastTs: number; firstTs: number; count: number; cap: number; before: number; mtime: number; line: number;
-  lines: number[]; ts: number[]; roles: number[]; texts: string[]; files: Map<string, boolean>; cmds: Map<string, number>; x: GitAcc; u: UseAcc; cwd: string; cwds: Set<string>; made: Map<string, Made>; sub: boolean;
+  lines: number[]; ts: number[]; roles: number[]; texts: string[]; files: Map<string, boolean>; cmds: Map<string, number>; x: GitAcc; u: UseAcc; k: TokAcc; cwd: string; cwds: Set<string>; made: Map<string, Made>; sub: boolean;
 }
 
 /** Joined text blocks of a message content value (tool results, images and thinking are skipped). */
@@ -137,21 +138,21 @@ function takeLine(b: Buffer, s: number, e: number, a: Acc): void {
   try { row = JSON.parse(line.toString('utf8')); } catch { return; }
   if (!row || typeof row !== 'object') { return; }
   takeTitles(row, a);
-  if (row.type === 'assistant') { takeUsage(row, a.u, Date.parse(row.timestamp) || 0); }
+  if (row.type === 'assistant') { takeUsage(row, a.u, Date.parse(row.timestamp) || 0); takeTokens(row, a.k); }
   if (row.type === 'user' || row.type === 'assistant') { takeMessage(row, a); }
 }
 
 /** Parse one chat file. Messages older than before are counted but their text is dropped. */
 export async function parseFile(file: string, mtime: number, cap: number, before = 0): Promise<Parsed> {
   const a: Acc = { custom: '', ai: '', lastPrompt: '', summary: '', firstUser: '', lastTs: 0, firstTs: 0,
-    count: 0, cap, before, mtime, line: 0, lines: [], ts: [], roles: [], texts: [], files: new Map(), cmds: new Map(), x: newGitAcc(), u: newUseAcc(), cwd: '', cwds: new Set(), made: new Map(), sub: /[\\/]subagents[\\/]/.test(file) };
+    count: 0, cap, before, mtime, line: 0, lines: [], ts: [], roles: [], texts: [], files: new Map(), cmds: new Map(), x: newGitAcc(), u: newUseAcc(), k: newTokAcc(), cwd: '', cwds: new Set(), made: new Map(), sub: /[\\/]subagents[\\/]/.test(file) };
   await scanLines(file, (b, s, e, n) => { a.line = n; takeLine(b, s, e, a); });
   const flat = (x: string) => x.replace(/\s+/g, ' ');
   const title = flat(a.custom || a.ai || a.lastPrompt || a.summary || flat(a.firstUser).slice(0, 80) || '(untitled)');
   return {
     title, last: a.lastTs || mtime, first: a.firstTs || a.lastTs || mtime, count: a.count,
     files: Array.from(a.files, ([path, edited]) => ({ path, edited })), cmds: [...a.cmds.keys()], cmdAt: [...a.cmds.values()],
-    ts: a.ts, roles: a.roles, texts: a.texts, lines: a.lines, ...finishExtras(a.x), use: finishUsage(a.u), cwd: a.cwd || undefined,
+    ts: a.ts, roles: a.roles, texts: a.texts, lines: a.lines, ...finishExtras(a.x), use: finishUsage(a.u), tok: finishTok(a.k), cwd: a.cwd || undefined,
     cwds: a.cwds.size > 1 ? [...a.cwds] : undefined, made: a.made.size ? [...a.made.values()] : undefined,
   };
 }

@@ -31,6 +31,7 @@ if(r.last>r.first)h+=statCell('Active for',esc(durText(r.first,r.last)),'Active 
 if(r.edited>0)h+=statCell('Files edited',r.edited,plur(r.edited,'file')+' edited in this session');
 h+=statCell('Size',sizeText(r.size),'Transcript size on disk: '+sizeText(r.size));
 if(r.ctx)h+=statCell('Context',esc(ctxStat(r.ctx)),'Context window use\n'+ctxStat(r.ctx));
+if(r.tok)h+=statCell('Tokens',esc(tokText(r.tok.input+r.tok.output)+' in+out'),'Total tokens used by this session so far, not reset by /compact\n'+tokTotalText(r.tok));
 if(r.cost>0){const c=r.cost<0.01?'<$0.01':'$'+r.cost.toFixed(2);h+=statCell('Cost',esc(c),'Estimated cost of this session: '+c);}
 if(r.add||r.rem)h+=statCell('Lines','<span class="add">+'+(r.add||0)+'</span> <span class="rem">\u2212'+(r.rem||0)+'</span>','+'+plur(r.add||0,'line')+' added, -'+plur(r.rem||0,'line')+' removed in this session\'s edits',plur(r.add||0,'line')+' added, '+(r.rem||0)+' removed');
 if(r.models&&r.models.length)h+='<div class="wide" data-tip="'+esc('Models used\n'+r.models.join(', '))+'"><dt>Models</dt><dd>'+esc(r.models.join(', '))+'</dd></div>';

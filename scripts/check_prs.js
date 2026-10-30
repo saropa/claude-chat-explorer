@@ -339,14 +339,16 @@ async function main() {
       let done = false; s.scan.start(1, folders, false, s.c.post).then(() => { done = true; });
       check('scan with PRs: finishes', await until(() => done, 100, 120000));
       const prs = s.c.of('prs'), chk = s.c.of('checks'), end = s.c.of('end')[0];
-      check('scan with PRs: the workspace repository posts queued then an ok list with only its own repository PR (fork PR and unrelated PR left out), the other repositories nothing', prs.every((m) => m.repo === 'r1') && world.repos.slice(0, 1).every((_, i) => { const ok1 = prs.find((m) => m.repo === 'r' + (i + 1) && m.state === 'ok'); return ok1 && Object.keys(ok1.by).join() === 'feat' && ok1.by.feat.n === 100 + i; }));
-      check('scan with PRs: one check result, for the workspace repository only (failing)', chk.every((m) => m.repo === 'r1') && world.repos.slice(0, 1).every((_, i) => { const m = chk.find((x) => x.repo === 'r' + (i + 1) && x.state !== 'checking'); return m && m.state === (i % 2 ? 'passing' : 'failing'); }));
+      // Repository keys are handed out in folder-finish order, which varies run to run: look the workspace repository's key up.
+      const RK = s.c.of('folder').find((m) => m.key === 'f1' && m.state === 'ok').facts.rk;
+      check('scan with PRs: the workspace repository posts queued then an ok list with only its own repository PR (fork PR and unrelated PR left out), the other repositories nothing', prs.every((m) => m.repo === RK) && world.repos.slice(0, 1).every((_, i) => { const ok1 = prs.find((m) => m.repo === RK && m.state === 'ok'); return ok1 && Object.keys(ok1.by).join() === 'feat' && ok1.by.feat.n === 100 + i; }));
+      check('scan with PRs: one check result, for the workspace repository only (failing)', chk.every((m) => m.repo === RK) && world.repos.slice(0, 1).every((_, i) => { const m = chk.find((x) => x.repo === RK && x.state !== 'checking'); return m && m.state === (i % 2 ? 'passing' : 'failing'); }));
       check('scan with PRs: end comes after every PR result and lists no unfinished key', end && s.c.msgs.findIndex((x) => x.m.type === 'end') > s.c.msgs.map((x) => x.m.type + x.m.state).lastIndexOf('checksfailing') && end.open.length === 0);
       check('scan with PRs: progress messages carry a prs counter that reaches 1 of 1', s.c.of('progress').some((m) => m.prs && m.prs.done === 1 && m.prs.total === 1));
       check('scan with PRs: the PR layer never waited for git (a PR list was asked before the scan ended) and gh never exceeded 2', s.gh.max <= 2 && s.gh.lists === 1);
-      check('scan with PRs: the page can ask for the link by repository key and number', s.scan.prUrl('r1', 100) === 'https://example.com/pr/100' && s.scan.prUrl('r1', 900) === undefined);
-      s.scan.retry('p1'); await advance(2000);
-      check('scan with PRs: retry p1 reruns that repository only (a queued state again, others untouched)', s.c.of('prs').filter((m) => m.repo === 'r1' && m.state === 'queued').length === 2 && s.gh.lists === 2);
+      check('scan with PRs: the page can ask for the link by repository key and number', s.scan.prUrl(RK, 100) === 'https://example.com/pr/100' && s.scan.prUrl(RK, 900) === undefined);
+      s.scan.retry('p' + RK.slice(1)); await advance(2000);
+      check('scan with PRs: retry p1 reruns that repository only (a queued state again, others untouched)', s.c.of('prs').filter((m) => m.repo === RK && m.state === 'queued').length === 2 && s.gh.lists === 2);
     }
     {
       const s = mk({ prsOn: () => false });

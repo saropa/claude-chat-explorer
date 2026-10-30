@@ -2,7 +2,7 @@
 import { FileSessionsReply, normPath } from './fileSessions';
 
 export const CACHE_MS = 30000;
-export interface Requester { request(m: { [k: string]: unknown }, background?: boolean): Promise<any>; }
+export interface Requester { request(m: { [k: string]: unknown }, background?: boolean, soft?: boolean, timeoutMs?: number): Promise<any>; }
 
 export class FileSessionsService {
   private cache = new Map<string, { at: number; reply: FileSessionsReply }>();

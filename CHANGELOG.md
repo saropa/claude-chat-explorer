@@ -3,6 +3,8 @@
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
 ## Unreleased
+- Added: cumulative token totals per session and per branch or pull request (input, output, cache read, cache write, kept separate, no price). Shown as a Tokens figure beside the context figure in the sidebar card, in the expanded detail of an Open Work chat, and as a per-branch total on each Open Work branch row. /compact never lowers them, and sub-agent replies count. Other extensions can read them with `tokensForChat(id)` and `tokensForWork(key)`; every method is described in docs/API.md. Existing session caches rebuild once.
+- Added: the public API now exposes everything read-only: `listChats()`, `getChat(id)`, `listWork()` and `getAccountUsage()` (chat context, tokens, branches, pull requests, pinned, archived, tags, state; branches and pull requests with their chats and tokens; account email, name, organization, plan and 5-hour and 7-day tokens). `apiVersion` stays 1. See docs/API.md.
 - Added: an "Account & Usage" section at the top of the sidebar (closed until opened). It shows your Claude Code email, name, organization and plan from `~/.claude.json`, or "Not signed in", and the tokens used in the last 5 hours and last 7 days (input plus output, with cache tokens beside them), summed from your local transcripts. Offline and read-only: no keychain, no network. Limits are set by Anthropic, so no percent of limit is shown.
 
 ## 0.37.0

@@ -455,7 +455,7 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   done = true;
   log(`activated ${String(ctx.extension?.packageJSON?.version ?? 'unknown')}`);
   client.start(); // indexing runs in the worker; activation never waits for it
-  return makeApi(fileSessions);
+  return makeApi(fileSessions, client, { pins: () => Object.keys(store!.pins), archived: () => [...store!.archived], tags: () => store!.tags, dots: () => provider.dotNames });
 }
 
 export async function deactivate(): Promise<void> {

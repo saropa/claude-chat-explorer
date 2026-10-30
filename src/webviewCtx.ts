@@ -17,7 +17,7 @@ let ringMax=300000;
 function ringTok(n){return n>=1e6?(+(n/1e6).toFixed(1))+'M':n>=1000?(+(n/1000).toFixed(1))+'k':String(n);}
 function ringHtml(r){const t=r.ctx?r.ctx.tokens:0;if(!(t>0)||!(ringMax>0))return '';
 const f=t/ringMax,cl=f>=1?' re':f>=0.8?' rw':'',tip=ringTok(t)+' of '+ringTok(ringMax)+' tokens',C=37.7,d=(Math.min(f,1)*C).toFixed(1);
-return '<span class="rg'+cl+'" role="img" aria-label="'+tip+'" data-tip="'+tip+'"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke-width="2.5"><circle class="rt" cx="8" cy="8" r="6"/><circle class="rf" cx="8" cy="8" r="6" transform="rotate(-90 8 8)" stroke-dasharray="'+d+' '+C+'"/></svg></span>';}
+return '<span class="rg'+cl+'" role="img" aria-label="'+tip+'" data-tip="'+tip+(r.tok?esc('\nTotal used so far (not reset by /compact): '+tokTotalText(r.tok)):'')+'"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke-width="2.5"><circle class="rt" cx="8" cy="8" r="6"/><circle class="rf" cx="8" cy="8" r="6" transform="rotate(-90 8 8)" stroke-dasharray="'+d+' '+C+'"/></svg></span>';}
 function ctxKey(r){return r.ctx?r.ctx.pct*1e9+r.ctx.tokens:-1;}
 function tipCtx(r){const c=r.ctx;if(!c)return '';
 return '<b>Context '+c.pct+'% full</b>'+kv([['Used',tokText(c.tokens)+' of '+tokText(c.window)+' tokens'],['Model',esc(c.model)],['Compactions',c.comp>0?c.comp:'']])
