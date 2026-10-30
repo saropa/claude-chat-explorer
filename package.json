@@ -466,7 +466,7 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "tsc -p .",
-    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_scan.js && node scripts/check_prs.js && node scripts/check_prs_e2e.js && node scripts/check_guards.js && node scripts/check_dots.js && node scripts/check_regen.js && node scripts/check_autotitle.js && node scripts/check_web.js && node scripts/check_options.js && node scripts/check_claude_config.js && node scripts/check_account.js && node scripts/check_tokens.js && node scripts/check_api.js",
+    "vscode:prepublish": "npm run clean && npm run compile && node scripts/check_manifest.js && node scripts/check_webview.js && node scripts/check_openwork.js && node scripts/check_scan.js && node scripts/check_prs.js && node scripts/check_prs_e2e.js && node scripts/check_guards.js && node scripts/check_dots.js && node scripts/check_regen.js && node scripts/check_autotitle.js && node scripts/check_autotitle_flag.js && node scripts/check_web.js && node scripts/check_options.js && node scripts/check_claude_config.js && node scripts/check_account.js && node scripts/check_tokens.js && node scripts/check_api.js",
     "package": "npx --yes @vscode/vsce package --allow-missing-repository --skip-license"
   },
   "devDependencies": {

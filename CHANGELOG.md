@@ -3,6 +3,7 @@
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
 ## Unreleased
+- Fixed: the "Auto-title sessions" toggle can no longer fail. If VS Code refuses to write the setting, the choice is kept in the extension and applied at once, and a plain message offers Reload Window. The output channel logs the extension version and install path at start.
 - Fixed: the "Auto-title sessions" toggle in the "..." menu now says when it fails (for example when the window must be reloaded to pick up the setting, with a Reload Window button) and confirms the new state. Each session it titles is logged in the output channel.
 
 ## 0.39.0

@@ -19,7 +19,8 @@ import { copyResume } from './copyResume';
 import { exportChatMd } from './exportMdRun';
 import { archiveTiny } from './archiveTiny';
 import { regenTitles } from './regenTitlesRun';
-import { AutoTitler } from './autoTitleRun';
+import { AutoTitler, autoTitleNow } from './autoTitleRun';
+import { AUTO_FALLBACK_KEY, AUTO_KEY, setAutoTitle } from './autoTitleFlag';
 import { registerClaudeConfig } from './claudeConfigPanel';
 import { registerOptions } from './optionsPanel';
 import { registerUsage } from './usageUi';
@@ -436,23 +437,27 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
       { webviewOptions: { retainContextWhenHidden: true } }));
   registerOptions(ctx, logErr);
   registerClaudeConfig(ctx, logErr);
-  const autoKey = 'saropaChatExplorer.autoTitle.enabled';
   const autoCfg = () => vscode.workspace.getConfiguration();
-  const syncAuto = () => { void vscode.commands.executeCommand('setContext', 'saropaChatExplorer.autoTitleEnabled', autoCfg().get(autoKey) === true); };
+  const syncAuto = () => { void vscode.commands.executeCommand('setContext', 'saropaChatExplorer.autoTitleEnabled', autoTitleNow(ctx.globalState)); };
+  const extPkg = vscode.extensions.getExtension('saropa.claude-chat-explorer')?.packageJSON as { version?: string; contributes?: { configuration?: { properties?: Record<string, unknown> } } } | undefined;
+  log(`activate: version ${extPkg?.version ?? 'unknown'}, ${AUTO_KEY} in manifest: ${extPkg?.contributes?.configuration?.properties?.[AUTO_KEY] !== undefined}, path ${ctx.extensionPath}`);
   syncAuto();
-  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration(autoKey)) { syncAuto(); } }),
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
+    if (!e.affectsConfiguration(AUTO_KEY)) { return; }
+    const set = autoCfg().inspect(AUTO_KEY);
+    if (typeof (set?.workspaceValue ?? set?.globalValue) === 'boolean') { void ctx.globalState.update(AUTO_FALLBACK_KEY, undefined); }
+    syncAuto();
+  }),
     ...[['saropaChatExplorer.autoTitleOn', true], ['saropaChatExplorer.autoTitleOff', false]].map(([cmd, on]) => vscode.commands.registerCommand(cmd as string, async () => {
-      try {
-        await autoCfg().update(autoKey, on, vscode.ConfigurationTarget.Global);
+      const viaSettings = await setAutoTitle(on as boolean, (v) => autoCfg().update(AUTO_KEY, v, vscode.ConfigurationTarget.Global), (v) => ctx.globalState.update(AUTO_FALLBACK_KEY, v), (e) => logErr('autoTitle toggle', e));
+      syncAuto();
+      if (viaSettings) {
         void vscode.window.showInformationMessage(on ? 'Auto-title sessions is on. New sessions get an emoji and a title after your first prompt.' : 'Auto-title sessions is off.');
-      } catch (e) {
-        logErr('autoTitle toggle', e);
-        const msg = e instanceof Error ? e.message : String(e);
-        const stale = /not a registered configuration/i.test(msg);
-        const reload = 'Reload Window';
-        void vscode.window.showErrorMessage(stale ? 'Could not change Auto-title sessions: VS Code does not know this setting yet, because the window still runs an older version of the extension. Run "Developer: Reload Window".' : `Could not change Auto-title sessions: ${msg}`, ...(stale ? [reload] : []))
-          .then((pick) => { if (pick === reload) { return vscode.commands.executeCommand('workbench.action.reloadWindow'); } return undefined; });
+        return;
       }
+      const reload = 'Reload Window';
+      void vscode.window.showInformationMessage(`Auto-title sessions is ${on ? 'on' : 'off'}. Saved in the extension because VS Code settings could not be written; reload the window to use the Settings page.`, reload)
+        .then((pick) => (pick === reload ? vscode.commands.executeCommand('workbench.action.reloadWindow') : undefined));
     })));
   const usageRows = async () => (await client!.request({ t: 'usage' }, true, true)) ?? [];
   ctx.subscriptions.push(

@@ -7,6 +7,14 @@ import { Done, buildTitle, mergeRules, parseRules, planTitle, prune, safeAppend,
 import { promptData } from './regenTitles';
 import { generate } from './regenTitlesRun';
 
+import { AUTO_FALLBACK_KEY, AUTO_KEY, autoTitleOn } from './autoTitleFlag';
+
+/** The one reader of the auto-title switch: the user's setting if set, else the flag stored in the extension. */
+export function autoTitleNow(state: vscode.Memento): boolean {
+  const explicit = vscode.workspace.getConfiguration().inspect(AUTO_KEY);
+  return autoTitleOn(explicit?.workspaceValue ?? explicit?.globalValue, state.get(AUTO_FALLBACK_KEY));
+}
+
 const KEY = 'saropaChatExplorer.autoTitleDone';
 const KEEP = 500;
 const MISS_MS = 30000, HAIKU_MS = 30000;
@@ -22,7 +30,7 @@ export class AutoTitler {
   /** A watcher poll finished. Never blocks it: one pass at a time, and none when the setting is off. */
   onLive(ids: Iterable<string>): void {
     const cfg = vscode.workspace.getConfiguration('saropaChatExplorer');
-    if (this.running || cfg.get('autoTitle.enabled') !== true) { return; }
+    if (this.running || !autoTitleNow(this.state)) { return; }
     this.running = true;
     void this.pass([...ids], cfg).catch((e) => this.log('autoTitle', e)).finally(() => { this.running = false; });
   }
