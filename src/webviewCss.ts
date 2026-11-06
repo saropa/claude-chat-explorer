@@ -4,12 +4,15 @@ button,input,select{font-family:var(--vscode-font-family);font-size:var(--vscode
 body{padding:6px 0;line-height:normal;font-weight:normal;color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
 .top{padding:0 8px}
 .box{position:relative}
-input[type=text]{width:100%;height:26px;box-sizing:border-box;padding:4px 98px 4px 6px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);border-radius:2px;outline:none;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
+input[type=text]{width:100%;height:26px;box-sizing:border-box;padding:4px 118px 4px 6px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);border-radius:2px;outline:none;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
 input[type=text]::placeholder{color:var(--vscode-input-placeholderForeground)}
 input[type=text]:focus{border-color:var(--vscode-focusBorder);outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .opts{position:absolute;right:2px;top:2px;display:flex;gap:1px}
-.opt{width:22px;height:20px;padding:0;box-sizing:border-box;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent;color:var(--vscode-foreground);border:1px solid transparent;border-radius:5px;font-family:var(--vscode-font-family)}
+.opt{width:22px;height:20px;padding:0;box-sizing:border-box;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent;color:var(--vscode-foreground);border:1px solid transparent;border-radius:3px;font-family:var(--vscode-font-family);font-size:calc(var(--vscode-font-size) - 1px);font-weight:400}
+.clr{position:absolute;right:96px;top:4px;width:18px;height:18px;padding:0;display:flex;align-items:center;justify-content:center;border:none;border-radius:3px;background:transparent;color:var(--vscode-input-foreground);cursor:pointer;opacity:.8}
+.clr:hover{opacity:1;background:var(--vscode-inputOption-hoverBackground,var(--vscode-toolbar-hoverBackground))}
+#q:placeholder-shown~.clr{display:none}
 .opt:hover{background:var(--vscode-inputOption-hoverBackground,var(--vscode-toolbar-hoverBackground))}
 .opt.on{background:var(--vscode-inputOption-activeBackground);border-color:var(--vscode-inputOption-activeBorder,transparent);color:var(--vscode-inputOption-activeForeground)}
 .opt u{text-decoration:underline}

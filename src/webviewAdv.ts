@@ -11,7 +11,7 @@ export const ADV_CSS = String.raw`
 .advr{display:flex;justify-content:flex-end;height:20px;margin-top:4px}
 #advb{width:auto;min-width:22px;height:18px;padding:0 3px;gap:3px}
 #advb.on{background:var(--vscode-inputOption-activeBackground);border-color:var(--vscode-inputOption-activeBorder,transparent)}
-.advn{min-width:12px;box-sizing:border-box;padding:0 3px;border-radius:7px;line-height:14px;text-align:center;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.advn{font-size:calc(var(--vscode-font-size) - 2px);min-width:12px;box-sizing:border-box;padding:0 3px;border-radius:7px;line-height:14px;text-align:center;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
 .advn[hidden]{display:none}
 #adv{padding-bottom:6px}
 #adv[hidden]{display:none}
