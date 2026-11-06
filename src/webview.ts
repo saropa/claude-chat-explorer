@@ -29,9 +29,9 @@ export function html(): string {
 ${ACCT_HTML}
 ${WEB_HTML}
 </div></div>
+<div id="sb"><div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div><div id="bar"><i></i></div><div id="cap"></div><div id="status" role="status" aria-live="polite"></div></div>
 <div id="sm"><button type="button" id="smh" aria-expanded="true" aria-controls="smb" title="Collapse or expand the Session Manager">Session Manager</button><div id="smb">
 <div class="top">
-<div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div>
 <div class="srow"><div class="box">
 <input type="text" id="q" placeholder="Search sessions" aria-label="Search sessions" title="Search the text of your sessions" autofocus>
 <button type="button" class="clr" id="qx" title="Clear search" aria-label="Clear search"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z"/></svg></button>
@@ -47,11 +47,10 @@ ${ADV_HTML}
 <div id="err"></div>
 <div id="hint" hidden>Type at least 2 characters</div>
 ${SUM_HTML}
-<div id="bar"><i></i></div>
 <datalist id="tl"></datalist>
 </div>
 <div id="frow"></div>
-<div id="res"><div id="cap"></div><div id="status" role="status" aria-live="polite"></div><div id="pin"></div><div id="list"></div><div id="arch"></div></div>
+<div id="res"><div id="pin"></div><div id="list"></div><div id="arch"></div></div>
 </div></div>
 ${WEB_BODY}
 <div id="tip" role="tooltip" hidden></div>

@@ -8,7 +8,7 @@ export const WEB_CSS = String.raw`
 #wtog button{border:none;background:transparent;color:var(--vscode-descriptionForeground);font:inherit;padding:2px 10px;border-radius:9px;cursor:pointer}
 #wtog button[aria-selected=true]{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
 #wtog button:focus-visible,.wr:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
-html.webmode #hdr .top>:not(#wtog),html.webmode #sm{display:none}
+html.webmode #hdr .top>:not(#wtog),html.webmode #sm,html.webmode #sb{display:none}
 #web{flex:1 1 auto;min-height:80px;overflow-y:auto}
 #wnote{padding:6px 10px;color:var(--vscode-descriptionForeground)}
 #wnote:empty{display:none}

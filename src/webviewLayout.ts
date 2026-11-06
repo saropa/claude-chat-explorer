@@ -27,6 +27,10 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 #hdr{flex:none;min-width:0}
 #sm,#smb{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 #sm.shut{flex:none}
+#sb{flex:none;padding:0 8px}
+#smb>.top{flex:none}
+#frow{flex:none}
+.clr:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 #smb[hidden]{display:none}
 #smh{display:block;width:100%;text-align:left;padding:2px 8px;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)}
 #smh::before{content:'\25BE ';}
