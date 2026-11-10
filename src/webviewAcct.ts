@@ -3,7 +3,7 @@ export const ACCT_HTML = `<details id="acct"><summary title="Your account and th
 
 export const ACCT_CSS = String.raw`
 #acct{margin:4px 0 6px}
-#acct>summary{cursor:pointer;color:var(--vscode-descriptionForeground);list-style:none;display:flex;align-items:center;gap:4px;padding:2px 8px 2px 6px}
+#acct>summary{cursor:pointer;color:var(--vscode-descriptionForeground);list-style:none;display:flex;align-items:center;gap:4px;margin:0 -8px;padding:2px 8px 2px 6px}
 #acct>summary::-webkit-details-marker{display:none}
 #acct[open]>summary>.chev{transform:rotate(90deg)}
 #acct summary:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:1px}

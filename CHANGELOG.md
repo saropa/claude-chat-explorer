@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Fixed: the "Account & Usage" arrow now lines up with the "Session Manager" arrow below it.
+
 ## 0.42.0
 - Fixed: the arrows beside "Account & Usage" and "Session Manager" in the sidebar are now the same size and shape as the other section arrows.
 
