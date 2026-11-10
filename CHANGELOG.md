@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Fixed: the arrows beside "Account & Usage" and "Session Manager" in the sidebar are now the same size and shape as the other section arrows.
+
 ## 0.41.0
 - Changed: the sidebar search, filters and session list now sit in a collapsible "Session Manager" panel. The search box has a clear (x) button, the search toggles match VS Code's Find widget look, and the filters count pill uses the same font size as the Archived count pill
 

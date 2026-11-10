@@ -30,7 +30,7 @@ ${ACCT_HTML}
 ${WEB_HTML}
 </div></div>
 <div id="sb"><div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div><div id="bar"><i></i></div><div id="cap"></div><div id="status" role="status" aria-live="polite"></div></div>
-<div id="sm"><button type="button" id="smh" aria-expanded="true" aria-controls="smb" title="Collapse or expand the Session Manager">Session Manager</button><div id="smb">
+<div id="sm"><button type="button" id="smh" aria-expanded="true" aria-controls="smb" title="Collapse or expand the Session Manager"><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Session Manager</button><div id="smb">
 <div class="top">
 <div class="srow"><div class="box">
 <input type="text" id="q" placeholder="Search sessions" aria-label="Search sessions" title="Search the text of your sessions" autofocus>
