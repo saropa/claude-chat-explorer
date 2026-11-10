@@ -32,7 +32,7 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 #frow{flex:none}
 .clr:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 #smb[hidden]{display:none}
-#smh{display:flex;align-items:center;gap:4px;width:100%;text-align:left;padding:2px 8px 2px 6px;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)}
+#smh{display:flex;align-items:center;gap:4px;width:100%;text-align:left;padding:2px 8px;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)}
 #smh[aria-expanded=true]>.chev{transform:rotate(90deg)}
 #smh:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 #res{flex:1 1 auto;min-height:80px;overflow-x:hidden;overflow-y:auto;container-type:inline-size;container-name:res;overflow-wrap:anywhere}
