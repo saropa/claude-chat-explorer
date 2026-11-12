@@ -2,7 +2,7 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
-## Unreleased
+## 0.46.0
 - Added: the Activity panel shows when Claude is waiting for you (one soft ripple from the center, then a quiet outline until the next message; the same on Chat for a question).
 - Added: a one-line caption under the Activity diagram names the latest action in plain words (descriptions, file names, hosts; never full commands).
 - Added: a failed tool call, an API error or a denied permission flashes in the theme error color with a dashed outline.
