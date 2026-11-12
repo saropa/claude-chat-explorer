@@ -64,7 +64,7 @@ check('refreshMs clamps and defaults', refreshMsOf(undefined) === 250 && refresh
   fs.writeFileSync(b, asst({ type: 'text' }) + '\n');
   const realHome = os.homedir; os.homedir = () => home;
   try {
-    const feed = new ActivityFeed();
+    const feed = new ActivityFeed(0);
     check('first look at a chat replays nothing', eq(await feed.check('aaa'), []));
     fs.appendFileSync(a, asst(tool('Bash')) + '\n' + asst({ type: 'thinking' }).slice(0, 20));
     check('new line flashes, unfinished line waits', eq(await feed.check('aaa'), ['terminal']));
@@ -91,7 +91,22 @@ check('refreshMs clamps and defaults', refreshMsOf(undefined) === 250 && refresh
     check('after mark, hidden messages do not flash', eq(await feed.check('aaa'), []));
     fs.appendFileSync(a, asst(tool('Bash')) + '\n');
     check('after mark, later messages flash', eq(await feed.check('aaa'), ['terminal']));
+    // A check in flight when mark() is called must not write state back or flash.
+    const flight = feed.check('aaa'); fs.appendFileSync(a, asst(tool('Bash')) + '\n'); const mid = feed.check('aaa'); feed.mark();
+    check('check in flight during mark() flashes nothing', eq(await flight, []) && eq(await mid, []));
+    check('and its late write did not undo the mark', eq(await feed.check('aaa'), []));
+    fs.appendFileSync(a, asst(tool('Bash')) + '\n');
+    check('later messages still flash after that', eq(await feed.check('aaa'), ['terminal']));
     check('missing log of the open chat keeps its position', eq(await feed.check('zzz'), []) && eq(await feed.check('eee'), []));
+    // A missing log is searched for at most once per gap; an existing log is read at once.
+    const slow = new ActivityFeed(300), hid = path.join(dir, 'fff.jsonl');
+    check('missing log gives nothing', eq(await slow.check('fff'), []));
+    fs.writeFileSync(hid, asst({ type: 'text' }) + '\n');
+    check('missing log is not searched again within the gap', eq(await slow.check('fff'), []));
+    const t0 = Date.now(); while (Date.now() - t0 < 320) { /* wait out the gap */ }
+    check('missing log is found after the gap (born after first look, so it replays)', eq(await slow.check('fff'), ['chat']));
+    fs.appendFileSync(hid, asst(tool('Bash')) + '\n');
+    check('and then read on the fast path', eq(await slow.check('fff'), ['terminal']));
   } finally { os.homedir = realHome; fs.rmSync(home, { recursive: true, force: true }); }
   if (failures.length) { console.error('check_activity FAILED (' + failures.length + ')'); failures.forEach((e) => console.error('  - ' + e)); process.exit(1); }
   console.log('check_activity OK: tool and log mapping, memory reads, page nodes, no replay');

@@ -16,7 +16,8 @@ export function registerActivity(ctx: vscode.ExtensionContext, _hub: Hub, curren
     if (!timer) { return; } // not visible: no work
     if (busy) { again = true; return; } // run once more when the current check ends
     busy = true;
-    void feed.check(currentId()).then((groups) => { if (groups.length) { void view?.webview.postMessage({ type: 'flash', groups }); } }).finally(() => {
+    const id = currentId();
+    void feed.check(id).then((groups) => { if (groups.length && id === currentId()) { void view?.webview.postMessage({ type: 'flash', groups }); } }).finally(() => {
       busy = false;
       if (again) { again = false; poke(); }
     });
