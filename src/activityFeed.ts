@@ -21,6 +21,10 @@ export const REFRESH_MS = { def: 250, min: 100, max: 2000 };
 /** The `activity.refreshMs` setting as a usable interval: a number clamped to 100..2000, else 250. */
 export const refreshMsOf = (raw: unknown): number => typeof raw === 'number' && Number.isFinite(raw) ? Math.min(REFRESH_MS.max, Math.max(REFRESH_MS.min, Math.round(raw))) : REFRESH_MS.def;
 
+export const FADE_MS = { def: 4000, min: 1000, max: 10000 };
+/** The `activity.fadeMs` setting as a usable fade time: a number clamped to 1000..10000, else 4000. */
+export const fadeMsOf = (raw: unknown): number => typeof raw === 'number' && Number.isFinite(raw) ? Math.min(FADE_MS.max, Math.max(FADE_MS.min, Math.round(raw))) : FADE_MS.def;
+
 export class ActivityFeed {
   private id = '';
   private size = 0;

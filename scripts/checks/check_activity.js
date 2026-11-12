@@ -8,6 +8,7 @@ const ROOT = path.join(__dirname, '..', '..');
 const OUT = process.env.CCS_OUT || path.join(ROOT, 'out');
 const { toolGroup, eventsOf, captionOf, subEventsOf } = require(path.join(OUT, 'activityMap.js'));
 const flashesOf = (line) => eventsOf(line, new Map()).flatMap((e) => (e.t === 'flash' ? [e.g] : [])); // the flashed groups of one line
+const { fadeMsOf } = require(path.join(OUT, 'activityFeed.js'));
 const { activityHtml } = require(path.join(OUT, 'activityHtml.js'));
 const failures = [];
 const check = (what, cond) => { if (!cond) { failures.push(what); } };
@@ -86,6 +87,10 @@ check('page uses the error color with a dashed shape cue, and a ripple and busy 
 check('page clears busy on reset and after a safety timeout, and has no external resources', page.includes('function reset()') && page.includes('pend.clear()') && page.includes('600000') && !/https?:\/\//.test(page));
 check('page shows static states with reduced motion', page.includes('.busy .br,.rip .rp{animation:none;}'));
 
+const fast = activityHtml(2000);
+check('fade value reaches the page: CSS custom property, animations and timer', page.includes(':root{--fade:4000ms;}') && fast.includes(':root{--fade:2000ms;}') && fast.includes('let fade = 2000;') && fast.includes('calm.matches ? 600 : fade') && page.includes('animation:glow var(--fade)') && !/animation:[a-z]+ 4s/.test(page));
+check('page applies a fade change without reload', page.includes("m.type === 'fade'") && page.includes("setProperty('--fade'"));
+check('fadeMsOf clamps to 1000..10000, else 4000', fadeMsOf(500) === 1000 && fadeMsOf(99999) === 10000 && fadeMsOf(8000) === 8000 && fadeMsOf('x') === 4000 && fadeMsOf(undefined) === 4000 && fadeMsOf(NaN) === 4000);
 check('sheen is delicate and hidden while a node is lit', page.includes('.hot .sh,.hold .sh{opacity:0;}') && /#sheen stop:nth-child\(1\)\{stop-opacity:\.0\d;\}/.test(page) && /\.vscode-light #sheen stop:nth-child\(1\)\{stop-opacity:\.[0-3];\}/.test(page));
 
 // 4a. Connectors: one per pair, each an arc of the ring (both ends at radius 68, so never inside the core of radius 28); thinking hold is in the page script.

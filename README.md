@@ -164,7 +164,7 @@ A section at the top of the sidebar, closed until opened. It shows your Claude C
 
 ## Activity
 
-The "Activity" panel under the session list (collapsible) shows Claude as a center circle with eight groups around it: Chat, Memory, Files, Terminal, Web, Agents, Connect and Control. When the current chat gets a new message, the line of its group flashes and fades back over a few seconds; thinking flashes the center. Old messages are not replayed when you open or switch chats. With reduced motion on, the flash is a brief brightness change with no animation.
+The "Activity" panel under the session list (collapsible) shows Claude as a center circle with eight groups around it: Chat, Memory, Files, Terminal, Web, Agents, Connect and Control. When the current chat gets a new message, the line of its group flashes and fades back over a few seconds; thinking flashes the center. Old messages are not replayed when you open or switch chats. With reduced motion on, the flash is a brief brightness change with no animation. The panel's "..." menu sets the refresh speed and the fade-out speed (Slow, Medium or Fast).
 
 ## Claude Config
 
@@ -243,6 +243,7 @@ One page answers: what is still open in this repository, and what do I do to clo
 | Setting | Default | Effect |
 |---|---|---|
 | `saropaChatExplorer.maxResults` | 500 | Most sessions listed (50 to 2000). |
+| `saropaChatExplorer.activity.fadeMs` | 4000 | How long an Activity flash takes to fade out, in milliseconds (1000 to 10000). Applied live. |
 | `saropaChatExplorer.activity.refreshMs` | 250 | How often the Activity panel checks the selected chat for new messages, in milliseconds (100 to 2000). Applied live; no checks while the panel is collapsed. |
 | `saropaChatExplorer.contextRingTokens` | 300000 | Token count that fills the context ring (minimum 10000). |
 | `saropaChatExplorer.contextWarnings` | true | Notify at 80 and 90 percent context. |

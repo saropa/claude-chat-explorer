@@ -73,6 +73,14 @@
         "title": "Saropa Chat Explorer: Claude Config"
       },
       {
+        "command": "claudeChatExplorer.activityRefreshSpeed",
+        "title": "Refresh Speed..."
+      },
+      {
+        "command": "claudeChatExplorer.activityFadeSpeed",
+        "title": "Fade Speed..."
+      },
+      {
         "command": "saropaChatExplorer.options",
         "title": "Saropa Chat Explorer: Options"
       },
@@ -194,6 +202,16 @@
       ],
       "view/title": [
         {
+          "command": "claudeChatExplorer.activityRefreshSpeed",
+          "when": "view == claudeChatExplorer.activity",
+          "group": "1_speed@1"
+        },
+        {
+          "command": "claudeChatExplorer.activityFadeSpeed",
+          "when": "view == claudeChatExplorer.activity",
+          "group": "1_speed@2"
+        },
+        {
           "command": "claudeChatExplorer.searchTips",
           "when": "view == claudeChatExplorer.view",
           "group": "navigation@1"
@@ -272,6 +290,8 @@
         }
       ],
       "commandPalette": [
+        { "command": "claudeChatExplorer.activityRefreshSpeed", "when": "false" },
+        { "command": "claudeChatExplorer.activityFadeSpeed", "when": "false" },
         {
           "command": "saropaChatExplorer.autoTitleOn",
           "when": "false"
@@ -401,7 +421,14 @@
           "default": 250,
           "minimum": 100,
           "maximum": 2000,
-          "description": "How often the Activity panel checks the selected chat for new messages, in milliseconds."
+          "description": "How often the Activity panel checks the selected chat for new messages, in milliseconds. Also set by the Refresh Speed item in the panel's ... menu (Slow 1000, Medium 250, Fast 100)."
+        },
+        "saropaChatExplorer.activity.fadeMs": {
+          "type": "number",
+          "default": 4000,
+          "minimum": 1000,
+          "maximum": 10000,
+          "description": "How long a flash on the Activity panel takes to fade out, in milliseconds. Also set by the Fade Speed item in the panel's ... menu (Slow 8000, Medium 4000, Fast 2000)."
         },
         "saropaChatExplorer.contextRingTokens": {
           "type": "number",

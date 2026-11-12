@@ -74,9 +74,9 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .vscode-high-contrast .nd,.vscode-high-contrast .core,.vscode-high-contrast-light .nd,.vscode-high-contrast-light .core{stroke-opacity:1;fill:none;}
 .vscode-high-contrast .ic,.vscode-high-contrast-light .ic{opacity:1;}
 .vscode-high-contrast text,.vscode-high-contrast-light text{fill-opacity:1;}
-.hot{animation:glow 4s cubic-bezier(.4,.5,.7,1);}
-.hot .ln{animation:ln 4s cubic-bezier(.4,.5,.7,1);}
-.cn.hot{animation:cn 4s cubic-bezier(.4,.5,.7,1);}
+.hot{animation:glow var(--fade) cubic-bezier(.4,.5,.7,1);}
+.hot .ln{animation:ln var(--fade) cubic-bezier(.4,.5,.7,1);}
+.cn.hot{animation:cn var(--fade) cubic-bezier(.4,.5,.7,1);}
 .err .nd,.err .core{stroke-dasharray:3 2;}
 .br,.rp{fill:none;stroke:var(--hl);stroke-width:1.5;stroke-opacity:0;pointer-events:none;}
 .busy .br{animation:breathe 3s ease-in-out infinite;}
@@ -88,9 +88,9 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .hold .core{stroke:${HOT};stroke-opacity:1;stroke-width:1.75;fill:${HOT};fill-opacity:.4;}
 .hold .ic{color:${HOT};opacity:1;}
 .hold text{fill:${HOT};fill-opacity:1;}
-.hot .nd,.hot .core{animation:nd 4s cubic-bezier(.4,.5,.7,1);}
-.hot .ic{animation:ic 4s cubic-bezier(.4,.5,.7,1);}
-.hot text{animation:tx 4s cubic-bezier(.4,.5,.7,1);}
+.hot .nd,.hot .core{animation:nd var(--fade) cubic-bezier(.4,.5,.7,1);}
+.hot .ic{animation:ic var(--fade) cubic-bezier(.4,.5,.7,1);}
+.hot text{animation:tx var(--fade) cubic-bezier(.4,.5,.7,1);}
 @keyframes breathe{0%,100%{stroke-opacity:.12;}50%{stroke-opacity:.5;}}
 @keyframes rip{from{stroke-opacity:.6;transform:scale(1);}to{stroke-opacity:0;transform:scale(2.2);}}
 @keyframes glow{from{filter:drop-shadow(0 0 4px ${HOT});}to{filter:drop-shadow(0 0 0 transparent);}}
@@ -115,6 +115,7 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 // A flash restarts the animation; with reduced motion the bright state is simply held for 600 ms. Moving from one group to another within a turn (until your next message) flashes the connector between them, however long the tool took.
 // A thinking flash with nothing else lit holds the center bright until the next group flash or 10 s, then fades as usual.
 const SCRIPT = `
+let fade = __FADE__;
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
 const timers = new Map();
 const pend = new Map(); // tool calls in flight: id -> { g, t }, t being the 10 minute safety timeout
@@ -128,7 +129,7 @@ function pulse(el, key, err) {
   el.classList.add('hot');
   if (err) { el.classList.add('err'); }
   clearTimeout(timers.get(key));
-  timers.set(key, setTimeout(() => el.classList.remove('hot', 'err'), calm.matches ? 600 : 4000));
+  timers.set(key, setTimeout(() => el.classList.remove('hot', 'err'), calm.matches ? 600 : fade));
 }
 // The caption shows the newest text, at most twice a second.
 function caption(text) {
@@ -192,6 +193,7 @@ function sub(g) {
 addEventListener('message', (e) => {
   const m = e.data;
   if (m && m.type === 'reset') { reset(); return; }
+  if (m && m.type === 'fade' && Number.isFinite(m.ms)) { fade = m.ms; document.documentElement.style.setProperty('--fade', m.ms + 'ms'); return; }
   if (!m || m.type !== 'events' || !Array.isArray(m.events)) { return; }
   for (const v of m.events) {
     if (v.t === 'flash') { flash(v.g, v.err); }
@@ -204,9 +206,10 @@ addEventListener('message', (e) => {
   }
 });`;
 
-export function activityHtml(): string {
+/** `fadeMs`: how long a flash takes to fade (setting `activity.fadeMs`), used by the CSS animations and the timers that end a flash. */
+export function activityHtml(fadeMs = 4000): string {
   const nonce = randomBytes(18).toString('base64url');
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Activity</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">${CSS}</style></head><body>${diagramSvg()}<div id="cap" aria-live="polite"></div><script nonce="${nonce}">${SCRIPT}</script></body></html>`;
+<style nonce="${nonce}">:root{--fade:${fadeMs}ms;}${CSS}</style></head><body>${diagramSvg()}<div id="cap" aria-live="polite"></div><script nonce="${nonce}">${SCRIPT.replace('__FADE__', String(fadeMs))}</script></body></html>`;
 }
