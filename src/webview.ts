@@ -33,7 +33,7 @@ ${WEB_HTML}
 <div id="sm"><button type="button" id="smh" aria-expanded="true" aria-controls="smb" title="Collapse or expand the Session Manager"><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Session Manager</button><div id="smb">
 <div class="top">
 <div class="srow"><div class="box">
-<input type="text" id="q" placeholder="Search sessions" aria-label="Search sessions" title="Search the text of your sessions" autofocus>
+<input type="text" id="q" placeholder="Search" aria-label="Search sessions" title="Search the text of your sessions" autofocus>
 <button type="button" class="clr" id="qx" title="Clear search" aria-label="Clear search"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z"/></svg></button>
 <div class="opts">
 <button class="opt" id="cs" title="Match Case (Alt+C)" aria-label="Match Case" aria-pressed="false">Aa</button>

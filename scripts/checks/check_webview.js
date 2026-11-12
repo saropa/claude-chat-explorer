@@ -176,7 +176,7 @@ function drive() {
   check('the three header icon buttons and popovers are gone from the page', !/id="(srb|sfb|tpb|srm|sfm|tpm)"/.test(page) && !/class="hbs"/.test(page));
   check('tips list every parser prefix with an example', KNOWN.every((k) => tipEx.some((e) => e.startsWith(k))) && tipEx.length === KNOWN.length);
   check('sort list matches the sort keys the script accepts', run('JSON.stringify(SORTS.map(o=>o[0]))', 'sorts') === JSON.stringify(SORT_LIST.map((o) => o[0])));
-  check('placeholder is the short text and the long hint is gone', /placeholder="Search sessions"/.test(page) && !/placeholder="[^"]*file:/.test(page));
+  check('placeholder is the short text and the long hint is gone', /placeholder="Search"/.test(page) && !/placeholder="[^"]*file:/.test(page));
   step('host sets a sort', () => deliver({ type: 'setSort', sort: 'time' }));
   check('setSort applies and saves the sort', run('sort.value', 'sort') === 'time' && posted.some((p) => p.type === 'draft' && p.sort === 'time'));
   step('host sets a bad sort', () => deliver({ type: 'setSort', sort: 'bogus' }));

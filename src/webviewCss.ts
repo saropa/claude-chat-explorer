@@ -2,7 +2,7 @@ import { DOT_ANIM_CSS } from './dotCss';
 export const CSS = String.raw`
 button,input,select{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);font-weight:normal;line-height:normal}
 body{padding:6px 0;line-height:normal;font-weight:normal;color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
-.top{padding:0 8px}
+.top{padding:0 8px}#smb .top{padding-top:6px}
 .box{position:relative}
 input[type=text]{width:100%;height:26px;box-sizing:border-box;padding:4px 118px 4px 6px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);border-radius:2px;outline:none;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
 input[type=text]::placeholder{color:var(--vscode-input-placeholderForeground)}
