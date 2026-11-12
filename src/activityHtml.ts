@@ -39,26 +39,30 @@ function connectorsSvg(): string {
 /** The diagram markup: per group a `<g data-g>` holding its line, node circle, icon and label. The view box is centered on the core so the layout is symmetric. */
 export function diagramSvg(): string {
   const groups = NODES.map((n, k) => {
-    const a = -Math.PI / 2 + (k * Math.PI) / 4, c = Math.cos(a), s = Math.sin(a), x = C + R * c, y = C + R * s, ly = y + (s < -0.3 ? -1 : 1) * (NR + 6); // label above the node in the top half, below it elsewhere: no side labels, so the width never depends on label length
+    const a = -Math.PI / 2 + (k * Math.PI) / 4, c = Math.cos(a), s = Math.sin(a), x = C + R * c, y = C + R * s, ly = y + (s < -0.3 ? -1 : 1) * (NR + 6) + (Math.abs(c) > 0.9 ? 2 : 0); // label above the node in the top half, below it elsewhere: no side labels, so the width never depends on label length
     return `<g class="grp" data-g="${n.g}"><line class="ln" x1="${(C + (R - NR) * c).toFixed(1)}" y1="${(C + (R - NR) * s).toFixed(1)}" x2="${(C + CR * c).toFixed(1)}" y2="${(C + CR * s).toFixed(1)}"/>`
-      + `<circle class="bk" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${NR}"/><circle class="nd" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${NR}"/>${icon(n.icon, x, y, ICON)}`
+      + `<circle class="bk" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${NR}"/><circle class="nd" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${NR}"/><circle class="sh" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${NR}"/>${icon(n.icon, x, y, ICON)}`
       + `<text x="${x.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle">${n.name}</text></g>`;
   }).join('');
-  return `<svg viewBox="0 0 200 200" role="img" aria-label="Claude activity: Chat, Memory, Files, Terminal, Web, Agents, Connect and Control"><defs><radialGradient id="sheen" cx=".3" cy=".25" r=".85"><stop offset="0" stop-color="currentColor" stop-opacity=".26"/><stop offset=".6" stop-color="currentColor" stop-opacity=".07"/><stop offset="1" stop-color="currentColor" stop-opacity=".03"/></radialGradient></defs>${connectorsSvg()}${groups}`
-    + `<g class="grp" data-g="think"><circle class="core" cx="${C}" cy="${C}" r="${CR}"/>${icon('lightbulb', C, C - 6, 14)}<text x="${C}" y="${C + 8}" text-anchor="middle">Claude</text></g></svg>`;
+  return `<svg viewBox="0 0 200 200" role="img" aria-label="Claude activity: Chat, Memory, Files, Terminal, Web, Agents, Connect and Control"><defs><radialGradient id="sheen" cx=".3" cy=".25" r=".85"><stop offset="0" stop-color="#fff"/><stop offset=".6" stop-color="#fff"/><stop offset="1" stop-color="#fff"/></radialGradient></defs>${connectorsSvg()}${groups}`
+    + `<g class="grp" data-g="think"><circle class="core" cx="${C}" cy="${C}" r="${CR}"/><circle class="sh" cx="${C}" cy="${C}" r="${CR}"/>${icon('lightbulb', C, C - 6, 14)}<text x="${C}" y="${C + 8}" text-anchor="middle">Claude</text></g></svg>`;
 }
 
 const HOT = 'var(--vscode-textLink-foreground)';
 const CSS = `
 body{margin:0;padding:8px;background:var(--vscode-sideBar-background);color:var(--vscode-foreground);font-family:var(--vscode-font-family);}
 svg{display:block;width:100%;max-width:300px;height:auto;margin:0 auto;overflow:visible;}
-text{fill:currentColor;font-size:8px;letter-spacing:.2px;dominant-baseline:central;opacity:.75;}
+text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-editor-background));stroke-width:3px;stroke-linejoin:round;fill:currentColor;font-size:8px;letter-spacing:.2px;dominant-baseline:central;opacity:.75;}
 .ln{stroke:currentColor;stroke-opacity:.22;stroke-width:1;}
-.bk{fill:var(--vscode-sideBar-background);}
+.bk{fill:var(--vscode-sideBar-background,var(--vscode-editor-background));}
+.sh{fill:url(#sheen);stroke:none;pointer-events:none;}
+#sheen stop:nth-child(1){stop-opacity:.22;}#sheen stop:nth-child(2){stop-opacity:.06;}#sheen stop:nth-child(3){stop-opacity:0;}
+.vscode-light #sheen stop:nth-child(1){stop-opacity:.9;}.vscode-light #sheen stop:nth-child(2){stop-opacity:.35;}
+.vscode-high-contrast .sh,.vscode-high-contrast-light .sh{display:none;}
 .cn{fill:none;stroke:currentColor;stroke-opacity:0;stroke-width:1;}
-.nd,.core{fill:url(#sheen);stroke:currentColor;stroke-opacity:.35;stroke-width:1;}
+.nd,.core{fill:currentColor;fill-opacity:.06;stroke:currentColor;stroke-opacity:.35;stroke-width:1;}
 .ic{opacity:.85;}
-.core+.ic{opacity:1;}
+.core~.ic{opacity:1;}
 .vscode-high-contrast .ln,.vscode-high-contrast-light .ln{stroke-opacity:.6;}
 .vscode-high-contrast .nd,.vscode-high-contrast .core,.vscode-high-contrast-light .nd,.vscode-high-contrast-light .core{stroke-opacity:1;fill:none;}
 .vscode-high-contrast text,.vscode-high-contrast-light text,.vscode-high-contrast .ic,.vscode-high-contrast-light .ic{opacity:1;}
@@ -103,7 +107,7 @@ function pulse(el, key) {
 addEventListener('message', (e) => {
   const m = e.data;
   if (!m || m.type !== 'flash' || !Array.isArray(m.groups)) { return; }
-  for (const g of new Set(m.groups)) {
+  for (const g of m.groups) {
     const el = document.querySelector('.grp[data-g="' + g + '"]');
     if (!el) { continue; }
     if (g === 'think') {
@@ -118,7 +122,7 @@ addEventListener('message', (e) => {
     const now = Date.now();
     if (last && last !== g && now - lastAt < 10000) {
       const cn = document.querySelector('.cn[data-c="' + [last, g].sort().join('-') + '"]');
-      if (cn) { pulse(cn, 'c'); }
+      if (cn) { pulse(cn, 'c:' + cn.dataset.c); }
     }
     last = g; lastAt = now;
     pulse(el, g);
