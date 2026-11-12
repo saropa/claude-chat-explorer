@@ -9,14 +9,15 @@ export const ACTIVITY_VIEW = 'claudeChatExplorer.activity';
 export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => string): { poke(): void } {
   let view: vscode.WebviewView | undefined;
   const feed = new ActivityFeed();
-  let busy = false, again = false;
+  let busy = false, again = false, shownId = '';
   let timer: ReturnType<typeof setInterval> | undefined;
   const poke = (): void => {
     if (!timer) { return; } // not visible: no work
     if (busy) { again = true; return; } // run once more when the current check ends
     busy = true;
     const id = currentId();
-    void feed.check(id).then((groups) => { if (groups.length && id === currentId()) { void view?.webview.postMessage({ type: 'flash', groups }); } }).finally(() => {
+    if (id !== shownId) { shownId = id; void view?.webview.postMessage({ type: 'reset' }); } // a switch of chat clears the held states and the caption
+    void feed.check(id).then((events) => { if (events.length && id === currentId()) { void view?.webview.postMessage({ type: 'events', events }); } }).finally(() => {
       busy = false;
       if (again) { again = false; poke(); }
     });
@@ -27,7 +28,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     if (!view?.visible) { return; }
     timer = setInterval(poke, refreshMsOf(vscode.workspace.getConfiguration('saropaChatExplorer').get('activity.refreshMs')));
   };
-  const show = (): void => { feed.mark(); start(); poke(); }; // mark the end first: messages that arrived while hidden do not flash
+  const show = (): void => { feed.mark(); shownId = ''; start(); poke(); }; // mark the end first: messages that arrived while hidden do not flash
   ctx.subscriptions.push(
     { dispose: stop },
     vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.activity.refreshMs')) { start(); } }),

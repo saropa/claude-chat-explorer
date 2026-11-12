@@ -3,6 +3,10 @@
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
 ## Unreleased
+- Added: the Activity panel shows when Claude is waiting for you (one soft ripple from the center, then a quiet outline until the next message; the same on Chat for a question).
+- Added: a one-line caption under the Activity diagram names the latest action in plain words (descriptions, file names, hosts; never full commands).
+- Added: a failed tool call, an API error or a denied permission flashes in the theme error color with a dashed outline.
+- Added: a node shows a faint breathing ring from a tool call until its result arrives.
 - Changed: Activity panel text is smaller (8 units) and the Claude label sits tight under its icon in the center circle.
 - Added: moving from one group to another flashes a connector between them, curved around the ring so it never crosses the center lines.
 - Changed: after thinking, the center stays lit until the next group flashes or 10 seconds pass, if nothing else is lit.
