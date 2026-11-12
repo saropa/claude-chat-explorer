@@ -309,7 +309,7 @@ npm run package
 - Import Archived Sessions works the same way and runs only when you press Import.
 - Writes a search cache to the extension's global storage folder. Message text is stored there, up to 20,000 characters per message (8,000 for subagents). The last `cwd` of each session, file paths, the first 300 characters of each command, and the worktrees and branches each session created are stored too. Tool results are skipped.
 - Pins, tags, archived sessions, unread marks, history and options are saved by VS Code in its own storage.
-- No telemetry. The only network call in the source is the opt-in Web sessions list. The programs it starts are `ps`, `sqlite3`, `git`, `gh` and, only for Haiku auto-titles, `claude`.
+- No telemetry. The only network call in the source is the opt-in Web sessions list. The programs it starts are `ps`, `sqlite3`, `git`, `gh` and `claude` (only for Haiku auto-titles and the Regenerate Session Titles command).
 - Resuming a session hands the session id to the agent extension through a VS Code command, or a VS Code link if the command fails.
 - Errors go to the "Saropa Chat Explorer" output channel.
 
@@ -360,7 +360,7 @@ Yes. The open window marker is not available there, and copied commands use Powe
 - The agent extension, to resume sessions.
 - `git`, for the Git section of a session card and Project Status. Optional `gh` (signed in), for pull requests and checks.
 - Optional `sqlite3` on your PATH, for Import Archived Sessions and tab detection.
-- Optional `claude` command, for Haiku auto-titles.
+- Optional `claude` command, for Haiku auto-titles and the Regenerate Session Titles command.
 
 ## Contributing
 
