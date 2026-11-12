@@ -9,7 +9,7 @@ const NODES: { g: Group; name: string; icon: string }[] = [
   { g: 'web', name: 'Web', icon: 'globe' }, { g: 'agents', name: 'Agents', icon: 'hubot' },
   { g: 'connect', name: 'Connect', icon: 'plug' }, { g: 'control', name: 'Control', icon: 'settings-gear' },
 ];
-const C = 130, R = 88, NR = 18, ICON = 18; // view box center, ring radius, node radius, icon size
+const C = 130, R = 80, NR = 18, ICON = 18; // view box center, ring radius, node radius, icon size
 
 const icon = (name: string, cx: number, cy: number, size: number): string => {
   const i = ICONS[name];
@@ -19,12 +19,12 @@ const icon = (name: string, cx: number, cy: number, size: number): string => {
 /** The diagram markup: per group a `<g data-g>` holding its line, node circle, icon and label. */
 export function diagramSvg(): string {
   const groups = NODES.map((n, k) => {
-    const a = -Math.PI / 2 + (k * Math.PI) / 4, x = C + R * Math.cos(a), y = C + R * Math.sin(a);
+    const a = -Math.PI / 2 + (k * Math.PI) / 4, c = Math.cos(a), s = Math.sin(a), x = C + R * c, y = C + R * s;
     return `<g class="grp" data-g="${n.g}"><line class="ln" x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${C}" y2="${C}"/>`
       + `<circle class="nd" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${NR}"/>${icon(n.icon, x, y, ICON)}`
-      + `<text x="${x.toFixed(1)}" y="${(y + NR + 10).toFixed(1)}" text-anchor="middle">${n.name}</text></g>`;
+      + `<text x="${(x + c * (NR + 4)).toFixed(1)}" y="${(y + s * (NR + 6) + 3).toFixed(1)}" text-anchor="${c > 0.3 ? 'start' : c < -0.3 ? 'end' : 'middle'}">${n.name}</text></g>`; // label on the outward side, away from the line
   }).join('');
-  return `<svg viewBox="0 0 260 260" role="img" aria-label="Claude activity: Chat, Memory, Files, Terminal, Web, Agents, Connect and Control">${groups}`
+  return `<svg viewBox="-25 0 310 260" role="img" aria-label="Claude activity: Chat, Memory, Files, Terminal, Web, Agents, Connect and Control">${groups}`
     + `<g class="grp" data-g="think"><circle class="core" cx="${C}" cy="${C}" r="30"/>${icon('lightbulb', C, C - 8, 20)}<text x="${C}" y="${C + 16}" text-anchor="middle">Claude</text></g></svg>`;
 }
 

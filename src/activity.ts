@@ -10,11 +10,14 @@ export const ACTIVITY_VIEW = 'claudeChatExplorer.activity';
 export function registerActivity(ctx: vscode.ExtensionContext, hub: Hub, currentId: () => string): { poke(): void } {
   let view: vscode.WebviewView | undefined;
   const feed = new ActivityFeed();
-  let busy = false;
+  let busy = false, again = false;
   const poke = (): void => {
-    if (busy) { return; }
+    if (busy) { again = true; return; } // run once more when the current check ends
     busy = true;
-    void feed.check(currentId()).then((groups) => { if (groups.length) { void view?.webview.postMessage({ type: 'flash', groups }); } }).finally(() => { busy = false; });
+    void feed.check(currentId()).then((groups) => { if (groups.length) { void view?.webview.postMessage({ type: 'flash', groups }); } }).finally(() => {
+      busy = false;
+      if (again) { again = false; poke(); }
+    });
   };
   ctx.subscriptions.push(
     vscode.window.registerWebviewViewProvider(ACTIVITY_VIEW, {

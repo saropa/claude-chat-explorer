@@ -15,6 +15,7 @@ export class ActivityFeed {
   /** New flashes of the chat `id` since the last call. The first call for a chat (open or switch) only marks its end, so nothing replays. */
   async check(id: string): Promise<Flash[]> {
     const file = id ? await this.files.fileOf(id) : undefined;
+    if (id && !file) { return []; } // log not found (yet): keep the state, so it is not read from the start when it appears
     try {
       const size = file ? (await fs.promises.stat(file)).size : 0;
       if (!file || id !== this.id || size < this.size) { this.id = id; this.size = size; this.tail = ''; return []; }

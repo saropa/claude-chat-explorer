@@ -67,6 +67,13 @@ check('page has no emoji', !/\p{Extended_Pictographic}/u.test(page));
     check('no change gives nothing', eq(await feed.check('aaa'), []));
     check('switching chats replays nothing', eq(await feed.check('bbb'), []));
     check('no chat gives nothing', eq(await feed.check(''), []));
+    check('a chat whose log is missing gives nothing', eq(await feed.check('ccc'), []));
+    const c = path.join(dir, 'ccc.jsonl');
+    fs.writeFileSync(c, asst({ type: 'text' }) + '\n' + asst(tool('Bash')) + '\n');
+    check('a log that appears later does not replay its old messages', eq(await feed.check('ccc'), []));
+    fs.appendFileSync(c, asst(tool('WebFetch')) + '\n');
+    check('and flashes only what is added after', eq(await feed.check('ccc'), ['web']));
+    check('missing log of the open chat keeps its position', eq(await feed.check('zzz'), []) && eq(await feed.check('ccc'), []));
   } finally { os.homedir = realHome; fs.rmSync(home, { recursive: true, force: true }); }
   if (failures.length) { console.error('check_activity FAILED (' + failures.length + ')'); failures.forEach((e) => console.error('  - ' + e)); process.exit(1); }
   console.log('check_activity OK: tool and log mapping, memory reads, page nodes, no replay');
