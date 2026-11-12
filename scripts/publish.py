@@ -12,6 +12,11 @@ Usage:
   python3 scripts/publish.py --dry-run    # preflight + build + package only
 
 Prompts (interactive terminal only): tsc missing offers `npm ci` (default yes).
+A failed preflight, check, build or package step asks "Retry / Ignore / Abort"
+(Enter = Retry re-runs that step; Ignore warns and continues; Abort exits with
+the usual code). Ignore is offered only for the working tree, remote sync and
+store metadata checks; other failures offer Retry / Abort. Failures during
+publish, tag and release exit at once. Without a terminal every failure exits at once.
 
 Flags: --dry-run, --skip-marketplace, --skip-openvsx, --skip-tag, --skip-release,
        --allow-dirty (dry run only), --no-color.
@@ -86,11 +91,50 @@ def info(text: str) -> None:
     print(f"  {_c('34', '[INFO]')} {text}")
 
 
-def die(code: str, reason: str) -> None:
-    """Print a one-line reason and exit non-zero."""
+class StepFailed(Exception):
+    """A failed check; `ignore` says whether continuing past it is safe to offer."""
+
+    def __init__(self, code: str, reason: str, ignore: bool) -> None:
+        super().__init__(reason)
+        self.code, self.reason, self.ignore = code, reason, ignore
+
+
+def die(code: str, reason: str, ignore: bool = False) -> None:
+    """Print a one-line reason and stop the step (guarded() may retry or ignore it)."""
     fail(reason)
-    print(f"\n  Exit {EXIT[code]} ({code}): {reason}")
-    sys.exit(EXIT[code])
+    raise StepFailed(code, reason, ignore)
+
+
+def finish(err: StepFailed) -> None:
+    """Exit non-zero with the failure's code."""
+    print(f"\n  Exit {EXIT[err.code]} ({err.code}): {err.reason}")
+    sys.exit(EXIT[err.code])
+
+
+def guarded(name: str, step, *args):
+    """Run a step; on a failure ask Retry (default) / Ignore (if allowed) / Abort.
+
+    Without a terminal, exits at once with the failure's code."""
+    while True:
+        try:
+            return step(*args)
+        except StepFailed as err:
+            if not sys.stdin.isatty():
+                finish(err)
+            opts = "Retry / Ignore / Abort [R/i/a]" if err.ignore else "Retry / Abort [R/a]"
+            while True:
+                try:
+                    text = input(f"  {name} failed. {opts}: ").strip().lower() or "r"
+                except EOFError:
+                    text = "a"
+                if text in ("r", "retry"):
+                    break
+                if text in ("i", "ignore") and err.ignore:
+                    warn(f"{name} failed and was ignored: {err.reason}")
+                    return None
+                if text in ("a", "abort"):
+                    finish(err)
+                print("  Please answer r, " + ("i, " if err.ignore else "") + "or a.")
 
 
 def run(cmd: list[str], env: dict | None = None) -> subprocess.CompletedProcess:
@@ -188,14 +232,14 @@ def step_tree(args) -> None:
         ok("committed")
         dirty = ""
     elif dirty and not args.allow_dirty:
-        die("TREE_DIRTY", f"working tree is not clean ({len(dirty.splitlines())} changed paths)")
+        die("TREE_DIRTY", f"working tree is not clean ({len(dirty.splitlines())} changed paths)", ignore=True)
     if dirty:
         warn("tree is dirty; allowed for this dry run (--allow-dirty)")
     else:
         ok("working tree clean")
     branch = run(["git", "branch", "--show-current"]).stdout.strip()
     if branch != BRANCH:
-        die("REMOTE_SYNC", f"on branch '{branch}', expected '{BRANCH}'")
+        die("REMOTE_SYNC", f"on branch '{branch}', expected '{BRANCH}'", ignore=True)
     ok(f"on {BRANCH}")
     if run(["git", "fetch", "origin"]).returncode != 0:
         die("REMOTE_SYNC", "git fetch origin failed")
@@ -216,7 +260,7 @@ def step_tree(args) -> None:
         if args.allow_dirty and not args.publish:
             warn(msg + "; allowed for this dry run")
         else:
-            die("REMOTE_SYNC", msg)
+            die("REMOTE_SYNC", msg, ignore=True)
     else:
         ok(f"in sync with origin/{BRANCH}")
 
@@ -369,7 +413,7 @@ def step_store_checks() -> None:
     if errors:
         for e in errors:
             fail(e)
-        die("STORE_CHECK_FAILED", f"{len(errors)} store check(s) failed; first: {errors[0]}")
+        die("STORE_CHECK_FAILED", f"{len(errors)} store check(s) failed; first: {errors[0]}", ignore=True)
     ok(f"publisher {pub}, license, description, keywords, categories, icon {w}x{h}")
     ok("README has no relative images; no non-Saropa URLs")
 
@@ -501,16 +545,22 @@ def main() -> None:
     if args.no_color:
         _color = False
     if args.allow_dirty and not args.dry_run:
-        die("PREREQUISITE", "--allow-dirty only works with --dry-run")
+        try:
+            die("PREREQUISITE", "--allow-dirty only works with --dry-run")
+        except StepFailed as err:
+            finish(err)
     print(f"Saropa Chat Explorer publish: {'PUBLISH' if args.publish else 'DRY RUN (nothing will be published)'}")
-    step_prereqs(args)
-    plan = step_tokens(args)
-    step_tree(args)
-    version = step_version(args)
-    step_store_checks()
-    step_build()
-    vsix = step_package(version)
-    step_publish(args, plan, version, vsix)
+    try:
+        guarded("Prerequisites", step_prereqs, args)
+        plan = step_tokens(args)
+        guarded("Working tree and remote sync", step_tree, args)
+        version = guarded("Version and CHANGELOG", step_version, args)
+        guarded("Store metadata checks", step_store_checks)
+        guarded("Manifest check and compile", step_build)
+        vsix = guarded("Package .vsix", step_package, version)
+        step_publish(args, plan, version, vsix)
+    except StepFailed as err:
+        finish(err)
     heading("Done")
     if MANUAL:
         print("  UPLOAD BY HAND:")
