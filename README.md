@@ -1,6 +1,6 @@
 # Saropa Chat Explorer: Search and Resume Claude Code Session History in VS Code
 
-Saropa Chat Explorer is a VS Code extension for full-text search of your Claude Code session history. Find an old session by any word or phrase, see which session edited a file, check the git state of a session, and resume the session from the sidebar. It indexes `~/.claude/projects` locally in a worker thread, makes no network requests of its own, and has no runtime dependencies.
+Saropa Chat Explorer is a VS Code extension for full-text search of your Claude Code session history. Find an old session by any word or phrase, see which session edited a file, check the git state of a session, and resume the session from the sidebar. It indexes `~/.claude/projects` locally in a worker thread, makes no network requests unless you turn on Web sessions, and has no runtime dependencies.
 
 Keywords: Claude Code, AI agent, session history, session search, transcript search, resume session, subagent, git worktree, pull request status, context window, VS Code extension.
 
