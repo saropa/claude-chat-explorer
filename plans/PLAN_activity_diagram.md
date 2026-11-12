@@ -46,3 +46,11 @@ Latency is at most one interval (250 ms by default) after the message is written
 - The flash is an ease-out glow (drop-shadow) over 4 seconds; the line, circle, icon and label all start in the link color and settle back together. Reduced motion holds the same bright state for 600 ms without animating.
 - High contrast: full-opacity outlines, labels and icons, stronger lines. Colors are only `--vscode-*` variables.
 - The diagram scales to the panel up to 300 px wide and never clips or overlaps.
+
+## Owner requests, round 2 (built)
+
+1. "Make the text smaller, it is awkwardly large." Labels and the core label are 8 units (was 11); label offset from the node is NR + 6.
+2. "Too much vertical space between the lightbulb and Claude." Core icon 14 units at C-6 (x 100, y 94), label at C+8 (x 100, y 108); icon and label read as one centered unit.
+3. "Show connections between nodes... Do not draw over the center line; wrap around it." 28 hidden connector arcs along the ring (radius 68, shorter way, clockwise for opposite nodes), drawn under the nodes (each node has an opaque backing circle). A move from one group to another within 10 s flashes the pair's connector with the spoke styling; reduced motion holds it 600 ms.
+4. "During long thinking pauses the center should stay highlighted a bit longer..." A thinking flash with nothing lit holds the center bright until the next group flash or 10 s, then fades as usual.
+5. "Make the node and Claude circles a little more beautiful with a delicate highlight from the top left." Radial gradient sheen (currentColor only) centered top left; flat outline kept in high contrast. Note: in light themes currentColor is dark, so the sheen reads as a soft tint, not a white highlight.

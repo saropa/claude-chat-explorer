@@ -47,6 +47,13 @@ check('page labels Claude and the eight groups', ['Claude', 'Chat', 'Memory', 'F
 check('page honors reduced motion', page.includes('prefers-reduced-motion'));
 check('page has no emoji', !/\p{Extended_Pictographic}/u.test(page));
 
+// 4a. Connectors: one per pair, each an arc of the ring (both ends at radius 68, so never inside the core of radius 28); thinking hold is in the page script.
+const arcs = [...page.matchAll(/<path class="cn" data-c="([a-z-]+)" d="M([\d.]+) ([\d.]+) A68 68 0 0 1 ([\d.]+) ([\d.]+)"/g)];
+check('page has 28 connectors', arcs.length === 28);
+check('connector ends sit on the ring, outside the core', arcs.every((m) => [[m[2], m[3]], [m[4], m[5]]].every(([x, y]) => Math.abs(Math.hypot(x - 100, y - 100) - 68) < 0.2)));
+check('connectors never cross the center line (arc radius 68 > core 28)', page.includes('A68 68 0 0 1'));
+check('page holds the center while thinking', page.includes("classList.add('hold')") && page.includes('10000'));
+
 // 4b. Setting: declared with default 250, range 100..2000; the clamp keeps any value in range.
 const prop = require(path.join(ROOT, 'package.json')).contributes.configuration.properties['saropaChatExplorer.activity.refreshMs'];
 check('refreshMs setting has default 250, min 100, max 2000', !!prop && prop.default === 250 && prop.minimum === 100 && prop.maximum === 2000);
