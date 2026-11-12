@@ -54,7 +54,7 @@ const CSS = `
 .err{--hl:var(--vscode-editorError-foreground,var(--vscode-errorForeground));}
 body{margin:0;padding:8px;background:var(--vscode-sideBar-background);color:var(--vscode-foreground);font-family:var(--vscode-font-family);}
 svg{display:block;width:100%;max-width:300px;height:auto;margin:0 auto;overflow:visible;}
-text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-editor-background));stroke-width:3px;stroke-opacity:.7;stroke-linejoin:round;fill:currentColor;font-size:8px;letter-spacing:.2px;dominant-baseline:central;fill-opacity:.75;}
+text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-editor-background));stroke-width:3px;stroke-opacity:.7;stroke-linejoin:round;fill:currentColor;font-size:8px;letter-spacing:.2px;dominant-baseline:central;fill-opacity:.6;}
 .grp[data-g="think"] text{stroke:none;}
 .ln{stroke:currentColor;stroke-opacity:.22;stroke-width:1;}
 .bk{fill:var(--vscode-sideBar-background,var(--vscode-editor-background));}
@@ -67,6 +67,7 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .nd,.core{fill:currentColor;fill-opacity:.06;stroke:currentColor;stroke-opacity:.35;stroke-width:1;}
 .ic{opacity:.85;}
 .core~.ic{opacity:1;}
+.core~text{fill-opacity:.75;}
 .vscode-high-contrast .ln,.vscode-high-contrast-light .ln{stroke-opacity:.6;}
 .vscode-high-contrast .nd,.vscode-high-contrast .core,.vscode-high-contrast-light .nd,.vscode-high-contrast-light .core{stroke-opacity:1;fill:none;}
 .vscode-high-contrast .ic,.vscode-high-contrast-light .ic{opacity:1;}
@@ -107,7 +108,7 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .hot .ic{color:${HOT};opacity:1;}
 .hot text{fill:${HOT};fill-opacity:1;}}`;
 
-// A flash restarts the animation; with reduced motion the bright state is simply held for 600 ms. Moving from one group to another within 10 s flashes the connector between them.
+// A flash restarts the animation; with reduced motion the bright state is simply held for 600 ms. Moving from one group to another within a turn (until your next message) flashes the connector between them, however long the tool took.
 // A thinking flash with nothing else lit holds the center bright until the next group flash or 10 s, then fades as usual.
 const SCRIPT = `
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
@@ -116,7 +117,7 @@ const pend = new Map(); // tool calls in flight: id -> { g, t }, t being the 10 
 const core = document.querySelector('.grp[data-g="think"]');
 const cap = document.getElementById('cap');
 const grp = (g) => document.querySelector('.grp[data-g="' + g + '"]');
-let last = '', lastAt = 0, capText = '', capAt = 0, capTimer = 0;
+let last = '', capText = '', capAt = 0, capTimer = 0;
 function pulse(el, key, err) {
   el.classList.remove('hot', 'hold', 'err');
   void el.getBoundingClientRect();
@@ -167,12 +168,11 @@ function flash(g, err) {
     return;
   }
   if (core.classList.contains('hold')) { pulse(core, 'think'); }
-  const now = Date.now();
-  if (g !== 'think' && last && last !== g && now - lastAt < 10000) {
+  if (g !== 'think' && last && last !== g) {
     const cn = document.querySelector('.cn[data-c="' + [last, g].sort().join('-') + '"]');
     if (cn) { pulse(cn, 'c:' + cn.dataset.c); }
   }
-  if (g !== 'think') { last = g; lastAt = now; }
+  if (g !== 'think') { last = g; }
   pulse(el, g, err);
 }
 addEventListener('message', (e) => {
@@ -185,7 +185,7 @@ addEventListener('message', (e) => {
     else if (v.t === 'busy' && grp(v.g)) { startCall(v.id, v.g); }
     else if (v.t === 'end') { endCall(v.id); if (v.g === 'chat') { grp('chat').classList.remove('wait'); } if (!pend.size) { caption(''); } }
     else if (v.t === 'wait' && grp(v.g)) { wait(v.g); }
-    else if (v.t === 'wake') { document.querySelectorAll('.wait').forEach((el) => el.classList.remove('wait', 'rip')); caption(''); }
+    else if (v.t === 'wake') { last = ''; document.querySelectorAll('.wait').forEach((el) => el.classList.remove('wait', 'rip')); caption(''); }
   }
 });`;
 
