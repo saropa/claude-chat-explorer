@@ -4,6 +4,8 @@
 
 **Owner decision 2026-11-12: "the agent node should be chatting with other nodes."** While a sub-agent started from the current chat runs, its own tool calls show as connector flashes from the Agents node to the node of each tool it uses (Agents to Terminal, Agents to Files, and so on). Queued after the connector-visibility fix.
 
+**Owner request 2026-11-12: a "..." menu on the Activity panel** with "Refresh time" (Slow, Medium, Fast) and "Fade-out time" (Slow, Medium, Fast). Values chosen as defaults (Medium = today's behavior): refresh Slow 1000 ms, Medium 250 ms, Fast 100 ms; fade Slow 8 s, Medium 4 s, Fast 2 s. The choice is saved in settings. Queued after the Agents-node work, since both change the same files.
+
 Context: the Activity panel (`src/activityHtml.ts`, `src/activityMap.ts`, `src/activityFeed.ts`, `src/activity.ts`, plan `plans/PLAN_activity_diagram.md`) flashes one of eight nodes, or the core, for each new assistant block in the current chat log. Treated as already done: connector arcs between nodes, a longer core glow in thinking pauses, smaller text, a top-left sheen on circles.
 
 ## What the log carries (checked on the 40 most recent logs in `~/.claude/projects`, 2026-11-12)
