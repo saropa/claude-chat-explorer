@@ -10,15 +10,22 @@ export class ActivityFeed {
   private id = '';
   private size = 0;
   private tail = '';
+  private missing?: { id: string; at: number }; // chat whose log was not found, and when that was first seen
   private readonly files = new BgTracker(projectsRoot());
 
   /** New flashes of the chat `id` since the last call. The first call for a chat (open or switch) only marks its end, so nothing replays. */
   async check(id: string): Promise<Flash[]> {
     const file = id ? await this.files.fileOf(id) : undefined;
-    if (id && !file) { return []; } // log not found (yet): keep the state, so it is not read from the start when it appears
+    if (id && !file) { // log not found (yet): keep the state, so it is not read from the start when it appears
+      if (this.missing?.id !== id) { this.missing = { id, at: Date.now() }; }
+      return [];
+    }
     try {
-      const size = file ? (await fs.promises.stat(file)).size : 0;
-      if (!file || id !== this.id || size < this.size) { this.id = id; this.size = size; this.tail = ''; return []; }
+      const st = file ? await fs.promises.stat(file) : undefined, size = st?.size ?? 0;
+      if (st && id !== this.id && this.missing?.id === id && (st.birthtimeMs || st.ctimeMs) >= this.missing.at) { this.id = id; this.size = 0; this.tail = ''; } // born after we first looked: its first messages are new
+      else if (!file || id !== this.id || size < this.size) { this.id = id; this.size = size; this.tail = ''; this.missing = undefined; return []; }
+      this.missing = undefined;
+      if (!file) { return []; }
       if (size === this.size) { return []; }
       const from = Math.max(this.size, size - MAX_CHUNK), buf = Buffer.alloc(size - from);
       const fh = await fs.promises.open(file, 'r');

@@ -67,13 +67,20 @@ check('page has no emoji', !/\p{Extended_Pictographic}/u.test(page));
     check('no change gives nothing', eq(await feed.check('aaa'), []));
     check('switching chats replays nothing', eq(await feed.check('bbb'), []));
     check('no chat gives nothing', eq(await feed.check(''), []));
-    check('a chat whose log is missing gives nothing', eq(await feed.check('ccc'), []));
-    const c = path.join(dir, 'ccc.jsonl');
-    fs.writeFileSync(c, asst({ type: 'text' }) + '\n' + asst(tool('Bash')) + '\n');
-    check('a log that appears later does not replay its old messages', eq(await feed.check('ccc'), []));
-    fs.appendFileSync(c, asst(tool('WebFetch')) + '\n');
-    check('and flashes only what is added after', eq(await feed.check('ccc'), ['web']));
-    check('missing log of the open chat keeps its position', eq(await feed.check('zzz'), []) && eq(await feed.check('ccc'), []));
+    const spin = () => { const t = Date.now(); while (Date.now() - t < 20) { /* let the clock move past the file times */ } };
+    // An old log that was missing for a moment only marks its end; a log created after we first looked replays its new lines.
+    const old = path.join(dir, 'ddd.jsonl');
+    fs.writeFileSync(old + '.tmp', asst({ type: 'text' }) + '\n'); spin();
+    check('old log missing at first look gives nothing', eq(await feed.check('ddd'), []));
+    fs.renameSync(old + '.tmp', old);
+    check('old log that shows up only marks its end', eq(await feed.check('ddd'), []));
+    fs.appendFileSync(old, asst(tool('Bash')) + '\n');
+    check('old log flashes only new lines', eq(await feed.check('ddd'), ['terminal']));
+    check('missing log of a new chat gives nothing', eq(await feed.check('eee'), [])); spin();
+    fs.writeFileSync(path.join(dir, 'eee.jsonl'), asst({ type: 'thinking' }) + '\n' + asst({ type: 'text' }) + '\n');
+    check('brand-new log replays its first messages', eq(await feed.check('eee'), ['think', 'chat']));
+    check('and then only what is added', eq(await feed.check('eee'), []));
+    check('missing log of the open chat keeps its position', eq(await feed.check('zzz'), []) && eq(await feed.check('eee'), []));
   } finally { os.homedir = realHome; fs.rmSync(home, { recursive: true, force: true }); }
   if (failures.length) { console.error('check_activity FAILED (' + failures.length + ')'); failures.forEach((e) => console.error('  - ' + e)); process.exit(1); }
   console.log('check_activity OK: tool and log mapping, memory reads, page nodes, no replay');
