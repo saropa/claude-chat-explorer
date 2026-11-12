@@ -3,6 +3,7 @@
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
 ## Unreleased
+- Changed: the README shows a screenshot of the sidebar with the Session Manager and the Activity diagram.
 - Fixed: Activity connectors between two groups now flash for every group change within a turn, however long the tool ran (before, a gap over 10 s such as a long agent run dropped the connector).
 - Changed: the Activity node labels rest a little dimmer (the lit state and the Claude label are unchanged).
 - Fixed: Activity flashes now read clearly in dark and light themes (the top-left sheen no longer washes out the lit circle and is far more delicate, the lit fill is stronger, the fade holds longer, and the Claude label has no dark outline).

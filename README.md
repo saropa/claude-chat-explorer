@@ -4,6 +4,8 @@ Saropa Chat Explorer is a VS Code extension for full-text search of your Claude 
 
 Keywords: Claude Code, AI agent, session history, session search, transcript search, resume session, subagent, git worktree, pull request status, context window, VS Code extension.
 
+![Saropa Chat Explorer sidebar: the Session Manager with search and active sessions, and the Activity diagram lighting up as Claude works](images/sidebar_session_manager_and_activity_panel.png)
+
 ## What it does
 
 - Full-text search of agent sessions, including subagent transcripts.
