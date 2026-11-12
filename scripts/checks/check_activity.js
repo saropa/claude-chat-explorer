@@ -183,6 +183,14 @@ check('refreshMs clamps and defaults', refreshMsOf(undefined) === 250 && refresh
     fs.appendFileSync(sf, asst(tool('Bash')) + '\n');
     check('a new sub-agent Bash line is an agents-to-terminal event', eq((await sfeed.check('aaa')).filter((e) => e.t === 'sub'), [{ t: 'sub', g: 'terminal' }]));
     check('and it is not read twice', eq(await sfeed.check('aaa'), []));
+    fs.appendFileSync(sf, asst(tool('Bash'), tool('Bash'), tool('Read')) + '\n');
+    check('identical neighbouring sub events flash once', eq((await sfeed.check('aaa')).map((e) => e.g), ['terminal', 'files']));
+    // A log idle for long is registered at first sight and resumes from its offset when it wakes.
+    const sf2 = path.join(sd, 'agent-2.jsonl'); fs.writeFileSync(sf2, asst(tool('Read')) + '\n');
+    const idleAt = new Date(Date.now() - 10 * 60 * 1000); fs.utimesSync(sf2, idleAt, idleAt);
+    const sfeed2 = new ActivityFeed(2000, 0); await sfeed2.check('aaa');
+    fs.appendFileSync(sf2, asst(tool('Bash')) + '\n');
+    check('a woken idle log resumes from its offset, not from its start', eq((await sfeed2.check('aaa')).filter((e) => e.t === 'sub').map((e) => e.g), ['terminal']));
   } finally { os.homedir = realHome; fs.rmSync(home, { recursive: true, force: true }); }
   if (failures.length) { console.error('check_activity FAILED (' + failures.length + ')'); failures.forEach((e) => console.error('  - ' + e)); process.exit(1); }
   console.log('check_activity OK: tool and log mapping, memory reads, page nodes, no replay');

@@ -62,6 +62,8 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 #sheen stop:nth-child(1){stop-opacity:.07;}#sheen stop:nth-child(2){stop-opacity:.02;}#sheen stop:nth-child(3){stop-opacity:0;}
 .vscode-light #sheen stop:nth-child(1){stop-opacity:.3;}.vscode-light #sheen stop:nth-child(2){stop-opacity:.1;}
 .hot .sh,.hold .sh{opacity:0;}
+.sb.hot .ln{animation:none;stroke:currentColor;stroke-opacity:.22;stroke-width:1;}
+.vscode-high-contrast .sb.hot .ln,.vscode-high-contrast-light .sb.hot .ln{stroke-opacity:.6;}
 .vscode-high-contrast .sh,.vscode-high-contrast-light .sh{display:none;}
 .cn{fill:none;stroke:currentColor;stroke-opacity:0;stroke-width:1;}
 .nd,.core{fill:currentColor;fill-opacity:.06;stroke:currentColor;stroke-opacity:.35;stroke-width:1;}
@@ -106,7 +108,9 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .hot .ln,.cn.hot{stroke:${HOT};stroke-opacity:1;stroke-width:2;}
 .hot .nd,.hot .core{stroke:${HOT};stroke-opacity:1;stroke-width:1.75;fill:${HOT};fill-opacity:.4;}
 .hot .ic{color:${HOT};opacity:1;}
-.hot text{fill:${HOT};fill-opacity:1;}}`;
+.hot text{fill:${HOT};fill-opacity:1;}
+.sb.hot .ln{stroke:currentColor;stroke-opacity:.22;stroke-width:1;}
+.vscode-high-contrast .sb.hot .ln,.vscode-high-contrast-light .sb.hot .ln{stroke-opacity:.6;}}`;
 
 // A flash restarts the animation; with reduced motion the bright state is simply held for 600 ms. Moving from one group to another within a turn (until your next message) flashes the connector between them, however long the tool took.
 // A thinking flash with nothing else lit holds the center bright until the next group flash or 10 s, then fades as usual.
@@ -119,7 +123,7 @@ const cap = document.getElementById('cap');
 const grp = (g) => document.querySelector('.grp[data-g="' + g + '"]');
 let last = '', capText = '', capAt = 0, capTimer = 0;
 function pulse(el, key, err) {
-  el.classList.remove('hot', 'hold', 'err');
+  el.classList.remove('hot', 'hold', 'err', 'sb');
   void el.getBoundingClientRect();
   el.classList.add('hot');
   if (err) { el.classList.add('err'); }
@@ -179,11 +183,11 @@ function flash(g, err) {
 function sub(g) {
   const ag = grp('agents'), el = grp(g);
   if (!ag || !el) { return; }
-  pulse(ag, 'agents');
+  pulse(ag, 'agents'); ag.classList.add('sb'); // sb: the spoke to the center stays at rest, so this does not read as Claude's own work
   if (g === 'agents') { return; }
   const cn = document.querySelector('.cn[data-c="' + ['agents', g].sort().join('-') + '"]');
   if (cn) { pulse(cn, 'c:' + cn.dataset.c); }
-  pulse(el, g);
+  pulse(el, g); el.classList.add('sb');
 }
 addEventListener('message', (e) => {
   const m = e.data;
