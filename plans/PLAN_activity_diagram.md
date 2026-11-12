@@ -38,3 +38,11 @@ Tool results and other entries do not flash. Only new messages flash: opening or
 - Test: `scripts/check_activity.js`, part of `vscode:prepublish`.
 
 Latency is at most one interval (250 ms by default) after the message is written.
+
+## Visual polish
+
+- Layout is symmetric around the core (view box centered on it); lines run from node edge to core edge instead of through the circles; ring radius 72, node radius 17, 16 px Codicons, 11 px labels in the theme font.
+- Nodes and the core have a faint filled circle and one consistent 1 px stroke, all from the current theme foreground color.
+- The flash is an ease-out glow (drop-shadow) over 4 seconds; the line, circle, icon and label all start in the link color and settle back together. Reduced motion holds the same bright state for 600 ms without animating.
+- High contrast: full-opacity outlines, labels and icons, stronger lines. Colors are only `--vscode-*` variables.
+- The view box is about 290 units wide and scales to the panel (maximum 360 px), so labels stay small but legible at 200 px and never clip or overlap.

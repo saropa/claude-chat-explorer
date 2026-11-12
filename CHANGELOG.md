@@ -3,6 +3,7 @@
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
 ## Unreleased
+- Changed: the Activity panel looks more polished. Symmetric layout with lines running edge to edge, faint node backgrounds, crisp 16 px icons, larger labels, and a smooth glow when a group flashes (its icon and label brighten with the line). Theme colors only, stronger outlines in high contrast.
 - Changed: the Activity panel reacts faster. While it is visible it checks the selected chat every 250 ms (setting `saropaChatExplorer.activity.refreshMs`, 100 to 2000), reading only newly appended bytes. Collapsed or hidden, it does no work.
 - Added: an "Activity" view under the session list. A diagram of Claude with eight groups (Chat, Memory, Files, Terminal, Web, Agents, Connect, Control); the line of a group flashes and fades when the current chat gets a message of that kind, and the center flashes on thinking.
 - Changed: the README was updated to cover all current features.
