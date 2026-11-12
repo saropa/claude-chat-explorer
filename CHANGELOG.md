@@ -2,7 +2,7 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
-## Unreleased
+## 0.47.0
 - Added: the Activity panel's ... menu has Refresh Speed and Fade Speed (Slow, Medium, Fast); the new setting `saropaChatExplorer.activity.fadeMs` sets how long a flash fades (4 s by default), applied live.
 - Added: while a sub-agent started from the chat runs, its own tool calls flash on the Activity diagram from the Agents node to the node of each tool it uses (for example Agents to Terminal for a Bash call), and its thinking and text give the Agents node a light flash.
 - Changed: the README shows a screenshot of the sidebar with the Session Manager and the Activity diagram.
