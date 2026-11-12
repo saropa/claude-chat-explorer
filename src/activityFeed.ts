@@ -6,12 +6,19 @@ import { projectsRoot } from './files';
 
 const MAX_CHUNK = 4 * 1024 * 1024; // bytes read per check; a bigger gap is read from its tail, since only new messages flash
 
+export const REFRESH_MS = { def: 250, min: 100, max: 2000 };
+/** The `activity.refreshMs` setting as a usable interval: a number clamped to 100..2000, else 250. */
+export const refreshMsOf = (raw: unknown): number => typeof raw === 'number' && Number.isFinite(raw) ? Math.min(REFRESH_MS.max, Math.max(REFRESH_MS.min, Math.round(raw))) : REFRESH_MS.def;
+
 export class ActivityFeed {
   private id = '';
   private size = 0;
   private tail = '';
   private missing?: { id: string; at: number }; // chat whose log was not found, and when that was first seen
   private readonly files = new BgTracker(projectsRoot());
+
+  /** Forget the position: the next check only marks the end of the log, so nothing that arrived meanwhile flashes. */
+  mark(): void { this.id = ''; this.size = 0; this.tail = ''; this.missing = undefined; }
 
   /** New flashes of the chat `id` since the last call. The first call for a chat (open or switch) only marks its end, so nothing replays. */
   async check(id: string): Promise<Flash[]> {

@@ -47,6 +47,12 @@ check('page labels Claude and the eight groups', ['Claude', 'Chat', 'Memory', 'F
 check('page honors reduced motion', page.includes('prefers-reduced-motion'));
 check('page has no emoji', !/\p{Extended_Pictographic}/u.test(page));
 
+// 4b. Setting: declared with default 250, range 100..2000; the clamp keeps any value in range.
+const prop = require(path.join(ROOT, 'package.json')).contributes.configuration.properties['saropaChatExplorer.activity.refreshMs'];
+check('refreshMs setting has default 250, min 100, max 2000', !!prop && prop.default === 250 && prop.minimum === 100 && prop.maximum === 2000);
+const { refreshMsOf } = require(path.join(OUT, 'activityFeed.js'));
+check('refreshMs clamps and defaults', refreshMsOf(undefined) === 250 && refreshMsOf(5) === 100 && refreshMsOf(99999) === 2000 && refreshMsOf(500) === 500 && refreshMsOf('x') === 250);
+
 (async () => {
   // 5. Feed: opening a chat does not replay it; later lines flash once; a switch does not replay either.
   const { ActivityFeed } = require(path.join(OUT, 'activityFeed.js'));
@@ -80,6 +86,11 @@ check('page has no emoji', !/\p{Extended_Pictographic}/u.test(page));
     fs.writeFileSync(path.join(dir, 'eee.jsonl'), asst({ type: 'thinking' }) + '\n' + asst({ type: 'text' }) + '\n');
     check('brand-new log replays its first messages', eq(await feed.check('eee'), ['think', 'chat']));
     check('and then only what is added', eq(await feed.check('eee'), []));
+    // mark(): what arrived while hidden does not flash.
+    fs.appendFileSync(a, asst(tool('Bash')) + '\n'); feed.mark();
+    check('after mark, hidden messages do not flash', eq(await feed.check('aaa'), []));
+    fs.appendFileSync(a, asst(tool('Bash')) + '\n');
+    check('after mark, later messages flash', eq(await feed.check('aaa'), ['terminal']));
     check('missing log of the open chat keeps its position', eq(await feed.check('zzz'), []) && eq(await feed.check('eee'), []));
   } finally { os.homedir = realHome; fs.rmSync(home, { recursive: true, force: true }); }
   if (failures.length) { console.error('check_activity FAILED (' + failures.length + ')'); failures.forEach((e) => console.error('  - ' + e)); process.exit(1); }

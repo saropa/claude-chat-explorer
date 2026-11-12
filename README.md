@@ -241,6 +241,7 @@ One page answers: what is still open in this repository, and what do I do to clo
 | Setting | Default | Effect |
 |---|---|---|
 | `saropaChatExplorer.maxResults` | 500 | Most sessions listed (50 to 2000). |
+| `saropaChatExplorer.activity.refreshMs` | 250 | How often the Activity panel checks the selected chat for new messages, in milliseconds (100 to 2000). Applied live; no checks while the panel is collapsed. |
 | `saropaChatExplorer.contextRingTokens` | 300000 | Token count that fills the context ring (minimum 10000). |
 | `saropaChatExplorer.contextWarnings` | true | Notify at 80 and 90 percent context. |
 | `saropaChatExplorer.showUsageStatusBar` | true | Status bar item for nearly full sessions. |

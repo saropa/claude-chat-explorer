@@ -396,6 +396,13 @@
           "default": false,
           "description": "Use only your emoji rules and ignore the built-in ones."
         },
+        "saropaChatExplorer.activity.refreshMs": {
+          "type": "integer",
+          "default": 250,
+          "minimum": 100,
+          "maximum": 2000,
+          "description": "How often the Activity panel checks the selected chat for new messages, in milliseconds."
+        },
         "saropaChatExplorer.contextRingTokens": {
           "type": "number",
           "default": 300000,
