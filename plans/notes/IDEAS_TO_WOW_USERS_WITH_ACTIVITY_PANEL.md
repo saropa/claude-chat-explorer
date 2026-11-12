@@ -2,6 +2,8 @@
 
 **Status: owner decision 2026-11-12: build ideas 1 (waiting for you), 2 (live caption), 3 (error flash) and 4 (busy node while a tool runs). The other ideas are not scheduled.**
 
+**Owner decision 2026-11-12: "the agent node should be chatting with other nodes."** While a sub-agent started from the current chat runs, its own tool calls show as connector flashes from the Agents node to the node of each tool it uses (Agents to Terminal, Agents to Files, and so on). Queued after the connector-visibility fix.
+
 Context: the Activity panel (`src/activityHtml.ts`, `src/activityMap.ts`, `src/activityFeed.ts`, `src/activity.ts`, plan `plans/PLAN_activity_diagram.md`) flashes one of eight nodes, or the core, for each new assistant block in the current chat log. Treated as already done: connector arcs between nodes, a longer core glow in thinking pauses, smaller text, a top-left sheen on circles.
 
 ## What the log carries (checked on the 40 most recent logs in `~/.claude/projects`, 2026-11-12)
