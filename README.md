@@ -295,7 +295,7 @@ npm run package
 
 - `npm run compile` builds `src/` into `out/`.
 - `node scripts/bench/bench.js` prints build, load and query timings for your machine and session folder.
-- `npm run package` builds a `.vsix`. Its `vscode:prepublish` step runs the checks: the `check_*.js` scripts in `scripts/` (listed in the `vscode:prepublish` script of `package.json`).
+- `npm run package` builds a `.vsix`. Its `vscode:prepublish` step runs the checks: the `check_*.js` scripts in `scripts/checks/` (listed in the `vscode:prepublish` script of `package.json`).
 - No runtime dependencies. Dev dependencies only.
 - Press F5 in VS Code to start an Extension Development Host.
 - See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch flow and rules, and [PUBLISHING.md](PUBLISHING.md) for releases.
