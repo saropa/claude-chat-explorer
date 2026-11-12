@@ -14,8 +14,10 @@ Usage:
 Prompts (interactive terminal only): tsc missing offers `npm ci` (default yes).
 A failed preflight, check, build or package step asks "Retry / Ignore / Abort"
 (Enter = Retry re-runs that step; Ignore warns and continues; Abort exits with
-the usual code). Ignore is offered only for the working tree, remote sync and
-store metadata checks; other failures offer Retry / Abort. Failures during
+the usual code). Ignore is offered only for checks whose failure cannot publish
+wrong code: a dirty working tree and the store metadata checks. Every other
+failure (wrong branch, out of sync with origin, push, version, build, package)
+offers Retry / Abort. Failures during
 publish, tag and release exit at once. Without a terminal every failure exits at once.
 
 Flags: --dry-run, --skip-marketplace, --skip-openvsx, --skip-tag, --skip-release,
@@ -239,7 +241,7 @@ def step_tree(args) -> None:
         ok("working tree clean")
     branch = run(["git", "branch", "--show-current"]).stdout.strip()
     if branch != BRANCH:
-        die("REMOTE_SYNC", f"on branch '{branch}', expected '{BRANCH}'", ignore=True)
+        die("REMOTE_SYNC", f"on branch '{branch}', expected '{BRANCH}'")
     ok(f"on {BRANCH}")
     if run(["git", "fetch", "origin"]).returncode != 0:
         die("REMOTE_SYNC", "git fetch origin failed")
@@ -260,7 +262,7 @@ def step_tree(args) -> None:
         if args.allow_dirty and not args.publish:
             warn(msg + "; allowed for this dry run")
         else:
-            die("REMOTE_SYNC", msg, ignore=True)
+            die("REMOTE_SYNC", msg)
     else:
         ok(f"in sync with origin/{BRANCH}")
 
@@ -300,14 +302,13 @@ def sync_to_changelog(args, version: str) -> str:
         ["npm", "version", top, "--no-git-tag-version"],
         ["git", "add", "-A"],
         ["git", "commit", "-m", f"chore: release {top}\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"],
-        ["git", "push", "origin", BRANCH],
     ]
     for cmd in cmds:
         res = run(cmd)
         if res.returncode != 0:
             print(tail(res))
             die("GIT_FAILED", f"'{' '.join(cmd[:3])}' failed")
-    ok(f"package.json bumped {version} -> {top} to match CHANGELOG; committed and pushed")
+    ok(f"package.json bumped {version} -> {top} to match CHANGELOG; committed")
     return top
 
 
@@ -315,7 +316,7 @@ def fold_unreleased(args, version: str) -> str:
     """Turn '## Unreleased' into the newest entry; return the version to publish.
 
     The package.json version is bumped to the next minor (n.m+1.0) via npm
-    version, and the bullets become the new entry. A real run commits and pushes.
+    version, and the bullets become the new entry. A real run commits (step_push pushes).
     """
     path = ROOT / "CHANGELOG.md"
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -342,14 +343,13 @@ def fold_unreleased(args, version: str) -> str:
     cmds += [
         ["git", "add", "-A"],
         ["git", "commit", "-m", f"chore: release {target}\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"],
-        ["git", "push", "origin", BRANCH],
     ]
     for cmd in cmds:
         res = run(cmd)
         if res.returncode != 0:
             print(tail(res))
             die("GIT_FAILED", f"'{' '.join(cmd[:3])}' failed")
-    ok(f"Unreleased published as {target}" + (f" (bumped from {version})" if target != version else "") + "; committed and pushed")
+    ok(f"Unreleased published as {target}" + (f" (bumped from {version})" if target != version else "") + "; committed")
     return target
 
 
@@ -369,6 +369,28 @@ def step_version(args) -> str:
         die("TAG_EXISTS", f"git tag {tag} already exists on origin")
     ok(f"tag {tag} does not exist")
     return version
+
+
+def step_push(args, version: str) -> None:
+    """Real run: commit anything left by the version step, then push local commits.
+
+    Separate from step_version so a Retry after a failed push never bumps or folds twice."""
+    if not args.publish:
+        return
+    if run(["git", "status", "--porcelain"]).stdout.strip():
+        msg = f"chore: release {version}\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+        for cmd in (["git", "add", "-A"], ["git", "commit", "-m", msg]):
+            res = run(cmd)
+            if res.returncode != 0:
+                print(tail(res))
+                die("GIT_FAILED", f"'{' '.join(cmd[:2])}' failed")
+    ahead = run(["git", "rev-list", "--count", f"origin/{BRANCH}..HEAD"]).stdout.strip()
+    if ahead not in ("", "0"):
+        res = run(["git", "push", "origin", BRANCH])
+        if res.returncode != 0:
+            print(tail(res))
+            die("GIT_FAILED", f"'git push origin {BRANCH}' failed")
+        ok(f"pushed {ahead} release commit(s) to origin/{BRANCH}")
 
 
 def png_size(path: Path) -> tuple[int, int]:
@@ -555,6 +577,7 @@ def main() -> None:
         plan = step_tokens(args)
         guarded("Working tree and remote sync", step_tree, args)
         version = guarded("Version and CHANGELOG", step_version, args)
+        guarded("Push release commit", step_push, args, version)
         guarded("Store metadata checks", step_store_checks)
         guarded("Manifest check and compile", step_build)
         vsix = guarded("Package .vsix", step_package, version)
