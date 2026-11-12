@@ -11,8 +11,11 @@ async function pickSpeed(key: 'refreshMs' | 'fadeMs', title: string): Promise<vo
   const cfg = vscode.workspace.getConfiguration('saropaChatExplorer');
   const now = key === 'refreshMs' ? refreshMsOf(cfg.get('activity.refreshMs')) : fadeMsOf(cfg.get('activity.fadeMs'));
   const items = SPEEDS.map((label, i) => ({ label, description: `${CHOICES[key][i]} ms${CHOICES[key][i] === now ? '  (current)' : ''}`, ms: CHOICES[key][i] }));
-  const pick = await vscode.window.showQuickPick(items, { title, placeHolder: 'Medium is the default' });
-  if (pick) { await cfg.update('activity.' + key, pick.ms, vscode.ConfigurationTarget.Global); }
+  const pick = await vscode.window.showQuickPick(items, { title, placeHolder: `Current: ${now} ms (Medium is the default)` });
+  if (!pick) { return; }
+  const at = cfg.inspect('activity.' + key); // write where the value is already overridden, so the pick takes effect
+  const target = at?.workspaceFolderValue !== undefined ? vscode.ConfigurationTarget.WorkspaceFolder : at?.workspaceValue !== undefined ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+  await cfg.update('activity.' + key, pick.ms, target);
 }
 
 export const ACTIVITY_VIEW = 'claudeChatExplorer.activity';
@@ -47,7 +50,9 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     vscode.commands.registerCommand('claudeChatExplorer.activityRefreshSpeed', () => pickSpeed('refreshMs', 'Activity refresh speed')),
     vscode.commands.registerCommand('claudeChatExplorer.activityFadeSpeed', () => pickSpeed('fadeMs', 'Activity fade-out speed')),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('saropaChatExplorer.activity.fadeMs')) { void view?.webview.postMessage({ type: 'fade', ms: fade() }); } if (e.affectsConfiguration('saropaChatExplorer.activity.refreshMs')) { start(); } }),
+      if (e.affectsConfiguration('saropaChatExplorer.activity.fadeMs')) { void view?.webview.postMessage({ type: 'fade', ms: fade() }); }
+      if (e.affectsConfiguration('saropaChatExplorer.activity.refreshMs')) { start(); }
+    }),
     vscode.window.registerWebviewViewProvider(ACTIVITY_VIEW, {
       resolveWebviewView(v) {
         view = v;
