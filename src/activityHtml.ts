@@ -9,7 +9,7 @@ const NODES: { g: Group; name: string; icon: string }[] = [
   { g: 'web', name: 'Web', icon: 'globe' }, { g: 'agents', name: 'Agents', icon: 'hubot' },
   { g: 'connect', name: 'Connect', icon: 'plug' }, { g: 'control', name: 'Control', icon: 'settings-gear' },
 ];
-const C = 130, R = 72, NR = 17, CR = 30, ICON = 16; // view box center, ring radius, node radius, core radius, icon size (Codicons are drawn at 16, so they stay crisp); lines run edge to edge
+const C = 100, R = 68, NR = 15, CR = 28, ICON = 16; // view box center, ring radius, node radius, core radius, icon size (Codicons are drawn at 16, so they stay crisp); lines run edge to edge
 
 const icon = (name: string, cx: number, cy: number, size: number): string => {
   const i = ICONS[name];
@@ -19,19 +19,19 @@ const icon = (name: string, cx: number, cy: number, size: number): string => {
 /** The diagram markup: per group a `<g data-g>` holding its line, node circle, icon and label. The view box is centered on the core so the layout is symmetric. */
 export function diagramSvg(): string {
   const groups = NODES.map((n, k) => {
-    const a = -Math.PI / 2 + (k * Math.PI) / 4, c = Math.cos(a), s = Math.sin(a), x = C + R * c, y = C + R * s, off = NR + 5 + 5 * Math.abs(s);
+    const a = -Math.PI / 2 + (k * Math.PI) / 4, c = Math.cos(a), s = Math.sin(a), x = C + R * c, y = C + R * s, ly = y + (s < -0.3 ? -1 : 1) * (NR + 8); // label above the node in the top half, below it elsewhere: no side labels, so the width never depends on label length
     return `<g class="grp" data-g="${n.g}"><line class="ln" x1="${(C + (R - NR) * c).toFixed(1)}" y1="${(C + (R - NR) * s).toFixed(1)}" x2="${(C + CR * c).toFixed(1)}" y2="${(C + CR * s).toFixed(1)}"/>`
       + `<circle class="nd" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${NR}"/>${icon(n.icon, x, y, ICON)}`
-      + `<text x="${(x + c * (NR + 5)).toFixed(1)}" y="${(y + s * off).toFixed(1)}" text-anchor="${c > 0.3 ? 'start' : c < -0.3 ? 'end' : 'middle'}">${n.name}</text></g>`; // label on the outward side, away from the line
+      + `<text x="${x.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle">${n.name}</text></g>`;
   }).join('');
-  return `<svg viewBox="-15 20 290 220" role="img" aria-label="Claude activity: Chat, Memory, Files, Terminal, Web, Agents, Connect and Control">${groups}`
-    + `<g class="grp" data-g="think"><circle class="core" cx="${C}" cy="${C}" r="${CR}"/>${icon('lightbulb', C, C - 7, 18)}<text x="${C}" y="${C + 15}" text-anchor="middle">Claude</text></g></svg>`;
+  return `<svg viewBox="0 0 200 200" role="img" aria-label="Claude activity: Chat, Memory, Files, Terminal, Web, Agents, Connect and Control">${groups}`
+    + `<g class="grp" data-g="think"><circle class="core" cx="${C}" cy="${C}" r="${CR}"/>${icon('lightbulb', C, C - 7, 16)}<text x="${C}" y="${C + 13}" text-anchor="middle">Claude</text></g></svg>`;
 }
 
 const HOT = 'var(--vscode-textLink-foreground)';
 const CSS = `
 body{margin:0;padding:8px;background:var(--vscode-sideBar-background);color:var(--vscode-foreground);font-family:var(--vscode-font-family);}
-svg{display:block;width:100%;max-width:360px;height:auto;margin:0 auto;overflow:visible;}
+svg{display:block;width:100%;max-width:300px;height:auto;margin:0 auto;overflow:visible;}
 text{fill:currentColor;font-size:11px;letter-spacing:.2px;dominant-baseline:central;opacity:.75;}
 .ln{stroke:currentColor;stroke-opacity:.22;stroke-width:1;}
 .nd,.core{fill:currentColor;fill-opacity:.06;stroke:currentColor;stroke-opacity:.35;stroke-width:1;}

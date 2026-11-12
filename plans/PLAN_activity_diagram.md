@@ -41,8 +41,8 @@ Latency is at most one interval (250 ms by default) after the message is written
 
 ## Visual polish
 
-- Layout is symmetric around the core (view box centered on it); lines run from node edge to core edge instead of through the circles; ring radius 72, node radius 17, 16 px Codicons, 11 px labels in the theme font.
+- Layout is symmetric around the core (view box 200 x 200 centered on it); lines run from node edge to core edge instead of through the circles; ring radius 68, node radius 15, 16 unit Codicons, 11 unit labels in the theme font. Every label sits directly above (top half) or below its node, so label length never drives the width. The panel is at least 184 px wide at the 200 px minimum, so the scale stays at 0.92 or more: labels at least 10 px, icons at least 14 px.
 - Nodes and the core have a faint filled circle and one consistent 1 px stroke, all from the current theme foreground color.
 - The flash is an ease-out glow (drop-shadow) over 4 seconds; the line, circle, icon and label all start in the link color and settle back together. Reduced motion holds the same bright state for 600 ms without animating.
 - High contrast: full-opacity outlines, labels and icons, stronger lines. Colors are only `--vscode-*` variables.
-- The view box is about 290 units wide and scales to the panel (maximum 360 px), so labels stay small but legible at 200 px and never clip or overlap.
+- The diagram scales to the panel up to 300 px wide and never clips or overlaps.
