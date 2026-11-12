@@ -12,7 +12,11 @@ Keywords: Claude Code, AI agent, session history, session search, transcript sea
 - Shows the git state of a session in its card: branch, open pull request, uncommitted files, unpushed commits and worktrees.
 - Warns when a live session nears a full context window.
 - Project Status page: branches, worktrees, pull requests and sessions of one repository, grouped by what to do next.
-- Local only. The optional pull request lookup runs your own `gh` command (setting `saropaChatExplorer.lookupPullRequests`, on by default).
+- Account & Usage: your Claude Code account and the tokens used in the last hours and days.
+- Token totals per session and per branch, a blue count badge for sessions waiting for you, and automatic session titles.
+- Claude Config: a read-only review of your Claude Code configuration.
+- Options screen for every setting, and an optional, opt-in list of Web (cloud) sessions.
+- Local by default. The optional pull request lookup runs your own `gh` command (setting `saropaChatExplorer.lookupPullRequests`, on by default). Web sessions are off by default.
 
 ## Install
 
@@ -35,7 +39,7 @@ Or open the Extensions view, choose `...` then "Install from VSIX...", and pick 
 1. Click the Saropa Chat Explorer icon in the activity bar.
 2. Wait for the first index to finish. Search works on what is indexed so far.
 3. Type a word or phrase. Results appear after you stop typing. Enter searches at once.
-4. Narrow the results with the match toggles, the Sort and Status icons in the view title bar, and the search details (`...`) button.
+4. Narrow the results with the match toggles, the Sort icon in the view title bar, the status filter row above the list, and the search details (`...`) button.
 5. Click a result to resume that session, or click its chevron to read the matching messages.
 6. Tick External (search details) to search sessions from every project, not only this workspace.
 
@@ -76,7 +80,9 @@ Or open the Extensions view, choose `...` then "Install from VSIX...", and pick 
 | Status filter | Mid-size, Active, Empty, Tiny, Huge, Nearly full, Abandoned, Pinned. Each has a count and a tooltip with its rule. Reset turns them all on. |
 
 - The `...` button under the search box ("Toggle search details") shows or hides the time, message, sender and scope controls. A count on the button shows how many differ from the defaults. The choice is remembered per workspace.
-- Sort, Status filter and Search Tips are icons in the view title bar. Each opens a quick pick.
+- The search, filters and session list sit in a collapsible "Session Manager" panel. The search box has a clear (x) button.
+- Sort and Search Tips are icons in the view title bar and open a quick pick. The status filter is a funnel dropdown in a filter row above the list, with a count pill when a filter is on and an "Active" chip that shows only open sessions that are running, waiting, unread or waiting on background agents.
+- `saropaChatExplorer.search.contextLines` (1 to 4, default 1) sets how many lines of each match a result row shows. Narrow side bars always show one.
 - Up and Down in the search box step through your last 20 searches with their toggles.
 
 ### Ranking and results
@@ -87,7 +93,7 @@ Or open the Extensions view, choose `...` then "Install from VSIX...", and pick 
 - With a search, the time pill and day groups use the time of the newest match. The session's last active time is in the tooltip and the card.
 - Like VS Code Search, the panel lists at most 500 sessions (`saropaChatExplorer.maxResults`, 50 to 2000) and says so. Every match is still counted. A session shows "9,999+" above 9,999 hits.
 - Open in editor (the summary line under the search box, or "Saropa Chat Explorer: Open Results in Editor") opens all matches in a read-only "Search: query" tab: a header per session (Cmd/Ctrl+click resumes it), matching lines with one line of context, real JSONL line numbers and highlighted matches.
-- In All sessions (no search), sessions that are open list above sessions that are not, with a divider. Pinned sessions stay in their own section.
+- In All sessions (no search), sessions that are open list above sessions that are not, with a divider. Pinned sessions stay in their own section. The list groups sessions by All Sessions (today), Yesterday, This Week and Older.
 
 ## Session rows and cards
 
@@ -113,9 +119,11 @@ An 8 px dot sits left of each session title. It uses the same states as the agen
 
 ### Context ring, pill and warnings
 
+- Tokens: the card shows cumulative tokens per session (input, output, cache read, cache write, kept separate, no price). /compact never lowers them and subagent replies count. Each branch row on Project Status shows a per-branch total.
 - Context ring: every row with token data shows a small ring that fills as the session's context grows, against `saropaChatExplorer.contextRingTokens` (default 300000, minimum 10000). Warning color at 80 percent, error color at 100 percent or more. Hover for "136.8k of 300k tokens".
 - Context pill: shown from 60 percent (amber 60 to 79, orange 80 to 89, red 90 and above). The card always shows a Context stat, such as "82% (164k of 200k, opus-4-6)". The figure approximates the agent's own and lags one turn.
 - Warnings: a live session that reaches 80 or 90 percent gets one notification with Open session and Dismiss (the 90 percent one also offers Copy hand-over note). Each session warns once per level, again after a compaction or after it falls 10 points below the level. At most 1 notification per 30 second check and 3 in 10 minutes. Turn off with `saropaChatExplorer.contextWarnings`.
+- Activity bar badge: a blue count of sessions waiting for you. It clears when none are.
 - Status bar: "3 sessions near full" appears only when sessions are 80 percent full or more. Click it to filter to Nearly full. Hide with `saropaChatExplorer.showUsageStatusBar`.
 
 ### Expanded card
@@ -136,11 +144,33 @@ The chevron opens the row as a card with an action bar (Resume, Pin, Archive, Ma
 
 ### Organize
 
-- Pin: star a session or use Pin Session / Unpin Session in the row context menu. Pinned sessions list first.
+- Pin: star a session or use Pin Session / Unpin Session in the row context menu. Pinned sessions list first. Pins are stored per workspace.
 - Tag: click the tag icon on a row, type a name, press Enter. Click a tag to filter.
 - Archive: moves a session into a collapsed "Archived sessions" section. A pinned session stays pinned. Archived rows show a dimmer title and greyscale emoji. The archive list is shared by all workspaces.
 - Import Archived Sessions from the Agent: command "Saropa Chat Explorer: Import Archived Sessions from the Agent". Runs only when you ask. Needs `sqlite3` on your PATH.
 - Row context menu: Copy resume command (`cd <folder> && claude --resume <id>`, quoted for your shell), Export as Markdown, Mark as Read, Archive.
+
+### Automatic session titles
+
+- Setting `saropaChatExplorer.autoTitle.enabled` (off by default), or the "Auto-title sessions" toggle in the "..." menu of the view. A live session is named after its first prompt (topic emoji plus the first sentence, up to 50 characters) and renamed once after the third prompt, by appending a title line to the session file. Sessions you named yourself are left alone.
+- `autoTitle.useHaiku` lets `claude -p --model haiku` write the title instead of the rules. `emojiRules` and `emojiRulesReplaceDefaults` customize the emoji.
+- "Regenerate Session Titles" (sparkle button in the view toolbar): pick This project or All projects, preview old and new titles, then write. Each transcript is backed up under `~/.claude/backups/session_titles` first. Live sessions are skipped.
+
+## Account & Usage
+
+A section at the top of the sidebar, closed until opened. It shows your Claude Code email, name, organization and plan from `~/.claude.json` (or "Not signed in"), and tokens used in six windows (last 5 hours, today, yesterday, last 3, 5 and 7 days) as collapsible blocks. The 7-day block also shows tokens per model. Sums come from your local transcripts. It is offline and read-only: no keychain, no network.
+
+## Claude Config
+
+"Saropa Chat Explorer: Claude Config" (in the "..." menu of the view) opens a read-only tab. It lists your global (`~/.claude`) and project Claude Code configuration (CLAUDE.md, settings, permissions, hooks, MCP servers, rules, skills, agents, commands) with findings by category: bloat, duplication, redundancy, gaps, opportunities and risks. It also shows the chat retention setting `cleanupPeriodDays`. "Copy for AI" copies a secret-free Markdown version.
+
+## Options screen
+
+"Saropa Chat Explorer: Options" (in the "..." menu of the view) edits every setting of the extension in one form. New settings appear automatically, each has Reset to default, and changes made elsewhere show live.
+
+## Web (cloud) sessions
+
+Off by default (`saropaChatExplorer.webSessions.enabled`). When on, a Local | Web toggle appears. The Web list shows title and age; opening one fetches its transcript on demand into a read-only Markdown tab. It uses an unofficial, undocumented Anthropic API with your Claude Code login token (read-only, never stored or logged) and may change without notice. Turning it on asks for your consent first. While off, no network call and no credential read is made.
 
 ## Find the session that edited a file
 
@@ -148,17 +178,17 @@ Right-click a file in the Explorer, the editor or its tab and choose "Saropa: Fi
 
 ## API for other extensions
 
-Other extensions can ask which sessions touched a file and how many tokens a session or branch used. See [docs/API.md](docs/API.md).
+Other extensions get a read-only API: `chatsForFile(path)`, `tokensForChat(id)`, `tokensForWork(key)`, `listChats()`, `getChat(id)`, `listWork()` and `getAccountUsage()`. See [docs/API.md](docs/API.md).
 
 ## Project Status page
 
 One page answers: what is still open in this repository, and what do I do to close it? Open it with "Saropa Chat Explorer: Project Status" or the checklist icon in the sidebar title bar. It covers the repository of the first workspace folder. With no git repository there, it says "Open a git repository folder".
 
 **The Work table**
-- One row per branch, with its worktree folder, creation time, pull request and sessions folded in. Pull-request-only branches, remote-only branches and folders git does not list are rows of the same table.
-- Each row: branch name, one verdict (Dirty, Unpushed, PR failing, PR open, Merged clean, No PR, Remote only, Not a registered worktree, Behind, Active session, Needs you), one short reason ("26 files not committed, 11 behind main"), the full sentence in a tooltip.
-- Groups: Needs you, Unfinished work, Waiting, Cleanup, Idle. Cleanup and Idle start closed. The number next to a group equals the rows in it.
-- A headline in plain words ("3 branches: 1 needs you, 1 has unpushed work, 1 is safe to remove").
+- One row per branch, with its worktree folder, creation time, pull request and sessions folded in. Pull-request-only branches, remote-only branches and folders git does not list are rows of the same table. Branches and worktrees created by the same session fold into one row titled with that session.
+- Each row has two lines: a headline "do X" (Answer, Read, Fix checks on, Address review on, Merge, Commit, Push, Remove worktree, Prune) with one action, then only the facts that matter (branch, pull request, ahead or behind, tags, age). The full sentence is in a tooltip.
+- Groups: Your move, In progress, Safe to remove and Everything else (which also holds sessions without a branch). The number next to a group equals the rows in it.
+- A headline in plain words at the top.
 
 **Sessions on each row**
 - A session is linked by its working folder, its recorded branch, a tool call that created the worktree or branch (`git worktree add`, `git checkout -b`, `git switch -c`, `git branch`, EnterWorktree), or a subagent that did one of these.
@@ -168,11 +198,11 @@ One page answers: what is still open in this repository, and what do I do to clo
 **Actions** (one labeled action per row)
 - Open session, Open PR, Ask to finish, Ask to clean up, Copy remove command.
 - "Ask <session> to clean up" copies a plain-text prompt with receipts (branch, worktree path, PR, creation proof from the reflog, commits only on the branch, current state). It asks what each item is for and not to delete anything before confirmation. The Claude Code panel cannot be pre-filled, so you paste it.
-- Copy remove command copies `git worktree remove` (and `git branch -d` when merged). Pin, Archive and Mark done are on the row.
+- Copy remove command copies `git worktree remove` (and `git branch -d` when merged). Pin, Archive and Mark done are on the row. Pinned sessions list first.
 - Copy summary: a short markdown summary of everything open.
 
 **Header and filters**
-- Filter box, Filters popover (Has open PR, Failing checks, Uncommitted, Unpushed), Sort, Refresh and a "⋯" menu (Summary, Shortcuts, GitHub status, Show done).
+- Filter box, a View menu (Sort, Density Relaxed or Compact, and "Show only rows with" Open PR, Failing checks, Uncommitted, Unpushed), Copy summary, Refresh and a "..." menu (Shortcuts, GitHub status, Show done).
 - GitHub status shows lookup off, `gh` missing, not signed in, rate limited, failed, or OK with repo count and age.
 - `saropaChatExplorer.openWorkDays` (1 to 90, default 14) sets how many days of sessions are listed. Open sessions are always listed.
 - Filter text, state filters and sort are remembered per workspace.
@@ -198,6 +228,9 @@ One page answers: what is still open in this repository, and what do I do to clo
 | Saropa Chat Explorer: Clear Search History | Clears the Up/Down history. |
 | Saropa Chat Explorer: Import Archived Sessions from the Agent | One-time import of the agent's archive list. |
 | Saropa Chat Explorer: Show Diagnostics | Version, index state, agent detection, live session and window counts. |
+| Saropa Chat Explorer: Claude Config | Read-only review of your Claude Code configuration. |
+| Saropa Chat Explorer: Options | One form for every setting. |
+| Saropa Chat Explorer: Regenerate Session Titles | Previews and rewrites session titles, with a backup. |
 
 ## Settings
 
@@ -211,6 +244,8 @@ One page answers: what is still open in this repository, and what do I do to clo
 | `saropaChatExplorer.openWorkDays` | 14 | Days of sessions on Project Status (1 to 90). |
 | `saropaChatExplorer.lookupPullRequests` | true | Run `gh` for open pull requests and checks. Off: `gh` never starts. |
 | `saropaChatExplorer.animateDots` | true | Animate status dots. |
+| `saropaChatExplorer.search.contextLines` | 1 | Lines of each match shown in a result row (1 to 4). |
+| `saropaChatExplorer.webSessions.enabled` | false | Show Web (cloud) sessions in a Web tab. Unofficial API, uses your Claude Code login token. |
 | `saropaChatExplorer.autoTitle.enabled` | false | Name sessions automatically: topic emoji plus the first sentence of the first prompt, renamed once after the third prompt. Skips sessions you named yourself. |
 | `saropaChatExplorer.autoTitle.useHaiku` | false | Let `claude -p --model haiku` write the title in the background instead of the rules. Falls back to the rules on failure. |
 | `saropaChatExplorer.emojiRules` | [] | Your own `{ "emoji": "🐾", "keywords": ["dog", "cat"] }` rules. Same emoji as a built-in rule replaces its keywords; others are added. |
@@ -255,7 +290,7 @@ npm run package
 
 - `npm run compile` builds `src/` into `out/`.
 - `node scripts/bench.js` prints build, load and query timings for your machine and session folder.
-- `npm run package` builds a `.vsix`. Its `vscode:prepublish` step runs the checks: `check_manifest.js`, `check_webview.js`, `check_openwork.js`, `check_scan.js`, `check_prs.js`, `check_prs_e2e.js`, `check_guards.js` and `check_dots.js` in `scripts/`.
+- `npm run package` builds a `.vsix`. Its `vscode:prepublish` step runs the checks: the `check_*.js` scripts in `scripts/` (listed in the `vscode:prepublish` script of `package.json`).
 - No runtime dependencies. Dev dependencies only.
 - Press F5 in VS Code to start an Extension Development Host.
 - See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch flow and rules, and [PUBLISHING.md](PUBLISHING.md) for releases.
@@ -263,6 +298,9 @@ npm run package
 ## Privacy
 
 - Reads Claude Code transcripts from `~/.claude/projects` on your machine.
+- Reads `~/.claude.json` (account email, name, organization, plan) and the `~/.claude` configuration files for Account & Usage and Claude Config. Read-only; no keychain and no network.
+- Writes only when you ask: auto-titles append a title line to a session file, and Regenerate Session Titles backs up each transcript first.
+- Web sessions (off by default): only when `saropaChatExplorer.webSessions.enabled` is on, it sends your Claude Code login token to Anthropic's unofficial session API to list and fetch your cloud sessions. The token is never stored, refreshed or logged.
 - Reads the agent's live session files in `~/.claude/sessions` (process id, session id and status) to color the dots. It never writes there.
 - When you open a section of a session card (not when you open the card), it runs local read-only commands with no shell, 5 second limit each, in that session's working folder: `git rev-parse --show-toplevel --git-common-dir --abbrev-ref HEAD` (every section), then `git for-each-ref --format=<fields> refs/heads/<branch>` (Git), `git status --porcelain=v1 --branch -z` (Uncommitted files), `git rev-list --max-count=20 --format=<fields> @{u}..HEAD` (Unpushed commits) or `git worktree list --porcelain -z` and `git for-each-ref --format=<fields> refs/heads` (Worktrees). It never runs fetch, pull, checkout, reset, clean, stash, commit, push or anything that writes. Git is told not to take optional locks and never to prompt.
 - While `saropaChatExplorer.lookupPullRequests` is on (the default), it runs `gh pr list --state open --limit 100 --json number,title,headRefName,isDraft,reviewDecision,url,headRefOid,isCrossRepository,headRepositoryOwner` once per repository, plus `git remote get-url origin` when the list holds a fork pull request, and `gh pr view <number> --json statusCheckRollup,headRefOid` for Project Status rows. No shell, 8 second limit, answers cached 5 minutes (2 for checks). `gh auth status` is cached 60 seconds. `gh` contacts GitHub with your own existing sign-in. The extension adds no network code of its own. Clicking a pull request opens the address `gh` returned (https only) in your browser. Turn the setting off and `gh` is never started.
@@ -271,7 +309,7 @@ npm run package
 - Import Archived Sessions works the same way and runs only when you press Import.
 - Writes a search cache to the extension's global storage folder. Message text is stored there, up to 20,000 characters per message (8,000 for subagents). The last `cwd` of each session, file paths, the first 300 characters of each command, and the worktrees and branches each session created are stored too. Tool results are skipped.
 - Pins, tags, archived sessions, unread marks, history and options are saved by VS Code in its own storage.
-- The source contains no network, HTTP or telemetry calls of its own. The only programs it starts are `ps`, `sqlite3`, `git` and `gh`.
+- No telemetry. The only network call in the source is the opt-in Web sessions list. The programs it starts are `ps`, `sqlite3`, `git`, `gh` and, only for Haiku auto-titles, `claude`.
 - Resuming a session hands the session id to the agent extension through a VS Code command, or a VS Code link if the command fails.
 - Errors go to the "Saropa Chat Explorer" output channel.
 
@@ -299,7 +337,7 @@ Open Project Status. The creator session is listed first on each row. Or search 
 Watch the context ring and pill, or leave `saropaChatExplorer.contextWarnings` on. Copy hand-over note carries the state to a new session.
 
 **Does it send my sessions anywhere?**
-No. The extension has no network code. The only outside contact is the optional `gh` pull request lookup, which uses your own sign-in. Turn it off with `saropaChatExplorer.lookupPullRequests`.
+No. The only outside contacts are the optional `gh` pull request lookup (your own sign-in; turn it off with `saropaChatExplorer.lookupPullRequests`) and the opt-in Web sessions list, which is off by default.
 
 **Does it change my repositories?**
 No. It runs read-only git commands. Commands it offers are copied, never run.
@@ -322,6 +360,7 @@ Yes. The open window marker is not available there, and copied commands use Powe
 - The agent extension, to resume sessions.
 - `git`, for the Git section of a session card and Project Status. Optional `gh` (signed in), for pull requests and checks.
 - Optional `sqlite3` on your PATH, for Import Archived Sessions and tab detection.
+- Optional `claude` command, for Haiku auto-titles.
 
 ## Contributing
 

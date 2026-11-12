@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Changed: the README was updated to cover all current features.
+
 ## 0.44.0
 - Fixed: the "Account & Usage" and "Session Manager" headers are back at their original left position, keeping the larger arrows.
 
