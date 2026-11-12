@@ -160,6 +160,10 @@ The chevron opens the row as a card with an action bar (Resume, Pin, Archive, Ma
 
 A section at the top of the sidebar, closed until opened. It shows your Claude Code email, name, organization and plan from `~/.claude.json` (or "Not signed in"), and tokens used in six windows (last 5 hours, today, yesterday, last 3, 5 and 7 days) as collapsible blocks. The 7-day block also shows tokens per model. Sums come from your local transcripts. It is offline and read-only: no keychain, no network.
 
+## Activity
+
+The "Activity" panel under the session list (collapsible) shows Claude as a center circle with eight groups around it: Chat, Memory, Files, Terminal, Web, Agents, Connect and Control. When the current chat gets a new message, the line of its group flashes and fades back over a few seconds; thinking flashes the center. Old messages are not replayed when you open or switch chats. With reduced motion on, the flash is a brief brightness change with no animation.
+
 ## Claude Config
 
 "Saropa Chat Explorer: Claude Config" (in the "..." menu of the view) opens a read-only tab. It lists your global (`~/.claude`) and project Claude Code configuration (CLAUDE.md, settings, permissions, hooks, MCP servers, rules, skills, agents, commands) with findings by category: bloat, duplication, redundancy, gaps, opportunities and risks. It also shows the chat retention setting `cleanupPeriodDays`. "Copy for AI" copies a secret-free Markdown version.
@@ -369,6 +373,8 @@ Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Se
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+Third-party credits: the icons in the Activity panel are from [Codicons](https://github.com/microsoft/vscode-codicons) by Microsoft, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 ---
 

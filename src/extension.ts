@@ -23,6 +23,7 @@ import { AutoTitler, autoTitleNow } from './autoTitleRun';
 import { AUTO_FALLBACK_KEY, AUTO_KEY, setAutoTitle } from './autoTitleFlag';
 import { registerClaudeConfig } from './claudeConfigPanel';
 import { registerOptions } from './optionsPanel';
+import { registerActivity } from './activity';
 import { registerUsage } from './usageUi';
 import { QueryQueue } from './queryQueue';
 import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './query';
@@ -424,7 +425,8 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
     onChange: () => { provider.postDots(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); titler.onLive(ids); } });
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.search.contextLines')) { provider.postCtxLines(); } }));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.contextRingTokens')) { provider.postRing(); } }));
-  const tabMoved = () => { provider.clearViewed(); provider.postDots(); provider.watcher?.poke(); };
+  const activity = registerActivity(ctx, hub, () => provider.currentId());
+  const tabMoved = () => { provider.clearViewed(); provider.postDots(); provider.watcher?.poke(); activity.poke(); };
   ctx.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(tabMoved), vscode.window.tabGroups.onDidChangeTabGroups(tabMoved));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.animateDots')) { provider.postDots(); hub.emit('dots', logErr); } }));
   ctx.subscriptions.push(vscode.window.onDidChangeWindowState((s) => { if (s.focused) { provider.clearViewed(); provider.watcher?.poke(); } }), { dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));

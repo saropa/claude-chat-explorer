@@ -3,6 +3,7 @@
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
 ## Unreleased
+- Added: an "Activity" view under the session list. A diagram of Claude with eight groups (Chat, Memory, Files, Terminal, Web, Agents, Connect, Control); the line of a group flashes and fades when the current chat gets a message of that kind, and the center flashes on thinking.
 - Changed: the README was updated to cover all current features.
 
 ## 0.44.0
