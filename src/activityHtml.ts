@@ -175,12 +175,23 @@ function flash(g, err) {
   if (g !== 'think') { last = g; }
   pulse(el, g, err);
 }
+// A sub-agent's work: the Agents node lights, then a connector to the node it used and that node. The main chain (last) and the waiting state are left alone.
+function sub(g) {
+  const ag = grp('agents'), el = grp(g);
+  if (!ag || !el) { return; }
+  pulse(ag, 'agents');
+  if (g === 'agents') { return; }
+  const cn = document.querySelector('.cn[data-c="' + ['agents', g].sort().join('-') + '"]');
+  if (cn) { pulse(cn, 'c:' + cn.dataset.c); }
+  pulse(el, g);
+}
 addEventListener('message', (e) => {
   const m = e.data;
   if (m && m.type === 'reset') { reset(); return; }
   if (!m || m.type !== 'events' || !Array.isArray(m.events)) { return; }
   for (const v of m.events) {
     if (v.t === 'flash') { flash(v.g, v.err); }
+    else if (v.t === 'sub') { sub(v.g); }
     else if (v.t === 'caption') { caption(String(v.text)); }
     else if (v.t === 'busy' && grp(v.g)) { startCall(v.id, v.g); }
     else if (v.t === 'end') { endCall(v.id); if (v.g === 'chat') { grp('chat').classList.remove('wait'); } if (!pend.size) { caption(''); } }

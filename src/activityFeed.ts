@@ -1,10 +1,13 @@
 /** Reads the new lines of the current chat's log and reports which Activity groups they light up. */
 import * as fs from 'fs';
 import { BgTracker } from './bgAgents';
-import { ActivityEvent, Group, eventsOf } from './activityMap';
+import * as path from 'path';
+import { ActivityEvent, Group, eventsOf, subEventsOf } from './activityMap';
 import { projectsRoot } from './files';
 
 const MAX_CHUNK = 4 * 1024 * 1024; // bytes read per check; a bigger gap is read from its tail, since only new messages flash
+
+const SUB_FRESH_MS = 3 * 60 * 1000, SUB_MAX = 8; // only sub-agent logs written in the last 3 minutes are tailed, at most 8 of them
 
 export const REFRESH_MS = { def: 250, min: 100, max: 2000 };
 /** The `activity.refreshMs` setting as a usable interval: a number clamped to 100..2000, else 250. */
@@ -17,6 +20,9 @@ export class ActivityFeed {
   private missing?: { id: string; at: number; look: number }; // chat whose log was not found, when that was first seen, and when it was last looked for
   private gen = 0; // bumped by mark() and by a change of chat: a check started under an older value writes no state and flashes nothing
   private reqId = '';
+  private subs = new Map<string, { size: number; tail: string }>(); // sub-agent logs of the open chat being tailed
+  private subGen = -1;
+  private subSince = 0;
   private readonly pending = new Map<string, Group>(); // calls in flight: tool call id to group, so a failed result finds its node; cleared with the position
   private readonly files = new BgTracker(projectsRoot());
 
@@ -29,6 +35,42 @@ export class ActivityFeed {
   /** New events (flashes, captions, busy and waiting states) of the chat `id` since the last call. The first call for a chat (open or switch) only marks its end, so nothing replays. */
   async check(id: string): Promise<ActivityEvent[]> {
     if (id !== this.reqId) { this.reqId = id; this.gen++; }
+    const [main, sub] = await Promise.all([this.checkMain(id), this.checkSubs(id, this.gen)]);
+    return main.concat(sub);
+  }
+
+  /** Tool calls and messages of the chat's sub-agents since the last call. A log seen for the first time is only marked, unless it was born after the first look. */
+  private async checkSubs(id: string, gen: number): Promise<ActivityEvent[]> {
+    const first = this.subGen !== gen;
+    if (first) { this.subGen = gen; this.subs = new Map(); this.subSince = Date.now(); }
+    if (!id) { return []; }
+    try {
+      const file = await this.files.fileOf(id);
+      if (!file) { return []; }
+      const dir = path.join(path.dirname(file), id, 'subagents');
+      const found = await Promise.all((await fs.promises.readdir(dir)).filter((n) => n.endsWith('.jsonl')).map(async (n) => ({ f: path.join(dir, n), st: await fs.promises.stat(path.join(dir, n)) })));
+      const fresh = found.filter((x) => Date.now() - x.st.mtimeMs < SUB_FRESH_MS).sort((a, b) => b.st.mtimeMs - a.st.mtimeMs).slice(0, SUB_MAX);
+      if (gen !== this.gen) { return []; }
+      const out: ActivityEvent[] = [];
+      for (const { f, st } of fresh) {
+        const t = this.subs.get(f) ?? { size: first || (st.birthtimeMs || st.ctimeMs) < this.subSince ? st.size : 0, tail: '' };
+        this.subs.set(f, t);
+        if (st.size < t.size) { t.size = 0; t.tail = ''; }
+        if (st.size === t.size) { continue; }
+        const from = Math.max(t.size, st.size - MAX_CHUNK), buf = Buffer.alloc(st.size - from);
+        const fh = await fs.promises.open(f, 'r');
+        try { await fh.read(buf, 0, buf.length, from); } finally { await fh.close(); }
+        if (gen !== this.gen) { return []; }
+        const lines = ((from > t.size ? '' : t.tail) + buf.toString('utf8')).split('\n');
+        t.size = st.size;
+        t.tail = lines.pop() ?? '';
+        lines.forEach((l) => out.push(...subEventsOf(l)));
+      }
+      return out;
+    } catch { return []; }
+  }
+
+  private async checkMain(id: string): Promise<ActivityEvent[]> {
     const gen = this.gen;
     if (id && this.missing?.id === id && Date.now() - this.missing.look < this.lookGapMs) { return []; } // a missing log is searched for only now and then
     const file = id ? await this.files.fileOf(id) : undefined;

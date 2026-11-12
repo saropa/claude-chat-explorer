@@ -31,7 +31,8 @@ export type ActivityEvent =
   | { t: 'busy'; id: string; g: Group }
   | { t: 'end'; id: string; g: Group }
   | { t: 'wait'; g: 'think' | 'chat' }
-  | { t: 'wake' };
+  | { t: 'wake' }
+  | { t: 'sub'; g: Group };
 
 const CAPTION_MAX = 80, PENDING_MAX = 200;
 const clip = (s: string): string => { const t = Array.from(s.replace(/\s+/g, ' ').trim()); return t.length > CAPTION_MAX ? t.slice(0, CAPTION_MAX - 1).join('') + '…' : t.join(''); };
@@ -102,4 +103,12 @@ export function eventsOf(line: string, pending: Map<string, Group>): ActivityEve
   if (e.message.stop_reason === 'end_turn' && lastType !== 'thinking' && lastType !== 'tool_use') { out.push({ t: 'wait', g: 'think' }); caption = 'Waiting for you'; }
   if (caption !== undefined) { out.push({ t: 'caption', text: caption }); }
   return out;
+}
+
+/** Events for one line of a sub-agent log: a tool call is a `sub` event of its group, thinking and text a `sub` of agents. Never captions, busy rings or waiting states. */
+export function subEventsOf(line: string): ActivityEvent[] {
+  let e: any;
+  try { e = JSON.parse(line); } catch { return []; }
+  if (e?.type !== 'assistant' || !Array.isArray(e.message?.content)) { return []; }
+  return e.message.content.flatMap((b: any): ActivityEvent[] => b?.type === 'tool_use' && typeof b.name === 'string' ? [{ t: 'sub', g: toolGroup(b.name, b.input) }] : b?.type === 'text' || b?.type === 'thinking' ? [{ t: 'sub', g: 'agents' }] : []);
 }

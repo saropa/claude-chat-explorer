@@ -6,7 +6,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = process.env.CCS_OUT || path.join(ROOT, 'out');
-const { toolGroup, eventsOf, captionOf } = require(path.join(OUT, 'activityMap.js'));
+const { toolGroup, eventsOf, captionOf, subEventsOf } = require(path.join(OUT, 'activityMap.js'));
 const flashesOf = (line) => eventsOf(line, new Map()).flatMap((e) => (e.t === 'flash' ? [e.g] : [])); // the flashed groups of one line
 const { activityHtml } = require(path.join(OUT, 'activityHtml.js'));
 const failures = [];
@@ -171,6 +171,18 @@ check('refreshMs clamps and defaults', refreshMsOf(undefined) === 250 && refresh
     check('missing log is found after the gap (born after first look, so it replays)', eq(await gs(slow, 'fff'), ['chat']));
     fs.appendFileSync(hid, asst(tool('Bash')) + '\n');
     check('and then read on the fast path', eq(await gs(slow, 'fff'), ['terminal']));
+    // Sub-agent logs: <chat id>/subagents/agent-*.jsonl next to the chat log.
+    check('sub-agent Bash line is a terminal sub event', eq(subEventsOf(asst(tool('Bash'))), [{ t: 'sub', g: 'terminal' }]));
+    check('sub-agent text and thinking are agents only', eq(subEventsOf(asst({ type: 'thinking' }, { type: 'text' })), [{ t: 'sub', g: 'agents' }, { t: 'sub', g: 'agents' }]));
+    check('sub-agent lines carry no caption, busy or wait', eq(subEventsOf(asst(tool('Agent'), { type: 'text' }, tool('Read'))).map((e) => e.t), ['sub', 'sub', 'sub']));
+    const sd = path.join(dir, 'aaa', 'subagents'), sf = path.join(sd, 'agent-1.jsonl');
+    fs.mkdirSync(sd, { recursive: true }); fs.writeFileSync(sf, asst(tool('Bash')) + '\n');
+    const sfeed = new ActivityFeed();
+    await sfeed.check('aaa'); // marks the chat and the sub-agent log
+    check('first sight of a sub-agent log replays nothing', eq(await sfeed.check('aaa'), []));
+    fs.appendFileSync(sf, asst(tool('Bash')) + '\n');
+    check('a new sub-agent Bash line is an agents-to-terminal event', eq((await sfeed.check('aaa')).filter((e) => e.t === 'sub'), [{ t: 'sub', g: 'terminal' }]));
+    check('and it is not read twice', eq(await sfeed.check('aaa'), []));
   } finally { os.homedir = realHome; fs.rmSync(home, { recursive: true, force: true }); }
   if (failures.length) { console.error('check_activity FAILED (' + failures.length + ')'); failures.forEach((e) => console.error('  - ' + e)); process.exit(1); }
   console.log('check_activity OK: tool and log mapping, memory reads, page nodes, no replay');
