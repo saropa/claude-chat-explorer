@@ -51,10 +51,11 @@ check('page has no emoji', !/\p{Extended_Pictographic}/u.test(page));
 const arcs = [...page.matchAll(/<path class="cn" data-c="([a-z-]+)" d="M([\d.]+) ([\d.]+) A68 68 0 0 1 ([\d.]+) ([\d.]+)"/g)];
 check('page has 28 connectors', arcs.length === 28);
 check('connector ends sit on the ring', arcs.every((m) => [[m[2], m[3]], [m[4], m[5]]].every(([x, y]) => Math.abs(Math.hypot(x - 100, y - 100) - 68) < 0.2)));
-check('every sampled connector point stays outside the core plus margin', arcs.every((m) => {
-  const a0 = Math.atan2(m[3] - 100, m[2] - 100); let a1 = Math.atan2(m[5] - 100, m[4] - 100); if (a1 < a0) { a1 += 2 * Math.PI; }
-  for (let t = 0; t <= 10; t++) { const a = a0 + ((a1 - a0) * t) / 10; if (Math.hypot(68 * Math.cos(a), 68 * Math.sin(a)) < 28 + 4) { return false; } }
-  return true;
+const ORDER = ['chat', 'memory', 'files', 'terminal', 'web', 'agents', 'connect', 'control'];
+check('each connector takes the short way round (clockwise angle matches the shorter step count, under 180 degrees)', arcs.every((m) => {
+  const [p, q] = m[1].split('-').map((n) => ORDER.indexOf(n)), d = Math.abs(p - q), steps = Math.min(d, 8 - d);
+  let sweep = Math.atan2(m[5] - 100, m[4] - 100) - Math.atan2(m[3] - 100, m[2] - 100); sweep = ((sweep % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  return sweep < Math.PI && Math.abs(sweep - (steps * Math.PI) / 4 + 0.5) < 0.6 && steps > 0;
 }));
 check('connector timers are keyed per pair', page.includes("'c:' + cn.dataset.c") && !page.includes("pulse(cn, 'c')"));
 check('page holds the center while thinking', page.includes("classList.add('hold')") && page.includes('10000'));
