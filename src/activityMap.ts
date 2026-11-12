@@ -34,16 +34,22 @@ export type ActivityEvent =
   | { t: 'wake' };
 
 const CAPTION_MAX = 80, PENDING_MAX = 200;
-const clip = (s: string): string => { const t = s.replace(/\s+/g, ' ').trim(); return t.length > CAPTION_MAX ? t.slice(0, CAPTION_MAX - 1) + '…' : t; };
+const clip = (s: string): string => { const t = Array.from(s.replace(/\s+/g, ' ').trim()); return t.length > CAPTION_MAX ? t.slice(0, CAPTION_MAX - 1).join('') + '…' : t.join(''); };
 const str = (v: unknown): string => typeof v === 'string' ? v : '';
 const base = (p: unknown): string => str(p).replace(/\\/g, '/').split('/').pop() ?? '';
 const host = (u: unknown): string => { try { return new URL(str(u)).host; } catch { return ''; } };
+
+/** The program name of a command (leading VAR=value words skipped, path dropped), or a generic phrase when it is not a plain name: nothing else of a command is shown. */
+const commandLine = (cmd: unknown): string => {
+  const w = base(str(cmd).trim().split(/\s+/).find((x) => !x.includes('=')));
+  return /^[\w.-]+$/.test(w) ? 'Running: ' + w : 'Running a command';
+};
 
 /** One plain-words line for a tool call: a description, a file name, a query or a host, never a full command or prompt. Empty when there is nothing to say. */
 export function captionOf(name: string, input: any): string {
   const i = input ?? {};
   let t = '';
-  if (name === 'Bash') { const w = str(i.description) || str(i.command).trim().split(/\s+/)[0]; t = w && 'Running: ' + w; }
+  if (name === 'Bash') { t = str(i.description) ? 'Running: ' + str(i.description) : commandLine(i.command); }
   else if (name === 'Read' || name === 'Edit' || name === 'Write' || name === 'NotebookEdit') { const f = base(i.file_path ?? i.notebook_path); t = f && (name === 'Read' ? 'Reading ' : name === 'Write' ? 'Writing ' : 'Editing ') + f; }
   else if (name === 'Grep' || name === 'Glob') { t = 'Searching files'; }
   else if (name === 'WebSearch') { t = str(i.query) && 'Searching the web: ' + str(i.query); }
@@ -59,10 +65,10 @@ export function eventsOf(line: string, pending: Map<string, Group>): ActivityEve
   let e: any;
   try { e = JSON.parse(line); } catch { return []; }
   if (e?.type === 'attachment') { return e.attachment?.type === 'nested_memory' ? [{ t: 'flash', g: 'memory' }] : []; }
-  if (e?.type === 'system') { return e.subtype === 'api_error' ? [{ t: 'flash', g: 'think', err: true }] : []; }
+  if (e?.type === 'system') { return e.subtype === 'api_error' && (e.retryAttempt ?? 1) === 1 ? [{ t: 'flash', g: 'think', err: true }] : []; } // one flash per run of retries
   const content = e?.message?.content, out: ActivityEvent[] = [];
   if (e?.type === 'user') {
-    if (typeof content === 'string' || (Array.isArray(content) && content.some((b: any) => b?.type === 'text'))) { out.push({ t: 'wake' }); }
+    if (e.isMeta !== true && (typeof content === 'string' || (Array.isArray(content) && content.some((b: any) => b?.type === 'text')))) { out.push({ t: 'wake' }); }
     for (const b of Array.isArray(content) ? content : []) {
       const g = b?.type === 'tool_result' && typeof b.tool_use_id === 'string' ? pending.get(b.tool_use_id) : undefined;
       if (!g) { continue; }
@@ -74,7 +80,7 @@ export function eventsOf(line: string, pending: Map<string, Group>): ActivityEve
     return out;
   }
   if (e?.type !== 'assistant' || !Array.isArray(content)) { return []; }
-  let caption = '';
+  let caption: string | undefined; // '' clears the old text
   for (const b of content) {
     if (b?.type === 'text') { out.push({ t: 'flash', g: 'chat' }); }
     else if (b?.type === 'thinking') {
@@ -84,7 +90,7 @@ export function eventsOf(line: string, pending: Map<string, Group>): ActivityEve
     } else if (b?.type === 'tool_use' && typeof b.name === 'string') {
       const g = toolGroup(b.name, b.input);
       out.push({ t: 'flash', g });
-      caption = captionOf(b.name, b.input) || caption;
+      caption = captionOf(b.name, b.input);
       if (typeof b.id === 'string') {
         if (pending.size >= PENDING_MAX) { pending.delete(pending.keys().next().value as string); }
         pending.set(b.id, g);
@@ -92,12 +98,8 @@ export function eventsOf(line: string, pending: Map<string, Group>): ActivityEve
       }
     }
   }
-  if (e.message.stop_reason === 'end_turn') { out.push({ t: 'wait', g: 'think' }); caption = 'Waiting for you'; }
-  if (caption) { out.push({ t: 'caption', text: caption }); }
+  const lastType = content[content.length - 1]?.type; // end_turn is copied onto every block line of a message: only its final text line waits
+  if (e.message.stop_reason === 'end_turn' && lastType !== 'thinking' && lastType !== 'tool_use') { out.push({ t: 'wait', g: 'think' }); caption = 'Waiting for you'; }
+  if (caption !== undefined) { out.push({ t: 'caption', text: caption }); }
   return out;
-}
-
-/** Plain flashes for one JSONL line; tool results, user lines and anything unreadable give none. */
-export function flashesOf(line: string): Flash[] {
-  return eventsOf(line, new Map()).flatMap((e) => e.t === 'flash' ? [e.g] : []);
 }

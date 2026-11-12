@@ -6,7 +6,8 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = process.env.CCS_OUT || path.join(ROOT, 'out');
-const { flashesOf, toolGroup, eventsOf, captionOf } = require(path.join(OUT, 'activityMap.js'));
+const { toolGroup, eventsOf, captionOf } = require(path.join(OUT, 'activityMap.js'));
+const flashesOf = (line) => eventsOf(line, new Map()).flatMap((e) => (e.t === 'flash' ? [e.g] : [])); // the flashed groups of one line
 const { activityHtml } = require(path.join(OUT, 'activityHtml.js'));
 const failures = [];
 const check = (what, cond) => { if (!cond) { failures.push(what); } };
@@ -49,7 +50,15 @@ check('AskUserQuestion waits on the Chat node, not busy', eq(ev(asst({ type: 'to
 const bashDesc = { type: 'tool_use', id: 't1', name: 'Bash', input: { description: 'Run the unit tests', command: 'SECRET=hunter2 npm test --all' } };
 const bashEv = ev(asst(bashDesc));
 check('Bash caption uses the description, never the command', eq(bashEv.find((e) => e.t === 'caption'), { t: 'caption', text: 'Running: Run the unit tests' }) && !JSON.stringify(bashEv).includes('hunter2'));
-check('Bash without description falls back to the first word only', captionOf('Bash', { command: 'npm test --secret=1' }) === 'Running: npm');
+check('Bash without description falls back to the program name only', captionOf('Bash', { command: 'npm test --secret=1' }) === 'Running: npm' && captionOf('Bash', { command: '/usr/bin/git status' }) === 'Running: git');
+check('Bash fallback skips VAR=value words and odd words', captionOf('Bash', { command: 'TOKEN=abc curl x' }) === 'Running: curl' && captionOf('Bash', { command: 'API_TOKEN=abc' }) === 'Running a command' && captionOf('Bash', { command: '"$X" y' }) === 'Running a command');
+check('caption clip keeps emoji whole', captionOf('Agent', { description: '\u{1F600}'.repeat(100) }) === 'Agent: ' + '\u{1F600}'.repeat(72) + '…');
+const lastLine = (...blocks) => JSON.stringify({ type: 'assistant', message: { stop_reason: 'end_turn', content: blocks } });
+check('end_turn on a thinking or tool_use line does not wait; only the final text line does', !ev(lastLine({ type: 'thinking' })).some((e) => e.t === 'wait') && !ev(lastLine({ type: 'tool_use', id: 'k', name: 'Bash', input: {} })).some((e) => e.t === 'wait') && ev(lastLine({ type: 'thinking' }, { type: 'text' })).some((e) => e.t === 'wait'));
+check('meta user lines do not wake', eq(ev(JSON.stringify({ type: 'user', isMeta: true, message: { content: 'x' } })), []));
+check('a tool without a caption clears the old text', eq(ev(asst(tool('Monitor'))).find((e) => e.t === 'caption'), { t: 'caption', text: '' }));
+const apiErr = (n) => JSON.stringify({ type: 'system', subtype: 'api_error', retryAttempt: n });
+check('api_error flashes once per run of retries', ev(apiErr(1)).length === 1 && ev(apiErr(2)).length === 0 && ev(apiErr(undefined)).length === 1);
 check('file tools caption the basename only', captionOf('Edit', { file_path: '/a/b/c/activityHtml.ts' }) === 'Editing activityHtml.ts' && captionOf('Read', { file_path: 'C:\\a\\b.md' }) === 'Reading b.md');
 check('web captions: query and host only', captionOf('WebSearch', { query: 'codicons license' }) === 'Searching the web: codicons license' && captionOf('WebFetch', { url: 'https://example.com/a/b?x=1' }) === 'Fetching example.com');
 check('agent and skill captions', captionOf('Agent', { description: 'Opus review of diff', prompt: 'long secret prompt' }) === 'Agent: Opus review of diff' && captionOf('Skill', { skill: 'simplify' }) === 'Skill: simplify');
@@ -73,7 +82,7 @@ check('page labels Claude and the eight groups', ['Claude', 'Chat', 'Memory', 'F
 check('page honors reduced motion', page.includes('prefers-reduced-motion'));
 check('page has no emoji', !/\p{Extended_Pictographic}/u.test(page));
 check('page has a polite caption line with reserved height, throttled to 2 a second', page.includes('id="cap" aria-live="polite"') && /#cap\{[^}]*height:1\.4em/.test(page) && page.includes('500 - (Date.now() - capAt)'));
-check('page uses the error color with a dashed shape cue, and a ripple and busy ring', page.includes('--vscode-errorForeground') && page.includes('stroke-dasharray:3 2') && page.includes('.rip .rp') && page.includes('.busy .br'));
+check('page uses the error color with a dashed shape cue, and a ripple and busy ring', page.includes('--vscode-editorError-foreground,var(--vscode-errorForeground)') && !page.includes('#f14c4c') && page.includes('stroke-dasharray:3 2') && page.includes('.rip .rp') && page.includes('.busy .br'));
 check('page clears busy on reset and after a safety timeout, and has no external resources', page.includes('function reset()') && page.includes('pend.clear()') && page.includes('600000') && !/https?:\/\//.test(page));
 check('page shows static states with reduced motion', page.includes('.busy .br,.rip .rp{animation:none;}'));
 

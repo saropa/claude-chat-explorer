@@ -51,7 +51,7 @@ export function diagramSvg(): string {
 const HOT = 'var(--hl)'; // the flash color: the link color, or the error color on a group marked .err
 const CSS = `
 :root{--hl:var(--vscode-textLink-foreground);}
-.err{--hl:var(--vscode-errorForeground,#f14c4c);}
+.err{--hl:var(--vscode-editorError-foreground,var(--vscode-errorForeground));}
 body{margin:0;padding:8px;background:var(--vscode-sideBar-background);color:var(--vscode-foreground);font-family:var(--vscode-font-family);}
 svg{display:block;width:100%;max-width:300px;height:auto;margin:0 auto;overflow:visible;}
 text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-editor-background));stroke-width:3px;stroke-linejoin:round;fill:currentColor;font-size:8px;letter-spacing:.2px;dominant-baseline:central;fill-opacity:.75;}
@@ -158,7 +158,7 @@ function flash(g, err) {
   core.classList.remove('wait', 'rip');
   if (g === 'think' && !err) {
     if (document.querySelector('.grp.hot:not([data-g="think"]), .cn.hot')) { pulse(el, g); return; }
-    el.classList.remove('hot');
+    el.classList.remove('hot', 'err');
     el.classList.add('hold');
     clearTimeout(timers.get(g));
     timers.set(g, setTimeout(() => pulse(el, g), 10000));
@@ -181,9 +181,9 @@ addEventListener('message', (e) => {
     if (v.t === 'flash') { flash(v.g, v.err); }
     else if (v.t === 'caption') { caption(String(v.text)); }
     else if (v.t === 'busy' && grp(v.g)) { startCall(v.id, v.g); }
-    else if (v.t === 'end') { endCall(v.id); if (v.g === 'chat') { grp('chat').classList.remove('wait'); } }
+    else if (v.t === 'end') { endCall(v.id); if (v.g === 'chat') { grp('chat').classList.remove('wait'); } if (!pend.size) { caption(''); } }
     else if (v.t === 'wait' && grp(v.g)) { wait(v.g); }
-    else if (v.t === 'wake') { document.querySelectorAll('.wait').forEach((el) => el.classList.remove('wait', 'rip')); }
+    else if (v.t === 'wake') { document.querySelectorAll('.wait').forEach((el) => el.classList.remove('wait', 'rip')); caption(''); }
   }
 });`;
 
