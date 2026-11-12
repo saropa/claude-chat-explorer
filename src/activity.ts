@@ -2,12 +2,11 @@
 import * as vscode from 'vscode';
 import { activityHtml } from './activityHtml';
 import { ActivityFeed, refreshMsOf } from './activityFeed';
-import { Hub } from './hub';
 
 export const ACTIVITY_VIEW = 'claudeChatExplorer.activity';
 
 /** `currentId` is the chat of this window. While the view is visible one interval (setting `activity.refreshMs`) checks the log for appended bytes; the tab moving also triggers a check. Collapsed or hidden: no interval, no work. */
-export function registerActivity(ctx: vscode.ExtensionContext, _hub: Hub, currentId: () => string): { poke(): void } {
+export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => string): { poke(): void } {
   let view: vscode.WebviewView | undefined;
   const feed = new ActivityFeed();
   let busy = false, again = false;

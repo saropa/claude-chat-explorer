@@ -425,7 +425,7 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
     onChange: () => { provider.postDots(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); titler.onLive(ids); } });
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.search.contextLines')) { provider.postCtxLines(); } }));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.contextRingTokens')) { provider.postRing(); } }));
-  const activity = registerActivity(ctx, hub, () => provider.currentId());
+  const activity = registerActivity(ctx, () => provider.currentId());
   const tabMoved = () => { provider.clearViewed(); provider.postDots(); provider.watcher?.poke(); activity.poke(); };
   ctx.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(tabMoved), vscode.window.tabGroups.onDidChangeTabGroups(tabMoved));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.animateDots')) { provider.postDots(); hub.emit('dots', logErr); } }));
