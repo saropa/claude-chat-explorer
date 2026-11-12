@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Fixed: Activity flashes now read clearly in dark and light themes (the top-left sheen no longer washes out the lit circle and is far more delicate, the lit fill is stronger, the fade holds longer, and the Claude label has no dark outline).
+
 ## 0.46.0
 - Added: the Activity panel shows when Claude is waiting for you (one soft ripple from the center, then a quiet outline until the next message; the same on Chat for a question).
 - Added: a one-line caption under the Activity diagram names the latest action in plain words (descriptions, file names, hosts; never full commands).

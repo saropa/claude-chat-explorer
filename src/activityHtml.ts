@@ -54,12 +54,14 @@ const CSS = `
 .err{--hl:var(--vscode-editorError-foreground,var(--vscode-errorForeground));}
 body{margin:0;padding:8px;background:var(--vscode-sideBar-background);color:var(--vscode-foreground);font-family:var(--vscode-font-family);}
 svg{display:block;width:100%;max-width:300px;height:auto;margin:0 auto;overflow:visible;}
-text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-editor-background));stroke-width:3px;stroke-linejoin:round;fill:currentColor;font-size:8px;letter-spacing:.2px;dominant-baseline:central;fill-opacity:.75;}
+text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-editor-background));stroke-width:3px;stroke-opacity:.7;stroke-linejoin:round;fill:currentColor;font-size:8px;letter-spacing:.2px;dominant-baseline:central;fill-opacity:.75;}
+.grp[data-g="think"] text{stroke:none;}
 .ln{stroke:currentColor;stroke-opacity:.22;stroke-width:1;}
 .bk{fill:var(--vscode-sideBar-background,var(--vscode-editor-background));}
 .sh{fill:url(#sheen);stroke:none;pointer-events:none;}
-#sheen stop:nth-child(1){stop-opacity:.22;}#sheen stop:nth-child(2){stop-opacity:.06;}#sheen stop:nth-child(3){stop-opacity:0;}
-.vscode-light #sheen stop:nth-child(1){stop-opacity:.9;}.vscode-light #sheen stop:nth-child(2){stop-opacity:.35;}
+#sheen stop:nth-child(1){stop-opacity:.07;}#sheen stop:nth-child(2){stop-opacity:.02;}#sheen stop:nth-child(3){stop-opacity:0;}
+.vscode-light #sheen stop:nth-child(1){stop-opacity:.3;}.vscode-light #sheen stop:nth-child(2){stop-opacity:.1;}
+.hot .sh,.hold .sh{opacity:0;}
 .vscode-high-contrast .sh,.vscode-high-contrast-light .sh{display:none;}
 .cn{fill:none;stroke:currentColor;stroke-opacity:0;stroke-width:1;}
 .nd,.core{fill:currentColor;fill-opacity:.06;stroke:currentColor;stroke-opacity:.35;stroke-width:1;}
@@ -69,9 +71,9 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .vscode-high-contrast .nd,.vscode-high-contrast .core,.vscode-high-contrast-light .nd,.vscode-high-contrast-light .core{stroke-opacity:1;fill:none;}
 .vscode-high-contrast .ic,.vscode-high-contrast-light .ic{opacity:1;}
 .vscode-high-contrast text,.vscode-high-contrast-light text{fill-opacity:1;}
-.hot{animation:glow 4s cubic-bezier(.2,.6,.3,1);}
-.hot .ln{animation:ln 4s cubic-bezier(.2,.6,.3,1);}
-.cn.hot{animation:cn 4s cubic-bezier(.2,.6,.3,1);}
+.hot{animation:glow 4s cubic-bezier(.4,.5,.7,1);}
+.hot .ln{animation:ln 4s cubic-bezier(.4,.5,.7,1);}
+.cn.hot{animation:cn 4s cubic-bezier(.4,.5,.7,1);}
 .err .nd,.err .core{stroke-dasharray:3 2;}
 .br,.rp{fill:none;stroke:var(--hl);stroke-width:1.5;stroke-opacity:0;pointer-events:none;}
 .busy .br{animation:breathe 3s ease-in-out infinite;}
@@ -80,17 +82,17 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .vscode-high-contrast .wait .nd,.vscode-high-contrast .wait .core,.vscode-high-contrast-light .wait .nd,.vscode-high-contrast-light .wait .core{stroke:var(--hl);stroke-opacity:1;stroke-width:2;}
 #cap{max-width:300px;height:1.4em;line-height:1.4em;margin:6px auto 0;font-size:11px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.8;}
 .hold{filter:drop-shadow(0 0 4px ${HOT});}
-.hold .core{stroke:${HOT};stroke-opacity:1;stroke-width:1.75;fill:${HOT};fill-opacity:.22;}
+.hold .core{stroke:${HOT};stroke-opacity:1;stroke-width:1.75;fill:${HOT};fill-opacity:.4;}
 .hold .ic{color:${HOT};opacity:1;}
 .hold text{fill:${HOT};fill-opacity:1;}
-.hot .nd,.hot .core{animation:nd 4s cubic-bezier(.2,.6,.3,1);}
-.hot .ic{animation:ic 4s cubic-bezier(.2,.6,.3,1);}
-.hot text{animation:tx 4s cubic-bezier(.2,.6,.3,1);}
+.hot .nd,.hot .core{animation:nd 4s cubic-bezier(.4,.5,.7,1);}
+.hot .ic{animation:ic 4s cubic-bezier(.4,.5,.7,1);}
+.hot text{animation:tx 4s cubic-bezier(.4,.5,.7,1);}
 @keyframes breathe{0%,100%{stroke-opacity:.12;}50%{stroke-opacity:.5;}}
 @keyframes rip{from{stroke-opacity:.6;transform:scale(1);}to{stroke-opacity:0;transform:scale(2.2);}}
 @keyframes glow{from{filter:drop-shadow(0 0 4px ${HOT});}to{filter:drop-shadow(0 0 0 transparent);}}
 @keyframes ln{from{stroke:${HOT};stroke-opacity:1;stroke-width:2;}}
-@keyframes nd{from{stroke:${HOT};stroke-opacity:1;stroke-width:1.75;fill:${HOT};fill-opacity:.22;}}
+@keyframes nd{from{stroke:${HOT};stroke-opacity:1;stroke-width:1.75;fill:${HOT};fill-opacity:.4;}}
 @keyframes cn{from{stroke:${HOT};stroke-opacity:1;stroke-width:2;}to{stroke-opacity:0;}}
 @keyframes ic{from{color:${HOT};opacity:1;}}
 @keyframes tx{from{fill:${HOT};fill-opacity:1;}}
@@ -101,7 +103,7 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .hot,.cn.hot,.hot .ln,.hot .nd,.hot .core,.hot .ic,.hot text{animation:none;}
 .hot{filter:drop-shadow(0 0 3px ${HOT});}
 .hot .ln,.cn.hot{stroke:${HOT};stroke-opacity:1;stroke-width:2;}
-.hot .nd,.hot .core{stroke:${HOT};stroke-opacity:1;stroke-width:1.75;fill:${HOT};fill-opacity:.22;}
+.hot .nd,.hot .core{stroke:${HOT};stroke-opacity:1;stroke-width:1.75;fill:${HOT};fill-opacity:.4;}
 .hot .ic{color:${HOT};opacity:1;}
 .hot text{fill:${HOT};fill-opacity:1;}}`;
 

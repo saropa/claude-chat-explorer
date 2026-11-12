@@ -86,6 +86,8 @@ check('page uses the error color with a dashed shape cue, and a ripple and busy 
 check('page clears busy on reset and after a safety timeout, and has no external resources', page.includes('function reset()') && page.includes('pend.clear()') && page.includes('600000') && !/https?:\/\//.test(page));
 check('page shows static states with reduced motion', page.includes('.busy .br,.rip .rp{animation:none;}'));
 
+check('sheen is delicate and hidden while a node is lit', page.includes('.hot .sh,.hold .sh{opacity:0;}') && /#sheen stop:nth-child\(1\)\{stop-opacity:\.0\d;\}/.test(page) && /\.vscode-light #sheen stop:nth-child\(1\)\{stop-opacity:\.[0-3];\}/.test(page));
+
 // 4a. Connectors: one per pair, each an arc of the ring (both ends at radius 68, so never inside the core of radius 28); thinking hold is in the page script.
 const arcs = [...page.matchAll(/<path class="cn" data-c="([a-z-]+)" d="M([\d.]+) ([\d.]+) A68 68 0 0 1 ([\d.]+) ([\d.]+)"/g)];
 check('page has 28 connectors', arcs.length === 28);
