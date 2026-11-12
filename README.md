@@ -375,7 +375,7 @@ Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Se
 
 MIT. See [LICENSE](LICENSE).
 
-Third-party credits: the icons in the Activity panel are from [Codicons](https://github.com/microsoft/vscode-codicons) by Microsoft, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+Third-party credits: the icons in the Activity panel are from Codicons (the microsoft/vscode-codicons project on GitHub) by Microsoft, licensed under Creative Commons Attribution 4.0 (CC BY 4.0).
 
 ---
 
