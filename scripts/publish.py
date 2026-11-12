@@ -127,7 +127,8 @@ def guarded(name: str, step, *args):
             while True:
                 try:
                     text = input(f"  {name} failed. {opts}: ").strip().lower() or "r"
-                except EOFError:
+                except (EOFError, KeyboardInterrupt):
+                    print()
                     text = "a"
                 if text in ("r", "retry"):
                     break
@@ -219,7 +220,8 @@ def step_tokens(args) -> dict:
     return plan
 
 
-def step_tree(args) -> None:
+def step_dirty(args) -> None:
+    """Working-tree check, its own guarded step so Ignore skips only this check."""
     heading("Step 3: Working tree, branch, remote sync")
     dirty = run(["git", "status", "--porcelain"]).stdout.strip()
     if dirty and args.publish:
@@ -239,6 +241,9 @@ def step_tree(args) -> None:
         warn("tree is dirty; allowed for this dry run (--allow-dirty)")
     else:
         ok("working tree clean")
+
+
+def step_tree(args) -> None:
     branch = run(["git", "branch", "--show-current"]).stdout.strip()
     if branch != BRANCH:
         die("REMOTE_SYNC", f"on branch '{branch}', expected '{BRANCH}'")
@@ -384,7 +389,11 @@ def step_push(args, version: str) -> None:
             if res.returncode != 0:
                 print(tail(res))
                 die("GIT_FAILED", f"'{' '.join(cmd[:2])}' failed")
-    ahead = run(["git", "rev-list", "--count", f"origin/{BRANCH}..HEAD"]).stdout.strip()
+    count = run(["git", "rev-list", "--count", f"origin/{BRANCH}..HEAD"])
+    if count.returncode != 0:
+        print(tail(count))
+        die("GIT_FAILED", f"cannot count commits ahead of origin/{BRANCH}")
+    ahead = count.stdout.strip()
     if ahead not in ("", "0"):
         res = run(["git", "push", "origin", BRANCH])
         if res.returncode != 0:
@@ -575,7 +584,8 @@ def main() -> None:
     try:
         guarded("Prerequisites", step_prereqs, args)
         plan = step_tokens(args)
-        guarded("Working tree and remote sync", step_tree, args)
+        guarded("Working tree", step_dirty, args)
+        guarded("Branch and remote sync", step_tree, args)
         version = guarded("Version and CHANGELOG", step_version, args)
         guarded("Push release commit", step_push, args, version)
         guarded("Store metadata checks", step_store_checks)
