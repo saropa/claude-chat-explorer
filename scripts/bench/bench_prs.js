@@ -1,8 +1,8 @@
-// Real-run timing of the Open Work pull request layer (not part of the build). Usage: node scripts/bench_prs.js <folder> [<folder> ...]
+// Real-run timing of the Open Work pull request layer (not part of the build). Usage: node scripts/bench/bench_prs.js <folder> [<folder> ...]
 // Runs the real scan (real git and gh) over the folders, prints when each message arrived, then times one `gh pr view` per folder.
 const path = require('path');
 const { execFileSync } = require('child_process');
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const { Limiter } = require(path.join(OUT, 'execLimit.js'));
 const { PrCache } = require(path.join(OUT, 'wipPrs.js'));
 const { WorkPrs } = require(path.join(OUT, 'workPrs.js'));

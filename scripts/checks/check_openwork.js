@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const { createHarness } = require('./webview_harness');
 
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const page = require(path.join(OUT, 'openWorkHtml.js')).openWorkHtml();
 const model = require(path.join(OUT, 'workModel.js'));
 const failures = [];

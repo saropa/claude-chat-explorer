@@ -2,7 +2,7 @@
 // the "136.8k of 300k tokens" tooltip, no inline style (CSP is nonce-only), and the setting reaching the webview live.
 const fs = require('fs');
 const path = require('path');
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..');
 const OUT = process.env.CCS_OUT || path.join(ROOT, 'out');
 const { CTX_JS, CTX_CSS } = require(path.join(OUT, 'webviewCtx.js'));
 const failures = [];

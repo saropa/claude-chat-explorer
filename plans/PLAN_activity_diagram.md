@@ -35,7 +35,7 @@ Tool results and other entries do not flash. Only new messages flash: opening or
 - `src/activityFeed.ts`: reads the new bytes of the current chat's log (same incremental tail approach and file lookup as `BgTracker`). The first read of a chat only records its end.
 - `src/activity.ts`: the view provider. No file watcher and no use of the shared index events: while the view is visible, one interval (setting `activity.refreshMs`) calls the feed check, and a tab move also triggers one. An in-flight guard and a pending flag keep checks from overlapping. When the view is hidden or disposed the interval is cleared; when it is shown again the feed first marks the end of the log, so messages that arrived meanwhile do not flash. Current chat is `Provider.currentId()` (`src/currentChat.ts`).
 - `src/activityHtml.ts`: the page; `src/activityIcons.ts`: Codicon paths copied from `@vscode/codicons` 0.0.45 (CC BY 4.0).
-- Test: `scripts/check_activity.js`, part of `vscode:prepublish`.
+- Test: `scripts/checks/check_activity.js`, part of `vscode:prepublish`.
 
 Latency is at most one interval (250 ms by default) after the message is written.
 

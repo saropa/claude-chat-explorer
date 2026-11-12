@@ -70,7 +70,7 @@ Each one is fixed inside the slice named. None needs an owner answer.
 | 6 | The old collector cannot stream. It runs all probes, then all statuses, then all repos, then all PRs. | `882aeee:src/wipCollect.ts` (`folderFacts`, `repoFacts`, `prFacts`, `collect`). | New per-folder pipeline (`workScan.ts`). Each folder posts as soon as it ends. The PR layer for a repository starts as soon as one of its folders has a branch. | 2 |
 | 7 | **The sidebar popover script cannot be reused as-is.** It binds sidebar element ids and globals at load. In a new page that throws at load: the 0.18.2 failure class. | `webviewSort.ts:37` (`$('srb')`), `:42-43` (`advSync`, `sessOn`, `askSess`, `rerender`), `:44` (fixed id list). | Extract a dependency-free `POP_JS` (place, toggle, close on Escape / outside click / scroll), taking ids as arguments. The sidebar switches to it in the same slice. | 1 |
 | 8 | No way for a second page to listen to dots, index changes or archive changes. | `liveWatcher.ts:13` single `onChange`; `extension.ts:325`; `extension.ts:337` chains `onIndex` by hand; `extension.ts:320` `changed` only refreshes the sidebar. | A small fan-out (`hub.ts`: `on(evt, fn)` returns a disposable) for `dots`, `indexed`, `changed`, `archived`. PR cache and limiter move out of `Provider` (`extension.ts:47-51`) into `activate()` so both pages share them. `extension.ts` gains about 10 lines, not 1. | 1 |
-| 9 | The page harness cannot test a timeout. `setTimeout` is a no-op, and the sidebar ids and page are hard-coded. | `check_webview.js:56`, `:41`, `:10`. | Split into `scripts/webview_harness.js` (vm, stub DOM, **fake clock** with `advance(ms)`, page from any module) and per-page scenario files. | 1 |
+| 9 | The page harness cannot test a timeout. `setTimeout` is a no-op, and the sidebar ids and page are hard-coded. | `check_webview.js:56`, `:41`, `:10`. | Split into `scripts/checks/webview_harness.js` (vm, stub DOM, **fake clock** with `advance(ms)`, page from any module) and per-page scenario files. | 1 |
 | 10 | A soft worker request rejects after 6 s while the worker keeps working. During the first index build the panel's list request can hit that. | `client.ts:158-160` (soft: reject only, `TIMEOUT_MS * 2`); `worker.ts:97` style `await loaded`. | Worker `openWork` answers at once with what is indexed plus `indexing: true` (same as `fileSessions`, `worker.ts:129`). The page shows "Index still building: list may be incomplete" and asks again on `indexed`. A rejected request shows "Could not load chats · Retry", never a spinner. | 1 |
 | 11 | A fork PR with the same branch name as a chat's branch would be shown as that chat's PR and move it to the wrong band. | `wipPrs.ts:31` maps by `headRefName` only. [M] 38 of 75 open cli/cli PRs come from forks. | Add `isCrossRepository` to the list fields; skip those PRs. | 3 |
 | 12 | Locked and prunable worktrees are not parsed. A copied remove command would fail on a locked one. A missing folder needs a different command. | `wipParse.ts:46-58` reads only `worktree`, `branch`, `detached`. | Parse `locked` and `prunable`. Locked: "Locked · not removable", no button. Folder missing: copy `git -C <main> worktree prune`. | 4 |
@@ -398,7 +398,7 @@ After each slice: `npm run vscode:prepublish` passes (it runs every check below)
 
 Contents: command and sidebar button; panel with replay on `ready`; worker `openWork` (soft, `indexing`); dots; bands 1, 3 (running) and "idle"; Open chat, Archive, Copy hand-over; empty states; header without progress; keyboard; narrow and wide layout; hub; popover extraction.
 
-Files: `hub.ts`, `workChats.ts`, `workModel.ts` (chat-state rules only), `openWork.ts`, `openWorkHtml.ts`, `openWorkJs.ts`, `openWorkCss.ts`, `webviewPop.ts`, `webviewSort.ts` (uses `webviewPop`), `worker.ts` (+ `openWork`), `extension.ts` (hub, register), `package.json` (command, menu, `openWorkDays`), `scripts/webview_harness.js`, `scripts/check_webview.js` (now uses the harness), `scripts/check_openwork.js`, `scripts/check_guards.js`.
+Files: `hub.ts`, `workChats.ts`, `workModel.ts` (chat-state rules only), `openWork.ts`, `openWorkHtml.ts`, `openWorkJs.ts`, `openWorkCss.ts`, `webviewPop.ts`, `webviewSort.ts` (uses `webviewPop`), `worker.ts` (+ `openWork`), `extension.ts` (hub, register), `package.json` (command, menu, `openWorkDays`), `scripts/checks/webview_harness.js`, `scripts/checks/check_webview.js` (now uses the harness), `scripts/checks/check_openwork.js`, `scripts/checks/check_guards.js`.
 
 Checks added:
 - `check_openwork.js` runs the Open Work page in node vm through the harness: `init`, `chats` (0, 3, 250 rows), `indexing`, chat list failure, `dots`, archive and done messages, every action button posts the right message, keyboard walk, widths 400 / 760 / 1400. Any throw, `window.onerror` or `console.error` fails.
@@ -414,7 +414,7 @@ Manual check: opens in an editor tab; 131 real chats render under 1 s; Show Diag
 
 Contents: `workScan.ts` per-folder pipeline; two-lane limiter used by the panel, `GitLiveService` and `CardCounts`; folder deadline from first command start; Files / Ahead / upstream gone; bands 2 and 4 from git; progress line (git part); Retry per folder; Scan more; Refresh; Open file; scope by repository; caches for folder and repo facts.
 
-Files: `execLimit.ts`, `workScan.ts`, `workModel.ts`, `gitLive.ts` and `cardCounts.ts` (take the limiter through `Ctx.exec`), `openWork*.ts`, `extension.ts` (create limiter in `activate`), `scripts/check_openwork.js`, `scripts/check_scan.js`.
+Files: `execLimit.ts`, `workScan.ts`, `workModel.ts`, `gitLive.ts` and `cardCounts.ts` (take the limiter through `Ctx.exec`), `openWork*.ts`, `extension.ts` (create limiter in `activate`), `scripts/checks/check_openwork.js`, `scripts/checks/check_scan.js`.
 
 Checks added:
 - `check_scan.js` (node, on `out/`) drives `workScan` with a fake `Exec`:
@@ -431,7 +431,7 @@ Manual check: three real repositories fill in progressively; a folder made to ha
 
 Contents: `workPrs.ts` (list step with `headRefOid` and `isCrossRepository`, fork skip, view step for matched PRs, check state, check cache); PR cache shared with the sidebar and owning its abort controller; gh limiter (2); PR and Checks columns with spinners; bands with review and check rules; progress line PR part; `lookupPullRequests=false` turns the layer off; band-move smoothing (section 6.4).
 
-Files: `workPrs.ts`, `wipPrs.ts` (fields, fork skip, cache abort ownership), `wipGit.ts` (gh allow-list: add `pr view <digits> --json statusCheckRollup,headRefOid` only), `workModel.ts`, `openWork*.ts`, `scripts/check_prs.js`, `scripts/check_openwork.js`, `scripts/check_guards.js`.
+Files: `workPrs.ts`, `wipPrs.ts` (fields, fork skip, cache abort ownership), `wipGit.ts` (gh allow-list: add `pr view <digits> --json statusCheckRollup,headRefOid` only), `workModel.ts`, `openWork*.ts`, `scripts/checks/check_prs.js`, `scripts/checks/check_openwork.js`, `scripts/checks/check_guards.js`.
 
 Checks added:
 - `check_prs.js`: check-state mapping for every CheckRun conclusion and StatusContext state; empty list is none; fork PRs skipped; a caller leaving does not kill a shared list call another caller waits on; a failed lookup is not cached; same head commit within 5 min is served from cache; a new head commit is looked up; with `prsOn` false, a fake gh records zero calls.
@@ -444,7 +444,7 @@ Manual check: on chat-search and contacts, PR cells settle in under 2 s; with th
 
 Contents: By attention / By chat / By repository; band toggles; text filter; Show clean; Show done; Mark done with fingerprint; Copy summary; worktree rows; Ready to remove with Copy remove command; locked and prunable parsing; detached merged check; Copy push command; branches without a worktree (`parseRefs`, `wipParse.ts:63`) under By repository.
 
-Files: `workRepo.ts`, `wipParse.ts` (`locked`, `prunable`), `workModel.ts`, `openWork*.ts`, `store.ts` (done key), `scripts/check_openwork.js`, `scripts/check_scan.js`.
+Files: `workRepo.ts`, `wipParse.ts` (`locked`, `prunable`), `workModel.ts`, `openWork*.ts`, `store.ts` (done key), `scripts/checks/check_openwork.js`, `scripts/checks/check_scan.js`.
 
 Checks added:
 - `check_scan.js`: the Ready to remove rule against each failing condition (dirty, ahead, unmerged, open PR, open chat, workspace folder, locked, main checkout, default branch unknown); remove command text with spaces and quotes in the path, POSIX and Windows; `branch -d` present only when merged; never `--force` or `-D`; missing folder gives `worktree prune`.

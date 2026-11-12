@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..');
 const OUT = process.env.CCS_OUT || path.join(ROOT, 'out');
 const { dotState, buildDots, stateMap, nextUnread } = require(path.join(OUT, 'liveState.js'));
 const { BgTracker, feed } = require(path.join(OUT, 'bgAgents.js'));

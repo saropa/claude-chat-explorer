@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..');
 const SRC = path.join(ROOT, 'src');
 const OUT = process.env.CCS_OUT || path.join(ROOT, 'out');
 const errors = [];

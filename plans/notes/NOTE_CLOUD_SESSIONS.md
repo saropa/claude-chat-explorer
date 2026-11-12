@@ -1,7 +1,7 @@
 # Note: Cloud / web Claude sessions in the extension
 
 Date: 2026-10-20 (updated)
-Status: Decision: opt-in read-only implemented (`saropaChatExplorer.webSessions.enabled`, default off). Code: `src/webApi.ts`, `src/webSessions.ts`, `src/webviewWeb.ts`; test: `scripts/check_web.js`.
+Status: Decision: opt-in read-only implemented (`saropaChatExplorer.webSessions.enabled`, default off). Code: `src/webApi.ts`, `src/webSessions.ts`, `src/webviewWeb.ts`; test: `scripts/checks/check_web.js`.
 
 ## Findings (from the official extension's Session Manager "Web" tab; undocumented API)
 

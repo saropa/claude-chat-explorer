@@ -1,10 +1,10 @@
-// End to end: the real WorkPrs on real recorded gh JSON (scripts/fixtures/gh) -> its streamed prs and checks messages -> the real Open Work page in the harness.
+// End to end: the real WorkPrs on real recorded gh JSON (scripts/checks/fixtures/gh) -> its streamed prs and checks messages -> the real Open Work page in the harness.
 // Fails when review words, bands, the summary text or the unknown-checks rule break between the layers (a unit test on one side cannot see that).
 const fs = require('fs');
 const path = require('path');
 const { createHarness } = require('./webview_harness');
 
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const { WorkPrs } = require(path.join(OUT, 'workPrs.js'));
 const { PrCache } = require(path.join(OUT, 'wipPrs.js'));
 const { Limiter } = require(path.join(OUT, 'execLimit.js'));

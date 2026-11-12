@@ -8,7 +8,7 @@ const os = require('os');
 const path = require('path');
 const { fakeGit, collect, mkWorld } = require('./fake_world');
 
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const { Limiter } = require(path.join(OUT, 'execLimit.js'));
 const { PrCache, parsePrs, fetchPrs, ownerOfRemote, ghReason, authState } = require(path.join(OUT, 'wipPrs.js'));
 const { GitLiveService } = require(path.join(OUT, 'gitLive.js'));

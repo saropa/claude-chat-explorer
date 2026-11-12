@@ -3,7 +3,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const { parseFile } = require(path.join(OUT, 'parse.js'));
 const { workTotals, chatTotals } = require(path.join(OUT, 'workChats.js'));
 const failures = [];

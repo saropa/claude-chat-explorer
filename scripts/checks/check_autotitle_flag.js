@@ -1,6 +1,6 @@
 // Unit check for out/autoTitleFlag.js: setting wins, stored fallback otherwise, toggle failure stores the fallback.
 const path = require('path');
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const f = require(path.join(OUT, 'autoTitleFlag.js'));
 const fails = [];
 const check = (w, c) => { if (!c) { fails.push(w); } };

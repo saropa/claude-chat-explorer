@@ -377,7 +377,7 @@ def step_store_checks() -> None:
 def step_build() -> None:
     heading("Step 6: Manifest check and compile")
     for label, cmd in (
-        ("manifest check", ["node", "scripts/check_manifest.js"]),
+        ("manifest check", ["node", "scripts/checks/check_manifest.js"]),
         ("npm run compile", ["npm", "run", "compile"]),
     ):
         res = run(cmd)

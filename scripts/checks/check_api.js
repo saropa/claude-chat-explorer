@@ -1,6 +1,6 @@
 // Fails the build when the public API list methods break: chat fields, host state merge, work items, account passthrough, 60 s soft timeout. Drives out/api.js and out/apiChats.js.
 const path = require('path');
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const { makeApi, API_VERSION } = require(path.join(OUT, 'api.js'));
 const { allChats, allWork, chatBase } = require(path.join(OUT, 'apiChats.js'));
 const failures = [];

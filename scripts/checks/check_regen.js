@@ -1,6 +1,6 @@
 // Unit check for out/regenTitles.js: prompt extraction, emoji/title validation, result parsing, live-session filter. Never calls claude.
 const path = require('path');
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const r = require(path.join(OUT, 'regenTitles.js'));
 const fails = [];
 const check = (w, c) => { if (!c) { fails.push(w); } };

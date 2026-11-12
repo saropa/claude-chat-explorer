@@ -5,7 +5,7 @@
 const path = require('path');
 const { createHarness } = require('./webview_harness');
 
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const page = require(path.join(OUT, 'webview.js')).html();
 const H = createHarness({ page, name: 'panel', width: 400 });
 const { errors, fail, els, mkEl, document, window, posted, run, fire, deliver } = H;
@@ -171,7 +171,7 @@ function drive() {
 
   // Sort, status filter and search tips live in the view title bar; the host posts setSort, setStatuses and setQuery.
   const KNOWN = ['file:', 'edited:', 'cmd:', 'tag:', 'sha:', 'pr:', 'branch:', 'last:', 'from:'];
-  const { TIPS, SORT_LIST } = require('../out/headerData');
+  const { TIPS, SORT_LIST } = require('../../out/headerData');
   const tipEx = TIPS.flatMap((g) => g[1].map((t) => t[1]));
   check('the three header icon buttons and popovers are gone from the page', !/id="(srb|sfb|tpb|srm|sfm|tpm)"/.test(page) && !/class="hbs"/.test(page));
   check('tips list every parser prefix with an example', KNOWN.every((k) => tipEx.some((e) => e.startsWith(k))) && tipEx.length === KNOWN.length);
@@ -326,7 +326,7 @@ function handoverChecks(check) {
 {
   const fs = require('fs');
   const need = (what, cond) => { if (!cond) { fail(what, new Error('check failed')); } };
-  const src = (f) => fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8');
+  const src = (f) => fs.readFileSync(path.join(__dirname, '..', '..', 'src', f), 'utf8');
   const { currentChat, tabByLabel } = require(path.join(OUT, 'currentChat.js'));
   const { parseTabInfo } = require(path.join(OUT, 'stateDb.js'));
   const A = '11111111-1111-4111-8111-111111111111', B = '22222222-2222-4222-8222-222222222222';

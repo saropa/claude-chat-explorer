@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const { Limiter } = require(path.join(OUT, 'execLimit.js'));
 const { WorkScan } = require(path.join(OUT, 'workScan.js'));
 const repoMod = require(path.join(OUT, 'workRepo.js'));

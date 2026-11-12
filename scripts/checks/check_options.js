@@ -1,10 +1,10 @@
 // Unit check for out/optionsForm.js and out/optionsHtml.js: schema-to-form builder and host-side validation. No VS Code needed.
 const fs = require('fs');
 const path = require('path');
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const f = require(path.join(OUT, 'optionsForm.js'));
 const h = require(path.join(OUT, 'optionsHtml.js'));
-const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
 const props = pkg.contributes.configuration.properties;
 const fails = [];
 const check = (n, c) => { if (!c) { fails.push(n); } };

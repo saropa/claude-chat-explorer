@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..');
 const OUT = process.env.CCS_OUT || path.join(ROOT, 'out');
 const { flashesOf, toolGroup } = require(path.join(OUT, 'activityMap.js'));
 const { activityHtml } = require(path.join(OUT, 'activityHtml.js'));

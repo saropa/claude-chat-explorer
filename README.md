@@ -289,12 +289,12 @@ For developers.
 ```
 npm install
 npm run compile
-node scripts/bench.js
+node scripts/bench/bench.js
 npm run package
 ```
 
 - `npm run compile` builds `src/` into `out/`.
-- `node scripts/bench.js` prints build, load and query timings for your machine and session folder.
+- `node scripts/bench/bench.js` prints build, load and query timings for your machine and session folder.
 - `npm run package` builds a `.vsix`. Its `vscode:prepublish` step runs the checks: the `check_*.js` scripts in `scripts/` (listed in the `vscode:prepublish` script of `package.json`).
 - No runtime dependencies. Dev dependencies only.
 - Press F5 in VS Code to start an Extension Development Host.

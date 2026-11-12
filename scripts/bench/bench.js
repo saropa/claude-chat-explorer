@@ -1,9 +1,9 @@
-// Benchmark: run after `npm run compile`. Usage: node scripts/bench.js [--root <projects folder>]
+// Benchmark: run after `npm run compile`. Usage: node scripts/bench/bench.js [--root <projects folder>]
 const { Worker } = require('worker_threads');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { WorkerClient, TIMEOUT_MS } = require('../out/client.js');
+const { WorkerClient, TIMEOUT_MS } = require('../../out/client.js');
 
 const arg = (k) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : ''; };
 const root = arg('--root');
@@ -12,7 +12,7 @@ const now = () => performance.now();
 const ms = (n) => (n < 10 ? n.toFixed(1) : Math.round(n)) + ' ms';
 
 function spawn() {
-  const w = new Worker(path.join(__dirname, '..', 'out', 'worker.js'));
+  const w = new Worker(path.join(__dirname, '..', '..', 'out', 'worker.js'));
   const waiters = [];
   w.on('message', (m) => { for (const x of waiters.slice()) { x(m); } });
   w.on('error', (e) => console.error('worker error', e));

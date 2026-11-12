@@ -1,7 +1,7 @@
 // Unit check for out/webApi.js and the disabled-by-default path. Fake tokens only; never touches the network, keychain or real credential files.
 const fs = require('fs');
 const path = require('path');
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const w = require(path.join(OUT, 'webApi.js'));
 const fails = [];
 const check = (n, c) => { if (!c) { fails.push(n); } };
@@ -58,12 +58,12 @@ const deps = (o = {}) => ({ platform: 'linux', now: () => NOW, keychain: async (
   check('401 -> sign in', msg === w.SIGN_IN_MSG);
 
   // disabled by default
-  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
   const prop = pkg.contributes.configuration.properties['saropaChatExplorer.webSessions.enabled'];
   check('setting default false', prop && prop.type === 'boolean' && prop.default === false);
-  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'webSessions.ts'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'webSessions.ts'), 'utf8');
   check('load gated on setting', /async load\(\): Promise<void> \{\s*if \(!webEnabled\(\)/.test(src) && /async open\(id: unknown\): Promise<void> \{[^]*?!webEnabled\(\)/.test(src));
-  check('no network code at import', !/^\s*(await )?fetch\(/m.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'extension.ts'), 'utf8')));
+  check('no network code at import', !/^\s*(await )?fetch\(/m.test(fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'extension.ts'), 'utf8')));
 
   if (fails.length) { console.error('check_web FAILED: ' + fails.join(', ')); process.exit(1); }
   console.log('check_web ok');

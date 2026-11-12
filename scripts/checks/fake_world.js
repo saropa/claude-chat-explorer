@@ -69,7 +69,7 @@ function mkWorld(base0, n) {
  *  transcripts, and the chats ran in the main checkout. Returns a fake chat index (tops, subsOf, rec: what workMatch.relOf reads), the matcher input,
  *  the page rows and what each row must end with. Chat ids look like session ids; times are ms. */
 function contactsWorld() {
-  const { buildBloom } = require(path.join(process.env.CCS_OUT || path.join(__dirname, '..', 'out'), 'bloom.js'));
+  const { buildBloom } = require(path.join(process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out'), 'bloom.js'));
   const C = '/w/contacts', H = 3600e3, T0 = Date.UTC(2026, 9, 11, 0, 0, 0);
   const id = (n) => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
   const AG = 'a3845de94fd4edd51';

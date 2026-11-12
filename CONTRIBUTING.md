@@ -4,8 +4,8 @@
 
 - `npm install`
 - `npm run compile` builds `src/` into `out/`.
-- `node scripts/check_manifest.js` fails on a bad `package.json` contribution. `npm run package` runs it first.
-- `node scripts/bench.js` (after compile) prints timings.
+- `node scripts/checks/check_manifest.js` fails on a bad `package.json` contribution. `npm run package` runs it first.
+- `node scripts/bench/bench.js` (after compile) prints timings.
 
 ## Package
 

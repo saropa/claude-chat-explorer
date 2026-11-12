@@ -266,7 +266,7 @@ Evaluation criteria for proposals:
 | File sessions | Does the status bar count match the sessions list? Does `showFileSessionsStatusBar` gate it? |
 | Context warnings | Is the percent computed against the right context window? Does `contextWarnings` gate it? |
 | Export | Is every message type exported? Is private text handled as documented? |
-| Packaging | Is the command declared in `package.json` and registered in `src/extension.ts`? Does `when` match the `contextValue` set in code? Is the file in the VSIX? Does `scripts/check_manifest.js` pass? |
+| Packaging | Is the command declared in `package.json` and registered in `src/extension.ts`? Does `when` match the `contextValue` set in code? Is the file in the VSIX? Does `scripts/checks/check_manifest.js` pass? |
 | Docs | Does the documented key or command id match `package.json`? Does the text match current code? |
 
 ---
@@ -312,7 +312,7 @@ A bug closes only when all of these hold.
 
 **Verification**
 - [ ] `npm run compile` has no errors.
-- [ ] The check scripts pass: `node scripts/check_manifest.js`, `check_webview.js`, `check_openwork.js`, `check_scan.js`, `check_prs.js`, `check_prs_e2e.js`, `check_guards.js`. (`vscode:prepublish` runs all of them.)
+- [ ] The check scripts pass: `node scripts/checks/check_manifest.js`, `check_webview.js`, `check_openwork.js`, `check_scan.js`, `check_prs.js`, `check_prs_e2e.js`, `check_guards.js`. (`vscode:prepublish` runs all of them.)
 - [ ] Original steps reproduced in the Extension Development Host and now correct.
 - [ ] A check script covers the case when the area has one.
 

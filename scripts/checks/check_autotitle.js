@@ -1,6 +1,6 @@
 // Unit check for out/autoTitle.js: default rules, merge, cleaning, title, skip rules, stage planning. Never calls claude.
 const path = require('path');
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const a = require(path.join(OUT, 'autoTitle.js'));
 const fs = require('fs');
 const os = require('os');

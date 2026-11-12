@@ -1,7 +1,7 @@
 // Fails when package.json holds a contribution VS Code would reject or that points at nothing.
 const fs = require('fs');
 const path = require('path');
-const root = path.join(__dirname, '..');
+const root = path.join(__dirname, '..', '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const errors = [];
 if (pkg.name !== 'claude-chat-explorer') errors.push(`package.json name must be claude-chat-explorer, found "${pkg.name}"`);

@@ -1,6 +1,6 @@
 // Unit check for out/claudeConfig.js, claudeConfigMd.js, claudeConfigHtml.js: deterministic rules with an injected reader. No VS Code needed.
 const path = require('path');
-const OUT = process.env.CCS_OUT || path.join(__dirname, '..', 'out');
+const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const c = require(path.join(OUT, 'claudeConfig.js'));
 const m = require(path.join(OUT, 'claudeConfigMd.js'));
 const h = require(path.join(OUT, 'claudeConfigHtml.js'));
