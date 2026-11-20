@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto';
 import { buildFormHtml, escHtml, OptEntry } from './optionsForm';
 
-export const OPT_TITLE = 'Saropa Chat Explorer: Options';
+export const OPT_TITLE = 'Saropa Chats: Options';
 
 const CSS = `body{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);color:var(--vscode-foreground);background:var(--vscode-editor-background);margin:0;padding:16px 24px;max-width:820px}
 h1{font-size:1.4em;font-weight:600;margin:0 0 12px}h2{font-size:1.1em;font-weight:600;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--vscode-panel-border)}

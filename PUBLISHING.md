@@ -1,4 +1,4 @@
-# Publishing Saropa Chat Explorer
+# Publishing Saropa Chats
 
 Plain steps. Website screens change; where a screen may differ, check the site.
 
@@ -52,7 +52,7 @@ The publisher, the Open VSX namespace and probably both tokens already exist.
 - It publishes to the Marketplace and Open VSX, then tags and creates the release.
 
 ## 7. After publishing
-- Confirm the listing: search "Saropa Chat Explorer" in the Extensions panel.
+- Confirm the listing: search "Saropa Chats" in the Extensions panel.
   The Marketplace can take several minutes to validate a new version.
 - Roll back: unpublish the version on the site, or publish a higher patch version.
   A version number can never be reused.

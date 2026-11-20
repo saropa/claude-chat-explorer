@@ -17,7 +17,7 @@ import { SUM_CSS, SUM_HTML } from './webviewSum';
 import { ACCT_CSS, ACCT_HTML } from './webviewAcct';
 import { WEB_BODY, WEB_CSS, WEB_HTML } from './webviewWeb';
 
-export const NAME = 'Saropa Chat Explorer';
+export const NAME = 'Saropa Chats';
 
 export function html(): string {
   const nonce = randomBytes(18).toString('base64url');
@@ -31,7 +31,7 @@ ${WEB_HTML}
 </div></div>
 <div id="sb"><div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div><div id="bar"><i></i></div><div id="cap"></div><div id="status" role="status" aria-live="polite"></div></div>
 <div id="sm"><div id="smb">
-<div class="top"><button type="button" id="ns" class="pbtn" title="Start a new Claude Code session" aria-label="New session"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>New session</button></div>
+<div class="top prow"><button type="button" id="ns" class="pbtn" title="Start a new Claude Code session" aria-label="New session"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>New session</button><button type="button" id="cu" class="pbtn" title="Archive all sessions except the open and pinned ones" aria-label="Clean up sessions"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 4h12M6 4V2.5h4V4M4 4l.7 9h6.6L12 4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Clean up</button></div>
 <div class="top">
 <div class="srow"><div class="box">
 <input type="text" id="q" placeholder="Search" aria-label="Search sessions" title="Search the text of your sessions" autofocus>

@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-- Only the latest release of Saropa Chat Explorer gets security fixes.
+- Only the latest release of Saropa Chats gets security fixes.
 - Update to the latest version before you report an issue.
 
 ## Reporting a vulnerability

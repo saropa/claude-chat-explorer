@@ -18,7 +18,7 @@ labels: bug
 
 **Diagnostics output**
 
-Run the command "Saropa Chat Explorer: Show Diagnostics" and paste the message here.
+Run the command "Saropa Chats: Show Diagnostics" and paste the message here.
 It lists the version, counts, whether `~/.claude/sessions` exists, process ids, open tab count and a workspace storage hash.
 It contains no chat text and no tokens.
 Still read it before you post, and remove anything you do not want public.

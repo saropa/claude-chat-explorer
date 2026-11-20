@@ -1,6 +1,6 @@
 # Issue Guide
 
-How to file, investigate, and close bugs and feature requests in Saropa Chat Explorer (`claude-chat-explorer`, a TypeScript VS Code extension).
+How to file, investigate, and close bugs and feature requests in Saropa Chats (`claude-chat-explorer`, a TypeScript VS Code extension).
 
 - One issue = one file under `bugs/`. Do not file only in chat or a downstream tracker.
 - Feature requests are in scope. Use the proposal template.

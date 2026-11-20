@@ -5,6 +5,8 @@ body{padding:6px 0;line-height:normal;font-weight:normal;color:var(--vscode-fore
 .top{padding:0 8px}
 /* Filled secondary (muted) button, not a label: theme secondary button colors, full width so it reads as an action. */
 .pbtn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;box-sizing:border-box;margin-top:6px;padding:4px 12px;border:1px solid var(--vscode-contrastBorder,transparent);border-radius:2px;cursor:pointer;color:var(--vscode-button-secondaryForeground);background:var(--vscode-button-secondaryBackground)}
+/* two buttons share the row equally; min-width:0 lets labels shrink in a narrow sidebar */
+.prow{display:flex;gap:6px}.prow .pbtn{flex:1 1 0;min-width:0;width:auto}
 .pbtn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .pbtn:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:2px}#smb .top{padding-top:6px}
 .box{position:relative}

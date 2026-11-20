@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Saropa Chat Explorer: publish pipeline (VS Code Marketplace + Open VSX).
+"""Saropa Chats: publish pipeline (VS Code Marketplace + Open VSX).
 
 Mirrors the Saropa publish scripts (same step order, flag style, exit codes).
 Running with no flags PUBLISHES: stores, tag push and GitHub release.
@@ -580,7 +580,7 @@ def main() -> None:
             die("PREREQUISITE", "--allow-dirty only works with --dry-run")
         except StepFailed as err:
             finish(err)
-    print(f"Saropa Chat Explorer publish: {'PUBLISH' if args.publish else 'DRY RUN (nothing will be published)'}")
+    print(f"Saropa Chats publish: {'PUBLISH' if args.publish else 'DRY RUN (nothing will be published)'}")
     try:
         guarded("Prerequisites", step_prereqs, args)
         plan = step_tokens(args)

@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 import { Category, ConfigReport, Level } from './claudeConfig';
 import { escHtml } from './optionsForm';
 
-export const CFG_TITLE = 'Saropa Chat Explorer: Claude Config';
+export const CFG_TITLE = 'Saropa Chats: Claude Config';
 const CATS: Category[] = ['bloat', 'duplication', 'redundancy', 'gaps', 'opportunities', 'risks'];
 
 const CSS = `body{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);color:var(--vscode-foreground);background:var(--vscode-editor-background);margin:0;padding:16px 24px;max-width:820px}

@@ -17,7 +17,7 @@ import { registerFileSessions } from './fileSessionsUi';
 import { copyHandover } from './handoverRun';
 import { copyResume } from './copyResume';
 import { exportChatMd } from './exportMdRun';
-import { archiveTiny } from './archiveTiny';
+import { archiveClosed, archiveTiny } from './archiveTiny';
 import { regenTitles } from './regenTitlesRun';
 import { AutoTitler, autoTitleNow } from './autoTitleRun';
 import { AUTO_FALLBACK_KEY, AUTO_KEY, setAutoTitle } from './autoTitleFlag';
@@ -51,7 +51,7 @@ import { PrCache } from './wipPrs';
 import { WebSessions } from './webSessions';
 
 const POST_GAP_MS = 100;
-const REVEAL_CMD = 'workbench.view.extension.claudeChatExplorer'; // opens the Saropa Chat Explorer container and its view
+const REVEAL_CMD = 'workbench.view.extension.claudeChatExplorer'; // opens the Saropa Chats container and its view
 
 type Base = Draft;
 
@@ -126,7 +126,7 @@ class Provider implements vscode.WebviewViewProvider {
     this.post({ type: 'indexed' });
     if (was?.first) {
       const n = was.total - was.subs;
-      void vscode.window.showInformationMessage(`Saropa Chat Explorer: indexed ${n} sessions and ${was.subs} subagent files.`);
+      void vscode.window.showInformationMessage(`Saropa Chats: indexed ${n} sessions and ${was.subs} subagent files.`);
     }
   }
 
@@ -228,6 +228,8 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'webLoad') { await this.web?.load(); }
       else if (m.type === 'webOpen') { await this.web?.open(m.id); }
       else if (m.type === 'newSession') { await newSession(log); }
+      // Clean up button: the command shows the count confirmation, so the click is never silent.
+      else if (m.type === 'cleanUp') { await vscode.commands.executeCommand('saropaChatExplorer.archiveClosed'); }
       else if (m.type === 'importArchived') { await this.actions?.importArchived(); }
       else { await this.onChatMessage(m); }
     } catch (e) { logErr('message ' + String(m?.type), e); }
@@ -463,12 +465,16 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
         .then((pick) => (pick === reload ? vscode.commands.executeCommand('workbench.action.reloadWindow') : undefined));
     })));
   const usageRows = async () => (await client!.request({ t: 'usage' }, true, true)) ?? [];
+  // Shared dependencies of both bulk-archive commands (single source, so skip rules cannot drift).
+  const tinyDeps = { rows: usageRows, archived: () => store!.archived, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
+    archive: (ids: string[]) => provider.actions!.archiveMany(ids) };
   ctx.subscriptions.push(
     ...[['saropaChatExplorer.copyResume', (id: string) => provider.copyResumeCmd(id)], ['saropaChatExplorer.exportChatMarkdown', (id: string) => provider.exportMd(id)]].map(([cmd, fn]) =>
       vscode.commands.registerCommand(cmd as string, (arg?: { id?: unknown }) => (isSessionId(arg?.id) ? (fn as (id: string) => Promise<void>)(arg.id) : undefined))),
     vscode.commands.registerCommand('saropaChatExplorer.regenTitles', () => regenTitles({ currentId: () => provider.currentId(), refresh: () => { provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); }, log: logErr }, channel)),
-    vscode.commands.registerCommand('saropaChatExplorer.archiveTiny', () => archiveTiny({ rows: usageRows, archived: () => store!.archived, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
-      archive: (ids) => provider.actions!.archiveMany(ids) })));
+    vscode.commands.registerCommand('saropaChatExplorer.archiveTiny', () => archiveTiny(tinyDeps)),
+    // Clean up button: archive everything that is not open or pinned.
+    vscode.commands.registerCommand('saropaChatExplorer.archiveClosed', () => archiveClosed(tinyDeps)));
   registerUsage(ctx, { rows: usageRows, resume: (id) => provider.resume(id), log: logErr, onIndex: (fn) => { ctx.subscriptions.push(hub.on('indexed', fn), hub.on('changed', fn)); },
     showNearly: async () => { await vscode.commands.executeCommand(REVEAL_CMD); store!.setStatuses(['nearly']); provider.post({ type: 'setStatuses', checked: ['nearly'] }); } });
   registerHeaderCommands(ctx, { reveal: () => vscode.commands.executeCommand(REVEAL_CMD), post: (m) => provider.post(m), sort: () => store!.draft.sort, statuses: () => store!.statuses, setStatuses: (c) => store!.setStatuses(c) });

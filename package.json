@@ -1,6 +1,6 @@
 {
   "name": "claude-chat-explorer",
-  "displayName": "Saropa Chat Explorer",
+  "displayName": "Saropa Chats",
   "description": "Search your AI agent session history in VS Code: full-text search of every session, including subagents, then resume the session you find.",
   "version": "0.47.0",
   "icon": "images/icon.png",
@@ -46,7 +46,7 @@
       "activitybar": [
         {
           "id": "claudeChatExplorer",
-          "title": "Saropa Chat Explorer",
+          "title": "Saropa Chats",
           "icon": "icon.svg"
         }
       ]
@@ -70,7 +70,7 @@
     "commands": [
       {
         "command": "saropaChatExplorer.claudeConfig",
-        "title": "Saropa Chat Explorer: Claude Config"
+        "title": "Saropa Chats: Claude Config"
       },
       {
         "command": "claudeChatExplorer.activityRefreshSpeed",
@@ -82,7 +82,7 @@
       },
       {
         "command": "saropaChatExplorer.options",
-        "title": "Saropa Chat Explorer: Options"
+        "title": "Saropa Chats: Options"
       },
       {
         "command": "saropaChatExplorer.usageSummary",
@@ -97,8 +97,12 @@
         "title": "Saropa: Archive Empty and Tiny Sessions"
       },
       {
+        "command": "saropaChatExplorer.archiveClosed",
+        "title": "Saropa: Clean Up Sessions (Archive All Except Open)"
+      },
+      {
         "command": "saropaChatExplorer.regenTitles",
-        "title": "Saropa Chat Explorer: Regenerate Session Titles",
+        "title": "Saropa Chats: Regenerate Session Titles",
         "icon": "$(sparkle)"
       },
       {
@@ -119,22 +123,22 @@
       },
       {
         "command": "claudeChatExplorer.openWork",
-        "title": "Saropa Chat Explorer: Project Status",
+        "title": "Saropa Chats: Project Status",
         "icon": "$(checklist)"
       },
       {
         "command": "claudeChatExplorer.searchTips",
-        "title": "Saropa Chat Explorer: Search Tips",
+        "title": "Saropa Chats: Search Tips",
         "icon": "$(info)"
       },
       {
         "command": "claudeChatExplorer.sortResults",
-        "title": "Saropa Chat Explorer: Sort Results",
+        "title": "Saropa Chats: Sort Results",
         "icon": "$(sort-precedence)"
       },
       {
         "command": "claudeChatExplorer.filterStatus",
-        "title": "Saropa Chat Explorer: Filter by Status",
+        "title": "Saropa Chats: Filter by Status",
         "icon": "$(filter)"
       },
       {
@@ -143,19 +147,19 @@
       },
       {
         "command": "claudeChatExplorer.clearHistory",
-        "title": "Saropa Chat Explorer: Clear Search History"
+        "title": "Saropa Chats: Clear Search History"
       },
       {
         "command": "saropaChatExplorer.openResultsInEditor",
-        "title": "Saropa Chat Explorer: Open Results in Editor"
+        "title": "Saropa Chats: Open Results in Editor"
       },
       {
         "command": "saropaChatExplorer.importArchived",
-        "title": "Saropa Chat Explorer: Import Archived Sessions from the Agent"
+        "title": "Saropa Chats: Import Archived Sessions from the Agent"
       },
       {
         "command": "saropaChatExplorer.diagnostics",
-        "title": "Saropa Chat Explorer: Show Diagnostics"
+        "title": "Saropa Chats: Show Diagnostics"
       },
       {
         "command": "saropaChatExplorer.archive",
@@ -341,7 +345,7 @@
       ]
     },
     "configuration": {
-      "title": "Saropa Chat Explorer",
+      "title": "Saropa Chats",
       "properties": {
         "saropaChatExplorer.webSessions.enabled": {
           "type": "boolean",

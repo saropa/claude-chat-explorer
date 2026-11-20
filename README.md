@@ -1,10 +1,10 @@
-# Saropa Chat Explorer: Search and Resume Claude Code Session History in VS Code
+# Saropa Chats: Search and Resume Claude Code Session History in VS Code
 
-Saropa Chat Explorer is a VS Code extension for full-text search of your Claude Code session history. Find an old session by any word or phrase, see which session edited a file, check the git state of a session, and resume the session from the sidebar. It indexes `~/.claude/projects` locally in a worker thread, makes no network requests unless you turn on Web sessions, and has no runtime dependencies.
+Saropa Chats is a VS Code extension for full-text search of your Claude Code session history. Find an old session by any word or phrase, see which session edited a file, check the git state of a session, and resume the session from the sidebar. It indexes `~/.claude/projects` locally in a worker thread, makes no network requests unless you turn on Web sessions, and has no runtime dependencies.
 
 Keywords: Claude Code, AI agent, session history, session search, transcript search, resume session, subagent, git worktree, pull request status, context window, VS Code extension.
 
-![Saropa Chat Explorer sidebar: the Session Manager with search and active sessions, and the Activity diagram lighting up as Claude works](https://github.com/saropa/claude-chat-explorer/raw/main/images/sidebar_session_manager_and_activity_panel.png)
+![Saropa Chats sidebar: the Session Manager with search and active sessions, and the Activity diagram lighting up as Claude works](https://github.com/saropa/claude-chat-explorer/raw/main/images/sidebar_session_manager_and_activity_panel.png)
 
 ## What it does
 
@@ -22,7 +22,7 @@ Keywords: Claude Code, AI agent, session history, session search, transcript sea
 
 ## Install
 
-Marketplace: search for "Saropa Chat Explorer" in the Extensions view, or run:
+Marketplace: search for "Saropa Chats" in the Extensions view, or run:
 
 ```
 code --install-extension saropa.claude-chat-explorer
@@ -38,7 +38,7 @@ Or open the Extensions view, choose `...` then "Install from VSIX...", and pick 
 
 ## Quick start
 
-1. Click the Saropa Chat Explorer icon in the activity bar.
+1. Click the Saropa Chats icon in the activity bar.
 2. Wait for the first index to finish. Search works on what is indexed so far.
 3. Type a word or phrase. Results appear after you stop typing. Enter searches at once.
 4. Narrow the results with the match toggles, the Sort icon in the view title bar, the status filter row above the list, and the search details (`...`) button.
@@ -94,7 +94,7 @@ Or open the Extensions view, choose `...` then "Install from VSIX...", and pick 
 - "+N more" under the snippet opens the other matches in place, newest first, 20 at a time. Identical texts collapse into one item with a count such as x3.
 - With a search, the time pill and day groups use the time of the newest match. The session's last active time is in the tooltip and the card.
 - Like VS Code Search, the panel lists at most 500 sessions (`saropaChatExplorer.maxResults`, 50 to 2000) and says so. Every match is still counted. A session shows "9,999+" above 9,999 hits.
-- Open in editor (the summary line under the search box, or "Saropa Chat Explorer: Open Results in Editor") opens all matches in a read-only "Search: query" tab: a header per session (Cmd/Ctrl+click resumes it), matching lines with one line of context, real JSONL line numbers and highlighted matches.
+- Open in editor (the summary line under the search box, or "Saropa Chats: Open Results in Editor") opens all matches in a read-only "Search: query" tab: a header per session (Cmd/Ctrl+click resumes it), matching lines with one line of context, real JSONL line numbers and highlighted matches.
 - In All sessions (no search), sessions that are open list above sessions that are not, with a divider. Pinned sessions stay in their own section. The list groups sessions by All Sessions (today), Yesterday, This Week and Older.
 
 ## Session rows and cards
@@ -149,7 +149,7 @@ The chevron opens the row as a card with an action bar (Resume, Pin, Archive, Ma
 - Pin: star a session or use Pin Session / Unpin Session in the row context menu. Pinned sessions list first. Pins are stored per workspace.
 - Tag: click the tag icon on a row, type a name, press Enter. Click a tag to filter.
 - Archive: moves a session into a collapsed "Archived sessions" section. A pinned session stays pinned. Archived rows show a dimmer title and greyscale emoji. The archive list is shared by all workspaces.
-- Import Archived Sessions from the Agent: command "Saropa Chat Explorer: Import Archived Sessions from the Agent". Runs only when you ask. Needs `sqlite3` on your PATH.
+- Import Archived Sessions from the Agent: command "Saropa Chats: Import Archived Sessions from the Agent". Runs only when you ask. Needs `sqlite3` on your PATH.
 - Row context menu: Copy resume command (`cd <folder> && claude --resume <id>`, quoted for your shell), Export as Markdown, Mark as Read, Archive.
 
 ### Automatic session titles
@@ -168,11 +168,11 @@ The "Activity" panel under the session list (collapsible) shows Claude as a cent
 
 ## Claude Config
 
-"Saropa Chat Explorer: Claude Config" (in the "..." menu of the view) opens a read-only tab. It lists your global (`~/.claude`) and project Claude Code configuration (CLAUDE.md, settings, permissions, hooks, MCP servers, rules, skills, agents, commands) with findings by category: bloat, duplication, redundancy, gaps, opportunities and risks. It also shows the chat retention setting `cleanupPeriodDays`. "Copy for AI" copies a secret-free Markdown version.
+"Saropa Chats: Claude Config" (in the "..." menu of the view) opens a read-only tab. It lists your global (`~/.claude`) and project Claude Code configuration (CLAUDE.md, settings, permissions, hooks, MCP servers, rules, skills, agents, commands) with findings by category: bloat, duplication, redundancy, gaps, opportunities and risks. It also shows the chat retention setting `cleanupPeriodDays`. "Copy for AI" copies a secret-free Markdown version.
 
 ## Options screen
 
-"Saropa Chat Explorer: Options" (in the "..." menu of the view) edits every setting of the extension in one form. New settings appear automatically, each has Reset to default, and changes made elsewhere show live.
+"Saropa Chats: Options" (in the "..." menu of the view) edits every setting of the extension in one form. New settings appear automatically, each has Reset to default, and changes made elsewhere show live.
 
 ## Web (cloud) sessions
 
@@ -188,7 +188,7 @@ Other extensions get a read-only API: `chatsForFile(path)`, `tokensForChat(id)`,
 
 ## Project Status page
 
-One page answers: what is still open in this repository, and what do I do to close it? Open it with "Saropa Chat Explorer: Project Status" or the checklist icon in the sidebar title bar. It covers the repository of the first workspace folder. With no git repository there, it says "Open a git repository folder".
+One page answers: what is still open in this repository, and what do I do to close it? Open it with "Saropa Chats: Project Status" or the checklist icon in the sidebar title bar. It covers the repository of the first workspace folder. With no git repository there, it says "Open a git repository folder".
 
 **The Work table**
 - One row per branch, with its worktree folder, creation time, pull request and sessions folded in. Pull-request-only branches, remote-only branches and folders git does not list are rows of the same table. Branches and worktrees created by the same session fold into one row titled with that session.
@@ -228,15 +228,15 @@ One page answers: what is still open in this repository, and what do I do to clo
 | Saropa: Copy Resume Command | Copies `cd <folder> && claude --resume <id>`. |
 | Saropa: Export Session as Markdown | Writes one session to a `.md` file through a save dialog. |
 | Saropa: Find Related Sessions | Searches `file:<path>` for the chosen file. |
-| Saropa Chat Explorer: Project Status | Opens the Project Status page. |
-| Saropa Chat Explorer: Open Results in Editor | Opens all matches in a read-only editor tab. |
-| Saropa Chat Explorer: Search Tips, Sort Results, Filter by Status | Same as the title bar icons. |
-| Saropa Chat Explorer: Clear Search History | Clears the Up/Down history. |
-| Saropa Chat Explorer: Import Archived Sessions from the Agent | One-time import of the agent's archive list. |
-| Saropa Chat Explorer: Show Diagnostics | Version, index state, agent detection, live session and window counts. |
-| Saropa Chat Explorer: Claude Config | Read-only review of your Claude Code configuration. |
-| Saropa Chat Explorer: Options | One form for every setting. |
-| Saropa Chat Explorer: Regenerate Session Titles | Previews and rewrites session titles, with a backup. |
+| Saropa Chats: Project Status | Opens the Project Status page. |
+| Saropa Chats: Open Results in Editor | Opens all matches in a read-only editor tab. |
+| Saropa Chats: Search Tips, Sort Results, Filter by Status | Same as the title bar icons. |
+| Saropa Chats: Clear Search History | Clears the Up/Down history. |
+| Saropa Chats: Import Archived Sessions from the Agent | One-time import of the agent's archive list. |
+| Saropa Chats: Show Diagnostics | Version, index state, agent detection, live session and window counts. |
+| Saropa Chats: Claude Config | Read-only review of your Claude Code configuration. |
+| Saropa Chats: Options | One form for every setting. |
+| Saropa Chats: Regenerate Session Titles | Previews and rewrites session titles, with a backup. |
 
 ## Settings
 
@@ -319,12 +319,12 @@ npm run package
 - Pins, tags, archived sessions, unread marks, history and options are saved by VS Code in its own storage.
 - No telemetry. The only network call in the source is the opt-in Web sessions list. The programs it starts are `ps`, `sqlite3`, `git`, `gh` and `claude` (only for Haiku auto-titles and the Regenerate Session Titles command).
 - Resuming a session hands the session id to the agent extension through a VS Code command, or a VS Code link if the command fails.
-- Errors go to the "Saropa Chat Explorer" output channel.
+- Errors go to the "Saropa Chats" output channel.
 
 ## FAQ
 
 **How do I search my Claude Code session history in VS Code?**
-Open the Saropa Chat Explorer icon in the activity bar and type a word or phrase. Results list every matching session.
+Open the Saropa Chats icon in the activity bar and type a word or phrase. Results list every matching session.
 
 **How do I resume an old Claude Code session?**
 Click a result or press Enter on it. The session opens in the agent panel. This needs the agent extension. To resume in a terminal, use Copy resume command.

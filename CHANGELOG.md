@@ -1,10 +1,12 @@
 # Changelog
 
-Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
+Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
 ## Unreleased
+- Changed: the extension is renamed from "Saropa Chat Explorer" to "Saropa Chats". Command titles, view titles and the output channel use the new name. The extension id (`saropa.claude-chat-explorer`) and repository name are unchanged, so existing installs and links keep working.
 - Changed: "Session Manager" is now its own sidebar pane, at the same level as "Activity" (it was a collapsible section inside the "Saropa Chat Explorer" pane). "Account & Usage" stays at the top of that pane.
 - Added: a "New session" button at the top of the Session Manager starts a new Claude Code session; it is a filled button, not a label.
+- Added: a "Clean up" button beside "New session" archives every session except the ones open now (pinned sessions are kept too), after a count confirmation. Nothing is deleted; Unarchive brings a session back. Also available as the command "Saropa: Clean Up Sessions (Archive All Except Open)".
 - Changed: the yellow pinned-session star is larger (14px) so it matches the size of the status circle beside it.
 - Changed: "Account & Usage" is much simpler and follows the native Claude Code layout. An ACCOUNT heading (email, plan) and a USAGE heading with three rows (Last 5 hours, Today, Last 7 days, input + output). "View details" adds name, organization, Yesterday, 3-day and 5-day rows, the input, output and cache split per window, and the per-model split.
 

@@ -1,6 +1,6 @@
-# Saropa Chat Explorer API
+# Saropa Chats API
 
-Other extensions can read data from Saropa Chat Explorer. The API is read-only and local: nothing leaves the machine.
+Other extensions can read data from Saropa Chats. The API is read-only and local: nothing leaves the machine.
 
 ## Getting the API
 
@@ -13,7 +13,7 @@ const ext = vscode.extensions.getExtension<ChatExplorerApi>('saropa.claude-chat-
 const api = ext ? await ext.activate() : undefined; // activate() returns exports; it is safe to call when already active
 ```
 
-`ext` is undefined when Chat Explorer is not installed; handle that and carry on without it.
+`ext` is undefined when Saropa Chats is not installed; handle that and carry on without it.
 
 ## Version
 
