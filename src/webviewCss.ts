@@ -3,9 +3,9 @@ export const CSS = String.raw`
 button,input,select{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);font-weight:normal;line-height:normal}
 body{padding:6px 0;line-height:normal;font-weight:normal;color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
 .top{padding:0 8px}
-/* Filled primary button (not a label): theme button colors, full width so it reads as an action. */
-.pbtn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;box-sizing:border-box;margin-top:6px;padding:4px 12px;border:1px solid var(--vscode-contrastBorder,transparent);border-radius:2px;cursor:pointer;color:var(--vscode-button-foreground);background:var(--vscode-button-background)}
-.pbtn:hover{background:var(--vscode-button-hoverBackground)}
+/* Filled secondary (muted) button, not a label: theme secondary button colors, full width so it reads as an action. */
+.pbtn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;box-sizing:border-box;margin-top:6px;padding:4px 12px;border:1px solid var(--vscode-contrastBorder,transparent);border-radius:2px;cursor:pointer;color:var(--vscode-button-secondaryForeground);background:var(--vscode-button-secondaryBackground)}
+.pbtn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .pbtn:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:2px}#smb .top{padding-top:6px}
 .box{position:relative}
 input[type=text]{width:100%;height:26px;box-sizing:border-box;padding:4px 118px 4px 6px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);border-radius:2px;outline:none;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
