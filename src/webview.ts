@@ -30,7 +30,8 @@ ${ACCT_HTML}
 ${WEB_HTML}
 </div></div>
 <div id="sb"><div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div><div id="bar"><i></i></div><div id="cap"></div><div id="status" role="status" aria-live="polite"></div></div>
-<div id="sm"><button type="button" id="smh" aria-expanded="true" aria-controls="smb" title="Collapse or expand the Session Manager"><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Session Manager</button><div id="smb">
+<div id="sm"><div id="smb">
+<div class="top"><button type="button" id="ns" class="pbtn" title="Start a new Claude Code session" aria-label="New session"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>New session</button></div>
 <div class="top">
 <div class="srow"><div class="box">
 <input type="text" id="q" placeholder="Search" aria-label="Search sessions" title="Search the text of your sessions" autofocus>

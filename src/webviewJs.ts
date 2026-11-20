@@ -100,6 +100,8 @@ else if(k==='sha')addTok('sha:'+a.dataset.s);
 return;}
 if(e.target.closest('.ex')||(e.target.closest('.ml')&&!e.target.closest('.mi')))return;
 openId(id);}
+// New-session button lives outside the results list, so it gets its own listener; the host runs the Claude Code command.
+$('ns').addEventListener('click',()=>vs.postMessage({type:'newSession'}));
 list.addEventListener('click',onClick);pinEl.addEventListener('click',onClick);
 document.addEventListener('click',e=>{const s=e.target.closest('[data-sec]');if(s&&!e.target.closest('.lnk'))toggleSec(s.dataset.sec);});
 function step(from,d){const all2=Array.from(document.querySelectorAll('[data-sec],.r,.rr'));const i=all2.indexOf(from)+d;

@@ -26,22 +26,17 @@ html{height:100%;overflow:hidden}
 body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto}
 #hdr{flex:none;min-width:0}
 #sm,#smb{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
-#sm.shut{flex:none}
 #sb{flex:none;padding:0 8px}
 #smb>.top{flex:none}
 #frow{flex:none}
 .clr:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
-#smb[hidden]{display:none}
-#smh{display:flex;align-items:center;gap:4px;width:100%;text-align:left;padding:2px 8px;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)}
-#smh[aria-expanded=true]>.chev{transform:rotate(90deg)}
-#smh:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 #res{flex:1 1 auto;min-height:80px;overflow-x:hidden;overflow-y:auto;container-type:inline-size;container-name:res;overflow-wrap:anywhere}
 .sl,.gh{min-width:0}
 .sl>span:not(.pill),.gh>span:not(.pill){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pill{white-space:nowrap}
 .r,.rh,.hd,.ex,.s,.mt{min-width:0}
 .mt{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;padding:1px 8px 4px 24px;overflow:hidden}
-.pst{flex:none;line-height:16px;color:var(--vscode-charts-yellow,var(--vscode-foreground))}
+.pst{flex:none;line-height:16px;font-size:14px;color:var(--vscode-charts-yellow,var(--vscode-foreground))}
 .mp{flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;line-height:16px;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
 .rc{display:flex;align-items:center;flex:none;gap:6px;max-width:60%}
 .hg{display:inline-flex;flex:none;color:var(--vscode-descriptionForeground)}
@@ -87,7 +82,6 @@ function metaHtml(r,now){const q=r.hits>0,t=touchPill(r),sp=q&&r.snipSub!==undef
 if(!t&&!sp)return '';
 return '<div class="mt">'+t+sp+'</div>';}
 function qSync(){document.body.classList.toggle('qa',!!q.value.trim());}
-const smh=$('smh');smh.addEventListener('click',()=>{const o=smh.getAttribute('aria-expanded')!=='true';smh.setAttribute('aria-expanded',o);$('smb').hidden=!o;$('sm').classList.toggle('shut',!o);});
 $('qx').addEventListener('click',()=>{q.value='';q.dispatchEvent(new Event('input'));q.focus();});
 q.addEventListener('input',qSync);window.addEventListener('message',qSync);qSync();
 `;

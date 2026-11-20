@@ -27,7 +27,7 @@ import { registerActivity } from './activity';
 import { registerUsage } from './usageUi';
 import { QueryQueue } from './queryQueue';
 import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './query';
-import { copyId, isSessionId, openChat } from './resume';
+import { copyId, isSessionId, newSession, openChat } from './resume';
 import { ArchiveActions, registerArchiveCommands } from './archiveActions';
 import { LiveWatcher } from './liveWatcher';
 import { createWarner } from './contextWarnUi';
@@ -227,6 +227,7 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'acctLoad') { await this.account(); }
       else if (m.type === 'webLoad') { await this.web?.load(); }
       else if (m.type === 'webOpen') { await this.web?.open(m.id); }
+      else if (m.type === 'newSession') { await newSession(log); }
       else if (m.type === 'importArchived') { await this.actions?.importArchived(); }
       else { await this.onChatMessage(m); }
     } catch (e) { logErr('message ' + String(m?.type), e); }

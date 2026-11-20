@@ -56,7 +56,7 @@
         {
           "type": "webview",
           "id": "claudeChatExplorer.view",
-          "name": "Saropa Chat Explorer",
+          "name": "Session Manager",
           "icon": "icon.svg"
         },
         {
