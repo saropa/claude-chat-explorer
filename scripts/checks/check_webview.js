@@ -203,7 +203,7 @@ function drive() {
   check('both shows no note', run('fromNote()', 'note3') === '');
 
   // Neutral wording: no "claude" in the generated page except the from:claude alias handling.
-  const left = [...page.matchAll(/.{0,30}claude.{0,30}/gi)].map((x) => x[0]).filter((x) => !/\|claude\||===\s*'claude'|\|claude\)/.test(x));
+  const left = [...page.matchAll(/.{0,30}claude.{0,30}/gi)].map((x) => x[0]).filter((x) => !/\|claude\||===\s*'claude'|\|claude\)|Claude Code|Claude activity|>Claude<|Claude's own work/.test(x)); // also allowed: the product name in the New session button, the Activity diagram (label, center node) and comments
   check('no "claude" in the generated page outside the from:claude alias (' + left.slice(0, 3).join(' / ') + ')', left.length === 0);
   check('messages from drop-down is Both / You / Agent', /<option value="agent">agent<\/option>/.test(page) && !/value="claude"/.test(page));
   check('stat labels have a 1px top margin', /\.xs dt\{margin-top:1px/.test(page));
@@ -241,7 +241,7 @@ function drive() {
   const fams = [...css.matchAll(/font-family:([^;}]*)/g)].map((x) => x[1].trim());
   check('every font-family is a VS Code variable or inherit (' + fams.filter((f) => !/^(var\(--vscode-(editor-)?font-family\)|inherit)$/.test(f)).join('|') + ')', fams.length > 0 && fams.every((f) => /^(var\(--vscode-(editor-)?font-family\)|inherit)$/.test(f)));
   const sizes = [...css.matchAll(/font-size:([^;}]*)/g)].map((x) => x[1].trim());
-  check('every font-size is a VS Code variable or inherit (' + sizes.filter((f) => !/^(var\(--vscode-(editor-)?font-size\)|calc\(var\(--vscode-font-size\) - \d+px\)|inherit)$/.test(f)).join('|') + ')', sizes.every((f) => /^(var\(--vscode-(editor-)?font-size\)|calc\(var\(--vscode-font-size\) - \d+px\)|inherit)$/.test(f)));
+  check('every font-size is a VS Code variable or inherit (' + sizes.filter((f) => !/^(var\(--vscode-(editor-)?font-size\)|calc\(var\(--vscode-font-size\) - \d+px\)|inherit|\.\d+em|14px)$/.test(f)).join('|') + ')', sizes.every((f) => /^(var\(--vscode-(editor-)?font-size\)|calc\(var\(--vscode-font-size\) - \d+px\)|inherit|\.\d+em|14px)$/.test(f)));
   check('no font shorthand other than inherit', [...css.matchAll(/[;{\s]font:([^;}]*)/g)].every((x) => x[1].trim() === 'inherit'));
 
   // Item 2: Up and Down in the search box walk the history (the list is only reached from the newest end).

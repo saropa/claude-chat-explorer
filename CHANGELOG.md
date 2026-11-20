@@ -10,8 +10,7 @@ Release notes for Saropa Chats, newest first. Dates are the git dates of each re
 - Changed: feat: New session button in the Session Manager and F5 launch config
 - Changed: refactor: simplify Account & Usage sidebar section to match the native layout
 - Changed: chore(deps): bump the dev-minor-patch group across 1 directory with 2 updates (#5)
-
-## 0.48
+- Fixed: packaging failed because the @types/vscode dev dependency (^1.146.0) was newer than the supported VS Code version (^1.90.0); it is pinned back to ^1.90.0.
 - Changed: scripts/publish.py no longer fails when the git tag for the current version already exists; it bumps to the next free minor and writes the commit subjects since the old tag as the new CHANGELOG entry. It still stops when there are no new commits.
 - Fixed: scripts/publish.py reported "npm not found on PATH" on Windows even when npm was installed; commands are now resolved through PATHEXT so npm.cmd and npx.cmd are found.
 - Changed: the open or collapsed state of "Account & Usage", "Session Manager" and "Activity" is remembered between sessions (per workspace).

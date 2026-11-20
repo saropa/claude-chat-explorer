@@ -738,9 +738,11 @@ async function chatWorkTests() {
   const w = new ChatWork({ request, exec: realExec, ghExec, cache, folders: () => [repo], prsOn: () => true });
   const live = new GitLiveService(realExec, ghExec, cache);
 
+  // Windows: git reports D:/x while path.join builds D:\x; compare with one separator so the check tests behavior, not slash style.
+  const samePath = (x, y) => String(x).replace(/\\/g, '/') === String(y).replace(/\\/g, '/');
   // Parent chat: its cwd is the main checkout, its subagents made the worktrees.
   const fp = await w.resolve(P), v = fp.view;
-  check('chat work: the parent chat resolves to the worktree its subagent created, not to its last cwd (main)', fp.fromMatcher && fp.cwd === alive && chatCwd(ix, P, [repo]) === repo && v.branch === 'feat/alive' && v.how === 'created' && v.folder === alive);
+  check('chat work: the parent chat resolves to the worktree its subagent created, not to its last cwd (main)', fp.fromMatcher && samePath(fp.cwd, alive) && samePath(chatCwd(ix, P, [repo]), repo) && v.branch === 'feat/alive' && v.how === 'created' && samePath(v.folder, alive));
   check('chat work: every created worktree is listed with its state: the live one exists, the removed one is created, now removed (' + JSON.stringify(v.created.map((x) => [x.branch, x.state])) + ')', v.createdTotal === 2 && v.createdGone === 1 && v.created[0].branch === 'feat/alive' && v.created[0].state === 'exists' && v.created[1].branch === 'feat/gone' && v.created[1].state === 'removed' && v.created[1].kind === 'wt');
   check('chat work: the PR of a created branch comes from the shared cache by branch (open PR on the live branch, none on the removed one)', v.created[0].pr && v.created[0].pr.number === 42 && !v.created[1].pr && fp.prNumbers.join() === '42' && fp.urls.get(42) === 'https://github.com/o/r/pull/42');
   check('chat work: the badge says created branch <name> at the receipt time in the local zone (' + v.badge + ')', v.badge === 'created branch feat/alive at ' + (() => { const d = new Date(Date.UTC(2026, 9, 11, 1, 4)); const p = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); })());
@@ -749,9 +751,9 @@ async function chatWorkTests() {
 
   // Live state of the resolved folder: branch and PR of the created worktree; the list marks created ones as the chat's own, the removed one as created, now removed.
   const g = (await live.load(fp.cwd, 'git', true, undefined, fp.hint)).live;
-  check('chat work: the card git part reads the created worktree: branch feat/alive and its open PR #42', g.state === 'ok' && g.branch === 'feat/alive' && g.top === alive && g.prs.length === 1 && g.prs[0].number === 42);
+  check('chat work: the card git part reads the created worktree: branch feat/alive and its open PR #42', g.state === 'ok' && g.branch === 'feat/alive' && samePath(g.top, alive) && g.prs.length === 1 && g.prs[0].number === 42);
   const wt = (await live.load(fp.cwd, 'wt', false, undefined, fp.hint)).live.worktrees;
-  const goneRow = wt.find((x) => x.path === gone), aliveRow = wt.find((x) => x.path === alive), multiRow = wt.find((x) => x.path === multi);
+  const goneRow = wt.find((x) => samePath(x.path, gone)), aliveRow = wt.find((x) => samePath(x.path, alive)), multiRow = wt.find((x) => samePath(x.path, multi));
   check('chat work: the worktree list marks the created live worktree here and created, and lists the removed one as created, now removed (' + JSON.stringify(wt.map((x) => [path.basename(x.path), x.here, x.created, x.removed])) + ')', aliveRow.here && aliveRow.created && !aliveRow.removed && goneRow && goneRow.here && goneRow.created && goneRow.removed && goneRow.missing && !multiRow.here);
 
   // Mention-only chat: names the worktree and branch another chat created; no created list, never a creator, never the card's folder.
@@ -760,7 +762,7 @@ async function chatWorkTests() {
 
   // Multi-cwd chat: ran in main, then in a linked worktree; nothing created.
   const fm = await w.resolve(M);
-  check('chat work: a chat that ran in two folders reads the linked worktree it ran in (not main) and lists it as used, not created (' + JSON.stringify(fm.view && fm.view.worked) + ')', fm.cwd === multi && fm.view.how === 'cwd' && fm.view.created.length === 0 && fm.view.worked.some((x) => x.branch === 'feat/multi' && x.how === 'cwd'));
+  check('chat work: a chat that ran in two folders reads the linked worktree it ran in (not main) and lists it as used, not created (' + JSON.stringify(fm.view && fm.view.worked) + ')', samePath(fm.cwd, multi) && fm.view.how === 'cwd' && fm.view.created.length === 0 && fm.view.worked.some((x) => x.branch === 'feat/multi' && x.how === 'cwd'));
 
   // A folder that no longer exists, an unknown chat, and a failing request fall back to the old rule.
   const bad1 = new ChatWork({ request: async () => { throw new Error('worker gone'); }, exec: realExec, ghExec, cache: new PrCache(), folders: () => [repo], prsOn: () => false });
@@ -777,7 +779,7 @@ async function chatWorkTests() {
   check('chat work: counts read the resolved worktree: 3 worktrees listed plus 1 created one now removed = 4, 1 PR on its branch (' + JSON.stringify(posts.map((m) => [m.part, m.n])) + ')', n('wt') === 4 && n('git') === 1);
   const seen = [];
   const lv = await gatherLive(P, { request, log() {}, folders: () => [repo], prsOn: () => true, work: (id) => w.resolve(id), gitLive: { load: async (cwd, part, prs, cb, hint) => { seen.push([cwd, part, !!hint]); return live.load(cwd, part, prs, cb, hint); } } }, 8000);
-  check('chat work: the hand-over note reads git of the resolved worktree, with the created hint', seen.length >= 4 && seen.every(([c]) => c === alive) && lv.git && lv.git.branch === 'feat/alive' && lv.wt && lv.wt.worktrees.some((x) => x.removed));
+  check('chat work: the hand-over note reads git of the resolved worktree, with the created hint', seen.length >= 4 && seen.every(([c]) => samePath(c, alive)) && lv.git && lv.git.branch === 'feat/alive' && lv.wt && lv.wt.worktrees.some((x) => x.removed));
 
   // Search: branch: matches branches a tool call created (own or a subagent's), a creator only; a mention is not matched.
   const chats = ix.tops(), top = (id) => chats.find((c) => c.id === id);

@@ -13,6 +13,8 @@ function mkEl(id) {
     classList: { add: (...c) => c.forEach((x) => cls.add(x)), remove: (...c) => c.forEach((x) => cls.delete(x)), contains: (c) => cls.has(c), toggle: (c, f) => { const on = f === undefined ? !cls.has(c) : !!f; if (on) { cls.add(c); } else { cls.delete(c); } return on; } },
     _l: {}, attrs: {}, addEventListener(t, f) { (this._l[t] = this._l[t] || []).push(f); }, removeEventListener() {},
     setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }, hasAttribute(k) { return k in this.attrs; }, removeAttribute(k) { delete this.attrs[k]; },
+    // The Activity section draws into a shadow root; the stub root is another stub element (getElementById etc. return null, which the script tolerates).
+    attachShadow() { return mkEl('shadow'); }, adoptedStyleSheets: [], getElementById: () => null,
     focus() { this.focused = (this.focused || 0) + 1; }, blur() {}, click() {}, select() {}, scrollIntoView() {}, appendChild() {}, remove() {}, insertAdjacentHTML() {}, setSelectionRange() {},
     closest(sel) { return this.inPw && sel === '.pw' ? {} : null; }, matches: () => false, contains: () => false, querySelector: () => null, querySelectorAll: () => [],
     getBoundingClientRect: () => ({ top: 0, left: 0, right: 300, bottom: 20, width: 300, height: 20 }),
@@ -50,7 +52,12 @@ function mkClock() {
  */
 function createHarness(opt) {
   const page = opt.page, name = opt.name || 'page';
-  const m = /<script nonce="[^"]*">([\s\S]*)<\/script>/.exec(page);
+  // Bug fix: the greedy match ran from the first <script> to the LAST </script>, so a page with two
+  // script blocks (panel + Activity section) was fed to the VM with a literal "</script><script>" in
+  // the middle and failed with a syntax error. Match each block non-greedily and join them in page
+  // order, which mirrors the browser (all blocks share one global scope).
+  const blocks = [...page.matchAll(/<script nonce="[^"]*">([\s\S]*?)<\/script>/g)].map((b) => b[1]);
+  const m = blocks.length ? [null, blocks.join('\n')] : null;
   const errors = [];
   const fail = (where, e) => errors.push(where + ': ' + String((e && e.stack) || e).split('\n').slice(0, 3).join(' | '));
   const h = { page, errors, fail, clock: mkClock(), posted: [], listeners: { window: {}, document: {} } };
@@ -86,6 +93,12 @@ function createHarness(opt) {
     navigator: { clipboard: {} }, Date: FakeDate, Math, JSON, Array, Object, Set, Map, String, Number, RegExp, Error, Promise, Intl, URL, Symbol,
     ResizeObserver: class { observe() {} disconnect() {} }, IntersectionObserver: class { observe() {} disconnect() {} },
     MutationObserver: class { observe() {} disconnect() {} }, CSS: { escape: (s) => s },
+    // Constructable stylesheet used by the Activity section; content is irrelevant to the checks.
+    CSSStyleSheet: class { replaceSync() {} },
+    // Bare matchMedia (the Activity script calls it unqualified); same stub as window.matchMedia.
+    matchMedia: window.matchMedia,
+    // Bare addEventListener (global scope = window in a browser); routes to the same listener table.
+    addEventListener: window.addEventListener, removeEventListener() {},
   };
   sandbox.globalThis = sandbox; sandbox.self = sandbox;
   Object.assign(window, { document, console: sandbox.console });
