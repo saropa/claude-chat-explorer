@@ -26,10 +26,15 @@ html{height:100%;overflow:hidden}
 body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto}
 #hdr{flex:none;min-width:0}
 #sm,#smb{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#sm.shut{flex:none}
 #sb{flex:none;padding:0 8px}
 #smb>.top{flex:none}
 #frow{flex:none}
 .clr:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
+#smb[hidden]{display:none}
+#smh{display:flex;align-items:center;gap:4px;width:100%;text-align:left;padding:2px 8px;margin:4px 0 6px;font:inherit;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)} /* margin and font match the Account & Usage header so all three section headers look alike */
+#smh[aria-expanded=true]>.chev{transform:rotate(90deg)}
+#smh:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 #res{flex:1 1 auto;min-height:80px;overflow-x:hidden;overflow-y:auto;container-type:inline-size;container-name:res;overflow-wrap:anywhere}
 .sl,.gh{min-width:0}
 .sl>span:not(.pill),.gh>span:not(.pill){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -82,6 +87,17 @@ function metaHtml(r,now){const q=r.hits>0,t=touchPill(r),sp=q&&r.snipSub!==undef
 if(!t&&!sp)return '';
 return '<div class="mt">'+t+sp+'</div>';}
 function qSync(){document.body.classList.toggle('qa',!!q.value.trim());}
+/* Collapsible section headers (Account & Usage is a <details>, the other two are buttons). The extension saves each state per workspace and sends it back with 'restore'. */
+const SECS={sm:{h:'smh',b:'smb'},act:{h:'acth',b:'actb'}};
+function secSet(n,o,save){const s=SECS[n],h=$(s.h);h.setAttribute('aria-expanded',String(o));$(s.b).hidden=!o;if(n==='sm')$('sm').classList.toggle('shut',!o);
+if(n==='act')vs.postMessage({type:'actOpen',open:o}); /* also stops/starts the chat-log polling, and is saved */
+else if(save)vs.postMessage({type:'secOpen',name:n,open:o});}
+$('smh').addEventListener('click',()=>secSet('sm',$('smh').getAttribute('aria-expanded')!=='true',true));
+$('acth').addEventListener('click',()=>secSet('act',$('acth').getAttribute('aria-expanded')!=='true',true));
+window.addEventListener('message',e=>{const d=e.data;if(!d||d.type!=='restore'||!d.secs)return;
+if(typeof d.secs.acct==='boolean')$('acct').open=d.secs.acct;
+if(typeof d.secs.sm==='boolean')secSet('sm',d.secs.sm,false);
+if(typeof d.secs.act==='boolean')secSet('act',d.secs.act,false);});
 $('qx').addEventListener('click',()=>{q.value='';q.dispatchEvent(new Event('input'));q.focus();});
 q.addEventListener('input',qSync);window.addEventListener('message',qSync);qSync();
 `;

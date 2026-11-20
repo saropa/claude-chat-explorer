@@ -189,7 +189,7 @@ class Provider implements vscode.WebviewViewProvider {
 
   private restore(): void {
     this.post({ type: 'restore', max: maxResults(), state: this.store.state, history: this.store.history, statuses: this.store.statuses,
-      archOpen: this.store.archOpen, advOpen: this.store.advOpen });
+      archOpen: this.store.archOpen, advOpen: this.store.advOpen, secs: this.store.secOpen });
     this.postDots();
     this.web?.announce();
     this.postCtxLines();
@@ -227,7 +227,8 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'cancel') { this.client.cancel(); }
       else if (m.type === 'sessions') { await this.sessions(m); }
       else if (m.type === 'histAdd') { this.histAdd(m); }
-      else if (m.type === 'actOpen') { this.activity?.setOpen(!!m.open); } // the Activity section was opened or collapsed
+      else if (m.type === 'actOpen') { this.activity?.setOpen(!!m.open); this.store.setSecOpen('act', !!m.open); } // the Activity section was opened or collapsed: stop/start polling and remember it
+      else if (m.type === 'secOpen' && ['acct', 'sm'].includes(String(m.name))) { this.store.setSecOpen(String(m.name), !!m.open); } // Account & Usage or Session Manager header toggled
       else if (m.type === 'advOpen') { this.store.setAdvOpen(!!m.open); }
       else if (m.type === 'archOpen') { this.store.setArchOpen(!!m.open); }
       else if (m.type === 'acctLoad') { await this.account(); }

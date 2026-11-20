@@ -3,8 +3,8 @@ import { activitySection, diagramSvg } from './activityHtml';
 
 /** Page CSS for the section frame only; the diagram's own CSS lives inside its shadow root. */
 export const ACT_CSS = `
-#act{flex:none;border-top:1px solid var(--vscode-widget-border,transparent)}
-#acth{display:flex;align-items:center;gap:4px;width:100%;text-align:left;padding:2px 8px;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)}
+#act{flex:none}
+#acth{display:flex;align-items:center;gap:4px;width:100%;text-align:left;padding:2px 8px;margin:4px 0 6px;font:inherit;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)}
 #acth[aria-expanded=true]>.chev{transform:rotate(90deg)}
 #acth:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 #actb[hidden]{display:none}
@@ -26,12 +26,5 @@ root.adoptedStyleSheets = [sheet];
 root.innerHTML = ${JSON.stringify(diagramSvg() + '<div id="cap" aria-live="polite"></div>')};
 host.style.setProperty('--fade', '${fadeMs}ms');
 ${s.script}
-const h = document.getElementById('acth');
-h.addEventListener('click', () => {
-  const o = h.getAttribute('aria-expanded') !== 'true';
-  h.setAttribute('aria-expanded', String(o));
-  document.getElementById('actb').hidden = !o;
-  vs.postMessage({ type: 'actOpen', open: o }); // 'vs' is the VS Code API handle the list page's script already acquired (it may be acquired only once); the extension stops polling the chat log while collapsed
-});
-})();`;
+})();`; // the collapse toggle itself (secSet) lives in the list page's layout script, which also restores the saved state
 }

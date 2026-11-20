@@ -2,7 +2,7 @@
 export const ACCT_HTML = `<details id="acct"><summary title="Your account and the tokens you used, read from local files only"><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Account &amp; Usage</summary><div id="acb" role="status" aria-live="polite"></div></details>`;
 
 export const ACCT_CSS = String.raw`
-#acct{margin:4px 0 6px}
+#acct{margin:4px 0 1px} /* 1px, not 6: the idle status strip (#sb: progress bar + status line, about 5px) sits between this header and Session Manager, so the three headers end up evenly spaced */
 #acct>summary{cursor:pointer;color:var(--vscode-descriptionForeground);list-style:none;display:flex;align-items:center;gap:4px;padding:2px 0}
 #acct>summary::-webkit-details-marker{display:none}
 #acct[open]>summary>.chev{transform:rotate(90deg)}
@@ -54,6 +54,7 @@ acb.innerHTML=h;}
 function acctShow(d){acData=d;acHas=true;acRender();}
 /* Delegated click so the button survives each re-render. */
 acb.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.vd')){acDetail=!acDetail;acRender();}});
-acctEl.addEventListener('toggle',()=>{if(acctEl.open){if(acHas)acb.classList.add('stale');else acb.innerHTML=acSkel();vs.postMessage({type:'acctLoad'});}});
+acctEl.addEventListener('toggle',()=>{vs.postMessage({type:'secOpen',name:'acct',open:acctEl.open}); /* remembered between sessions */
+if(acctEl.open){if(acHas)acb.classList.add('stale');else acb.innerHTML=acSkel();vs.postMessage({type:'acctLoad'});}});
 window.addEventListener('message',e=>{if(e.data&&e.data.type==='acct')acctShow(e.data);});
 `;

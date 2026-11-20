@@ -2,7 +2,8 @@
 
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
-## Unreleased
+## 0.48
+- Changed: the open or collapsed state of "Account & Usage", "Session Manager" and "Activity" is remembered between sessions (per workspace).
 - Changed: the extension is renamed from "Saropa Chat Explorer" to "Saropa Chats". Command titles, view titles and the output channel use the new name. The extension id (`saropa.claude-chat-explorer`) and repository name are unchanged, so existing installs and links keep working.
 - Changed: setting keys, command ids and view ids moved from `saropaChatExplorer.*` / `claudeChatExplorer.*` to `saropaChats.*`. Custom keybindings on the old command ids must be re-bound.
 - Added: one-time migration on first start copies your old `saropaChatExplorer.*` settings (user and workspace) and stored data (pins, archive list, tags, unread marks, search history) to the new keys. Old settings.json entries are left in place and are inert; delete them when convenient.

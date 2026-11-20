@@ -15,6 +15,7 @@ const ARCH_KEY = 'saropaChats.archived';
 const UNREAD_KEY = 'saropaChats.unread';
 const ARCH_OPEN_KEY = 'saropaChats.archOpen';
 const ADV_OPEN_KEY = 'saropaChats.advOpen';
+const SEC_OPEN_KEY = 'saropaChats.secOpen';
 const UNREAD_MAX = 500;
 
 export type { HistItem };
@@ -119,6 +120,12 @@ export class Store {
   /** Whether the Archived section is expanded in this workspace. */
   get archOpen(): boolean { return this.read<boolean>(ARCH_OPEN_KEY) === true; }
   setArchOpen(open: boolean): void { this.w.put(ARCH_OPEN_KEY, !!open); }
+  /** Open/collapsed state of the sidebar's section headers ('acct', 'sm', 'act'), per workspace. A missing name means "use the page's default". */
+  get secOpen(): Record<string, boolean> {
+    const v = this.read<Record<string, boolean>>(SEC_OPEN_KEY);
+    return v && typeof v === 'object' ? v : {};
+  }
+  setSecOpen(name: string, open: boolean): void { this.w.put(SEC_OPEN_KEY, { ...this.secOpen, [name]: !!open }); }
   get advOpen(): boolean { return this.read<boolean>(ADV_OPEN_KEY) === true; }
   setAdvOpen(open: boolean): void { this.w.put(ADV_OPEN_KEY, !!open); }
 
