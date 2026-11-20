@@ -38,7 +38,7 @@ Confirm the issue is in this extension. It may be in VS Code, another extension,
 **Positive (required).** For every command, setting, or symbol in the report, paste:
 
 ```bash
-grep -rn "claudeChatExplorer.<name>\|saropaChatExplorer.<name>" src/ package.json
+grep -rn "saropaChats.<name>\|saropaChats.<name>" src/ package.json
 ```
 
 - Expected: a handler in `src/` and a declaration in `package.json`.
@@ -80,7 +80,7 @@ What happens. What should happen.
 ## Attribution Evidence
 
 ```bash
-grep -rn "claudeChatExplorer.<name>" src/ package.json
+grep -rn "saropaChats.<name>" src/ package.json
 ```
 
 **Handler:** `src/<file>.ts:NN`

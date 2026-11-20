@@ -18,7 +18,7 @@ Keywords: Claude Code, AI agent, session history, session search, transcript sea
 - Token totals per session and per branch, a blue count badge for sessions waiting for you, and automatic session titles.
 - Claude Config: a read-only review of your Claude Code configuration.
 - Options screen for every setting, and an optional, opt-in list of Web (cloud) sessions.
-- Local by default. The optional pull request lookup runs your own `gh` command (setting `saropaChatExplorer.lookupPullRequests`, on by default). Web sessions are off by default.
+- Local by default. The optional pull request lookup runs your own `gh` command (setting `saropaChats.lookupPullRequests`, on by default). Web sessions are off by default.
 
 ## Install
 
@@ -84,7 +84,7 @@ Or open the Extensions view, choose `...` then "Install from VSIX...", and pick 
 - The `...` button under the search box ("Toggle search details") shows or hides the time, message, sender and scope controls. A count on the button shows how many differ from the defaults. The choice is remembered per workspace.
 - The search, filters and session list sit in a collapsible "Session Manager" panel. The search box has a clear (x) button.
 - Sort and Search Tips are icons in the view title bar and open a quick pick. The status filter is a funnel dropdown in a filter row above the list, with a count pill when a filter is on and an "Active" chip that shows only open sessions that are running, waiting, unread or waiting on background agents.
-- `saropaChatExplorer.search.contextLines` (1 to 4, default 1) sets how many lines of each match a result row shows. Narrow side bars always show one.
+- `saropaChats.search.contextLines` (1 to 4, default 1) sets how many lines of each match a result row shows. Narrow side bars always show one.
 - Up and Down in the search box step through your last 20 searches with their toggles.
 
 ### Ranking and results
@@ -93,7 +93,7 @@ Or open the Extensions view, choose `...` then "Install from VSIX...", and pick 
 - One row per session. It shows the newest match (across the session and its subagents) as a snippet of at most two lines, starting just before the match.
 - "+N more" under the snippet opens the other matches in place, newest first, 20 at a time. Identical texts collapse into one item with a count such as x3.
 - With a search, the time pill and day groups use the time of the newest match. The session's last active time is in the tooltip and the card.
-- Like VS Code Search, the panel lists at most 500 sessions (`saropaChatExplorer.maxResults`, 50 to 2000) and says so. Every match is still counted. A session shows "9,999+" above 9,999 hits.
+- Like VS Code Search, the panel lists at most 500 sessions (`saropaChats.maxResults`, 50 to 2000) and says so. Every match is still counted. A session shows "9,999+" above 9,999 hits.
 - Open in editor (the summary line under the search box, or "Saropa Chats: Open Results in Editor") opens all matches in a read-only "Search: query" tab: a header per session (Cmd/Ctrl+click resumes it), matching lines with one line of context, real JSONL line numbers and highlighted matches.
 - In All sessions (no search), sessions that are open list above sessions that are not, with a divider. Pinned sessions stay in their own section. The list groups sessions by All Sessions (today), Yesterday, This Week and Older.
 
@@ -116,17 +116,17 @@ An 8 px dot sits left of each session title. It uses the same states as the agen
 - Open window marker: a solid ring means the live session is open in this window. A dashed ring means another window. On Windows, or when `ps` fails, no marker shows.
 - Live state comes from `~/.claude/sessions`, checked every 30 seconds and when the panel becomes visible. Without those files every session shows idle.
 - Unread is a guess: a session you saw running or waiting that then went idle or closed. Resuming the session or "Mark as Read" clears it.
-- `saropaChatExplorer.animateDots` (default on) animates the dots. Off, or with reduced motion, they stay still and show the most important state. Colors: `saropaChatExplorer.dotRunning`, `dotWaiting`, `dotUnread`, `dotBackground`, `dotIdle`.
+- `saropaChats.animateDots` (default on) animates the dots. Off, or with reduced motion, they stay still and show the most important state. Colors: `saropaChats.dotRunning`, `dotWaiting`, `dotUnread`, `dotBackground`, `dotIdle`.
 - The session open in this window is highlighted like the official sidebar. It follows the focused Claude tab.
 
 ### Context ring, pill and warnings
 
 - Tokens: the card shows cumulative tokens per session (input, output, cache read, cache write, kept separate, no price). /compact never lowers them and subagent replies count. Each branch row on Project Status shows a per-branch total.
-- Context ring: every row with token data shows a small ring that fills as the session's context grows, against `saropaChatExplorer.contextRingTokens` (default 300000, minimum 10000). Warning color at 80 percent, error color at 100 percent or more. Hover for "136.8k of 300k tokens".
+- Context ring: every row with token data shows a small ring that fills as the session's context grows, against `saropaChats.contextRingTokens` (default 300000, minimum 10000). Warning color at 80 percent, error color at 100 percent or more. Hover for "136.8k of 300k tokens".
 - Context pill: shown from 60 percent (amber 60 to 79, orange 80 to 89, red 90 and above). The card always shows a Context stat, such as "82% (164k of 200k, opus-4-6)". The figure approximates the agent's own and lags one turn.
-- Warnings: a live session that reaches 80 or 90 percent gets one notification with Open session and Dismiss (the 90 percent one also offers Copy hand-over note). Each session warns once per level, again after a compaction or after it falls 10 points below the level. At most 1 notification per 30 second check and 3 in 10 minutes. Turn off with `saropaChatExplorer.contextWarnings`.
+- Warnings: a live session that reaches 80 or 90 percent gets one notification with Open session and Dismiss (the 90 percent one also offers Copy hand-over note). Each session warns once per level, again after a compaction or after it falls 10 points below the level. At most 1 notification per 30 second check and 3 in 10 minutes. Turn off with `saropaChats.contextWarnings`.
 - Activity bar badge: a blue count of sessions waiting for you. It clears when none are.
-- Status bar: "3 sessions near full" appears only when sessions are 80 percent full or more. Click it to filter to Nearly full. Hide with `saropaChatExplorer.showUsageStatusBar`.
+- Status bar: "3 sessions near full" appears only when sessions are 80 percent full or more. Click it to filter to Nearly full. Hide with `saropaChats.showUsageStatusBar`.
 
 ### Expanded card
 
@@ -154,7 +154,7 @@ The chevron opens the row as a card with an action bar (Resume, Pin, Archive, Ma
 
 ### Automatic session titles
 
-- Setting `saropaChatExplorer.autoTitle.enabled` (off by default), or the "Auto-title sessions" toggle in the "..." menu of the view. A live session is named after its first prompt (topic emoji plus the first sentence, up to 50 characters) and renamed once after the third prompt, by appending a title line to the session file. Sessions you named yourself are left alone.
+- Setting `saropaChats.autoTitle.enabled` (off by default), or the "Auto-title sessions" toggle in the "..." menu of the view. A live session is named after its first prompt (topic emoji plus the first sentence, up to 50 characters) and renamed once after the third prompt, by appending a title line to the session file. Sessions you named yourself are left alone.
 - `autoTitle.useHaiku` lets `claude -p --model haiku` write the title instead of the rules. `emojiRules` and `emojiRulesReplaceDefaults` customize the emoji.
 - "Regenerate Session Titles" (sparkle button in the view toolbar): pick This project or All projects, preview old and new titles, then write. Each transcript is backed up under `~/.claude/backups/session_titles` first. Live sessions are skipped.
 
@@ -176,11 +176,11 @@ The "Activity" panel under the session list (collapsible) shows Claude as a cent
 
 ## Web (cloud) sessions
 
-Off by default (`saropaChatExplorer.webSessions.enabled`). When on, a Local | Web toggle appears. The Web list shows title and age; opening one fetches its transcript on demand into a read-only Markdown tab. It uses an unofficial, undocumented Anthropic API with your Claude Code login token (read-only, never stored or logged) and may change without notice. Turning it on asks for your consent first. While off, no network call and no credential read is made.
+Off by default (`saropaChats.webSessions.enabled`). When on, a Local | Web toggle appears. The Web list shows title and age; opening one fetches its transcript on demand into a read-only Markdown tab. It uses an unofficial, undocumented Anthropic API with your Claude Code login token (read-only, never stored or logged) and may change without notice. Turning it on asks for your consent first. While off, no network call and no credential read is made.
 
 ## Find the session that edited a file
 
-Right-click a file in the Explorer, the editor or its tab and choose "Saropa: Find Related Sessions". The panel opens and searches `file:<path>`. Each row has an edited or read pill, and edited sessions rank first. The status bar shows the count for the active file (`saropaChatExplorer.showFileSessionsStatusBar`).
+Right-click a file in the Explorer, the editor or its tab and choose "Saropa: Find Related Sessions". The panel opens and searches `file:<path>`. Each row has an edited or read pill, and edited sessions rank first. The status bar shows the count for the active file (`saropaChats.showFileSessionsStatusBar`).
 
 ## API for other extensions
 
@@ -210,7 +210,7 @@ One page answers: what is still open in this repository, and what do I do to clo
 **Header and filters**
 - Filter box, a View menu (Sort, Density Relaxed or Compact, and "Show only rows with" Open PR, Failing checks, Uncommitted, Unpushed), Copy summary, Refresh and a "..." menu (Shortcuts, GitHub status, Show done).
 - GitHub status shows lookup off, `gh` missing, not signed in, rate limited, failed, or OK with repo count and age.
-- `saropaChatExplorer.openWorkDays` (1 to 90, default 14) sets how many days of sessions are listed. Open sessions are always listed.
+- `saropaChats.openWorkDays` (1 to 90, default 14) sets how many days of sessions are listed. Open sessions are always listed.
 - Filter text, state filters and sort are remembered per workspace.
 - Keyboard: j / Down and k / Up move rows, Home and End jump, Enter opens the session, Space or Right expands, Left collapses, `/` focuses the filter, Esc clears or closes, `?` lists shortcuts.
 
@@ -242,24 +242,24 @@ One page answers: what is still open in this repository, and what do I do to clo
 
 | Setting | Default | Effect |
 |---|---|---|
-| `saropaChatExplorer.maxResults` | 500 | Most sessions listed (50 to 2000). |
-| `saropaChatExplorer.activity.fadeMs` | 4000 | How long an Activity flash takes to fade out, in milliseconds (1000 to 10000). Applied live. |
-| `saropaChatExplorer.activity.refreshMs` | 250 | How often the Activity panel checks the selected chat for new messages, in milliseconds (100 to 2000). Applied live; no checks while the panel is collapsed. |
-| `saropaChatExplorer.contextRingTokens` | 300000 | Token count that fills the context ring (minimum 10000). |
-| `saropaChatExplorer.contextWarnings` | true | Notify at 80 and 90 percent context. |
-| `saropaChatExplorer.showUsageStatusBar` | true | Status bar item for nearly full sessions. |
-| `saropaChatExplorer.showFileSessionsStatusBar` | true | Status bar count of sessions that touched the active file. |
-| `saropaChatExplorer.openWorkDays` | 14 | Days of sessions on Project Status (1 to 90). |
-| `saropaChatExplorer.lookupPullRequests` | true | Run `gh` for open pull requests and checks. Off: `gh` never starts. |
-| `saropaChatExplorer.animateDots` | true | Animate status dots. |
-| `saropaChatExplorer.search.contextLines` | 1 | Lines of each match shown in a result row (1 to 4). |
-| `saropaChatExplorer.webSessions.enabled` | false | Show Web (cloud) sessions in a Web tab. Unofficial API, uses your Claude Code login token. |
-| `saropaChatExplorer.autoTitle.enabled` | false | Name sessions automatically: topic emoji plus the first sentence of the first prompt, renamed once after the third prompt. Skips sessions you named yourself. |
-| `saropaChatExplorer.autoTitle.useHaiku` | false | Let `claude -p --model haiku` write the title in the background instead of the rules. Falls back to the rules on failure. |
-| `saropaChatExplorer.emojiRules` | [] | Your own `{ "emoji": "🐾", "keywords": ["dog", "cat"] }` rules. Same emoji as a built-in rule replaces its keywords; others are added. |
-| `saropaChatExplorer.emojiRulesReplaceDefaults` | false | Ignore the built-in emoji rules and use only yours. |
+| `saropaChats.maxResults` | 500 | Most sessions listed (50 to 2000). |
+| `saropaChats.activity.fadeMs` | 4000 | How long an Activity flash takes to fade out, in milliseconds (1000 to 10000). Applied live. |
+| `saropaChats.activity.refreshMs` | 250 | How often the Activity panel checks the selected chat for new messages, in milliseconds (100 to 2000). Applied live; no checks while the panel is collapsed. |
+| `saropaChats.contextRingTokens` | 300000 | Token count that fills the context ring (minimum 10000). |
+| `saropaChats.contextWarnings` | true | Notify at 80 and 90 percent context. |
+| `saropaChats.showUsageStatusBar` | true | Status bar item for nearly full sessions. |
+| `saropaChats.showFileSessionsStatusBar` | true | Status bar count of sessions that touched the active file. |
+| `saropaChats.openWorkDays` | 14 | Days of sessions on Project Status (1 to 90). |
+| `saropaChats.lookupPullRequests` | true | Run `gh` for open pull requests and checks. Off: `gh` never starts. |
+| `saropaChats.animateDots` | true | Animate status dots. |
+| `saropaChats.search.contextLines` | 1 | Lines of each match shown in a result row (1 to 4). |
+| `saropaChats.webSessions.enabled` | false | Show Web (cloud) sessions in a Web tab. Unofficial API, uses your Claude Code login token. |
+| `saropaChats.autoTitle.enabled` | false | Name sessions automatically: topic emoji plus the first sentence of the first prompt, renamed once after the third prompt. Skips sessions you named yourself. |
+| `saropaChats.autoTitle.useHaiku` | false | Let `claude -p --model haiku` write the title in the background instead of the rules. Falls back to the rules on failure. |
+| `saropaChats.emojiRules` | [] | Your own `{ "emoji": "🐾", "keywords": ["dog", "cat"] }` rules. Same emoji as a built-in rule replaces its keywords; others are added. |
+| `saropaChats.emojiRulesReplaceDefaults` | false | Ignore the built-in emoji rules and use only yours. |
 
-Dot colors are theme colors: `saropaChatExplorer.dotRunning`, `dotWaiting`, `dotUnread`, `dotBackground`, `dotIdle`.
+Dot colors are theme colors: `saropaChats.dotRunning`, `dotWaiting`, `dotUnread`, `dotBackground`, `dotIdle`.
 
 ## Keyboard shortcuts (search box)
 
@@ -308,10 +308,10 @@ npm run package
 - Reads Claude Code transcripts from `~/.claude/projects` on your machine.
 - Reads `~/.claude.json` (account email, name, organization, plan) and the `~/.claude` configuration files for Account & Usage and Claude Config. Read-only; no keychain and no network.
 - Writes only when you ask: auto-titles append a title line to a session file, and Regenerate Session Titles backs up each transcript first.
-- Web sessions (off by default): only when `saropaChatExplorer.webSessions.enabled` is on, it sends your Claude Code login token to Anthropic's unofficial session API to list and fetch your cloud sessions. The token is never stored, refreshed or logged.
+- Web sessions (off by default): only when `saropaChats.webSessions.enabled` is on, it sends your Claude Code login token to Anthropic's unofficial session API to list and fetch your cloud sessions. The token is never stored, refreshed or logged.
 - Reads the agent's live session files in `~/.claude/sessions` (process id, session id and status) to color the dots. It never writes there.
 - When you open a section of a session card (not when you open the card), it runs local read-only commands with no shell, 5 second limit each, in that session's working folder: `git rev-parse --show-toplevel --git-common-dir --abbrev-ref HEAD` (every section), then `git for-each-ref --format=<fields> refs/heads/<branch>` (Git), `git status --porcelain=v1 --branch -z` (Uncommitted files), `git rev-list --max-count=20 --format=<fields> @{u}..HEAD` (Unpushed commits) or `git worktree list --porcelain -z` and `git for-each-ref --format=<fields> refs/heads` (Worktrees). It never runs fetch, pull, checkout, reset, clean, stash, commit, push or anything that writes. Git is told not to take optional locks and never to prompt.
-- While `saropaChatExplorer.lookupPullRequests` is on (the default), it runs `gh pr list --state open --limit 100 --json number,title,headRefName,isDraft,reviewDecision,url,headRefOid,isCrossRepository,headRepositoryOwner` once per repository, plus `git remote get-url origin` when the list holds a fork pull request, and `gh pr view <number> --json statusCheckRollup,headRefOid` for Project Status rows. No shell, 8 second limit, answers cached 5 minutes (2 for checks). `gh auth status` is cached 60 seconds. `gh` contacts GitHub with your own existing sign-in. The extension adds no network code of its own. Clicking a pull request opens the address `gh` returned (https only) in your browser. Turn the setting off and `gh` is never started.
+- While `saropaChats.lookupPullRequests` is on (the default), it runs `gh pr list --state open --limit 100 --json number,title,headRefName,isDraft,reviewDecision,url,headRefOid,isCrossRepository,headRepositoryOwner` once per repository, plus `git remote get-url origin` when the list holds a fork pull request, and `gh pr view <number> --json statusCheckRollup,headRefOid` for Project Status rows. No shell, 8 second limit, answers cached 5 minutes (2 for checks). `gh auth status` is cached 60 seconds. `gh` contacts GitHub with your own existing sign-in. The extension adds no network code of its own. Clicking a pull request opens the address `gh` returned (https only) in your browser. Turn the setting off and `gh` is never started.
 - Runs `ps -A -o pid=,ppid=` (no shell, 3 second limit, once per 30 second poll) to read parent process ids for the open window marker. The output is parsed in memory and not stored.
 - Reads which sessions are open as tabs from VS Code's workspace storage (`state.vscdb`) with the local `sqlite3` tool, read-only, on a temporary copy that is deleted afterwards. Only session ids are kept.
 - Import Archived Sessions works the same way and runs only when you press Import.
@@ -342,10 +342,10 @@ Search `sha:<prefix>` or `pr:<number>`. In a session card, click a commit id in 
 Open Project Status. The creator session is listed first on each row. Or search `branch:<name>`.
 
 **How do I know when a session is about to hit its context limit?**
-Watch the context ring and pill, or leave `saropaChatExplorer.contextWarnings` on. Copy hand-over note carries the state to a new session.
+Watch the context ring and pill, or leave `saropaChats.contextWarnings` on. Copy hand-over note carries the state to a new session.
 
 **Does it send my sessions anywhere?**
-No. The only outside contacts are the optional `gh` pull request lookup (your own sign-in; turn it off with `saropaChatExplorer.lookupPullRequests`) and the opt-in Web sessions list, which is off by default.
+No. The only outside contacts are the optional `gh` pull request lookup (your own sign-in; turn it off with `saropaChats.lookupPullRequests`) and the opt-in Web sessions list, which is off by default.
 
 **Does it change my repositories?**
 No. It runs read-only git commands. Commands it offers are copied, never run.

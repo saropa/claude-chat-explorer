@@ -59,7 +59,7 @@ const deps = (o = {}) => ({ platform: 'linux', now: () => NOW, keychain: async (
 
   // disabled by default
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
-  const prop = pkg.contributes.configuration.properties['saropaChatExplorer.webSessions.enabled'];
+  const prop = pkg.contributes.configuration.properties['saropaChats.webSessions.enabled'];
   check('setting default false', prop && prop.type === 'boolean' && prop.default === false);
   const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'webSessions.ts'), 'utf8');
   check('load gated on setting', /async load\(\): Promise<void> \{\s*if \(!webEnabled\(\)/.test(src) && /async open\(id: unknown\): Promise<void> \{[^]*?!webEnabled\(\)/.test(src));

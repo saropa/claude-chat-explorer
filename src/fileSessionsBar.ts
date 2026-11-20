@@ -2,8 +2,8 @@
 import * as vscode from 'vscode';
 import { FileSessionsService } from './fileSessionsService';
 
-export const SHOW_CMD = 'saropaChatExplorer.fileSessions.show';
-export const SETTING = 'saropaChatExplorer.showFileSessionsStatusBar';
+export const SHOW_CMD = 'saropaChats.fileSessions.show';
+export const SETTING = 'saropaChats.showFileSessionsStatusBar';
 const DEBOUNCE_MS = 500;
 
 export class FileSessionsBar implements vscode.Disposable {

@@ -7,7 +7,7 @@ import { analyse, ConfigReport, Reader } from './claudeConfig';
 import { CFG_TITLE, configHtml } from './claudeConfigHtml';
 import { configMarkdown } from './claudeConfigMd';
 
-export const CONFIG_CMD = 'saropaChatExplorer.claudeConfig';
+export const CONFIG_CMD = 'saropaChats.claudeConfig';
 
 const fsReader: Reader = {
   read: (p) => { try { return fs.readFileSync(p, 'utf8'); } catch { return undefined; } },
@@ -24,7 +24,7 @@ export function registerClaudeConfig(ctx: vscode.ExtensionContext, log: (where: 
   };
   const show = () => {
     if (panel) { refresh(panel); panel.reveal(); return; }
-    const p = vscode.window.createWebviewPanel('saropaChatExplorer.claudeConfig', CFG_TITLE, vscode.ViewColumn.Active, { enableScripts: true, localResourceRoots: [] });
+    const p = vscode.window.createWebviewPanel('saropaChats.claudeConfig', CFG_TITLE, vscode.ViewColumn.Active, { enableScripts: true, localResourceRoots: [] });
     panel = p;
     refresh(p);
     const sub = p.webview.onDidReceiveMessage(async (m: { type?: string }) => {

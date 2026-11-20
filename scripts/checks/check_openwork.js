@@ -1151,7 +1151,7 @@ if (/color-mix|named-color/.test(decls)) { bad('no color-mix in the page CSS'); 
 const named = [...decls.matchAll(/(?:^|;)\s*(?:color|background|background-color|border(?:-[a-z]+)?|outline)\s*:\s*(?:\d+px\s+\w+\s+)?(white|black|red|green|blue|gray|grey|yellow|orange)\b/g)];
 if (named.length) { bad('no named colors in the page CSS'); }
 if (/claude/i.test(page.replace(/Claude Project Status/g, ''))) { bad('no agent name anywhere in the page: ' + (/.{0,20}claude.{0,20}/i.exec(page) || [''])[0]); }
-if (!/--vscode-saropaChatExplorer-dotRunning/.test(css) || !/--vscode-testing-iconPassed/.test(css)) { bad('dot colors use the contributed variables'); }
+if (!/--vscode-saropaChats-dotRunning/.test(css) || !/--vscode-testing-iconPassed/.test(css)) { bad('dot colors use the contributed variables'); }
 if (!/background:var\(--vscode-editor-background\)/.test(css)) { bad('page background is the editor background'); }
 if (!/Content-Security-Policy[^>]*default-src 'none'/.test(page)) { bad('page keeps the strict content security policy'); }
 

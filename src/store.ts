@@ -5,16 +5,16 @@ import { Totals } from './maxResults';
 import { STATUS_KEYS } from './status';
 import { Result } from './types';
 
-const STATE_KEY = 'saropaChatExplorer.state';
-const RESULTS_KEY = 'saropaChatExplorer.results';
-const HIST_KEY = 'saropaChatExplorer.history';
-const PIN_KEY = 'saropaChatExplorer.pins';
-const STATUS_KEY = 'saropaChatExplorer.statuses';
-const TAG_KEY = 'saropaChatExplorer.tags';
-const ARCH_KEY = 'saropaChatExplorer.archived';
-const UNREAD_KEY = 'saropaChatExplorer.unread';
-const ARCH_OPEN_KEY = 'saropaChatExplorer.archOpen';
-const ADV_OPEN_KEY = 'saropaChatExplorer.advOpen';
+const STATE_KEY = 'saropaChats.state';
+const RESULTS_KEY = 'saropaChats.results';
+const HIST_KEY = 'saropaChats.history';
+const PIN_KEY = 'saropaChats.pins';
+const STATUS_KEY = 'saropaChats.statuses';
+const TAG_KEY = 'saropaChats.tags';
+const ARCH_KEY = 'saropaChats.archived';
+const UNREAD_KEY = 'saropaChats.unread';
+const ARCH_OPEN_KEY = 'saropaChats.archOpen';
+const ADV_OPEN_KEY = 'saropaChats.advOpen';
 const UNREAD_MAX = 500;
 
 export type { HistItem };

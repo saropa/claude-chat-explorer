@@ -4,7 +4,10 @@ Release notes for Saropa Chats, newest first. Dates are the git dates of each re
 
 ## Unreleased
 - Changed: the extension is renamed from "Saropa Chat Explorer" to "Saropa Chats". Command titles, view titles and the output channel use the new name. The extension id (`saropa.claude-chat-explorer`) and repository name are unchanged, so existing installs and links keep working.
-- Changed: "Session Manager" is now its own sidebar pane, at the same level as "Activity" (it was a collapsible section inside the "Saropa Chat Explorer" pane). "Account & Usage" stays at the top of that pane.
+- Changed: setting keys, command ids and view ids moved from `saropaChatExplorer.*` / `claudeChatExplorer.*` to `saropaChats.*`. Custom keybindings on the old command ids must be re-bound.
+- Added: one-time migration on first start copies your old `saropaChatExplorer.*` settings (user and workspace) and stored data (pins, archive list, tags, unread marks, search history) to the new keys. Old settings.json entries are left in place and are inert; delete them when convenient.
+- Added: bugs/docs_readme_screenshot_old_name.md tracks the outdated README screenshot and the wanted Activity panel GIF.
+- Changed: the Activity diagram is now a collapsible "Activity" section inside the "Saropa Chats" pane, under the session list, instead of a separate pane. The Refresh Speed and Fade Speed items moved to the pane's ... menu. A collapsed Activity section stops checking the chat log.
 - Added: a "New session" button at the top of the Session Manager starts a new Claude Code session; it is a filled button, not a label.
 - Added: a "Clean up" button beside "New session" archives every session except the ones open now (pinned sessions are kept too), after a count confirmation. Nothing is deleted; Unarchive brings a session back. Also available as the command "Saropa: Clean Up Sessions (Archive All Except Open)".
 - Changed: the yellow pinned-session star is larger (14px) so it matches the size of the status circle beside it.

@@ -45,301 +45,295 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "claudeChatExplorer",
+          "id": "saropaChats",
           "title": "Saropa Chats",
           "icon": "icon.svg"
         }
       ]
     },
     "views": {
-      "claudeChatExplorer": [
+      "saropaChats": [
         {
           "type": "webview",
-          "id": "claudeChatExplorer.view",
-          "name": "Session Manager",
-          "icon": "icon.svg"
-        },
-        {
-          "type": "webview",
-          "id": "claudeChatExplorer.activity",
-          "name": "Activity",
+          "id": "saropaChats.view",
+          "name": "Saropa Chats",
           "icon": "icon.svg"
         }
       ]
     },
     "commands": [
       {
-        "command": "saropaChatExplorer.claudeConfig",
+        "command": "saropaChats.claudeConfig",
         "title": "Saropa Chats: Claude Config"
       },
       {
-        "command": "claudeChatExplorer.activityRefreshSpeed",
+        "command": "saropaChats.activityRefreshSpeed",
         "title": "Refresh Speed..."
       },
       {
-        "command": "claudeChatExplorer.activityFadeSpeed",
+        "command": "saropaChats.activityFadeSpeed",
         "title": "Fade Speed..."
       },
       {
-        "command": "saropaChatExplorer.options",
+        "command": "saropaChats.options",
         "title": "Saropa Chats: Options"
       },
       {
-        "command": "saropaChatExplorer.usageSummary",
+        "command": "saropaChats.usageSummary",
         "title": "Saropa: Usage Summary"
       },
       {
-        "command": "saropaChatExplorer.usageBar.show",
+        "command": "saropaChats.usageBar.show",
         "title": "Saropa: Show Nearly Full Sessions"
       },
       {
-        "command": "saropaChatExplorer.archiveTiny",
+        "command": "saropaChats.archiveTiny",
         "title": "Saropa: Archive Empty and Tiny Sessions"
       },
       {
-        "command": "saropaChatExplorer.archiveClosed",
+        "command": "saropaChats.archiveClosed",
         "title": "Saropa: Clean Up Sessions (Archive All Except Open)"
       },
       {
-        "command": "saropaChatExplorer.regenTitles",
+        "command": "saropaChats.regenTitles",
         "title": "Saropa Chats: Regenerate Session Titles",
         "icon": "$(sparkle)"
       },
       {
-        "command": "saropaChatExplorer.autoTitleOn",
+        "command": "saropaChats.autoTitleOn",
         "title": "Auto-title sessions"
       },
       {
-        "command": "saropaChatExplorer.autoTitleOff",
+        "command": "saropaChats.autoTitleOff",
         "title": "$(check) Auto-title sessions"
       },
       {
-        "command": "saropaChatExplorer.copyResume",
+        "command": "saropaChats.copyResume",
         "title": "Saropa: Copy Resume Command"
       },
       {
-        "command": "saropaChatExplorer.exportChatMarkdown",
+        "command": "saropaChats.exportChatMarkdown",
         "title": "Saropa: Export Session as Markdown"
       },
       {
-        "command": "claudeChatExplorer.openWork",
+        "command": "saropaChats.openWork",
         "title": "Saropa Chats: Project Status",
         "icon": "$(checklist)"
       },
       {
-        "command": "claudeChatExplorer.searchTips",
+        "command": "saropaChats.searchTips",
         "title": "Saropa Chats: Search Tips",
         "icon": "$(info)"
       },
       {
-        "command": "claudeChatExplorer.sortResults",
+        "command": "saropaChats.sortResults",
         "title": "Saropa Chats: Sort Results",
         "icon": "$(sort-precedence)"
       },
       {
-        "command": "claudeChatExplorer.filterStatus",
+        "command": "saropaChats.filterStatus",
         "title": "Saropa Chats: Filter by Status",
         "icon": "$(filter)"
       },
       {
-        "command": "saropaChatExplorer.fileSessions.show",
+        "command": "saropaChats.fileSessions.show",
         "title": "Saropa: Find Related Sessions"
       },
       {
-        "command": "claudeChatExplorer.clearHistory",
+        "command": "saropaChats.clearHistory",
         "title": "Saropa Chats: Clear Search History"
       },
       {
-        "command": "saropaChatExplorer.openResultsInEditor",
+        "command": "saropaChats.openResultsInEditor",
         "title": "Saropa Chats: Open Results in Editor"
       },
       {
-        "command": "saropaChatExplorer.importArchived",
+        "command": "saropaChats.importArchived",
         "title": "Saropa Chats: Import Archived Sessions from the Agent"
       },
       {
-        "command": "saropaChatExplorer.diagnostics",
+        "command": "saropaChats.diagnostics",
         "title": "Saropa Chats: Show Diagnostics"
       },
       {
-        "command": "saropaChatExplorer.archive",
+        "command": "saropaChats.archive",
         "title": "Archive Session"
       },
       {
-        "command": "saropaChatExplorer.unarchive",
+        "command": "saropaChats.unarchive",
         "title": "Unarchive Session"
       },
       {
-        "command": "saropaChatExplorer.pin",
+        "command": "saropaChats.pin",
         "title": "Pin Session"
       },
       {
-        "command": "saropaChatExplorer.unpin",
+        "command": "saropaChats.unpin",
         "title": "Unpin Session"
       },
       {
-        "command": "saropaChatExplorer.markRead",
+        "command": "saropaChats.markRead",
         "title": "Mark as Read"
       }
     ],
     "menus": {
       "explorer/context": [
         {
-          "command": "saropaChatExplorer.fileSessions.show",
+          "command": "saropaChats.fileSessions.show",
           "when": "resourceScheme == file && !explorerResourceIsFolder",
-          "group": "saropaChatExplorer@1"
+          "group": "saropaChats@1"
         }
       ],
       "editor/context": [
         {
-          "command": "saropaChatExplorer.fileSessions.show",
+          "command": "saropaChats.fileSessions.show",
           "when": "resourceScheme == file",
-          "group": "saropaChatExplorer@1"
+          "group": "saropaChats@1"
         }
       ],
       "editor/title/context": [
         {
-          "command": "saropaChatExplorer.fileSessions.show",
+          "command": "saropaChats.fileSessions.show",
           "when": "resourceScheme == file",
-          "group": "saropaChatExplorer@1"
+          "group": "saropaChats@1"
         }
       ],
       "view/title": [
         {
-          "command": "claudeChatExplorer.activityRefreshSpeed",
-          "when": "view == claudeChatExplorer.activity",
+          "command": "saropaChats.activityRefreshSpeed",
+          "when": "view == saropaChats.view",
           "group": "1_speed@1"
         },
         {
-          "command": "claudeChatExplorer.activityFadeSpeed",
-          "when": "view == claudeChatExplorer.activity",
+          "command": "saropaChats.activityFadeSpeed",
+          "when": "view == saropaChats.view",
           "group": "1_speed@2"
         },
         {
-          "command": "claudeChatExplorer.searchTips",
-          "when": "view == claudeChatExplorer.view",
+          "command": "saropaChats.searchTips",
+          "when": "view == saropaChats.view",
           "group": "navigation@1"
         },
         {
-          "command": "claudeChatExplorer.sortResults",
-          "when": "view == claudeChatExplorer.view",
+          "command": "saropaChats.sortResults",
+          "when": "view == saropaChats.view",
           "group": "navigation@2"
         },
         {
-          "command": "claudeChatExplorer.openWork",
-          "when": "view == claudeChatExplorer.view",
+          "command": "saropaChats.openWork",
+          "when": "view == saropaChats.view",
           "group": "navigation"
         },
         {
-          "command": "saropaChatExplorer.regenTitles",
-          "when": "view == claudeChatExplorer.view",
+          "command": "saropaChats.regenTitles",
+          "when": "view == saropaChats.view",
           "group": "navigation@4"
         },
         {
-          "command": "saropaChatExplorer.autoTitleOn",
-          "when": "view == claudeChatExplorer.view && !saropaChatExplorer.autoTitleEnabled"
+          "command": "saropaChats.autoTitleOn",
+          "when": "view == saropaChats.view && !saropaChats.autoTitleEnabled"
         },
         {
-          "command": "saropaChatExplorer.autoTitleOff",
-          "when": "view == claudeChatExplorer.view && saropaChatExplorer.autoTitleEnabled"
+          "command": "saropaChats.autoTitleOff",
+          "when": "view == saropaChats.view && saropaChats.autoTitleEnabled"
         },
         {
-          "command": "saropaChatExplorer.claudeConfig",
-          "when": "view == claudeChatExplorer.view"
+          "command": "saropaChats.claudeConfig",
+          "when": "view == saropaChats.view"
         },
         {
-          "command": "saropaChatExplorer.options",
-          "when": "view == claudeChatExplorer.view"
+          "command": "saropaChats.options",
+          "when": "view == saropaChats.view"
         },
         {
-          "command": "claudeChatExplorer.clearHistory",
-          "when": "view == claudeChatExplorer.view"
+          "command": "saropaChats.clearHistory",
+          "when": "view == saropaChats.view"
         }
       ],
       "webview/context": [
         {
-          "command": "saropaChatExplorer.copyResume",
-          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat'",
-          "group": "saropaChatExplorer@3"
+          "command": "saropaChats.copyResume",
+          "when": "webviewId == 'saropaChats.view' && webviewSection == 'chat'",
+          "group": "saropaChats@3"
         },
         {
-          "command": "saropaChatExplorer.exportChatMarkdown",
-          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat'",
-          "group": "saropaChatExplorer@4"
+          "command": "saropaChats.exportChatMarkdown",
+          "when": "webviewId == 'saropaChats.view' && webviewSection == 'chat'",
+          "group": "saropaChats@4"
         },
         {
-          "command": "saropaChatExplorer.archive",
-          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat' && !ccsArchived",
-          "group": "saropaChatExplorer@1"
+          "command": "saropaChats.archive",
+          "when": "webviewId == 'saropaChats.view' && webviewSection == 'chat' && !ccsArchived",
+          "group": "saropaChats@1"
         },
         {
-          "command": "saropaChatExplorer.unarchive",
-          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat' && ccsArchived",
-          "group": "saropaChatExplorer@1"
+          "command": "saropaChats.unarchive",
+          "when": "webviewId == 'saropaChats.view' && webviewSection == 'chat' && ccsArchived",
+          "group": "saropaChats@1"
         },
         {
-          "command": "saropaChatExplorer.pin",
-          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat' && !ccsPinned",
-          "group": "saropaChatExplorer@1"
+          "command": "saropaChats.pin",
+          "when": "webviewId == 'saropaChats.view' && webviewSection == 'chat' && !ccsPinned",
+          "group": "saropaChats@1"
         },
         {
-          "command": "saropaChatExplorer.unpin",
-          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat' && ccsPinned",
-          "group": "saropaChatExplorer@1"
+          "command": "saropaChats.unpin",
+          "when": "webviewId == 'saropaChats.view' && webviewSection == 'chat' && ccsPinned",
+          "group": "saropaChats@1"
         },
         {
-          "command": "saropaChatExplorer.markRead",
-          "when": "webviewId == 'claudeChatExplorer.view' && webviewSection == 'chat' && ccsUnread",
-          "group": "saropaChatExplorer@2"
+          "command": "saropaChats.markRead",
+          "when": "webviewId == 'saropaChats.view' && webviewSection == 'chat' && ccsUnread",
+          "group": "saropaChats@2"
         }
       ],
       "commandPalette": [
         {
-          "command": "claudeChatExplorer.activityRefreshSpeed",
+          "command": "saropaChats.activityRefreshSpeed",
           "when": "false"
         },
         {
-          "command": "claudeChatExplorer.activityFadeSpeed",
+          "command": "saropaChats.activityFadeSpeed",
           "when": "false"
         },
         {
-          "command": "saropaChatExplorer.autoTitleOn",
+          "command": "saropaChats.autoTitleOn",
           "when": "false"
         },
         {
-          "command": "saropaChatExplorer.autoTitleOff",
+          "command": "saropaChats.autoTitleOff",
           "when": "false"
         },
         {
-          "command": "saropaChatExplorer.copyResume",
+          "command": "saropaChats.copyResume",
           "when": "false"
         },
         {
-          "command": "saropaChatExplorer.exportChatMarkdown",
+          "command": "saropaChats.exportChatMarkdown",
           "when": "false"
         },
         {
-          "command": "saropaChatExplorer.usageBar.show",
+          "command": "saropaChats.usageBar.show",
           "when": "false"
         },
         {
-          "command": "saropaChatExplorer.archive",
+          "command": "saropaChats.archive",
           "when": "false"
         },
         {
-          "command": "saropaChatExplorer.unarchive",
+          "command": "saropaChats.unarchive",
           "when": "false"
         },
         {
-          "command": "saropaChatExplorer.pin",
+          "command": "saropaChats.pin",
           "when": "false"
         },
         {
-          "command": "saropaChatExplorer.unpin",
+          "command": "saropaChats.unpin",
           "when": "false"
         },
         {
-          "command": "saropaChatExplorer.markRead",
+          "command": "saropaChats.markRead",
           "when": "false"
         }
       ]
@@ -347,56 +341,56 @@
     "configuration": {
       "title": "Saropa Chats",
       "properties": {
-        "saropaChatExplorer.webSessions.enabled": {
+        "saropaChats.webSessions.enabled": {
           "type": "boolean",
           "default": false,
           "markdownDescription": "Show Claude Code Web (cloud) sessions in a Web tab. Uses an unofficial, undocumented Anthropic API with your Claude Code login token (read-only; never stored or logged). It may break or change without notice. Off by default: when off, no network call and no credential read is made."
         },
-        "saropaChatExplorer.showFileSessionsStatusBar": {
+        "saropaChats.showFileSessionsStatusBar": {
           "type": "boolean",
           "default": true,
           "description": "Show a status bar count of the sessions that touched the active file."
         },
-        "saropaChatExplorer.showUsageStatusBar": {
+        "saropaChats.showUsageStatusBar": {
           "type": "boolean",
           "default": true,
           "description": "Show a status bar item with the number of sessions whose context is 80 percent full or more (hidden when there are none). Click it to list those sessions in the panel."
         },
-        "saropaChatExplorer.contextWarnings": {
+        "saropaChats.contextWarnings": {
           "type": "boolean",
           "default": true,
           "description": "Show a notification when a live session reaches 80 and 90 percent of its context window. The 90 percent notification also offers Copy hand-over note."
         },
-        "saropaChatExplorer.maxResults": {
+        "saropaChats.maxResults": {
           "type": "number",
           "default": 500,
           "minimum": 50,
           "maximum": 2000,
           "description": "The most sessions listed in search results and in All sessions. Sessions beyond it are still counted, and the panel says so."
         },
-        "saropaChatExplorer.openWorkDays": {
+        "saropaChats.openWorkDays": {
           "type": "number",
           "default": 14,
           "minimum": 1,
           "maximum": 90,
           "description": "How many days of sessions the Project Status page lists. Sessions that are open now are always listed. Archived sessions are left out."
         },
-        "saropaChatExplorer.lookupPullRequests": {
+        "saropaChats.lookupPullRequests": {
           "type": "boolean",
           "default": true,
           "description": "Look up open pull requests and their check results (passing, failing, pending) for the Git section of a session card and for the Project Status page, with the gh command (GitHub CLI). This contacts GitHub using your own gh sign-in. Turn it off to never run gh."
         },
-        "saropaChatExplorer.autoTitle.enabled": {
+        "saropaChats.autoTitle.enabled": {
           "type": "boolean",
           "default": false,
           "description": "Name new Claude Code sessions automatically: an emoji for the topic plus the first sentence of your first prompt, renamed once after your third prompt. Works in the background from the session file; a session you already named yourself is left alone."
         },
-        "saropaChatExplorer.autoTitle.useHaiku": {
+        "saropaChats.autoTitle.useHaiku": {
           "type": "boolean",
           "default": false,
           "description": "Let the claude command (Haiku model) write the automatic session title and emoji instead of the rules. Runs in the background and starts a claude process; if it fails, the rule-based title is used. Only applies when automatic titles are on."
         },
-        "saropaChatExplorer.emojiRules": {
+        "saropaChats.emojiRules": {
           "type": "array",
           "default": [],
           "items": {
@@ -421,39 +415,39 @@
           },
           "description": "Your own emoji rules for automatic session titles. A rule with the same emoji as a built-in one replaces that one's keywords; other rules are added and win ties."
         },
-        "saropaChatExplorer.emojiRulesReplaceDefaults": {
+        "saropaChats.emojiRulesReplaceDefaults": {
           "type": "boolean",
           "default": false,
           "description": "Use only your emoji rules and ignore the built-in ones."
         },
-        "saropaChatExplorer.activity.refreshMs": {
+        "saropaChats.activity.refreshMs": {
           "type": "integer",
           "default": 250,
           "minimum": 100,
           "maximum": 2000,
           "description": "How often the Activity panel checks the selected chat for new messages, in milliseconds. Also set by the Refresh Speed item in the panel's ... menu (Slow 1000, Medium 250, Fast 100)."
         },
-        "saropaChatExplorer.activity.fadeMs": {
+        "saropaChats.activity.fadeMs": {
           "type": "number",
           "default": 4000,
           "minimum": 1000,
           "maximum": 10000,
           "description": "How long a flash on the Activity panel takes to fade out, in milliseconds. Also set by the Fade Speed item in the panel's ... menu (Slow 8000, Medium 4000, Fast 2000)."
         },
-        "saropaChatExplorer.contextRingTokens": {
+        "saropaChats.contextRingTokens": {
           "type": "number",
           "default": 300000,
           "minimum": 10000,
           "description": "Each session row shows a small ring that fills as the session's context grows. This is the token count that fills it. The ring turns to the warning color at 80 percent of this number and to the error color at 100 percent or more."
         },
-        "saropaChatExplorer.search.contextLines": {
+        "saropaChats.search.contextLines": {
           "type": "integer",
           "default": 1,
           "minimum": 1,
           "maximum": 4,
           "description": "How many lines of each matching message (the snippet and the extra matching messages) a search result row shows before cutting it off. Narrow side bars always show one line."
         },
-        "saropaChatExplorer.animateDots": {
+        "saropaChats.animateDots": {
           "type": "boolean",
           "default": true,
           "description": "Animate the session dots: running, waiting and background dots throb, and a session with several states at once (for example background agents and unread) alternates between their colors. Turn it off for still dots that show the most important state; the tooltip lists them all. Dots are also still when your system asks for reduced motion."
@@ -462,7 +456,7 @@
     },
     "colors": [
       {
-        "id": "saropaChatExplorer.dotRunning",
+        "id": "saropaChats.dotRunning",
         "description": "Session dot: the agent is running.",
         "defaults": {
           "dark": "#89d185",
@@ -472,7 +466,7 @@
         }
       },
       {
-        "id": "saropaChatExplorer.dotWaiting",
+        "id": "saropaChats.dotWaiting",
         "description": "Session dot: the agent is waiting for you.",
         "defaults": {
           "dark": "#3b82f6",
@@ -482,7 +476,7 @@
         }
       },
       {
-        "id": "saropaChatExplorer.dotUnread",
+        "id": "saropaChats.dotUnread",
         "description": "Session dot: finished while you were away.",
         "defaults": {
           "dark": "#d97757",
@@ -492,7 +486,7 @@
         }
       },
       {
-        "id": "saropaChatExplorer.dotBackground",
+        "id": "saropaChats.dotBackground",
         "description": "Session dot: waiting on background agents or tasks that are still running.",
         "defaults": {
           "dark": "#b180d7",
@@ -502,7 +496,7 @@
         }
       },
       {
-        "id": "saropaChatExplorer.dotIdle",
+        "id": "saropaChats.dotIdle",
         "description": "Session dot: idle.",
         "defaults": {
           "dark": "#9d9d9d66",

@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { fetchTranscript, listSessions, readToken, WebDeps, WebSession, webMarkdown } from './webApi';
 import { isSessionId } from './sessionId';
 
-const SECTION = 'saropaChatExplorer', KEY = 'webSessions.enabled', ACK = 'webSessions.consent';
+const SECTION = 'saropaChats', KEY = 'webSessions.enabled', ACK = 'webSessions.consent';
 const SCHEME = 'saropa-web-session';
 const WARNING = 'Web sessions use an unofficial, undocumented Anthropic API with your Claude login token (read-only; it is never stored or logged). It may break or change without notice, and may be subject to Anthropic\'s terms. Continue?';
 
@@ -52,7 +52,7 @@ export class WebSessions {
 
   /** The panel asked for the list: nothing happens unless enabled and confirmed. */
   async load(): Promise<void> {
-    if (!webEnabled() || !(await this.consent())) { this.post({ type: 'webList', notice: 'Web sessions are off. Turn on saropaChatExplorer.webSessions.enabled to use them.', rows: [] }); return; }
+    if (!webEnabled() || !(await this.consent())) { this.post({ type: 'webList', notice: 'Web sessions are off. Turn on saropaChats.webSessions.enabled to use them.', rows: [] }); return; }
     try {
       const d = this.deps(), t = await readToken(d);
       if (!t.ok) { this.post({ type: 'webList', notice: t.msg, rows: [] }); return; }

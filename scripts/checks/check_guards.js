@@ -94,7 +94,7 @@ for (const line of ALLOW) { if (!wip.includes(line)) { bad('git/gh allow-list ch
 
   // 3. No agent name in the page sources or in what the host shows. The allowed mentions are the command id and the OW_TITLE page title.
   for (const f of ['openWorkHtml.ts', 'openWorkJs.ts', 'openWorkGitJs.ts', 'openWorkPrJs.ts', 'openWorkViewJs.ts', 'openWorkCss.ts', 'workModel.ts', 'workChats.ts', 'workScan.ts', 'workRepo.ts', 'workPrs.ts', 'webviewPop.ts', 'execLimit.ts']) { if (/claude/i.test(read(f).split('\n').filter((l) => !/^export const OW_TITLE = 'Claude Project Status';$/.test(l)).join('\n'))) { bad(f + ' names an agent product'); } }
-  const host = read('openWork.ts').split('\n').filter((l) => /claude/i.test(l) && !/OPEN_WORK_CMD = 'claudeChatExplorer\.openWork'/.test(l));
+  const host = read('openWork.ts').split('\n').filter((l) => /claude/i.test(l) && !/OPEN_WORK_CMD = 'saropaChats\.openWork'/.test(l));
   if (host.length) { bad('openWork.ts names an agent product: ' + host[0].trim()); }
 
   // 3b. Copy commands: never --force or -D, and shell-safe (every name sits inside one quoted string, so nothing outside quotes can run).

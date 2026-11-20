@@ -91,9 +91,9 @@ function done() {
   check('animation off by the setting class', /\.noanim \.dot\{animation:none!important\}/.test(DOT_ANIM_CSS));
   check('animation off for reduced motion', /prefers-reduced-motion:reduce\)\{\.dot\{animation:none!important\}\}/.test(DOT_ANIM_CSS));
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  const set = pkg.contributes.configuration.properties['saropaChatExplorer.animateDots'];
+  const set = pkg.contributes.configuration.properties['saropaChats.animateDots'];
   check('animateDots setting is a boolean defaulting to true', !!set && set.type === 'boolean' && set.default === true);
-  check('dotBackground color is contributed', pkg.contributes.colors.some((c) => c.id === 'saropaChatExplorer.dotBackground'));
+  check('dotBackground color is contributed', pkg.contributes.colors.some((c) => c.id === 'saropaChats.dotBackground'));
   for (const f of ['webviewCss.js', 'openWorkCss.js']) {
     const css = Object.values(require(path.join(OUT, f))).join('');
     check(f + ' styles the background dot and the animation', /\.dot\.background\{/.test(css) && /dotAlt2/.test(css) && /\.noanim \.dot/.test(css));

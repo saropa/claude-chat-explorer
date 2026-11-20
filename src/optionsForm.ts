@@ -1,5 +1,5 @@
 /** Pure schema-to-form logic for the Options screen: no vscode import, so scripts/checks/check_options.js can run it. */
-export const OPT_PREFIX = 'saropaChatExplorer.';
+export const OPT_PREFIX = 'saropaChats.';
 
 export interface OptEntry {
   key: string;

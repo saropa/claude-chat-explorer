@@ -206,6 +206,26 @@ addEventListener('message', (e) => {
   }
 });`;
 
+/**
+ * The diagram as a section of the session list page (the Activity pane no longer exists). It lives in a shadow root so its generic
+ * selectors (svg, text, .ic, #cap, .hot ...) cannot clash with the page's own styles, and so the page's CSS cannot reach it.
+ * The standalone CSS and script above stay the single source: they are rewritten here for the shadow root instead of being copied.
+ */
+export function activitySection(fadeMs: number): { css: string; script: string; hostId: string } {
+  const css = CSS
+    .replace(':root{', ':host{') // custom properties on the host element, inherited by the diagram
+    .replace('body{', ':host{display:block;') // the page background and padding of the old standalone page now style the host
+    // Theme classes sit on the page's body, outside the shadow root, so they are matched through the host's ancestors.
+    .replace(/\.(vscode-[a-z-]+) /g, ':host-context(.$1) ');
+  // The shadow root stands in for `document`, and the host element for `document.documentElement` (where --fade is kept).
+  // Messages for this section are wrapped as { type: 'act', m: <original message> } so they cannot collide with the list page's own message types.
+  const script = SCRIPT.replace('__FADE__', String(fadeMs))
+    .replace(/document\.(querySelector|querySelectorAll|getElementById)\(/g, 'root.$1(')
+    .replace('document.documentElement.style', 'host.style')
+    .replace('const m = e.data;', 'const m = e.data && e.data.type === "act" ? e.data.m : null;');
+  return { css, script, hostId: 'actd' };
+}
+
 /** `fadeMs`: how long a flash takes to fade (setting `activity.fadeMs`), used by the CSS animations and the timers that end a flash. */
 export function activityHtml(fadeMs = 4000): string {
   const nonce = randomBytes(18).toString('base64url');

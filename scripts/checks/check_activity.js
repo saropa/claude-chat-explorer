@@ -107,7 +107,7 @@ check('connector timers are keyed per pair', page.includes("'c:' + cn.dataset.c"
 check('page holds the center while thinking', page.includes("classList.add('hold')") && page.includes('10000'));
 
 // 4b. Setting: declared with default 250, range 100..2000; the clamp keeps any value in range.
-const prop = require(path.join(ROOT, 'package.json')).contributes.configuration.properties['saropaChatExplorer.activity.refreshMs'];
+const prop = require(path.join(ROOT, 'package.json')).contributes.configuration.properties['saropaChats.activity.refreshMs'];
 check('refreshMs setting has default 250, min 100, max 2000', !!prop && prop.default === 250 && prop.minimum === 100 && prop.maximum === 2000);
 const { refreshMsOf } = require(path.join(OUT, 'activityFeed.js'));
 check('refreshMs clamps and defaults', refreshMsOf(undefined) === 250 && refreshMsOf(5) === 100 && refreshMsOf(99999) === 2000 && refreshMsOf(500) === 500 && refreshMsOf('x') === 250);

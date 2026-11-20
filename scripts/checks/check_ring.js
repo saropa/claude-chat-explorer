@@ -25,10 +25,10 @@ check('no inline style attribute in the ring', !/style=/.test(a));
 check('ring CSS uses theme variables and has warning and error colors', /\.rg\.rw/.test(CTX_CSS) && /\.rg\.re/.test(CTX_CSS) && /--vscode-editorWarning-foreground/.test(CTX_CSS) && /--vscode-editorError-foreground/.test(CTX_CSS));
 
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-const set = pkg.contributes.configuration.properties['saropaChatExplorer.contextRingTokens'];
+const set = pkg.contributes.configuration.properties['saropaChats.contextRingTokens'];
 check('contextRingTokens is a number, default 300000, minimum 10000', !!set && set.type === 'number' && set.default === 300000 && set.minimum === 10000);
 const ext = fs.readFileSync(path.join(ROOT, 'src', 'extension.ts'), 'utf8');
-check('a change of the setting is posted to the panel, and restore sends it', /affectsConfiguration\('saropaChatExplorer\.contextRingTokens'\)\) \{ provider\.postRing\(\)/.test(ext) && /this\.postRing\(\);\s*void this\.postMeta/.test(ext));
+check('a change of the setting is posted to the panel, and restore sends it', /affectsConfiguration\('saropaChats\.contextRingTokens'\)\) \{ provider\.postRing\(\)/.test(ext) && /this\.postRing\(\);\s*void this\.postMeta/.test(ext));
 check('the webview handles the ring message', /d\.type==='ring'/.test(fs.readFileSync(path.join(ROOT, 'src', 'webviewJs.ts'), 'utf8')));
 const st = require(path.join(OUT, 'status.js'));
 check('statuses keep Tiny, Huge, Empty and Nearly full', ['tiny', 'huge', 'empty', 'nearly'].every((k) => st.STATUS_KEYS ? st.STATUS_KEYS.includes(k) : true) && !st.pillOf);

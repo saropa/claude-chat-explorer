@@ -1,9 +1,9 @@
-/** Options screen: an editor tab that edits every saropaChatExplorer.* setting, built from the manifest schema. */
+/** Options screen: an editor tab that edits every saropaChats.* setting, built from the manifest schema. */
 import * as vscode from 'vscode';
 import { OPT_PREFIX, OptEntry, parseSchema, validateValue } from './optionsForm';
 import { OPT_TITLE, optionsHtml } from './optionsHtml';
 
-export const OPTIONS_CMD = 'saropaChatExplorer.options';
+export const OPTIONS_CMD = 'saropaChats.options';
 
 export function registerOptions(ctx: vscode.ExtensionContext, log: (where: string, e: unknown) => void): void {
   let panel: vscode.WebviewPanel | undefined;
@@ -33,7 +33,7 @@ export function registerOptions(ctx: vscode.ExtensionContext, log: (where: strin
   const show = () => {
     if (panel) { panel.reveal(); return; }
     const list = entries();
-    const p = vscode.window.createWebviewPanel('saropaChatExplorer.options', OPT_TITLE, vscode.ViewColumn.Active, { enableScripts: true, localResourceRoots: [] });
+    const p = vscode.window.createWebviewPanel('saropaChats.options', OPT_TITLE, vscode.ViewColumn.Active, { enableScripts: true, localResourceRoots: [] });
     panel = p;
     const cfg = vscode.workspace.getConfiguration(), vals: Record<string, unknown> = {};
     for (const e of list) { vals[e.key] = cfg.get(e.key); }

@@ -12,11 +12,11 @@ import { dotsAnimated } from './dotAnim';
 import { projectsRoot } from './files';
 import { buildCleanup, CleanRow, MAX_ROWS, resumeCommand } from './workCleanHost';
 
-export const OPEN_WORK_CMD = 'claudeChatExplorer.openWork';
-const PANEL_TYPE = 'saropaChatExplorer.openWork';
-const PREFS_KEY = 'saropaChatExplorer.openWorkPrefs';
-const DONE_KEY = 'saropaChatExplorer.openWorkDone';
-const VIEW_KEY = 'saropaChatExplorer.openWorkView'; // filter text, state filters and sort: kept per workspace
+export const OPEN_WORK_CMD = 'saropaChats.openWork';
+const PANEL_TYPE = 'saropaChats.openWork';
+const PREFS_KEY = 'saropaChats.openWorkPrefs';
+const DONE_KEY = 'saropaChats.openWorkDone';
+const VIEW_KEY = 'saropaChats.openWorkView'; // filter text, state filters and sort: kept per workspace
 const SUMMARY_MAX_CHARS = 100000;
 const BANDS = ['needs', 'finish', 'waiting', 'tidy', 'idle'];
 const REFRESH_DEBOUNCE_MS = 1000;
@@ -50,7 +50,7 @@ const REL_DEBOUNCE_MS = 300;
 
 /** Days of history shown, from the setting (1 to 90, default 14). */
 export function openWorkDays(): number {
-  const n = Number(vscode.workspace.getConfiguration('saropaChatExplorer').get('openWorkDays'));
+  const n = Number(vscode.workspace.getConfiguration('saropaChats').get('openWorkDays'));
   return Number.isFinite(n) ? Math.min(90, Math.max(1, Math.floor(n))) : 14;
 }
 
@@ -101,7 +101,7 @@ export class OpenWork {
       this.hub.on('indexed', () => this.later()),
       this.hub.on('changed', () => this.later()),
       this.hub.on('archived', () => { void this.refresh(); }),
-      vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.lookupPullRequests')) { void this.refresh({ restart: true }); } }),
+      vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.lookupPullRequests')) { void this.refresh({ restart: true }); } }),
     ];
     panel.onDidDispose(() => { subs.forEach((s) => s.dispose()); this.close(); });
     // The page posts 'ready' once its listener is attached; the full model is replayed then.
@@ -249,7 +249,7 @@ export class OpenWork {
       else if (t === 'openPr' || t === 'copyPr') { await this.prLink(t === 'copyPr', String(m.repo), Number(m.n)); }
       else if (t === 'openBranch') { await this.branchLink(String(m.repo), String(m.branch), Number(m.n)); }
       else if (t === 'openRepo') { await this.repoLink(String(m.repo)); }
-      else if (t === 'prsSetting') { await vscode.commands.executeCommand('workbench.action.openSettings', 'saropaChatExplorer.lookupPullRequests'); }
+      else if (t === 'prsSetting') { await vscode.commands.executeCommand('workbench.action.openSettings', 'saropaChats.lookupPullRequests'); }
       else if (t === 'scanMore') { this.cap += MAX_FOLDERS; await this.refresh({ restart: true }); }
       else if (t === 'prefs') { void this.savePrefs(m); }
       else if (t === 'openFile') { await this.openFile(String(m.key), Number(m.i)); }

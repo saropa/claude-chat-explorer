@@ -10,8 +10,8 @@ import { isSessionId } from './sessionId';
 import { STATUS_KEYS } from './status';
 import { Options } from './types';
 
-export const OPEN_EDITOR_CMD = 'saropaChatExplorer.openResultsInEditor';
-export const RESUME_CHAT_CMD = 'saropaChatExplorer.resumeChatFromResults';
+export const OPEN_EDITOR_CMD = 'saropaChats.openResultsInEditor';
+export const RESUME_CHAT_CMD = 'saropaChats.resumeChatFromResults';
 const SCHEME = 'saropa-chat-results';
 const KEEP_DOCS = 10; // result documents kept in memory
 const TITLE_MAX = 60;

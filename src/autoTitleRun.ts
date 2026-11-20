@@ -15,7 +15,7 @@ export function autoTitleNow(state: vscode.Memento): boolean {
   return autoTitleOn(explicit?.workspaceValue ?? explicit?.globalValue, state.get(AUTO_FALLBACK_KEY));
 }
 
-const KEY = 'saropaChatExplorer.autoTitleDone';
+const KEY = 'saropaChats.autoTitleDone';
 const KEEP = 500;
 const MISS_MS = 30000, HAIKU_MS = 30000;
 
@@ -29,7 +29,7 @@ export class AutoTitler {
 
   /** A watcher poll finished. Never blocks it: one pass at a time, and none when the setting is off. */
   onLive(ids: Iterable<string>): void {
-    const cfg = vscode.workspace.getConfiguration('saropaChatExplorer');
+    const cfg = vscode.workspace.getConfiguration('saropaChats');
     if (this.running || !autoTitleNow(this.state)) { return; }
     this.running = true;
     void this.pass([...ids], cfg).catch((e) => this.log('autoTitle', e)).finally(() => { this.running = false; });

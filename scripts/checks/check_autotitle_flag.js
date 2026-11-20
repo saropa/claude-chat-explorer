@@ -15,7 +15,7 @@ const check = (w, c) => { if (!c) { fails.push(w); } };
   check('write ok', (await f.setAutoTitle(true, async () => {}, store, (e) => logs.push(e))) === true && stored === undefined && !logs.length);
   check('write fails', (await f.setAutoTitle(true, async () => { throw new Error('not a registered configuration'); }, store, (e) => logs.push(e))) === false && stored === true && logs.length === 1);
   check('fails off', (await f.setAutoTitle(false, async () => { throw new Error('x'); }, store, () => {})) === false && stored === false);
-  check('keys', f.AUTO_FALLBACK_KEY === 'saropaChatExplorer.autoTitle.enabled.fallback');
+  check('keys', f.AUTO_FALLBACK_KEY === 'saropaChats.autoTitle.enabled.fallback');
   if (fails.length) { console.error('AutoTitleFlag check FAILED:\n - ' + fails.join('\n - ')); process.exit(1); }
   console.log('AutoTitleFlag check passed.');
 })();

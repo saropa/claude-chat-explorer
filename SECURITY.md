@@ -24,7 +24,7 @@
 - Keeps a local index cache in the extension's global storage folder. It includes each session's working folder path.
 - Makes no network requests of its own and sends no telemetry.
   - A search of `src/` finds no HTTP client, `fetch`, `XMLHttpRequest`, WebSocket, `net` or `dns` use.
-  - The optional open PR lookup goes through the `gh` CLI, which contacts GitHub with the user's own `gh` sign-in. It is on by default and the setting `saropaChatExplorer.lookupPullRequests` turns it off. With it off, `gh` is never started.
+  - The optional open PR lookup goes through the `gh` CLI, which contacts GitHub with the user's own `gh` sign-in. It is on by default and the setting `saropaChats.lookupPullRequests` turns it off. With it off, `gh` is never started.
   - The panel's content security policy blocks all loads (`default-src 'none'`).
 - Starts local programs in four places only, all with `execFile` (no shell):
   - `ps -A -o pid=,ppid=` finds parent process ids, to mark which VS Code window owns a session.
@@ -41,7 +41,7 @@
     - `git rev-list --count <default branch>..<commit>`
     - `git rev-list --max-count=20 --format=<short id, subject> @{u}..HEAD`
     - `git remote get-url origin` (only to read the owner of the origin remote, and only when a pull request list holds a fork pull request)
-  - `gh`, read-only, only while `saropaChatExplorer.lookupPullRequests` is on (the default). 8 second limit per command, no shell, at most 2 gh commands at once across the sidebar and the Open Work page. Exactly two command shapes are allowed:
+  - `gh`, read-only, only while `saropaChats.lookupPullRequests` is on (the default). 8 second limit per command, no shell, at most 2 gh commands at once across the sidebar and the Open Work page. Exactly two command shapes are allowed:
     - `gh pr list --state open --limit 100 --json number,title,headRefName,isDraft,reviewDecision,url,headRefOid,isCrossRepository,headRepositoryOwner`, once per repository (the argument list must be identical; on an older `gh` the same command without `headRefOid,isCrossRepository,headRepositoryOwner` is allowed). Results are kept 5 minutes.
     - `gh pr view <number> --json statusCheckRollup,headRefOid`, where `<number>` is digits only, for pull requests on branches the Open Work page shows. Results are kept 2 minutes.
     - Clicking a PR opens its https address in the browser.

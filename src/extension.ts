@@ -24,6 +24,7 @@ import { AUTO_FALLBACK_KEY, AUTO_KEY, setAutoTitle } from './autoTitleFlag';
 import { registerClaudeConfig } from './claudeConfigPanel';
 import { registerOptions } from './optionsPanel';
 import { registerActivity } from './activity';
+import { fadeMsOf } from './activityFeed';
 import { registerUsage } from './usageUi';
 import { QueryQueue } from './queryQueue';
 import { compile, isEmpty, MIN_QUERY_CHARS, parseQuery, queryChars } from './query';
@@ -35,6 +36,7 @@ import { sessionsDir, stateMap } from './liveState';
 import { Draft, Store } from './store';
 import { Compiled, Options, Result } from './types';
 import { html, NAME } from './webview';
+import { migrateNames } from './migrateNames';
 import { OPEN_EDITOR_CMD, registerEditorView } from './editorView';
 import { Hub } from './hub';
 import { registerHeaderCommands } from './headerCommands';
@@ -51,7 +53,7 @@ import { PrCache } from './wipPrs';
 import { WebSessions } from './webSessions';
 
 const POST_GAP_MS = 100;
-const REVEAL_CMD = 'workbench.view.extension.claudeChatExplorer'; // opens the Saropa Chats container and its view
+const REVEAL_CMD = 'workbench.view.extension.saropaChats'; // opens the Saropa Chats container and its view
 
 type Base = Draft;
 
@@ -66,7 +68,7 @@ const uiExec = limiter.wrap(realExec, 'ui');
 const ghLimiter = new Limiter(2, 1); // the page lane keeps to 1 of the 2 slots, so a sidebar card never waits behind page lookups
 const ghUiExec = ghLimiter.wrap(realExec, 'ui');
 const prCache = new PrCache();
-const prsOn = (): boolean => vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false;
+const prsOn = (): boolean => vscode.workspace.getConfiguration('saropaChats').get('lookupPullRequests') !== false;
 
 const folderPaths = (): string[] => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
 /** The Open Work page shows one repository: the one of the first workspace folder. */
@@ -78,6 +80,8 @@ class Provider implements vscode.WebviewViewProvider {
   private lastPost = 0;
   private readonly queue = new QueryQueue((m) => this.post(m), () => vscode.commands.executeCommand(REVEAL_CMD), logErr);
   watcher?: LiveWatcher; // live state of Claude sessions
+  /** The Activity diagram section of this page: told when the page is shown or hidden and when its section is opened or collapsed, so it only polls while it can be seen. */
+  activity?: { setVisible(v: boolean): void; setOpen(o: boolean): void };
   actions?: ArchiveActions;
   web?: WebSessions;
   private readonly gitLive = new GitLiveService(uiExec, ghUiExec, prCache);
@@ -86,7 +90,7 @@ class Provider implements vscode.WebviewViewProvider {
   });
   private readonly counts = new CardCounts({
     request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), folders: folderPaths, log: logErr,
-    prsOn: () => vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false, post: (m) => this.post(m),
+    prsOn: () => vscode.workspace.getConfiguration('saropaChats').get('lookupPullRequests') !== false, post: (m) => this.post(m),
     work: (id) => this.work.resolve(id),
   }, this.gitLive, uiExec);
   private readonly gitTargets = new Map<string, GitTargets>(); // per chat: what a click in its Git section resolves against
@@ -203,10 +207,11 @@ class Provider implements vscode.WebviewViewProvider {
     view.title = NAME;
     this.updateBadge();
     view.webview.options = { enableScripts: true, localResourceRoots: [] };
-    view.webview.html = html();
+    view.webview.html = html(fadeMsOf(vscode.workspace.getConfiguration('saropaChats').get('activity.fadeMs')));
     const sub = view.webview.onDidReceiveMessage((m) => { void this.onMessage(m); });
-    view.onDidChangeVisibility(() => { if (view.visible) { this.watcher?.poke(); } });
-    view.onDidDispose(() => { sub.dispose(); this.queue.setReady(false); if (this.view === view) { this.view = undefined; } });
+    view.onDidChangeVisibility(() => { if (view.visible) { this.watcher?.poke(); } this.activity?.setVisible(view.visible); });
+    view.onDidDispose(() => { sub.dispose(); this.queue.setReady(false); this.activity?.setVisible(false); if (this.view === view) { this.view = undefined; } });
+    this.activity?.setVisible(view.visible);
     // The script posts 'ready' once its listener is attached; restore() runs then.
   }
 
@@ -222,6 +227,7 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'cancel') { this.client.cancel(); }
       else if (m.type === 'sessions') { await this.sessions(m); }
       else if (m.type === 'histAdd') { this.histAdd(m); }
+      else if (m.type === 'actOpen') { this.activity?.setOpen(!!m.open); } // the Activity section was opened or collapsed
       else if (m.type === 'advOpen') { this.store.setAdvOpen(!!m.open); }
       else if (m.type === 'archOpen') { this.store.setArchOpen(!!m.open); }
       else if (m.type === 'acctLoad') { await this.account(); }
@@ -229,7 +235,7 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'webOpen') { await this.web?.open(m.id); }
       else if (m.type === 'newSession') { await newSession(log); }
       // Clean up button: the command shows the count confirmation, so the click is never silent.
-      else if (m.type === 'cleanUp') { await vscode.commands.executeCommand('saropaChatExplorer.archiveClosed'); }
+      else if (m.type === 'cleanUp') { await vscode.commands.executeCommand('saropaChats.archiveClosed'); }
       else if (m.type === 'importArchived') { await this.actions?.importArchived(); }
       else { await this.onChatMessage(m); }
     } catch (e) { logErr('message ' + String(m?.type), e); }
@@ -296,7 +302,7 @@ class Provider implements vscode.WebviewViewProvider {
 
   private async handover(id: string, query: string, state: (id: string, s: 'busy' | 'done' | '') => void = (cid, s) => this.post({ type: 'handoverState', id: cid, state: s })): Promise<void> {
     await copyHandover(id, query, { request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), roots: folderPaths, log: logErr,
-      folders: folderPaths, prsOn: () => vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false,
+      folders: folderPaths, prsOn: () => vscode.workspace.getConfiguration('saropaChats').get('lookupPullRequests') !== false,
       gitLive: this.gitLive, work: (cid) => this.work.resolve(cid), state });
   }
 
@@ -312,7 +318,7 @@ class Provider implements vscode.WebviewViewProvider {
       const w = await withDeadline(this.work.resolve(id), GIT_DEADLINE_MS);
       if (w !== TIMED_OUT) { facts = w; cwd = w.cwd; }
       if (!cwd) { cwd = await withDeadline(this.client.request({ t: 'chatCwd', chat: id, folders: folderPaths() }, true, true), GIT_DEADLINE_MS); }
-      const prs = vscode.workspace.getConfiguration('saropaChatExplorer').get('lookupPullRequests') !== false;
+      const prs = vscode.workspace.getConfiguration('saropaChats').get('lookupPullRequests') !== false;
       if (cwd === TIMED_OUT) { post(timedOutLive()); return; }
       const r = await this.gitLive.load(typeof cwd === 'string' ? cwd : '', part, prs, (p) => post(p.live, p.targets), facts?.hint);
       post(r.live, r.targets);
@@ -415,6 +421,8 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { logErr('create storage folder', e); } // the worker retries
   client = new WorkerClient(dir);
   const status = new IndexStatus();
+  // Must run before Store is built so renamed state keys (pins, archive, tags, history) are already in place.
+  migrateNames(ctx, logErr);
   store = new Store(ctx, (e) => logErr('save state', e));
   const hub = new Hub();
   const provider = new Provider(store, client, status, hub);
@@ -426,24 +434,24 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   provider.watcher = new LiveWatcher({ dir: sessionsDir(), tabs: async () => { const r = await readTabs(workspaceStorageOf(ctx.globalStorageUri.fsPath), folderPaths()); return r.ok ? r : undefined; },
     viewing: () => provider.viewingId(), unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
     onChange: () => { provider.postDots(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); titler.onLive(ids); } });
-  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.search.contextLines')) { provider.postCtxLines(); } }));
-  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.contextRingTokens')) { provider.postRing(); } }));
-  const activity = registerActivity(ctx, () => provider.currentId());
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.search.contextLines')) { provider.postCtxLines(); } }));
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.contextRingTokens')) { provider.postRing(); } }));
+  const activity = registerActivity(ctx, () => provider.currentId(), (m) => provider.post(m), provider);
   const tabMoved = () => { provider.clearViewed(); provider.postDots(); provider.watcher?.poke(); activity.poke(); };
   ctx.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(tabMoved), vscode.window.tabGroups.onDidChangeTabGroups(tabMoved));
-  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChatExplorer.animateDots')) { provider.postDots(); hub.emit('dots', logErr); } }));
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.animateDots')) { provider.postDots(); hub.emit('dots', logErr); } }));
   ctx.subscriptions.push(vscode.window.onDidChangeWindowState((s) => { if (s.focused) { provider.clearViewed(); provider.watcher?.poke(); } }), { dispose: () => provider.watcher?.dispose() }, ...registerArchiveCommands(provider.actions));
   ctx.subscriptions.push(channel, status,
-    vscode.commands.registerCommand('claudeChatExplorer.clearHistory', () => {
+    vscode.commands.registerCommand('saropaChats.clearHistory', () => {
       provider.clearHistory();
       void vscode.window.showInformationMessage('Search history cleared');
     }),
-    vscode.window.registerWebviewViewProvider('claudeChatExplorer.view', provider,
+    vscode.window.registerWebviewViewProvider('saropaChats.view', provider,
       { webviewOptions: { retainContextWhenHidden: true } }));
   registerOptions(ctx, logErr);
   registerClaudeConfig(ctx, logErr);
   const autoCfg = () => vscode.workspace.getConfiguration();
-  const syncAuto = () => { void vscode.commands.executeCommand('setContext', 'saropaChatExplorer.autoTitleEnabled', autoTitleNow(ctx.globalState)); };
+  const syncAuto = () => { void vscode.commands.executeCommand('setContext', 'saropaChats.autoTitleEnabled', autoTitleNow(ctx.globalState)); };
   const extPkg = vscode.extensions.getExtension('saropa.claude-chat-explorer')?.packageJSON as { version?: string; contributes?: { configuration?: { properties?: Record<string, unknown> } } } | undefined;
   log(`activate: version ${extPkg?.version ?? 'unknown'}, ${AUTO_KEY} in manifest: ${extPkg?.contributes?.configuration?.properties?.[AUTO_KEY] !== undefined}, path ${ctx.extensionPath}`);
   syncAuto();
@@ -453,7 +461,7 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
     if (typeof (set?.workspaceValue ?? set?.globalValue) === 'boolean') { void ctx.globalState.update(AUTO_FALLBACK_KEY, undefined); }
     syncAuto();
   }),
-    ...[['saropaChatExplorer.autoTitleOn', true], ['saropaChatExplorer.autoTitleOff', false]].map(([cmd, on]) => vscode.commands.registerCommand(cmd as string, async () => {
+    ...[['saropaChats.autoTitleOn', true], ['saropaChats.autoTitleOff', false]].map(([cmd, on]) => vscode.commands.registerCommand(cmd as string, async () => {
       const viaSettings = await setAutoTitle(on as boolean, (v) => autoCfg().update(AUTO_KEY, v, vscode.ConfigurationTarget.Global), (v) => ctx.globalState.update(AUTO_FALLBACK_KEY, v), (e) => logErr('autoTitle toggle', e));
       syncAuto();
       if (viaSettings) {
@@ -469,12 +477,12 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   const tinyDeps = { rows: usageRows, archived: () => store!.archived, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
     archive: (ids: string[]) => provider.actions!.archiveMany(ids) };
   ctx.subscriptions.push(
-    ...[['saropaChatExplorer.copyResume', (id: string) => provider.copyResumeCmd(id)], ['saropaChatExplorer.exportChatMarkdown', (id: string) => provider.exportMd(id)]].map(([cmd, fn]) =>
+    ...[['saropaChats.copyResume', (id: string) => provider.copyResumeCmd(id)], ['saropaChats.exportChatMarkdown', (id: string) => provider.exportMd(id)]].map(([cmd, fn]) =>
       vscode.commands.registerCommand(cmd as string, (arg?: { id?: unknown }) => (isSessionId(arg?.id) ? (fn as (id: string) => Promise<void>)(arg.id) : undefined))),
-    vscode.commands.registerCommand('saropaChatExplorer.regenTitles', () => regenTitles({ currentId: () => provider.currentId(), refresh: () => { provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); }, log: logErr }, channel)),
-    vscode.commands.registerCommand('saropaChatExplorer.archiveTiny', () => archiveTiny(tinyDeps)),
+    vscode.commands.registerCommand('saropaChats.regenTitles', () => regenTitles({ currentId: () => provider.currentId(), refresh: () => { provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); }, log: logErr }, channel)),
+    vscode.commands.registerCommand('saropaChats.archiveTiny', () => archiveTiny(tinyDeps)),
     // Clean up button: archive everything that is not open or pinned.
-    vscode.commands.registerCommand('saropaChatExplorer.archiveClosed', () => archiveClosed(tinyDeps)));
+    vscode.commands.registerCommand('saropaChats.archiveClosed', () => archiveClosed(tinyDeps)));
   registerUsage(ctx, { rows: usageRows, resume: (id) => provider.resume(id), log: logErr, onIndex: (fn) => { ctx.subscriptions.push(hub.on('indexed', fn), hub.on('changed', fn)); },
     showNearly: async () => { await vscode.commands.executeCommand(REVEAL_CMD); store!.setStatuses(['nearly']); provider.post({ type: 'setStatuses', checked: ['nearly'] }); } });
   registerHeaderCommands(ctx, { reveal: () => vscode.commands.executeCommand(REVEAL_CMD), post: (m) => provider.post(m), sort: () => store!.draft.sort, statuses: () => store!.statuses, setStatuses: (c) => store!.setStatuses(c) });

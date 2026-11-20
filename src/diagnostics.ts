@@ -3,8 +3,8 @@ import * as fs from 'fs';
 import { sessionsDir } from './liveState';
 import { WinInfo } from './windowMarker';
 
-export const DIAG_CMD = 'saropaChatExplorer.diagnostics';
-const VIEW_IDS = ['claudeChatExplorer.view'];
+export const DIAG_CMD = 'saropaChats.diagnostics';
+const VIEW_IDS = ['saropaChats.view'];
 
 /** Chats the worker has indexed, or -1 when it did not answer. */
 async function chatCount(request: (m: { [k: string]: any }, bg?: boolean) => Promise<any>): Promise<number> {

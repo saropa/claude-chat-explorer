@@ -3,9 +3,9 @@ import * as vscode from 'vscode';
 import { nearlyFull, summarize, usd, Group } from './usageSummary';
 import { UsageRow } from './usageRows';
 
-export const SUMMARY_CMD = 'saropaChatExplorer.usageSummary';
-export const BAR_CMD = 'saropaChatExplorer.usageBar.show';
-export const BAR_SETTING = 'saropaChatExplorer.showUsageStatusBar';
+export const SUMMARY_CMD = 'saropaChats.usageSummary';
+export const BAR_CMD = 'saropaChats.usageBar.show';
+export const BAR_SETTING = 'saropaChats.showUsageStatusBar';
 const NEARLY_PCT = 80;
 const DEBOUNCE_MS = 1000;
 const when = (ms: number): string => new Date(ms).toLocaleDateString();

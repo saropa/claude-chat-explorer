@@ -11,9 +11,9 @@ export interface HeaderHost {
   setStatuses(checked: string[]): void;
 }
 
-export const TIPS_CMD = 'claudeChatExplorer.searchTips';
-export const SORT_CMD = 'claudeChatExplorer.sortResults';
-export const STATUS_CMD = 'claudeChatExplorer.filterStatus';
+export const TIPS_CMD = 'saropaChats.searchTips';
+export const SORT_CMD = 'saropaChats.sortResults';
+export const STATUS_CMD = 'saropaChats.filterStatus';
 
 export function registerHeaderCommands(ctx: vscode.ExtensionContext, h: HeaderHost): void {
   ctx.subscriptions.push(

@@ -57,9 +57,9 @@ h2{margin:0;font-size:inherit;font-weight:600}
 .rb .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .meta{grid-column:2;display:flex;flex-wrap:wrap;gap:2px 10px;color:var(--vscode-descriptionForeground)}
 .dot{--dc:var(--vscode-descriptionForeground);width:8px;height:8px;border-radius:50%;background:var(--dc)}
-.dot.idle{--dc:var(--vscode-saropaChatExplorer-dotIdle,var(--vscode-descriptionForeground));opacity:.6}
+.dot.idle{--dc:var(--vscode-saropaChats-dotIdle,var(--vscode-descriptionForeground));opacity:.6}
 .dot.none{visibility:hidden}
-.dot{--k-running:var(--vscode-saropaChatExplorer-dotRunning,var(--vscode-testing-iconPassed));--k-waiting:var(--vscode-saropaChatExplorer-dotWaiting,var(--vscode-focusBorder));--k-unread:var(--vscode-saropaChatExplorer-dotUnread,var(--vscode-editorWarning-foreground));--k-background:var(--vscode-saropaChatExplorer-dotBackground,var(--vscode-charts-purple))}
+.dot{--k-running:var(--vscode-saropaChats-dotRunning,var(--vscode-testing-iconPassed));--k-waiting:var(--vscode-saropaChats-dotWaiting,var(--vscode-focusBorder));--k-unread:var(--vscode-saropaChats-dotUnread,var(--vscode-editorWarning-foreground));--k-background:var(--vscode-saropaChats-dotBackground,var(--vscode-charts-purple))}
 .dot.running{--dc:var(--k-running)}
 .dot.waiting{--dc:var(--k-waiting)}
 .dot.unread{--dc:var(--k-unread)}

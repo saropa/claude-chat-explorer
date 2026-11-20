@@ -16,15 +16,17 @@ import { TOUCH_CSS } from './webviewTouch';
 import { SUM_CSS, SUM_HTML } from './webviewSum';
 import { ACCT_CSS, ACCT_HTML } from './webviewAcct';
 import { WEB_BODY, WEB_CSS, WEB_HTML } from './webviewWeb';
+import { ACT_CSS, ACT_HTML, actScript } from './webviewActivity';
 
 export const NAME = 'Saropa Chats';
 
-export function html(): string {
+/** `fadeMs`: how long an Activity flash fades (setting `activity.fadeMs`). */
+export function html(fadeMs = 4000): string {
   const nonce = randomBytes(18).toString('base64url');
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${NAME}</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${SORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}${ROWS_CSS}${TIP_CSS}${CTX_CSS}${TOUCH_CSS}${SUM_CSS}${WEB_CSS}${ACCT_CSS}</style></head><body>
+<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${SORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}${ROWS_CSS}${TIP_CSS}${CTX_CSS}${TOUCH_CSS}${SUM_CSS}${WEB_CSS}${ACCT_CSS}${ACT_CSS}</style></head><body>
 <div id="hdr"><div class="top">
 ${ACCT_HTML}
 ${WEB_HTML}
@@ -53,7 +55,9 @@ ${SUM_HTML}
 <div id="frow"></div>
 <div id="res"><div id="pin"></div><div id="list"></div><div id="arch"></div></div>
 </div></div>
+${ACT_HTML}
 ${WEB_BODY}
 <div id="tip" role="tooltip" hidden></div>
-<script nonce="${nonce}">${SCRIPT}</script></body></html>`;
+<script nonce="${nonce}">${SCRIPT}</script>
+<script nonce="${nonce}">${actScript(fadeMs)}</script></body></html>`;
 }
