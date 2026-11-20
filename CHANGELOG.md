@@ -3,6 +3,7 @@
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
 ## 0.48
+- Fixed: scripts/publish.py reported "npm not found on PATH" on Windows even when npm was installed; commands are now resolved through PATHEXT so npm.cmd and npx.cmd are found.
 - Changed: the open or collapsed state of "Account & Usage", "Session Manager" and "Activity" is remembered between sessions (per workspace).
 - Changed: the extension is renamed from "Saropa Chat Explorer" to "Saropa Chats". Command titles, view titles and the output channel use the new name. The extension id (`saropa.claude-chat-explorer`) and repository name are unchanged, so existing installs and links keep working.
 - Changed: setting keys, command ids and view ids moved from `saropaChatExplorer.*` / `claudeChatExplorer.*` to `saropaChats.*`. Custom keybindings on the old command ids must be re-bound.

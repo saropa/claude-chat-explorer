@@ -37,6 +37,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import struct
 import subprocess
 import sys
@@ -142,6 +143,14 @@ def guarded(name: str, step, *args):
 
 def run(cmd: list[str], env: dict | None = None) -> subprocess.CompletedProcess:
     """Run a command in the repo root, capturing text output."""
+    # Bug fix: on Windows, CreateProcess only auto-appends ".exe", so npm/npx
+    # (npm.cmd/npx.cmd shims) raised FileNotFoundError and were reported as
+    # "not found on PATH". shutil.which honors PATHEXT and returns the full
+    # shim path; fall back to the bare name so genuinely missing tools still
+    # hit the FileNotFoundError branch below.
+    resolved = shutil.which(cmd[0])
+    if resolved:
+        cmd = [resolved] + cmd[1:]
     try:
         return subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True, stdin=subprocess.DEVNULL)
     except FileNotFoundError:
