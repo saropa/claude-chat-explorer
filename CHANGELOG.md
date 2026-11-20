@@ -2,6 +2,12 @@
 
 Release notes for Saropa Chat Explorer, newest first. Dates are the git dates of each release.
 
+## Unreleased
+- Changed: "Session Manager" is now its own sidebar pane, at the same level as "Activity" (it was a collapsible section inside the "Saropa Chat Explorer" pane). "Account & Usage" stays at the top of that pane.
+- Added: a "New session" button at the top of the Session Manager starts a new Claude Code session; it is a filled button, not a label.
+- Changed: the yellow pinned-session star is larger (14px) so it matches the size of the status circle beside it.
+- Changed: "Account & Usage" is much simpler and follows the native Claude Code layout. An ACCOUNT heading (email, plan) and a USAGE heading with three rows (Last 5 hours, Today, Last 7 days, input + output). "View details" adds name, organization, Yesterday, 3-day and 5-day rows, the input, output and cache split per window, and the per-model split.
+
 ## 0.47.0
 - Added: the Activity panel's ... menu has Refresh Speed and Fade Speed (Slow, Medium, Fast); the new setting `saropaChatExplorer.activity.fadeMs` sets how long a flash fades (4 s by default), applied live.
 - Added: while a sub-agent started from the chat runs, its own tool calls flash on the Activity diagram from the Agents node to the node of each tool it uses (for example Agents to Terminal for a Bash call), and its thinking and text give the Agents node a light flash.

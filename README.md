@@ -160,7 +160,7 @@ The chevron opens the row as a card with an action bar (Resume, Pin, Archive, Ma
 
 ## Account & Usage
 
-A section at the top of the sidebar, closed until opened. It shows your Claude Code email, name, organization and plan from `~/.claude.json` (or "Not signed in"), and tokens used in six windows (last 5 hours, today, yesterday, last 3, 5 and 7 days) as collapsible blocks. The 7-day block also shows tokens per model. Sums come from your local transcripts. It is offline and read-only: no keychain, no network.
+A section at the top of the sidebar, closed until opened, laid out like the native Claude Code panel. ACCOUNT shows your email and plan from `~/.claude.json` (or "Not signed in"). USAGE shows tokens used in the last 5 hours, today and the last 7 days (input plus output). "View details" adds name, organization, yesterday, 3 and 5 days, the input, output and cache split per window, and tokens per model. No percent of limit or reset time: that needs the network and keychain. Offline and read-only.
 
 ## Activity
 
