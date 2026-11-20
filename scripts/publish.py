@@ -376,13 +376,64 @@ def step_version(args) -> str:
         die("VERSION_MISMATCH", f"package.json version '{version}' != top CHANGELOG heading '{top}'")
     ok(f"package.json and CHANGELOG agree on {version}")
     tag = f"v{version}"
-    if run(["git", "tag", "-l", tag]).stdout.strip():
-        die("TAG_EXISTS", f"git tag {tag} already exists locally")
-    remote = run(["git", "ls-remote", "--tags", "origin", tag])
-    if remote.returncode == 0 and remote.stdout.strip():
-        die("TAG_EXISTS", f"git tag {tag} already exists on origin")
+    if tag_exists(tag):
+        # Version already released: roll forward instead of failing, so a
+        # re-run after new commits needs no manual bump.
+        version = bump_past_released_tag(args, version)
+        tag = f"v{version}"
     ok(f"tag {tag} does not exist")
     return version
+
+
+def tag_exists(tag: str) -> bool:
+    """True when the tag exists locally or on origin."""
+    if run(["git", "tag", "-l", tag]).stdout.strip():
+        return True
+    remote = run(["git", "ls-remote", "--tags", "origin", tag])
+    return remote.returncode == 0 and bool(remote.stdout.strip())
+
+
+def bump_past_released_tag(args, version: str) -> str:
+    """The current version's tag already exists: bump to the next free minor.
+
+    Release notes for the new heading are the commit subjects since the old tag
+    (release-bookkeeping commits excluded), because the hand-written entry for
+    the old version belongs to the release that tag already published. Without
+    new commits there is nothing to release, so that case still fails.
+    """
+    old_tag = f"v{version}"
+    # Only a local tag gives a reliable commit range; an origin-only tag cannot be diffed.
+    if not run(["git", "tag", "-l", old_tag]).stdout.strip():
+        die("TAG_EXISTS", f"git tag {old_tag} exists on origin but not locally; run: git fetch --tags")
+    subjects = run(["git", "log", f"{old_tag}..HEAD", "--pretty=%s"]).stdout.splitlines()
+    notes = [s.strip() for s in subjects if s.strip() and not s.startswith("chore: release")]
+    if not notes:
+        die("TAG_EXISTS", f"git tag {old_tag} exists and there are no commits since; nothing new to release")
+    # Skip forward past any other already-used tags.
+    target = next_version(version)
+    while tag_exists(f"v{target}"):
+        target = next_version(target)
+    if not args.publish:
+        warn(f"tag {old_tag} already exists; a real run bumps to {target} with {len(notes)} commit subject(s) as notes")
+        return target
+    path = ROOT / "CHANGELOG.md"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    # New entry goes above the newest existing "## " heading, below the intro.
+    head = next((i for i, ln in enumerate(lines) if ln.startswith("## ")), len(lines))
+    lines[head:head] = [f"## {target}"] + [f"- Changed: {n}" for n in notes] + [""]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    cmds = [
+        ["npm", "version", target, "--no-git-tag-version"],
+        ["git", "add", "-A"],
+        ["git", "commit", "-m", f"chore: release {target}"],
+    ]
+    for cmd in cmds:
+        res = run(cmd)
+        if res.returncode != 0:
+            print(tail(res))
+            die("GIT_FAILED", f"'{' '.join(cmd[:3])}' failed")
+    ok(f"tag {old_tag} already existed; bumped {version} -> {target} with {len(notes)} note(s) from git log; committed")
+    return target
 
 
 def step_push(args, version: str) -> None:
