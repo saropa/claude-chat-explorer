@@ -2,6 +2,9 @@
 
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
+## 0.49.0
+- Added: drag the splitter above Activity to resize it vertically (arrow keys work too, double-click resets); height is remembered per workspace
+
 ## 0.48.0
 - Changed: feat: remember open/collapsed state of Account, Session Manager and Activity sections
 - Changed: refactor: rename to Saropa Chats, with migration of old setting and state keys

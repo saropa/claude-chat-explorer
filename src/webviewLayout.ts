@@ -94,7 +94,24 @@ if(n==='act')vs.postMessage({type:'actOpen',open:o}); /* also stops/starts the c
 else if(save)vs.postMessage({type:'secOpen',name:n,open:o});}
 $('smh').addEventListener('click',()=>secSet('sm',$('smh').getAttribute('aria-expanded')!=='true',true));
 $('acth').addEventListener('click',()=>secSet('act',$('acth').getAttribute('aria-expanded')!=='true',true));
+/* Vertical resize of the Activity section: dragging the splitter up grows it (Session Manager is the flexible section above and shrinks). Height is saved per workspace; double-click resets to content height. */
+const SPL=$('spl'),ACTB=$('actb'),ACTW=$('act');
+function actH(px,save){if(px==null){ACTW.classList.remove('sized');ACTW.style.removeProperty('--ah');}
+else{px=Math.max(40,Math.min(Math.round(px),Math.max(80,window.innerHeight-120))); /* clamp so the splitter can never be dragged out of reach */
+ACTW.style.setProperty('--ah',px+'px');ACTW.classList.add('sized');}
+if(save)vs.postMessage({type:'secSize',name:'act',px:px==null?0:px});}
+SPL.addEventListener('pointerdown',e=>{e.preventDefault();SPL.setPointerCapture(e.pointerId);
+const y0=e.clientY,h0=ACTB.getBoundingClientRect().height;SPL.classList.add('drag');document.body.classList.add('dragging');
+const mv=m=>actH(h0+(y0-m.clientY),false);
+const up=()=>{SPL.removeEventListener('pointermove',mv);SPL.removeEventListener('pointerup',up);SPL.removeEventListener('pointercancel',up);
+SPL.classList.remove('drag');document.body.classList.remove('dragging');
+if(ACTW.classList.contains('sized'))actH(parseFloat(ACTW.style.getPropertyValue('--ah')),true); /* persist once, on release */};
+SPL.addEventListener('pointermove',mv);SPL.addEventListener('pointerup',up);SPL.addEventListener('pointercancel',up);});
+SPL.addEventListener('dblclick',()=>actH(null,true));
+SPL.addEventListener('keydown',e=>{if(e.key!=='ArrowUp'&&e.key!=='ArrowDown')return;e.preventDefault(); /* keyboard parity with the mouse */
+actH(ACTB.getBoundingClientRect().height+(e.key==='ArrowUp'?16:-16),true);});
 window.addEventListener('message',e=>{const d=e.data;if(!d||d.type!=='restore'||!d.secs)return;
+if(typeof d.secs.actH==='number'&&d.secs.actH>0)actH(d.secs.actH,false);
 if(typeof d.secs.acct==='boolean')$('acct').open=d.secs.acct;
 if(typeof d.secs.sm==='boolean')secSet('sm',d.secs.sm,false);
 if(typeof d.secs.act==='boolean')secSet('act',d.secs.act,false);});

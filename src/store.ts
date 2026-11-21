@@ -16,6 +16,7 @@ const UNREAD_KEY = 'saropaChats.unread';
 const ARCH_OPEN_KEY = 'saropaChats.archOpen';
 const ADV_OPEN_KEY = 'saropaChats.advOpen';
 const SEC_OPEN_KEY = 'saropaChats.secOpen';
+const SEC_SIZE_KEY = 'saropaChats.secSize';
 const UNREAD_MAX = 500;
 
 export type { HistItem };
@@ -126,6 +127,17 @@ export class Store {
     return v && typeof v === 'object' ? v : {};
   }
   setSecOpen(name: string, open: boolean): void { this.w.put(SEC_OPEN_KEY, { ...this.secOpen, [name]: !!open }); }
+  /** User-dragged section heights in px, per workspace; sent to the page as `actH`. Kept apart from secOpen because that record is boolean-only. */
+  get secSize(): Record<string, number> {
+    const v = this.read<Record<string, number>>(SEC_SIZE_KEY);
+    return v && typeof v === 'object' ? v : {};
+  }
+  /** Saves a height; a non-finite or non-positive value clears it so the section returns to content height. Page-side keys are `<name>H`. */
+  setSecSize(name: string, px: number): void {
+    const next = { ...this.secSize };
+    if (Number.isFinite(px) && px > 0) next[name + 'H'] = Math.round(px); else delete next[name + 'H'];
+    this.w.put(SEC_SIZE_KEY, next);
+  }
   get advOpen(): boolean { return this.read<boolean>(ADV_OPEN_KEY) === true; }
   setAdvOpen(open: boolean): void { this.w.put(ADV_OPEN_KEY, !!open); }
 

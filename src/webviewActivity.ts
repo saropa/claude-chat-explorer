@@ -4,6 +4,15 @@ import { activitySection, diagramSvg } from './activityHtml';
 /** Page CSS for the section frame only; the diagram's own CSS lives inside its shadow root. */
 export const ACT_CSS = `
 #act{flex:none}
+/* Splitter between Session Manager and Activity: thin hit area (taller than the visible line) so it is easy to grab. */
+#spl{height:7px;margin:-3px 0;position:relative;z-index:1;cursor:ns-resize;touch-action:none;background:linear-gradient(var(--vscode-sideBarSectionHeader-border,var(--vscode-panel-border,transparent)),var(--vscode-sideBarSectionHeader-border,var(--vscode-panel-border,transparent))) center/100% 1px no-repeat} /* 1px resting line centered in the 7px hit area, so the handle is discoverable without a hover */
+/* Hover/drag/focus swaps the thin line for a solid sash-colored bar (shorthand resets the gradient). */
+#spl:hover,#spl.drag,#spl:focus-visible{background:var(--vscode-sash-hoverBorder,var(--vscode-focusBorder));outline:none}
+/* A hidden section body has nothing to resize, so the splitter goes too. */
+#act:has(#acth[aria-expanded=false]) #spl{display:none}
+/* User-chosen height (--ah) applies only once dragged; otherwise the body keeps its natural content height. */
+#act.sized #actb{height:var(--ah);overflow:auto}
+body.dragging{cursor:ns-resize;user-select:none}
 #acth{display:flex;align-items:center;gap:4px;width:100%;text-align:left;padding:2px 8px;margin:4px 0 6px;font:inherit;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)}
 #acth[aria-expanded=true]>.chev{transform:rotate(90deg)}
 #acth:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
@@ -11,7 +20,7 @@ export const ACT_CSS = `
 html.webmode #act{display:none}`; // the cloud-sessions mode has no local chat to show activity for
 
 /** Header (same chevron look as the other collapsible sections) plus the empty host the diagram is attached to. */
-export const ACT_HTML = `<div id="act"><button type="button" id="acth" aria-expanded="true" aria-controls="actb" title="Collapse or expand the Activity diagram"><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Activity</button><div id="actb"><div id="actd"></div></div></div>`;
+export const ACT_HTML = `<div id="act"><div id="spl" role="separator" aria-orientation="horizontal" tabindex="0" title="Drag to resize the Activity section (double-click to reset)" aria-label="Resize Activity section"></div><button type="button" id="acth" aria-expanded="true" aria-controls="actb" title="Collapse or expand the Activity diagram"><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Activity</button><div id="actb"><div id="actd"></div></div></div>`;
 
 /** Script that builds the diagram in the host's shadow root and wires the collapse toggle. `fadeMs`: initial flash fade time (setting `activity.fadeMs`). */
 export function actScript(fadeMs: number): string {
