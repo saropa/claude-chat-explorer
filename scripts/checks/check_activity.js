@@ -170,6 +170,9 @@ check('refreshMs clamps and defaults', refreshMsOf(undefined) === 250 && refresh
     // A missing log is searched for at most once per gap; an existing log is read at once.
     const slow = new ActivityFeed(300), hid = path.join(dir, 'fff.jsonl');
     check('missing log gives nothing', eq(await gs(slow, 'fff'), []));
+    // Let the clock move past the coarse file-time resolution: without this the new file's birth time can land
+    // just before the feed's first-look time, so it is judged "born before" and marked at its end (flaky on Windows).
+    spin();
     fs.writeFileSync(hid, asst({ type: 'text' }) + '\n');
     check('missing log is not searched again within the gap', eq(await gs(slow, 'fff'), []));
     const t0 = Date.now(); while (Date.now() - t0 < 320) { /* wait out the gap */ }
