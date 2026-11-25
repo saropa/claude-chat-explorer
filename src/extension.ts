@@ -475,6 +475,7 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.search.contextLines')) { provider.postCtxLines(); } }));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.contextRingTokens')) { provider.postRing(); } }));
   /** A chat's title: the open tab's title when there is one (synchronous, and what the user sees), else the cached index title ('' until it arrives). */
+  // No id (no followed chat): no title and no lookup. An empty tab title falls through (||) to the index title as well.
   const titleOfChat = (id: string): string => (id ? provider.watcher?.tabInfo.find((t) => t.id === id)?.title || titles.get(id) : '');
   // What the Activity idle caption says about the followed chat: its title, its whole dot (primary state plus `also`, so background
   // tasks hidden behind waiting/unread still show), and how many other chats are working.

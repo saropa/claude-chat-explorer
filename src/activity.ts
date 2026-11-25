@@ -97,6 +97,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
   const note = (text: string, err = false): void => send({ type: 'note', text, err });
   /** Last activity time of a chat: its transcript's mtime (0 when the file cannot be found), the "most recently active" tie-break of pickBusiest. */
   const lastAt = async (id: string): Promise<number> => {
+    // No transcript found (f undefined) or a stat failure: 0, which sorts the chat as least recently active instead of failing the click.
     try { const f = await files.fileOf(id); return f ? (await fs.promises.stat(f)).mtimeMs : 0; } catch { return 0; }
   };
   /**

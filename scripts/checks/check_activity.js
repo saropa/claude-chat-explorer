@@ -216,6 +216,47 @@ const titleChecks = (async () => {
   now += 30001; answers.b = 'Title B'; tc.get('b'); await flush();
   check('titles: a miss is retried after retryMs and then cached', calls === 4 && tc.get('b') === 'Title B' && eq(arrived, ['a', 'b']));
   check('titles: an empty id never looks anything up', tc.get('') === '' && calls === 4);
+
+  // TTL: a hit older than ttlMs is still shown but refreshed once in the background; a changed title is announced, an unchanged one is not.
+  let n2 = 0, now2 = 0; const said2 = [], idx = { a: 'Old' };
+  const tc2 = new TitleCache(async (id) => { n2++; return idx[id]; }, (id) => said2.push(id), 30000, () => now2, 300000);
+  tc2.get('a'); await flush();
+  now2 = 299999; tc2.get('a');
+  check('ttl: a fresh hit makes no lookup', n2 === 1 && tc2.get('a') === 'Old');
+  now2 = 300000; idx.a = 'New';
+  check('ttl: a stale hit is still returned while it refreshes', tc2.get('a') === 'Old' && n2 === 2);
+  tc2.get('a');
+  check('ttl: the refresh is not repeated while in flight', n2 === 2);
+  await flush();
+  check('ttl: the refreshed title replaces the old one and is announced', tc2.get('a') === 'New' && eq(said2, ['a', 'a']));
+  now2 = 600000; tc2.get('a'); await flush();
+  check('ttl: a refresh that finds the same title is not announced again', n2 === 3 && eq(said2, ['a', 'a']));
+  idx.a = undefined; now2 = 900000; tc2.get('a'); await flush();
+  check('ttl: a refresh that misses keeps the last good title', tc2.get('a') === 'New');
+
+  // set: the auto-titler's rename is cached at once (no lookup); set(id, '') invalidates so the next get looks it up.
+  const before = n2;
+  tc2.set('a', 'Renamed');
+  check('set: a rename shows at once without a lookup', tc2.get('a') === 'Renamed' && n2 === before);
+  idx.a = 'From index'; tc2.set('a', '');
+  check('set: an empty title invalidates the entry and the next get fetches', tc2.get('a') === '' && n2 === before + 1);
+  await flush();
+  check('set: the re-fetched title is cached', tc2.get('a') === 'From index');
+  tc2.set('', 'x');
+  check('set: an empty id is ignored', tc2.get('') === '');
+
+  // prune: ids not kept are forgotten (titles and miss back-off), so the maps stay the size of the live chats.
+  idx.b = 'B'; idx.c = undefined; tc2.get('b'); tc2.get('c'); await flush();
+  tc2.prune(['b']);
+  const n3 = n2;
+  check('prune: a kept id keeps its title', tc2.get('b') === 'B' && n2 === n3);
+  check('prune: a dropped id is looked up again when it comes back', tc2.get('a') === '' && n2 === n3 + 1);
+  await flush();
+  tc2.get('c');
+  check('prune: a dropped miss back-off is forgotten too', n2 === n3 + 2);
+  await flush();
+  tc2.prune([]);
+  check('prune: an empty keep list empties the cache', (tc2.got.size + tc2.missAt.size) === 0);
 })();
 
 // Click-to-focus page wiring: listeners in the script (no inline handlers), the section posts actFocusOther, the standalone page cannot.

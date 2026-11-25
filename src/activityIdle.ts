@@ -39,7 +39,7 @@ const MAX_TITLE = 60; // the caption is one line; long titles are cut here so th
  * unreadable is simply left out, so such a dot reads as idle.
  */
 function statesOf(dot: unknown): string[] {
-  if (!dot || typeof dot !== 'object') { return []; }
+  if (!dot || typeof dot !== 'object') { return []; } // no dot, or not an object: no states, so it reads as idle
   const d = dot as { s?: unknown; also?: unknown };
   const also = Array.isArray(d.also) ? d.also.filter((x): x is string => typeof x === 'string') : [];
   return typeof d.s === 'string' ? [d.s, ...also] : also;

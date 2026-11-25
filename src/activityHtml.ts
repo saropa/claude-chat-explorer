@@ -56,6 +56,15 @@ export function pillsHtml(): string {
   return '<div id="bg">' + PILLS.map((p) => `<span class="pill" data-k="${p.k}" title="${p.label}" data-l="${p.label}" hidden>${icon(p.icon, 8, 8, 12)}<b></b><i class="tm"></i></span>`).join('') + '</div>';
 }
 
+/**
+ * The caption row: the aria-live text and, beside it, the open button of the click-to-focus hint (hidden until the host offers it).
+ * The button is outside the live region so screen readers announce the text as status and the button as a control; its glyph (a plain arrow, not the emoji-class ↗, which the no-emoji page check rejects) is
+ * decorative (aria-hidden), the accessible name comes from the host's translated label.
+ */
+export function captionHtml(): string {
+  return '<div id="caprow"><div id="cap" aria-live="polite"></div><button type="button" id="capgo" hidden aria-disabled="true"><span aria-hidden="true">→</span></button></div>';
+}
+
 const HOT = 'var(--hl)'; // the flash color: the link color, or the error color on a group marked .err
 const CSS = `
 :root{--hl:var(--vscode-textLink-foreground);}
@@ -99,11 +108,15 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .pill .tm{font-style:normal;font-variant-numeric:tabular-nums;opacity:.8;}
 .pill .tm:empty{display:none;}
 @keyframes pill{0%,100%{box-shadow:0 0 0 0 transparent;opacity:.75;}50%{box-shadow:0 0 6px 1px var(--hl);opacity:1;}}
-#cap{max-width:300px;height:1.4em;line-height:1.4em;margin:6px auto 0;font-size:11px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.8;}
+#caprow{display:flex;justify-content:center;align-items:center;gap:2px;max-width:300px;margin:6px auto 0;}
+#cap{min-width:0;max-width:100%;height:1.4em;line-height:1.4em;margin:0;font-size:11px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.8;}
 #cap.go{cursor:pointer;color:var(--vscode-textLink-foreground);opacity:1;}
 #cap.go:hover{text-decoration:underline;}
-#cap.go:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:1px;}
 #cap.bad{color:var(--vscode-errorForeground);opacity:1;}
+#capgo{flex:none;padding:0 4px;margin:0;border:0;border-radius:2px;background:none;font:inherit;font-size:11px;line-height:1.4em;color:var(--vscode-textLink-foreground);cursor:pointer;}
+#capgo[hidden]{display:none;}
+#capgo[aria-disabled=true]{cursor:default;opacity:.5;}
+#capgo:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px;}
 .hold{filter:drop-shadow(0 0 4px ${HOT});}
 .hold .core{stroke:${HOT};stroke-opacity:1;stroke-width:1.75;fill:${HOT};fill-opacity:.4;}
 .hold .ic{color:${HOT};opacity:1;}
@@ -141,12 +154,14 @@ const timers = new Map();
 const pend = new Map(); // tool calls in flight: id -> { g, t }, t being the 10 minute safety timeout
 const core = document.querySelector('.grp[data-g="think"]');
 const cap = document.getElementById('cap');
+const capGo = document.getElementById('capgo'); // the open button beside the caption (hidden unless the idle text names other working chats)
 const grp = (g) => document.querySelector('.grp[data-g="' + g + '"]');
 const lastOf = new Map(); // chat key -> group of its last flash, so the connector joins one chat's own consecutive groups (all-chats mode interleaves several)
 let capText = '', capAt = 0, capTimer = 0;
 let idleText = '', liveText = ''; // idleText: host-sent description of the followed chat; liveText: the last caption from real events
 // idleGo: the click label of the idle caption, sent only while other chats work ('' keeps the caption plain text); idleLooking: what a click shows at once.
 let idleGo = '', idleLooking = '', capErr = false, noteTimer = 0;
+let capPending = false; // a click was sent and its outcome is still on screen: further clicks are ignored, so one click posts once
 // How the caption reaches the host. null here (the standalone and browser pages have no host to ask, and never get 'idle' anyway);
 // activitySection swaps in the list page's VS Code API, so the caption can only become clickable inside the sidebar section.
 const toHost = null;
@@ -202,43 +217,63 @@ function pulse(el, key, err, col) {
   clearTimeout(timers.get(key));
   timers.set(key, setTimeout(() => el.classList.remove('hot', 'err'), calm.matches ? 600 : fade));
 }
-// The caption shows the newest text, at most twice a second.
-function caption(text) {
+// The caption shows the newest text, at most twice a second. fromNote: the text is a click outcome (capNote), which keeps its timer.
+function caption(text, fromNote) {
   // An empty live caption falls back to the idle text (which chat is followed and its state); a live caption always wins over it.
   capText = text || idleText;
   liveText = text;
   capErr = false; // any new caption ends a shown error outcome
+  // Any other caption replaces a click outcome for good: its 4 s fallback timer must not later wipe this caption, and the click is over.
+  if (!fromNote) { clearTimeout(noteTimer); noteTimer = 0; capPending = false; }
+  // One paint per throttle window: a pending paint picks up the newest text when it runs.
   if (!capTimer) { capTimer = setTimeout(paint, Math.max(0, 500 - (Date.now() - capAt))); }
 }
-// Draws the pending caption. The caption is a button only while it shows the idle text with the other-chats hint (idleGo set) and a host
-// can be asked; over a live caption or a click outcome it is plain text again, so a click never lands on a label it did not show.
+// Live events that end a spell of activity (end of the last call, wait, wake) fall back to the idle text, except while a click outcome
+// is on screen: wiping "Opening <title>…" a moment after the click would leave the user without its result. The outcome's timer falls back later.
+function settleCaption() { if (!noteTimer) { caption(''); } }
+// Draws the pending caption and the open button beside it.
 function paint() {
   capTimer = 0; capAt = Date.now(); cap.textContent = capText;
-  const go = !!(toHost && idleGo && !liveText && capText);
-  cap.classList.toggle('go', go);
   cap.classList.toggle('bad', capErr);
-  if (go) { cap.setAttribute('role', 'button'); cap.setAttribute('tabindex', '0'); cap.setAttribute('aria-label', idleGo); cap.title = idleGo; }
-  else { cap.removeAttribute('role'); cap.removeAttribute('tabindex'); cap.removeAttribute('aria-label'); cap.title = ''; }
+  drawGo();
+}
+// The open button lives outside the aria-live caption (a live region that is also a button is announced badly) and is a real <button>,
+// so Enter and Space work natively. It shows while the idle text names other working chats, and stays shown but aria-disabled while its
+// click is in flight, so keyboard focus is not dropped to the page body. The caption text is also clickable with the mouse while enabled.
+function drawGo() {
+  // Pages without the button (none today) or without a host (standalone, browser view) never offer it.
+  if (!capGo || !toHost) { return; }
+  const show = !!(idleGo && (capPending || (!liveText && capText)));
+  const on = show && !capPending && !liveText; // enabled only over the idle text itself, never over a live caption or an outcome
+  capGo.hidden = !show;
+  capGo.setAttribute('aria-disabled', on ? 'false' : 'true');
+  capGo.title = idleGo; capGo.setAttribute('aria-label', idleGo);
+  cap.classList.toggle('go', on);
 }
 // A one-off outcome of a click (finding, opening <title>, could not open <title>): held like a live caption, then the idle text returns
 // after 4 s unless something newer replaced it. The chat switch that a successful open causes resets the page earlier.
 function capNote(text, err) { // not "note": the browser page shell already has a const note (its status line) in the same scope
-  caption(String(text || ''));
+  caption(String(text || ''), true);
   capErr = !!err;
   clearTimeout(noteTimer);
   const shown = liveText;
-  noteTimer = setTimeout(() => { if (liveText === shown) { caption(''); } }, 4000);
+  // The fallback clears only its own text: a newer caption has already cleared this timer (see caption), this guard is the backstop.
+  noteTimer = setTimeout(() => { noteTimer = 0; if (liveText === shown) { caption(''); } }, 4000);
 }
-// A click (or Enter / Space) on the clickable idle caption: show at once that it was heard, then let the host pick and open the busiest other chat.
+// A click on the open button (Enter / Space arrive as a click) or on the enabled caption text: show at once that it was heard, then let
+// the host pick and open the busiest other chat.
 function goOther() {
-  if (!cap.classList.contains('go') || !toHost) { return; } // plain-text caption: nothing to do
+  // Not enabled (plain text, a live caption) or a click already in flight: nothing to do, so a double click posts once.
+  if (!toHost || !cap.classList.contains('go') || capPending) { return; }
+  // Disabled synchronously, before the throttled paint: a second click inside the 500 ms window must already see it.
+  capPending = true; cap.classList.remove('go'); if (capGo) { capGo.setAttribute('aria-disabled', 'true'); }
   capNote(idleLooking);
   toHost({ type: 'actFocusOther' });
 }
-// Listeners, not inline handlers: the page's CSP forbids inline script. Wired only where a host exists (the cap element always does in the markup).
+// Listeners, not inline handlers: the page's CSP forbids inline script. Wired only where a host exists.
 if (cap && toHost) {
-  cap.addEventListener('click', goOther);
-  cap.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goOther(); } });
+  cap.addEventListener('click', goOther); // mouse convenience on the text itself
+  if (capGo) { capGo.addEventListener('click', goOther); } // the focusable control
 }
 function endCall(id) {
   const p = pend.get(id);
@@ -259,8 +294,9 @@ function reset(keepPills) {
   if (!keepPills) { bgBy.clear(); drawPills(); }
   clearTimeout(capTimer); capTimer = 0; capAt = 0; cap.textContent = ''; idleText = ''; liveText = ''; capText = ''; lastOf.clear(); // the idle text belonged to the old chat; the host sends the new one
   // The click state belonged to the old chat's caption too: back to plain text until the host sends the new chat's idle message.
-  clearTimeout(noteTimer); noteTimer = 0; idleGo = ''; idleLooking = ''; capErr = false;
-  cap.classList.remove('go', 'bad'); cap.removeAttribute('role'); cap.removeAttribute('tabindex'); cap.removeAttribute('aria-label'); cap.title = '';
+  clearTimeout(noteTimer); noteTimer = 0; idleGo = ''; idleLooking = ''; capErr = false; capPending = false;
+  cap.classList.remove('go', 'bad');
+  if (capGo) { capGo.hidden = true; capGo.setAttribute('aria-disabled', 'true'); } // the old chat's button goes with its caption
 }
 // Waiting for you: one ripple from the core (none with reduced motion), then a quiet outline until the next message.
 function wait(g) {
@@ -315,13 +351,14 @@ addEventListener('message', (e) => {
     else if (v.t === 'sub') { sub(v.g, v.col); }
     else if (v.t === 'caption') { caption(String(v.text)); }
     else if (v.t === 'busy' && grp(v.g)) { startCall(v.id, v.g); }
-    else if (v.t === 'end') { endCall(v.id); if (v.g === 'chat') { grp('chat').classList.remove('wait'); } if (!pend.size) { caption(''); } }
+    else if (v.t === 'end') { endCall(v.id); if (v.g === 'chat') { grp('chat').classList.remove('wait'); } if (!pend.size) { settleCaption(); } }
     else if (v.t === 'wait' && grp(v.g)) {
       wait(v.g);
-      // The chat now waits for the user: the last live caption (e.g. "Running: tests") is stale and would hide the idle text "waiting for you", so drop it.
-      caption('');
+      // The chat now waits for the user: the last live caption (e.g. "Running: tests") is stale and would hide the idle text "waiting for you",
+      // so drop it, but only once no call is in flight (a sub-call still running keeps its caption) and no click outcome is showing.
+      if (!pend.size) { settleCaption(); }
     }
-    else if (v.t === 'wake') { lastOf.delete(v.ch || ''); document.querySelectorAll('.wait').forEach((el) => el.classList.remove('wait', 'rip')); caption(''); }
+    else if (v.t === 'wake') { lastOf.delete(v.ch || ''); document.querySelectorAll('.wait').forEach((el) => el.classList.remove('wait', 'rip')); settleCaption(); }
     // bg: the core breathes only for background tasks (no tool call is ever attributed to it)
     else if (v.t === 'bg') { pills(v); }
   }
@@ -354,7 +391,7 @@ export function activityHtml(fadeMs = 4000): string {
   const nonce = randomBytes(18).toString('base64url');
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Activity</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">:root{--fade:${fadeMs}ms;}${CSS}</style></head><body>${diagramSvg()}${pillsHtml()}<div id="cap" aria-live="polite"></div><script nonce="${nonce}">${SCRIPT.replace('__FADE__', String(fadeMs))}</script></body></html>`;
+<style nonce="${nonce}">:root{--fade:${fadeMs}ms;}${CSS}</style></head><body>${diagramSvg()}${pillsHtml()}${captionHtml()}<script nonce="${nonce}">${SCRIPT.replace('__FADE__', String(fadeMs))}</script></body></html>`;
 }
 
 /**
@@ -366,8 +403,8 @@ const BROWSER_THEME = `
 @media (prefers-color-scheme:light){:root{--vscode-textLink-foreground:#006ab1;--vscode-sideBar-background:#f3f3f3;--vscode-editor-background:#ffffff;--vscode-foreground:#3b3b3b;--vscode-descriptionForeground:#717171;--vscode-editorError-foreground:#e51400;--vscode-errorForeground:#e51400;color-scheme:light;}}
 body{min-height:100vh;box-sizing:border-box;padding:24px 16px;}
 svg{max-width:min(92vw,520px);}
-#cap,#bg{max-width:min(92vw,520px);}
-#cap{font-size:13px;}
+#caprow,#bg{max-width:min(92vw,520px);}
+#cap,#capgo{font-size:13px;}
 header{max-width:min(92vw,520px);margin:0 auto 12px;text-align:center;}
 h1{margin:0;font-size:20px;font-weight:600;overflow-wrap:anywhere;}
 header p{margin:2px 0 0;font-size:12px;color:var(--vscode-descriptionForeground);}
@@ -431,5 +468,5 @@ es.onopen = () => { conn.textContent = ''; };
 es.onerror = () => { conn.textContent = ${JSON.stringify(o.lost)}; };`;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(o.title)} - Activity</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; connect-src 'self';">
-<style nonce="${nonce}">:root{--fade:${o.fadeMs}ms;}${CSS}${BROWSER_THEME}</style></head><body><header><h1>${esc(o.title)}</h1><p>${esc(o.subtitle)}</p></header>${diagramSvg()}${pillsHtml()}<div id="cap" aria-live="polite"></div><div id="legend"></div><div id="note" role="status" aria-live="polite"></div><div id="conn" role="status"></div><script nonce="${nonce}">${SCRIPT.replace('__FADE__', String(o.fadeMs))}${shell}</script></body></html>`;
+<style nonce="${nonce}">:root{--fade:${o.fadeMs}ms;}${CSS}${BROWSER_THEME}</style></head><body><header><h1>${esc(o.title)}</h1><p>${esc(o.subtitle)}</p></header>${diagramSvg()}${pillsHtml()}${captionHtml()}<div id="legend"></div><div id="note" role="status" aria-live="polite"></div><div id="conn" role="status"></div><script nonce="${nonce}">${SCRIPT.replace('__FADE__', String(o.fadeMs))}${shell}</script></body></html>`;
 }
