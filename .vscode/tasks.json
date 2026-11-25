@@ -7,6 +7,12 @@
       "problemMatcher": "$tsc",
       "label": "npm: compile",
       "group": "build"
+    },
+    {
+      "label": "Install local build",
+      "type": "shell",
+      "command": "python ${workspaceFolder}/scripts/install_local.py",
+      "problemMatcher": []
     }
   ]
 }

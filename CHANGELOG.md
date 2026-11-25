@@ -3,6 +3,7 @@
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
 ## 1.0.0
+- Added: `scripts/install_local.py` and the VS Code task "Install local build" build the extension with `npm run package` and install the .vsix into local VS Code for testing (`--skip-package` reuses the existing file); the install is verified with `--list-extensions --show-versions`.
 - Added: each background-task pill shows how long its oldest task has run (for example 4m 12s), updated every second while a pill is visible.
 - Added: in the browser view, clicking a legend entry or a pill reveals that chat's session in VS Code. The page reports each click as sent, done or failed. The request is POST /focus with the token, a matching Origin and Host, a JSON body and a chat id the legend shows; anything else is a 404.
 - Fixed: a background task whose finish notice never arrived kept a pill and a background dot forever. A task stops counting once both its launch and the last write to its chat log are more than 6 hours old; a log written again brings it back.
