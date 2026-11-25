@@ -37,6 +37,20 @@ const live = slot.slotHtml({ id: 'live', ctx: { tokens: 150000 } });
 check('slot copies the live dot state and holds the ring before the dot', /^<span class="rs running"/.test(live) && live.indexOf('class="rg') < live.indexOf('class="dot running'));
 check('slot copies multi-state classes so the ring alternates with the dot', /^<span class="rs waiting m2 [^"]*c1-waiting[^"]*c2-running/.test(slot.slotHtml({ id: 'multi' })));
 check('an undecorated row with no context data still renders an empty slot (keeps the column aligned)', slot.slotHtml({ id: 'none' }) === '<span class="rs"></span>');
+// The slot of a row with context data is the context popover's button; a slot without a ring stays inert (no role, no tab stop).
+check('a slot with a ring is a keyboard-reachable button with data-a="ctx" and a label', /^<span class="rs running" role="button" tabindex="0" data-a="ctx" aria-haspopup="dialog" aria-expanded="false" aria-label="Context [^"]+: show details"/.test(slot.slotHtml({ id: 'live', ctx: { tokens: 150000, pct: 50 } })));
+check('a slot without a ring is not a button', !/role="button"|data-a=/.test(slot.slotHtml({ id: 'live' })));
+// Popover body: tipCtx (stubbed kv/tokText from the shared scope) with the token bar under its heading, colored by the ring's steps.
+const makePopBody = new Function('esc', 'tokTotalText', 'kv', 'tokText', 'XI',
+  'return (function(){' + CTX_JS + '\nreturn {ctxPopHtml, tipCtx, setMax(n){ringMax=n;}};})()');
+const pb = makePopBody((x) => String(x), () => '', (rows) => '<dl>' + rows.filter((x) => x[1] !== '').map((x) => '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>').join('') + '</dl>', (n) => String(n), { play: '' });
+pb.setMax(300000);
+const pr = { ctx: { tokens: 240000, pct: 24, window: 1000000, model: 'opus', comp: 2, pend: true, approx: false } };
+const body = pb.ctxPopHtml(pr), tc = pb.tipCtx(pr);
+check('popover shows the token bar (warning step at 80% of the ring limit, proportional fill) and its text', /<div class="cxb rw" role="img" aria-label="240k of 300k tokens"><svg[^>]*><rect class="rt" width="100" height="6"\/><rect class="rf" width="80\.0" height="6"\/>/.test(body) && /240k of 300k tokens \(ring limit\)/.test(body));
+check('popover includes every part of the Context tooltip (heading, used, model, compactions, lag note)', body.startsWith('<b>Context 24% full</b><div class="cxb') && body.includes(tc.slice(tc.indexOf('</b>') + 4)) && /Lags one turn/.test(body));
+check('popover offers Resume and no compact action', /data-a="resume"/.test(body) && !/data-a="compact"|\/compact/.test(body));
+check('popover is empty for a chat without context data, and has no inline style', pb.ctxPopHtml({}) === '' && !/style=/.test(body));
 check('live states tint the ring segment and outrank warn/error', ['running', 'waiting', 'unread', 'background'].every((k) => CTX_CSS.includes('.rs.' + k + ' .rg .rf{stroke:var(--k-' + k + ')}')));
 const rowCss = Object.values(require(path.join(OUT, 'webviewCss.js'))).join('');
 check('hover hides the row meta but never the ring slot (the dot stays visible)', /\.rh:hover \.hd \.rc>:not\(\.rs\)/.test(rowCss) && !/\.rh:hover \.hd \.rc[,{]/.test(rowCss));

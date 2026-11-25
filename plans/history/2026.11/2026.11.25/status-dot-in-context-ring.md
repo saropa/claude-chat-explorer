@@ -18,3 +18,28 @@ Chat rows showed the status dot at the left edge and the context ring in the mid
 - `check_ring` extended: slot state classes and ring-before-dot order, multi-state classes, empty slot for undecorated rows, live-state tint rules, hover rule excludes the slot.
 - `check_guards` fails on the package.json (0.49.0) vs CHANGELOG (1.0.0) version mismatch, pending the version bump.
 - Visual rendering in the webview not verified.
+
+## Finish Report addendum
+
+### Part 1: hardening (commit 8679cce)
+
+- Slot geometry has one source. `src/webviewCss.ts` defines `:root{--rs:16px;--rg:6px}`; `--rw` became `calc(var(--rs) + var(--rg))`. `src/webviewCtx.ts` sizes `.rs` and `.rg svg` with `--rs`; `src/webviewLayout.ts` sets `.rc{gap:var(--rg)}`. The hover actions (`.ia`) and chevron offsets follow any change to either value.
+- Width tiers reviewed: `T.compact` only hides `.gi/.pj/.cp`, `T.xwide` re-grids `.rh` (not `.hd`), and the expand-card tiers have no `.rc`/`.rs` rules, so none depend on the old literals.
+- Open rows: `.r.open .hd .rc{margin-top:calc((1lh + 2 * var(--tpy) - var(--rs)) / 2)}` replaces the fixed 6px. `--tpy:4px` is set on `.r.open .hd` and also drives the title padding, so the slot centers on the first title line at any editor font size.
+- `check_ring` added to `vscode:prepublish` after `check_dots`; it now asserts the single `--rs`/`--rg` definitions, a derived `--rw` (no literal), `--rs` on the slot and ring svg, `--rg` on `.rc`, the `1lh` open-row offset, and its own presence in the prepublish chain.
+- Leftover sweep: no `.hd .dot` / `.hd>.dot` rules remain in the sidebar CSS (openWork files excluded).
+
+### Part 2: context popover (commit in this change)
+
+- The ring slot of a row with context data is a button (`role="button"`, `tabindex="0"`, `data-a="ctx"`, `aria-haspopup="dialog"`, `aria-expanded`, `aria-label`). A slot without a ring stays inert. Enter/Space go through the existing role=button keydown handler.
+- Click dispatch: `data-a="ctx"` in `onClick` (`src/webviewJs.ts`) calls `ctxOpen`; the shared `stopPropagation` and early return keep the row from opening or expanding.
+- Popover `#ctxp` (`src/webview.ts`) reuses the `.pop` box (`POP_CSS`, now included in the sidebar) and `makePop([]).place` for placement. The tooltip content rules in `TIP_CSS` also match `.tipc`, so the popover reads like the Context tooltip.
+- Content (`ctxPopHtml` in `src/webviewCtx.ts`): the `tipCtx(r)` heading, then a horizontal token bar (tokens of `ringMax`, svg rect width attribute, no inline style), then the rest of `tipCtx` (used/window, model, compactions, lag and approximate notes), then a Resume button. Bar and ring share `ringCls` and the `--rc` color steps.
+- Closing: Escape (capture phase, focus returns to the slot), a second click on the slot, a press outside, focus leaving, or a scroll. The popover follows re-renders through `ctxSync` in `render()` and closes when its row disappears.
+- Compact: no mechanism exists to run `/compact` or send input to a Claude session (only resume/open, hand-over copy and resume-command copy), so no compact action was added. Resume reuses the existing `openId` path.
+- Checks: `check_ring` asserts the slot button attributes, an inert slot without a ring, the bar (warning step, proportional width, text), every part of `tipCtx` in the popover, Resume present and no compact action, and no inline style. `check_webview` drives a slot click in the real page script: the popover opens with the bar and details, the row is not opened or expanded, and Escape closes it.
+
+### Verification
+
+- `npm run compile`: clean. `check_dots`, `check_ring`, `check_webview`, `check_activity`: OK after each part.
+- Visual rendering (slot hover wash, popover placement and width, bar colors, open-row alignment at different font sizes) not verified in a running webview.

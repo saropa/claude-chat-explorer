@@ -11,7 +11,8 @@ import { HIST_JS } from './webviewHist';
 import { ARCH_JS } from './webviewArchive';
 import { ROWS_JS } from './webviewRows';
 import { TIP_JS } from './webviewTip';
-import { CTX_JS } from './webviewCtx';
+import { CTX_JS, CTX_POP_JS } from './webviewCtx';
+import { POP_JS } from './webviewPop';
 import { TOUCH_JS } from './webviewTouch';
 import { SUM_JS } from './webviewSum';
 import { WEB_JS } from './webviewWeb';
@@ -92,6 +93,7 @@ else if(k==='tag')toggleTag(a.dataset.t);
 else if(k==='untag')vs.postMessage({type:'tagRemove',id:id,tag:a.dataset.t});
 else if(k==='more')askExpand(id,ex[id]?ex[id].items.length:0,true);
 else if(k==='git')gitOpen(id);
+else if(k==='ctx')ctxOpen(id,a); /* ring slot: opens the context popover; stopPropagation above and the return below keep the row from opening */
 else if(k==='gfile')vs.postMessage({type:'gitFile',id:id,i:Number(a.dataset.i)});
 else if(k==='xretry'){if(ex[id])ex[id].failed=false;askExpand(id,0,false);rerender();}
 else if(k==='lretry'){const lk=a.dataset.key;delete lz[lk];lzLoad(lk);rerender();}
@@ -157,4 +159,5 @@ else if(d.type==='results'){tot=null;busy=false;bar.classList.remove('on');sessO
 vs.postMessage({type:'ready'});
 `;
 
-export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + DIGEST_JS + GIT_JS + HIST_JS + CORE + STATUS + SORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS + TOUCH_JS + SUM_JS + WEB_JS + ACCT_JS;
+/* POP_JS supplies makePop (placement) for the context popover; CTX_POP_JS wires it and must follow CORE, TIP_JS and CTX_JS. */
+export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + DIGEST_JS + GIT_JS + HIST_JS + CORE + STATUS + SORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS + POP_JS + CTX_POP_JS + TOUCH_JS + SUM_JS + WEB_JS + ACCT_JS;

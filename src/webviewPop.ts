@@ -14,13 +14,14 @@ export const POP_CSS = String.raw`
 export const TIP_CSS = String.raw`
 #tip{position:fixed;z-index:30;box-sizing:border-box;padding:5px 8px 6px;border-radius:4px;pointer-events:none;background:var(--vscode-editorHoverWidget-background);color:var(--vscode-editorHoverWidget-foreground);border:1px solid var(--vscode-editorHoverWidget-border);box-shadow:0 2px 8px var(--vscode-widget-shadow);overflow-wrap:anywhere}
 #tip[hidden]{display:none}
-#tip b{display:block;font-weight:600}
-#tip p{margin:3px 0 0}
-#tip .tsm,#tip .nt,#tip dt{color:var(--vscode-descriptionForeground)}
-#tip .nt{font-style:italic}
+/* Content rules also apply to .tipc, a popover that shows tooltip content (the sidebar's context popover), so both read alike from one set of rules. */
+#tip b,.tipc b{display:block;font-weight:600}
+#tip p,.tipc p{margin:3px 0 0}
+#tip .tsm,#tip .nt,#tip dt,.tipc .tsm,.tipc .nt,.tipc dt{color:var(--vscode-descriptionForeground)}
+#tip .nt,.tipc .nt{font-style:italic}
 #tip .q{padding-top:3px;border-top:1px solid var(--vscode-editorHoverWidget-border)}
-#tip dl{display:grid;grid-template-columns:auto 1fr;gap:1px 8px;margin:3px 0 0}
-#tip dd{margin:0;min-width:0}
+#tip dl,.tipc dl{display:grid;grid-template-columns:auto 1fr;gap:1px 8px;margin:3px 0 0}
+#tip dd,.tipc dd{margin:0;min-width:0}
 `;
 
 /** makePop(pairs): pairs are [buttonId, menuId]; one menu open at a time; Escape, outside click, focus leaving and scroll close it. Returns {close, place, toggle}. */

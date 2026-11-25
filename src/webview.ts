@@ -11,6 +11,7 @@ import { CAP_CSS } from './webviewCap';
 import { ADV_CSS, ADV_HTML } from './webviewAdv';
 import { ROWS_CSS } from './webviewRows';
 import { TIP_CSS } from './webviewTip';
+import { POP_CSS } from './webviewPop';
 import { CTX_CSS } from './webviewCtx';
 import { TOUCH_CSS } from './webviewTouch';
 import { SUM_CSS, SUM_HTML } from './webviewSum';
@@ -27,7 +28,7 @@ export function html(fadeMs = 4000): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${NAME}</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${SORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}${ROWS_CSS}${TIP_CSS}${CTX_CSS}${TOUCH_CSS}${SUM_CSS}${WEB_CSS}${ACCT_CSS}${ACT_CSS}${DIGEST_CSS}</style></head><body>
+<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${SORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}${ROWS_CSS}${TIP_CSS}${POP_CSS}${CTX_CSS}${TOUCH_CSS}${SUM_CSS}${WEB_CSS}${ACCT_CSS}${ACT_CSS}${DIGEST_CSS}</style></head><body>
 <div id="hdr"><div class="top">
 ${ACCT_HTML}
 ${WEB_HTML}
@@ -59,6 +60,7 @@ ${SUM_HTML}
 ${ACT_HTML}
 ${WEB_BODY}
 <div id="tip" role="tooltip" hidden></div>
+<div id="ctxp" class="pop tipc" role="dialog" aria-label="Context usage" hidden></div>
 <script nonce="${nonce}">${SCRIPT}</script>
 <script nonce="${nonce}">${actScript(fadeMs)}</script></body></html>`;
 }

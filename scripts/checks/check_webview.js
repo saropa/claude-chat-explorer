@@ -48,6 +48,7 @@ function drive() {
   step('meta', () => deliver({ type: 'meta', pins: [id(2)], tags: { [id(1)]: ['alpha'] }, all: ['alpha'], pinned: [rows[1]], arch: [id(3)] }));
   step('dots', () => deliver({ type: 'dots', map: { [id(1)]: { s: 'unread' }, [id(2)]: { s: 'live' } } }));
   step('sessions', () => deliver({ type: 'sessions', sn: 0, rows, total: 3, arch: [row(4), row(5)], archTotal: 2, max: 500 }));
+  ctxPopChecks(id(2), check, step);
   step('archived open', () => { run('archOpen=true;rerender();', 'archived open'); });
   step('open card', () => { run('openCard(' + JSON.stringify(id(1)) + ');rerender();', 'open card'); });
   check('card shows Loading before reply', /Loading\.\.\./.test(list.innerHTML));
@@ -351,6 +352,23 @@ function handoverChecks(check) {
   const ext = src('extension.ts');
   need('active tab changes repost the current session; dots message carries cur', /tabGroups\.onDidChangeTabs\(tabMoved\)/.test(ext) && /type: 'dots'.*cur: this\.currentId\(\)/.test(ext));
   need('no inline style in the new markup', !/style=/.test(ARCH_JS + rd.slice(rd.indexOf('function emojiWrap'), rd.indexOf('function hdHtml'))));
+}
+
+// Context popover: a click on a row's ring slot (data-a="ctx") opens the popover with the token bar and the Context details,
+// and must not open or expand the row (the shared click handler stops data-a clicks). Escape closes it.
+function ctxPopChecks(rid, check, step) {
+  const pop = els.get('ctxp');
+  check('the panel has a hidden context popover using the shared .pop box', !!pop && pop.hidden === true && /id="ctxp" class="pop tipc" role="dialog"/.test(page));
+  check('a row with context data renders its ring slot as a button', new RegExp('<span class="rs[^"]*" role="button" tabindex="0" data-a="ctx"').test(els.get('list').innerHTML));
+  // The stub DOM cannot hold real nodes, so the click target is a stub whose closest() answers like the slot inside the row.
+  const slot = mkEl('slot'); slot.dataset.a = 'ctx';
+  H.ctx.__ev = { target: { closest: (s) => (s === '.r' ? { dataset: { id: rid } } : s === '[data-a]' ? slot : null) }, stopPropagation() {} };
+  const before = posted.length;
+  step('ring slot click', () => run('onClick(__ev);', 'ring slot click'));
+  check('ring slot click opens the popover with the bar and the Context details', pop.hidden === false && /class="cxb/.test(pop.innerHTML) && /<b>Context 61% full<\/b>/.test(pop.innerHTML) && /<dt>Model<\/dt>/.test(pop.innerHTML) && /data-a="resume"/.test(pop.innerHTML) && slot.getAttribute('aria-expanded') === 'true');
+  check('ring slot click does not open or expand the row', run('open.has(' + JSON.stringify(rid) + ')', 'open state') === false && !posted.slice(before).some((p) => p.type === 'open' || p.type === 'expand'));
+  step('Escape on the popover', () => fire(document, 'keydown', { key: 'Escape' }));
+  check('Escape closes the context popover', pop.hidden === true && run('ctxId', 'ctx state') === '');
 }
 
 function report() { H.report('panel script ran ' + posted.length + ' posts, no exceptions'); }

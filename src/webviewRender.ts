@@ -92,5 +92,5 @@ fbSync(base);
 patch(list,hasResults?resultsHtml(keep):sessHtml(keep));
 const used=noteIn==='';st.classList.toggle('vh',used);st.textContent=t+(hid?(t?' · ':'')+hid+' hidden by status filter':'');
 if(!used){st.innerHTML=noteIn;noteIn='';}
-$('cap').innerHTML=capHtml();renderPinned();renderArch();sumSync();tipSync();}
+$('cap').innerHTML=capHtml();renderPinned();renderArch();sumSync();tipSync();ctxSync();} /* ctxSync: the context popover follows its re-rendered slot (or closes when the row is gone) */
 `;
