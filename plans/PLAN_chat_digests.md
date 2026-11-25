@@ -7,7 +7,7 @@
 Created: 2026-10-30
 Type: New command / UX improvement
 Related area: Scan / Search / View / Export
-Extension version: 0.38.0
+Extension version: 0.38.0 (plan updated for 0.49.0)
 Filed from: a session in the `web` project (owner request; the work belongs to this repo)
 
 ---
@@ -42,22 +42,23 @@ Why it matters: chats hold decisions and context that are needed later. A full c
    - **Files changed** — the complete list from the index (edited files first). Nothing summarized.
    - **References** — URLs, commit hashes, PR numbers, plan or doc paths found in the chat. Taken out exactly as written.
    - **Left open** — 1–5 bullets (AI-written), from the chat's last stretch.
-3. **Search:** digest text is indexed. Normal search hits a digest the same way it hits a message. A new `digest:` token searches digests only (e.g. `digest:pricing`).
+3. **Search:** digest text is searchable. Normal search hits a digest the same way it hits a message. A new `digest:` token matches digest text only (e.g. `digest:pricing`). Combined with plain words it is AND: the plain words still scan the body. `from:` does not apply to digest text. A digest hit on a subagent's facts lands on the parent row, since those facts merge into the parent's digest.
 4. **Commands:**
-   - `Chat Explorer: Build Digests` — builds digests for every chat that has none or is out of date. Shows progress. Can be stopped.
+   - `Chat Explorer: Build Digests` — builds digests for every chat that has none or is out of date. Before running, it shows how many chats it will build and asks to confirm. Shows progress. Can be stopped. AI calls run at most 2 at a time (the `execLimit.ts` pattern).
    - `Chat Explorer: Rebuild Digest` (row menu) — rebuilds one digest.
-   - `Chat Explorer: Export Digests to Project` — writes one Markdown file per chat into `<project>/docs/history/chats/YYYY-MM-DD_<title>.md`, plus `INDEX.md` with one line per chat.
-5. **Archived chats** get digests as well. They are still searchable while hidden from the main list.
-6. **Search results:** a chat appears once in results. A digest hit and a message hit in the same chat count as hits of that chat; the snippet prefers the message hit.
+   - `Chat Explorer: Export Digests to Project` — writes one Markdown file per chat into `<project>/docs/history/chats/YYYY-MM-DD_<slug>_<first 8 chars of session id>.md`, plus `INDEX.md` with one line per chat. The target project is the open workspace folder; the command exports the chats whose project dir matches that folder.
+5. **Archived chats** get digests as well. They are searchable in Archive scope (search leaves archived chats out unless Archive scope is on).
+6. **Search results:** a chat appears once in results. A digest hit and a message hit in the same chat count as hits of that chat; the snippet prefers the message hit. A digest-only hit has no message (`msg` -1). Its snippet is the matching digest line, labeled "Digest". Clicking it opens the expanded row at the Digest section.
 7. **Difference from the hand-over note:** `handover.ts` builds a note to continue current work, from live facts, with no AI and no storage. A digest is a stored record of what was decided and done. Both read the chat's file list, branch and folder; the digest reuses those readers and does not copy them.
 
 ### How it is built
-- **Exact parts (no AI):** files, references, the decision quotes, the date range and the branch come from the parsed chat. The same chat always produces the same output.
+- **Exact parts (no AI):** files, references, Dialog decisions (question + answer), the date range and the branch come from the parsed chat. The same chat always produces the same output.
+- **Message decisions are AI-selected.** The AI returns message indexes only. The quoted text is copied verbatim from the record, so the AI never rewrites a quote. Selection can differ between builds; the quote text cannot.
 - **AI parts:** goal, decision selection and "left open". Uses the existing Haiku runner (`claude -p --model haiku --no-session-persistence`, as in `regenTitlesRun.ts`). The AI input is the owner messages and the agent's reply text only. Tool output is removed first, so a large chat fits.
 - **Storage:** digests live beside the records in the extension's storage (new `digests-v1/` folder, one file per chat id). Claude Code's chat files are never written to.
-- **Dialog answers:** the parser skips user rows that hold tool results, so dialog answers are not in the records today. The digest builder reads the chat file itself: it pairs each `AskUserQuestion` tool call with its tool result and keeps the question, the options and the chosen answer. This is a separate pass. It needs no `FORMAT` bump.
+- **Dialog answers:** the parser skips user rows that hold tool results, so dialog answers are not in the records today. The digest builder reads the chat file itself: it pairs each `AskUserQuestion` tool call with its tool result and keeps the question, the options and the chosen answer. It reads these from the structured result stored on the tool-result row (`toolUseResult`), with a fallback to parsing the tool_result text. Verify the field shape against a real chat file before coding. This is a separate pass. It needs no `FORMAT` bump.
 - **Staleness:** each digest stores the chat file's size and mtime. A digest is stale when either differs from the chat file. With `digest.auto` on, the extension rebuilds a stale digest once the chat file's mtime is more than 10 minutes old and the chat is not busy in `liveState.ts`. The manual commands rebuild any stale digest at once, with no idle wait.
-- **Size cap:** a digest file is capped at 20 KB. The exact parts are cut last.
+- **Size cap:** a digest file is capped at 20 KB. Files changed is exempt and stays complete. The cap applies to the rest, trimmed in this order: Left open, Goal, Message decisions, References, Dialog decisions.
 
 ### Settings
 | Key | Type | Default | Scope |
@@ -73,8 +74,8 @@ When `digest.auto` is `false`, digests are built only by the commands. When `dig
 
 1. **Chat cut off by a context crash** — build the digest from what was saved. Mark it "chat ended without a close".
 2. **Chat continued after compaction** — the summary row from compaction is input only. It is never quoted as a decision.
-3. **Subagent chats** — their files and references merge into the parent's digest. They get no digest of their own.
-4. **Very large chats** — when the AI input after trimming is still over the budget, summarize it in pieces and merge the pieces. The exact parts are not affected.
+3. **Subagent chats** — their files and references merge into the parent's digest. They get no digest of their own. A search hit on that text lands on the parent row.
+4. **Very large chats** — when the AI input after trimming is still over the budget, summarize it in pieces and merge the pieces. At most 8 pieces; past that, the middle of the chat is dropped and the digest is marked "input trimmed". Each call keeps the runner's 120 s timeout and 3 tries. The exact parts are not affected.
 5. **AI failure or no `claude` CLI** — save the exact parts and mark the AI parts "not generated". Retry on the next build.
 6. **Private text** — digests stay in extension storage. Export runs only when the owner runs the export command.
 7. **Chat moved or renamed folder** — digests are keyed by session id, so they follow the chat.
@@ -102,11 +103,12 @@ Accepted 2026-10-30 by the owner. Decisions:
 
 ## Implementation Notes
 
-- Exact facts: reuse `Chat.files`, `made`, `cwds`, `git` (`types.ts`, `chatFacts.ts`). New: question-dialog answer extraction (not parsed today; no `AskUserQuestion` handling in `src/`) and reference extraction (URLs, hashes, `#123`, doc paths).
-- AI runner: reuse the `regenTitlesRun.ts` pattern.
-- Search: `match.ts` reads each record's `text` through `scanBody`. Digest text goes in a side store that `matchChat` consults after the body scan; the record layout does not change. Add `digest:` to `query.ts`.
+- Exact facts: reuse `Chat.files`, `made`, `cwds`, `git` (`types.ts`, `chatFacts.ts`). New: question-dialog answer extraction (not parsed into records today; `activityMap.ts` already recognizes `AskUserQuestion`, for activity display only) and reference extraction (URLs, hashes, `#123`, doc paths).
+- AI runner: reuse the `regenTitlesRun.ts` pattern. Cap concurrency at 2 with the `execLimit.ts` pattern.
+- Search: `match.ts` reads each record's `text` through `scanBody`. Digest text goes in a side store; the record layout does not change. `matchChat` rejects a chat at the bloom prefilter (`match.ts`) before the body scan, and the bloom holds only chat text. So the digest check runs before the bloom gate: a digest hit keeps the chat; otherwise the bloom gate and body scan run as today. Add `digest:` to `query.ts`.
+- Worker: search runs in `worker.ts`. The worker reads digest files from `digests-v1/` lazily and caches them by chat id and digest file mtime. After a build or rebuild, the host posts the changed ids to the worker, which drops those cache entries.
 - View: expanded row section (`webviewExpand.ts`), row marker (`webviewRows.ts`).
-- Export: follow `exportMd.ts` and its command wiring. The filename is `YYYY-MM-DD_<title>_<first 8 chars of session id>.md`, so two chats with the same date and title do not collide. Re-export replaces the same file and leaves other files in `docs/history/chats/` alone. `INDEX.md` is rewritten each export.
+- Export: follow `exportMd.ts` and its command wiring. The filename is `YYYY-MM-DD_<slug>_<first 8 chars of session id>.md`, so two chats with the same date and title do not collide. Slug = title lowercased, every run of characters outside `[a-z0-9]` becomes one `-`, trimmed, max 60 chars, `untitled` if empty. A chat whose folder changed (`cwds`) exports under the project it started in. Re-export replaces the same file and leaves other files in `docs/history/chats/` alone. `INDEX.md` is rewritten each export.
 - No `record.ts` `FORMAT` bump: digests use a separate store (`digests-v1/`), so existing records do not reparse.
 
 ---
