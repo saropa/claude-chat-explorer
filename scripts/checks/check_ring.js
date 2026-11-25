@@ -40,6 +40,15 @@ check('an undecorated row with no context data still renders an empty slot (keep
 check('live states tint the ring segment and outrank warn/error', ['running', 'waiting', 'unread', 'background'].every((k) => CTX_CSS.includes('.rs.' + k + ' .rg .rf{stroke:var(--k-' + k + ')}')));
 const rowCss = Object.values(require(path.join(OUT, 'webviewCss.js'))).join('');
 check('hover hides the row meta but never the ring slot (the dot stays visible)', /\.rh:hover \.hd \.rc>:not\(\.rs\)/.test(rowCss) && !/\.rh:hover \.hd \.rc[,{]/.test(rowCss));
+// Slot geometry has one source: --rs (slot size) and --rg (.rc gap) on :root; --rw (the hover offset) is derived from both, never a literal,
+// so changing the slot size cannot leave the hover actions or chevron overlapping it.
+const layoutCss = require(path.join(OUT, 'webviewLayout.js')).LAYOUT_CSS;
+const expandCss = require(path.join(OUT, 'webviewExpandCss.js')).EXPAND_CSS;
+check('--rs and --rg are defined once on :root', /:root\{--rs:\d+px;--rg:\d+px\}/.test(rowCss) && (rowCss + CTX_CSS + layoutCss + expandCss).match(/--rs:/g).length === 1 && (rowCss + CTX_CSS + layoutCss + expandCss).match(/--rg:/g).length === 1);
+check('--rw is derived from --rs and --rg, not a literal', /--rw:calc\(var\(--rs\) \+ var\(--rg\)\)/.test(rowCss) && !/--rw:\d/.test(rowCss + CTX_CSS + layoutCss + expandCss));
+check('the slot and the ring svg use --rs; .rc uses --rg as its gap', /\.rs\{[^}]*width:var\(--rs\);height:var\(--rs\)/.test(CTX_CSS) && /\.rg svg\{width:var\(--rs\);height:var\(--rs\)/.test(CTX_CSS) && /\.rc\{[^}]*gap:var\(--rg\)/.test(layoutCss));
+check('open-row slot offset derives from the title line box (1lh) and --rs, not a fixed margin', /\.r\.open \.hd \.rc\{margin-top:calc\(\(1lh \+ 2 \* var\(--tpy\) - var\(--rs\)\) \/ 2\)\}/.test(expandCss) && /\.r\.open \.hd \.t\{[^}]*padding:var\(--tpy\) 0/.test(expandCss));
+check('the ring check runs in vscode:prepublish after check_dots', /check_dots\.js && node scripts\/checks\/check_ring\.js/.test(JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts['vscode:prepublish']));
 
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const set = pkg.contributes.configuration.properties['saropaChats.contextRingTokens'];

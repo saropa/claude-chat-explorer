@@ -3,11 +3,12 @@ export const CTX_CSS = String.raw`
 .cp{flex:none;box-sizing:border-box;padding:0 6px;border-radius:9px;line-height:14px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--c);border:1px solid color-mix(in srgb,var(--c) 60%,transparent);background:color-mix(in srgb,var(--c) 14%,transparent)}
 .cp.l1{--c:var(--vscode-charts-yellow,#cca700)}
 .cp.l2{--c:var(--vscode-charts-orange,#d18616)}
-/* Ring slot: 16px square, same on every row. Ring r=6 with a 2.5 stroke leaves a ~9.5px hole, so the 6px dot sits clear of the stroke. */
-.rs{position:relative;display:inline-flex;flex:none;align-items:center;justify-content:center;width:16px;height:16px}
+/* Ring slot: a --rs square (16px, set once on :root in webviewCss), same on every row. Ring r=6 of a 16-unit viewBox with a 2.5 stroke leaves a ~9.5px hole at 16px, so the 6px dot sits clear of the stroke. */
+.rs{position:relative;display:inline-flex;flex:none;align-items:center;justify-content:center;width:var(--rs);height:var(--rs)}
 .rs .dot{position:absolute;inset:0;margin:auto;width:6px;height:6px}
 .rg{display:inline-flex;flex:none;color:var(--vscode-descriptionForeground)}
-.rg svg{width:16px;height:16px;display:block}
+/* the ring fills the slot: same --rs size, so the dot stays centered in its hole if the slot size changes */
+.rg svg{width:var(--rs);height:var(--rs);display:block}
 .rg .rt{stroke:currentColor;opacity:.3}
 .rg .rf{stroke:var(--vscode-charts-blue,#3794ff)}
 .rg.rw .rf{stroke:var(--vscode-editorWarning-foreground,#cca700)}

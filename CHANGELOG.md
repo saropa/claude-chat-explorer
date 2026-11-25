@@ -3,6 +3,9 @@
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
 ## 1.0.0
+- Changed: the ring-slot geometry has one source. `--rs` (slot size) and `--rg` (gap before the slot) are set once; the hover offset `--rw`, the slot box, the ring size and the row gap all derive from them, so the hover buttons and chevron stay clear of the ring if either value changes.
+- Fixed: in open rows the ring slot now centers on the first title line using the title's line height (`1lh`) instead of a fixed 6px drop, so it stays aligned at any editor font size.
+- Changed: `check_ring` now runs in `vscode:prepublish` (after `check_dots`) and asserts that the slot offset is derived, not a literal.
 - Fixed: "Open Activity in Browser" showed "Not found" in remote windows (SSH, WSL, Codespaces) because the forwarded address was refused; that exact address is now accepted. The token check is unchanged.
 - Added: "Saropa: Open Activity in Browser" (Command Palette and the pane's ... menu) shows the Activity diagram in the external browser under the project title, in the all-chats mode with each chat's colour and a legend of live chats. It is served by a local-only server (127.0.0.1, random port, secret token in the address; other hosts are refused) and updates live; nothing is read from the chat logs while no browser page is open. On a remote window the port is forwarded by VS Code. If the browser cannot be opened, the address is shown to copy.
 - Added: README embeds an animated GIF of the Activity diagram (images/activity_panel.gif) showing nodes lighting up as Claude works.

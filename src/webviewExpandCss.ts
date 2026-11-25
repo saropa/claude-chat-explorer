@@ -5,10 +5,11 @@ const BASE = String.raw`
 .r.open{margin:4px 4px 6px;border:1px solid var(--vscode-widget-border);border-radius:4px;background:color-mix(in srgb,var(--vscode-foreground) 4%,transparent)}
 .r.open>.rh>.hd{padding-left:9px;padding-right:7px}
 .r.open .hd .ic.ar,.r.open .hd .ic.pn,.r.open .mt .gi,.r.open .rh>.chips{display:none}
-.r.open .hd{align-items:flex-start}
-.r.open .hd .t{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;padding:4px 0;-webkit-mask-image:none;mask-image:none}
-/* Open rows align the header to the top: drop the meta group (ring slot) 6px so it lines up with the first title line. The dot itself is not offset, or it would leave the ring hole. */
-.r.open .hd .rc{margin-top:6px}
+/* --tpy: the open title's vertical padding, one value shared by the title and the slot alignment below. */
+.r.open .hd{align-items:flex-start;--tpy:4px}
+.r.open .hd .t{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;padding:var(--tpy) 0;-webkit-mask-image:none;mask-image:none}
+/* Open rows align the header to the top, so the meta group (only the ring slot here) is dropped until its center meets the center of the first title line: (line box + both paddings - slot) / 2. 1lh is the title's line height (.rc inherits the same font and line-height), so it tracks the editor font size; the old fixed 6px did not. The dot itself is not offset, or it would leave the ring hole. */
+.r.open .hd .rc{margin-top:calc((1lh + 2 * var(--tpy) - var(--rs)) / 2)}
 .r.open .hd .ia{display:flex;position:static;transform:none;margin-top:5px}
 .r.open .hd .ic[data-a=exp]{margin-top:2px;position:static;transform:none;opacity:1}
 /* Left padding matches the open header (9px) so the panel lines up with the title; it was 23px when the dot sat at the left. */

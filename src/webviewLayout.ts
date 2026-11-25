@@ -43,7 +43,7 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 .mt{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;padding:1px 8px 4px 10px;overflow:hidden} /* 10px = the title's left edge now that the dot no longer takes the first 14px */
 .pst{flex:none;line-height:16px;font-size:14px;color:var(--vscode-charts-yellow,var(--vscode-foreground))}
 .mp{flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;line-height:16px;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
-.rc{display:flex;align-items:center;flex:none;gap:6px;max-width:60%}
+.rc{display:flex;align-items:center;flex:none;gap:var(--rg);max-width:60%} /* gap from --rg (webviewCss :root): --rw adds the same value, so the hover offsets track it */
 .hg{display:inline-flex;flex:none;color:var(--vscode-descriptionForeground)}
 .hg svg{width:12px;height:12px}
 .mt .pj{flex:0 1 auto;min-width:0;max-width:40%;line-height:16px}

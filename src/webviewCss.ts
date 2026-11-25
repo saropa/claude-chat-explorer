@@ -76,8 +76,10 @@ html:not(.nf) .r.cur>.rh{background:var(--vscode-list-activeSelectionBackground)
 .pj{flex:none;max-width:25%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--vscode-descriptionForeground)}
 .tm{flex:none;min-width:22px;text-align:right;font-size:calc(var(--vscode-font-size) - 2px);color:var(--vscode-descriptionForeground)}
 .r:focus-visible>.rh .tm,.r:focus-visible>.rh .s,.r:focus-visible>.rh .pj,.rr:focus-visible .tm{color:inherit;opacity:.85}
-/* --rw: the ring slot (16px) plus the .rc gap (6px). The hover actions and chevron sit that far left so they never cover the always-visible slot at the right end. */
-.hd{--cw:16px;--rw:22px;position:relative;padding-right:4px}
+/* Ring slot geometry, defined once: --rs is the slot size (the ring svg and the .rs box), --rg the gap between .rc items. Every offset that depends on the slot derives from these two, so changing either keeps the hover actions, chevron and open-row alignment correct. */
+:root{--rs:16px;--rg:6px}
+/* --rw: the space the slot takes at the right end of .rc (slot plus the gap before it), derived rather than a literal. The hover actions and chevron sit that far left so they never cover the always-visible slot. */
+.hd{--cw:16px;--rw:calc(var(--rs) + var(--rg));position:relative;padding-right:4px}
 .ia{display:none;position:absolute;right:calc(var(--cw) + 6px + var(--rw));top:50%;transform:translateY(-50%);align-items:center;gap:2px}
 .rh:hover .ia,.r:focus-within .ia{display:flex}
 .rh:hover .hd .t,.r:focus-within .hd .t{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 78px),transparent calc(100% - 60px));mask-image:linear-gradient(to right,#000 calc(100% - 78px),transparent calc(100% - 60px))}
