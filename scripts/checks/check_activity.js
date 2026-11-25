@@ -119,7 +119,7 @@ check('another chat keeps flashes, sub flashes and pills only, tagged with its c
 check('the current chat keeps every event', tagEvents([{ t: 'caption', text: 'x' }, { t: 'wait', g: 'think' }], 'c1', '#f51b50', true).length === 2);
 check('page glows per chat colour and keeps pills and last group per chat', page.includes("style.setProperty('--hl', col)") && page.includes('const bgBy = new Map()') && page.includes('const lastOf = new Map()') && page.includes('function drawPills()'));
 const pk = require(path.join(ROOT, 'package.json')).contributes;
-check('allChats setting is a boolean off by default, with a toggled menu command', pk.configuration.properties['saropaChats.activity.allChats'].default === false && pk.commands.some((c) => c.command === 'saropaChats.activityAllChats' && c.toggled === 'saropaChats.activityAll') && pk.menus['view/title'].some((m) => m.command === 'saropaChats.activityAllChats'));
+check('allChats setting is a boolean on by default, with a toggled menu command', pk.configuration.properties['saropaChats.activity.allChats'].default === true && pk.commands.some((c) => c.command === 'saropaChats.activityAllChats' && c.toggled === 'saropaChats.activityAll') && pk.menus['view/title'].some((m) => m.command === 'saropaChats.activityAllChats'));
 const css = require(path.join(OUT, 'webviewCss.js')).CSS;
 check('session list CSS has one colour class per palette entry and the row bar', CHAT_PALETTE.every((c, i) => css.includes('.cc' + i + '{--cc:' + c + '}')) && css.includes('.r.cc>.rh{box-shadow:inset 3px 0 0 var(--cc)}'));
 
@@ -147,6 +147,15 @@ const prop = require(path.join(ROOT, 'package.json')).contributes.configuration.
 check('refreshMs setting has default 250, min 100, max 2000', !!prop && prop.default === 250 && prop.minimum === 100 && prop.maximum === 2000);
 const { refreshMsOf } = require(path.join(OUT, 'activityFeed.js'));
 check('refreshMs clamps and defaults', refreshMsOf(undefined) === 250 && refreshMsOf(5) === 100 && refreshMsOf(99999) === 2000 && refreshMsOf(500) === 500 && refreshMsOf('x') === 250);
+
+// Idle caption: followed chat, its state and the other busy chats (activityIdle.js), and the page script's handling of it.
+const { idleText, othersWorking } = require(path.join(OUT, 'activityIdle.js'));
+check('idle: waiting chat reads "waiting for you"', idleText({ title: 'your look scroll fade', state: 'waiting', others: 0 }) === 'your look scroll fade — waiting for you');
+check('idle: other busy chats are counted, singular and plural', idleText({ title: 'a', state: 'waiting', others: 1 }) === 'a — waiting for you · 1 other chat working' && idleText({ title: 'a', state: 'running', others: 2 }) === 'a — working · 2 other chats working');
+check('idle: no dot or unknown state reads idle; no title gives only the hint or nothing', idleText({ title: 'a', state: undefined, others: 0 }) === 'a — idle' && idleText({ title: '', state: undefined, others: 3 }) === '3 other chats working' && idleText({ title: '', state: undefined, others: 0 }) === '');
+check('idle: long titles are cut', idleText({ title: 'x'.repeat(100), state: 'idle', others: 0 }).startsWith('x'.repeat(59) + '… —'));
+check('idle: only running and background chats other than the followed one count', othersWorking({ a: { s: 'running' }, b: { s: 'background' }, c: { s: 'waiting' }, d: { s: 'idle' }, me: { s: 'running' } }, 'me') === 2);
+check('page script handles the idle message and keeps live captions first', activityHtml(4000).includes("m.type === 'idle'") && activityHtml(4000).includes('capText = text || idleText'));
 
 (async () => {
   // 5. Feed: opening a chat does not replay it; later lines flash once; a switch does not replay either.

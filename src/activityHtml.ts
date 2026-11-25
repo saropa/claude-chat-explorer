@@ -140,6 +140,7 @@ const cap = document.getElementById('cap');
 const grp = (g) => document.querySelector('.grp[data-g="' + g + '"]');
 const lastOf = new Map(); // chat key -> group of its last flash, so the connector joins one chat's own consecutive groups (all-chats mode interleaves several)
 let capText = '', capAt = 0, capTimer = 0;
+let idleText = '', liveText = ''; // idleText: host-sent description of the followed chat; liveText: the last caption from real events
 // Background tasks: a glowing pill per running kind (shell, agent), with a count when there are several. They are separate from the flashes, which only mark calls as they happen.
 // In the all-chats mode each chat has its own pills in its own colour; otherwise everything is under the one key ''.
 const bgBy = new Map(); // chat key -> { shell, agent, shellAt, agentAt, col }
@@ -194,7 +195,9 @@ function pulse(el, key, err, col) {
 }
 // The caption shows the newest text, at most twice a second.
 function caption(text) {
-  capText = text;
+  // An empty live caption falls back to the idle text (which chat is followed and its state); a live caption always wins over it.
+  capText = text || idleText;
+  liveText = text;
   if (!capTimer) { capTimer = setTimeout(() => { capTimer = 0; capAt = Date.now(); cap.textContent = capText; }, Math.max(0, 500 - (Date.now() - capAt))); }
 }
 function endCall(id) {
@@ -214,7 +217,7 @@ function reset(keepPills) {
   document.querySelectorAll('.busy, .wait, .rip, .err').forEach((el) => el.classList.remove('busy', 'wait', 'rip', 'err'));
   // Pills are cleared with the chat in the single-chat mode (the feed re-reports the new chat's tasks); the all-chats mode keeps them, since they belong to every chat.
   if (!keepPills) { bgBy.clear(); drawPills(); }
-  clearTimeout(capTimer); capTimer = 0; capAt = 0; cap.textContent = ''; lastOf.clear();
+  clearTimeout(capTimer); capTimer = 0; capAt = 0; cap.textContent = ''; idleText = ''; liveText = ''; capText = ''; lastOf.clear(); // the idle text belonged to the old chat; the host sends the new one
 }
 // Waiting for you: one ripple from the core (none with reduced motion), then a quiet outline until the next message.
 function wait(g) {
@@ -257,6 +260,8 @@ function sub(g, col) {
 addEventListener('message', (e) => {
   const m = e.data;
   if (m && m.type === 'reset') { reset(m.keepPills === true); return; }
+  // idle: the host's description of the followed chat. Shown only while no live caption is up; an absent message (browser view) leaves the caption as before.
+  if (m && m.type === 'idle') { idleText = String(m.text || ''); if (!liveText) { caption(''); } return; }
   if (m && m.type === 'fade' && Number.isFinite(m.ms)) { fade = m.ms; document.documentElement.style.setProperty('--fade', m.ms + 'ms'); return; }
   if (!m || m.type !== 'events' || !Array.isArray(m.events)) { return; }
   for (const v of m.events) {

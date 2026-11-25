@@ -25,6 +25,7 @@ import { registerClaudeConfig } from './claudeConfigPanel';
 import { registerOptions } from './optionsPanel';
 import { registerKeepWarm } from './keepWarm';
 import { registerActivity } from './activity';
+import { IdleInfo, othersWorking } from './activityIdle';
 import { registerActivityBrowser } from './activityBrowser';
 import { fadeMsOf } from './activityFeed';
 import { registerUsage } from './usageUi';
@@ -150,6 +151,8 @@ class Provider implements vscode.WebviewViewProvider {
   get dotNames(): { [id: string]: string } { return stateMap(this.watcher?.dots ?? {}); }
 
   /** Push the dot map to the panel. */
+  /** Set by the Activity section: called when the dots change so its idle caption follows. */
+  idleHook?: () => void;
   postDots(): void { this.post({ type: 'dots', map: this.watcher?.dots ?? {}, anim: dotsAnimated(), cur: this.currentId() }); this.updateBadge(); }
 
   /** Blue count badge on the activity-bar icon: sessions waiting for the user; cleared at 0. */
@@ -452,10 +455,16 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   const titler = new AutoTitler(ctx.globalState, logErr, (id, title) => { log(`auto-title: ${id} -> ${title}`); provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); });
   provider.watcher = new LiveWatcher({ dir: sessionsDir(), tabs: async () => { const r = await readTabs(workspaceStorageOf(ctx.globalStorageUri.fsPath), folderPaths()); return r.ok ? r : undefined; },
     viewing: () => provider.viewingId(), unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
-    onChange: () => { provider.postDots(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); titler.onLive(ids); } });
+    onChange: () => { provider.postDots(); provider.idleHook?.(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); titler.onLive(ids); } });
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.search.contextLines')) { provider.postCtxLines(); } }));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.contextRingTokens')) { provider.postRing(); } }));
-  const activity = registerActivity(ctx, () => provider.currentId(), (m) => provider.post(m), provider, () => provider.watcher?.liveIds ?? [], log);
+  // What the Activity idle caption says about the followed chat: its tab title, its dot state, and how many other chats are working.
+  const idleInfoOf = (id: string): IdleInfo => {
+    const dots = provider.watcher?.dots ?? {};
+    return { title: id ? provider.watcher?.tabInfo.find((t) => t.id === id)?.title ?? '' : '', state: id ? dots[id]?.s : undefined, others: othersWorking(dots, id) };
+  };
+  const activity = registerActivity(ctx, () => provider.currentId(), (m) => provider.post(m), provider, () => provider.watcher?.liveIds ?? [], log, idleInfoOf);
+  provider.idleHook = activity.idle; // dot changes re-send the Activity idle caption
   // The browser view shows every live chat with the pane's colours; titles come from the open tabs' (truncated) titles.
   registerActivityBrowser(ctx, { book: activity.book, files: activity.files, currentId: () => provider.currentId(), liveIds: () => provider.watcher?.liveIds ?? [], titleOf: (id) => provider.watcher?.tabInfo.find((t) => t.id === id)?.title ?? '', focusChat: (id) => provider.resume(id), log });
   const tabMoved = () => { provider.clearViewed(); provider.postDots(); provider.watcher?.poke(); activity.poke(); };

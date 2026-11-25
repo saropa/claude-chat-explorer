@@ -1,5 +1,6 @@
 /** The Activity section of the session list page: a diagram under the session list that flashes a group when the current chat gets a message of that kind. */
 import * as vscode from 'vscode';
+import { idleText, IdleInfo } from './activityIdle';
 import { ActivityFeed, fadeMsOf, refreshMsOf } from './activityFeed';
 import { AllChatsTracker } from './activityAll';
 import { BgTracker } from './bgAgents';
@@ -37,7 +38,7 @@ export interface ActivityHost { activity?: { setVisible(v: boolean): void; setOp
  * While the page is visible AND the section is open, one interval (setting `activity.refreshMs`) checks the log for appended bytes; the tab moving also triggers a check.
  * Hidden or collapsed: no interval, no work.
  */
-export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => string, post: (m: unknown) => void, host: ActivityHost, liveIds: () => string[], log: (msg: string) => void = () => undefined): { poke(): void; book: ColorBook; files: BgTracker } {
+export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => string, post: (m: unknown) => void, host: ActivityHost, liveIds: () => string[], log: (msg: string) => void = () => undefined, idleInfo: (id: string) => IdleInfo = () => ({ title: '', state: undefined, others: 0 })): { poke(): void; idle(): void; book: ColorBook; files: BgTracker } {
   // One locator for every consumer. A launch line whose task id cannot be read is logged once: the pills would otherwise silently stop working if the log format changed.
   const files = new BgTracker(projectsRoot(), () => log('activity: a background-task launch line has no readable task id; the log format may have changed, so background pills can be missing'));
   const feed = new ActivityFeed(undefined, undefined, files);
@@ -45,7 +46,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
   const book = new ColorBook(ctx.globalState.get(COLORS_KEY), (m) => { void ctx.globalState.update(COLORS_KEY, m); });
   const tracker = new AllChatsTracker(files, book); // the pane's own read positions; the browser view has its own tracker over the same files and book
   const allOn = (): boolean => vscode.workspace.getConfiguration('saropaChats').get(ALL_KEY) === true;
-  let all = allOn(), colorSig = '';
+  let all = allOn(), colorSig = '', idleSig = ''; // idleSig: the last idle caption sent, so an unchanged text is not re-sent
   let visible = false, open = true; // the section starts open, matching the page's markup
   let busy = false, again = false, shownId = '';
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -70,13 +71,26 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     const moved = cur !== currentId(), events = moved ? r.events.filter((e) => e.t === 'flash' || e.t === 'sub' || e.t === 'bg') : r.events;
     if (events.length) { send({ type: 'events', events }); }
   };
+  /** Sends the idle caption (followed chat + state + other busy chats) when its text changed. The page shows it only while no live caption is up. */
+  const sendIdle = (): void => {
+    const text = idleText(idleInfo(currentId()));
+    if (text === idleSig) { return; } // unchanged: no message
+    idleSig = text;
+    send({ type: 'idle', text });
+  };
+  /** Dots or the focused chat changed: refresh the idle caption. Hidden or collapsed sections skip it (show() re-sends on reveal). */
+  const idle = (): void => { if (timer) { sendIdle(); } };
   const poke = (): void => {
     if (!timer) { return; } // not visible or collapsed: no work
     if (busy) { again = true; return; } // run once more when the current check ends
     busy = true;
     const id = currentId();
     // A switch of chat clears the held states and the caption; in the all-chats mode the pills belong to every chat, so they stay.
-    if (id !== shownId) { shownId = id; send({ type: 'reset', keepPills: all }); }
+    if (id !== shownId) {
+      shownId = id; idleSig = ''; // the page drops its idle text on reset, so the dedupe must forget it too
+      send({ type: 'reset', keepPills: all });
+    }
+    sendIdle(); // also covers a title or state change that arrived with the tab move
     const run = all ? checkAll(id) : feed.check(id).then((events) => { if (events.length && id === currentId()) { send({ type: 'events', events }); } });
     void run.catch(() => { /* a failed check shows nothing this round; the next interval tries again */ }).finally(() => {
       busy = false;
@@ -100,7 +114,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
   const applyAll = (): void => {
     all = allOn();
     void vscode.commands.executeCommand('setContext', ALL_CTX, all);
-    tracker.clear(); feed.mark(); shownId = ''; colorSig = '';
+    tracker.clear(); feed.mark(); shownId = ''; colorSig = ''; idleSig = '';
     send({ type: 'reset' }); // full reset, pills included
     if (!all) { sendColors(new Map()); }
     poke();
@@ -122,5 +136,5 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
       if (e.affectsConfiguration('saropaChats.' + ALL_KEY)) { applyAll(); }
     }));
   // The book and locator are handed out so the browser view shows each chat in the same colour as the pane.
-  return { poke, book, files };
+  return { poke, idle, book, files };
 }

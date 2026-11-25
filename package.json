@@ -513,7 +513,7 @@
         },
         "saropaChats.activity.allChats": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "Show the activity of every live chat on the Activity diagram, not only the chat in the focused tab. Each chat gets its own colour (shown as a bar beside its name in the session list and as the glow on the diagram). Also set by the Show All Chats item in the panel's ... menu."
         },
         "saropaChats.contextRingTokens": {
