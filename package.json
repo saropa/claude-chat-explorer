@@ -137,6 +137,10 @@
         "title": "Saropa: Export Session Digests to Project"
       },
       {
+        "command": "saropaChats.showDecisionsTimeline",
+        "title": "Saropa: Show Decisions Timeline"
+      },
+      {
         "command": "saropaChats.openWork",
         "title": "Saropa Chats: Project Status",
         "icon": "$(checklist)"

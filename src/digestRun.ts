@@ -9,21 +9,22 @@ import * as path from 'path';
 import { execFile } from 'child_process';
 import { AiState, autoDue } from './digest';
 import { AI_SLOTS, AI_TIMEOUT_MS, AI_TRIES, AiCall, AiPart, runAi } from './digestAi';
-import { EXPORT_DIR, INDEX_NAME, supersededExports } from './digestMd';
+import { BUILD_TITLE, EXPORT_DIR, INDEX_NAME, supersededExports } from './digestMd';
 import { DigestInputReply } from './digestBuild';
 import { readDigest, digestDir } from './digestStore';
 import { Limiter } from './execLimit';
 import { Exec, ExecResult, pool } from './wipExec';
 import { isSessionId } from './sessionId';
+import { ALL_PROJECTS, TimelineSrc, timelineDoc, timelineEmpty, timelineProjects } from './digestTimeline';
+import { showReadOnly } from './editorView';
 
 export const BUILD_CMD = 'saropaChats.buildDigests';
 export const REBUILD_CMD = 'saropaChats.rebuildDigest';
 export const EXPORT_CMD = 'saropaChats.exportDigests';
+export const TIMELINE_CMD = 'saropaChats.showDecisionsTimeline';
 const CFG = 'saropaChats';
 export const AUTO_SETTING = 'digest.auto';
 export const AI_SETTING = 'digest.useAi';
-/** Build commands name the commands the owner can run next; one place for their titles in messages. */
-const BUILD_TITLE = 'Saropa: Build Session Digests';
 /** Gathering scans the whole chat file, which can take a while for a very large chat: a long, soft worker request. */
 const GATHER_MS = 120000;
 const AUTO_EVERY_MS = 2 * 60 * 1000; // how often the automatic rebuild looks for idle stale digests
@@ -247,6 +248,39 @@ export class DigestService {
     } catch (e) {
       this.d.log('export digests', e);
       void vscode.window.showErrorMessage(vscode.l10n.t('Could not export the digests: {0}', (e as Error).message));
+    }
+  }
+
+  /**
+   * "Show Decisions Timeline": pick All projects or one project with digests, then open a read-only document of every
+   * Dialog and Message decision, newest first, grouped by day, each linking to its line of the session file.
+   */
+  async timeline(): Promise<void> {
+    let srcs: TimelineSrc[];
+    try { srcs = ((await this.d.request({ t: 'digestTimeline' }, GATHER_MS)) ?? []) as TimelineSrc[]; } catch (e) {
+      this.d.log('decisions timeline', e);
+      void vscode.window.showErrorMessage(vscode.l10n.t('Could not read the session digests: {0}', (e as Error).message));
+      return;
+    }
+    // No decision anywhere: say so and offer the Build command, instead of opening an empty document or an empty pick.
+    if (!srcs.some((s) => s.d.decisions.length)) {
+      const build = vscode.l10n.t('Build Session Digests');
+      const pick = await vscode.window.showInformationMessage(timelineEmpty(), build);
+      if (pick === build) { await vscode.commands.executeCommand(BUILD_CMD); }
+      return;
+    }
+    const projects = timelineProjects(srcs);
+    // The first item is the whole timeline; the rest are the projects that have digests, each with its folder for telling same-named projects apart.
+    const items: Array<vscode.QuickPickItem & { key?: string }> = [{ label: ALL_PROJECTS }, ...projects.map((p) => ({ label: p.label, description: p.path, key: p.key }))];
+    const chosen = await vscode.window.showQuickPick(items, { title: vscode.l10n.t('Decisions timeline: project'), matchOnDescription: true });
+    // A dismissed pick is the owner's cancel; it still gets a visible outcome.
+    if (!chosen) { void vscode.window.showInformationMessage(vscode.l10n.t('Decisions timeline canceled: no project picked.')); return; }
+    const doc = timelineDoc(srcs, chosen.key, chosen.key === undefined ? undefined : chosen.label);
+    try {
+      await showReadOnly(vscode.l10n.t('Decisions: {0}', chosen.label), { text: doc.text, spans: [], links: [], files: doc.links });
+    } catch (e) {
+      this.d.log('decisions timeline', e);
+      void vscode.window.showErrorMessage(vscode.l10n.t('Could not open the decisions timeline: {0}', (e as Error).message));
     }
   }
 

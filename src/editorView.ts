@@ -47,6 +47,21 @@ async function show(out: EdOut, m: DocMeta): Promise<void> {
   paint(ed);
 }
 
+/**
+ * Open any read-only text in the results-editor scheme: the same provider, link support and memory cap as search
+ * results, so other views (the decisions timeline) reuse it instead of registering a second scheme. File links open the
+ * file at their line; the title is the document's name in the tab.
+ */
+export async function showReadOnly(title: string, doc: Doc): Promise<void> {
+  const uri = vscode.Uri.from({ scheme: SCHEME, path: '/' + title.replace(/[\\/]+/g, ' ').slice(0, TITLE_MAX), query: String(++seq) });
+  docs.set(uri.toString(), doc);
+  // The same memory cap as search results: the oldest documents are dropped first.
+  for (const k of [...docs.keys()].slice(0, Math.max(0, docs.size - KEEP_DOCS))) { docs.delete(k); }
+  const td = await vscode.workspace.openTextDocument(uri);
+  const ed = await vscode.window.showTextDocument(td, { preview: false });
+  paint(ed);
+}
+
 /** Run the panel's search for the editor; progress shows while the worker builds it. */
 export async function openInEditor(m: any, d: EditorDeps): Promise<void> {
   const query = String(m.query ?? '').trim(), o = opts(m);
@@ -74,11 +89,21 @@ export function registerEditorView(ctx: vscode.ExtensionContext, d: EditorDeps, 
   ctx.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(SCHEME, { provideTextDocumentContent: (u) => docs.get(u.toString())?.text ?? 'These results are no longer available. Run the search again.' }),
     vscode.languages.registerDocumentLinkProvider(sel, {
-      provideDocumentLinks: (td) => (docs.get(td.uri.toString())?.links ?? []).map((l) => {
-        const k = new vscode.DocumentLink(new vscode.Range(l.line, 0, l.line, l.to), vscode.Uri.parse(`command:${RESUME_CHAT_CMD}?${encodeURIComponent(JSON.stringify([l.id]))}`));
-        k.tooltip = 'Resume this session in the agent panel';
-        return k;
-      }),
+      provideDocumentLinks: (td) => {
+        const doc = docs.get(td.uri.toString());
+        const chats = (doc?.links ?? []).map((l) => {
+          const k = new vscode.DocumentLink(new vscode.Range(l.line, 0, l.line, l.to), vscode.Uri.parse(`command:${RESUME_CHAT_CMD}?${encodeURIComponent(JSON.stringify([l.id]))}`));
+          k.tooltip = 'Resume this session in the agent panel';
+          return k;
+        });
+        // File links: a file URI with an L<line> fragment, which VS Code's link opener turns into a selection at that line.
+        const files = (doc?.files ?? []).map((f) => {
+          const k = new vscode.DocumentLink(new vscode.Range(f.line, f.from, f.line, f.to), vscode.Uri.file(f.file).with({ fragment: f.at ? `L${f.at}` : '' }));
+          k.tooltip = f.at ? vscode.l10n.t('Open the session file at line {0}', f.at) : vscode.l10n.t('Open the session file');
+          return k;
+        });
+        return [...chats, ...files];
+      },
     }),
     vscode.window.onDidChangeVisibleTextEditors((eds) => eds.filter((e) => e.document.uri.scheme === SCHEME).forEach(paint)),
     vscode.commands.registerCommand(RESUME_CHAT_CMD, (id: unknown) => (isSessionId(id) ? d.resume(id) : undefined)),

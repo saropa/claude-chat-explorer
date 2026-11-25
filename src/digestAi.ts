@@ -207,5 +207,6 @@ export async function runAi(input: AiInput, call: AiCall, signal?: AbortSignal):
 /** Message decisions of the AI's picks, quoted verbatim from the record with their message index and file line. */
 export function messageDecisions(rec: Rec, picks: number[]): Decision[] {
   // An index past the record (the record changed between input and save) is dropped rather than quoting the wrong text.
-  return picks.filter((i) => i >= 0 && i < rec.ts.length && rec.roles[i] === 0).map((i) => ({ src: 'message' as const, a: msgText(rec, i), i, line: rec.lines[i] || undefined }));
+  // The message time (rec.ts) is kept so the decisions timeline can sort and group it; a zero time means none was recorded.
+  return picks.filter((i) => i >= 0 && i < rec.ts.length && rec.roles[i] === 0).map((i) => ({ src: 'message' as const, a: msgText(rec, i), i, line: rec.lines[i] || undefined, at: rec.ts[i] || undefined }));
 }

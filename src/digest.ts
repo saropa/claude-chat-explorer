@@ -27,6 +27,7 @@ export interface Decision {
   q?: string; // dialog only: the question that was asked
   opts?: string[]; // dialog only: the option labels that were offered
   i?: number; // message only: index of the message in the chat's record
+  at?: number; // when the decision was made (the owner message or the dialog answer row), for the timeline; older digests lack it
   line?: number; // 1-based line of the chat file: the owner message, or the tool-result row that holds the dialog answer
 }
 
@@ -224,7 +225,14 @@ export function takeFileLine(line: string, n: number, a: FileAcc): void {
         for (const q of qs) {
           const v = ans.get(q.question);
           // An unanswered question (dialog dismissed, or answers keyed differently) yields no decision: nothing to quote.
-          if (v !== undefined && v !== '') { a.dialogs.push({ src: 'dialog', q: q.question, a: v, opts: q.options, line: n }); got++; }
+          if (v !== undefined && v !== '') {
+            const d: Decision = { src: 'dialog', q: q.question, a: v, opts: q.options, line: n };
+            // The answer row's time places the decision on the timeline; a row without a readable timestamp leaves it out (the timeline then uses the session's dates).
+            const at = typeof row.timestamp === 'string' ? Date.parse(row.timestamp) : NaN;
+            if (Number.isFinite(at)) { d.at = at; }
+            a.dialogs.push(d);
+            got++;
+          }
         }
         // A rejected dialog has no answer by design (a plain-string result or an error block); only other empty results count as unreadable.
         const rejected = b.is_error === true || typeof row.toolUseResult === 'string';

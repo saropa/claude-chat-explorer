@@ -223,6 +223,8 @@ async function digestRequest(m: any): Promise<unknown> {
   if (m.t === 'digestTodo') { return digests.todo(); }
   if (m.t === 'digestExport') { return digests.exportFor(String(m.folder ?? '')); }
   if (m.t === 'digestWhere') { return digests.where(id); }
+  // The Decisions timeline: every stored digest's decisions with its session file.
+  if (m.t === 'digestTimeline') { return digests.timeline(); }
   return undefined;
 }
 

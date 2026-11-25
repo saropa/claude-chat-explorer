@@ -53,7 +53,7 @@ import { WorkScan } from './workScan';
 import { WorkPrs } from './workPrs';
 import { PrCache } from './wipPrs';
 import { WebSessions } from './webSessions';
-import { AUTO_SETTING, BUILD_CMD, DigestService, EXPORT_CMD, REBUILD_CMD } from './digestRun';
+import { AUTO_SETTING, BUILD_CMD, DigestService, EXPORT_CMD, REBUILD_CMD, TIMELINE_CMD } from './digestRun';
 
 const POST_GAP_MS = 100;
 const REVEAL_CMD = 'workbench.view.extension.saropaChats'; // opens the Saropa Chats container and its view
@@ -510,6 +510,8 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
     vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.' + AUTO_SETTING)) { digests.syncAuto(); } }),
     vscode.commands.registerCommand(BUILD_CMD, () => digests.buildAll()),
     vscode.commands.registerCommand(EXPORT_CMD, () => digests.export()),
+    // The decisions timeline reads every stored digest; it starts no AI call.
+    vscode.commands.registerCommand(TIMELINE_CMD, () => digests.timeline()),
     // The row menu passes the chat; the command palette has no chat to pass, so it is hidden there.
     vscode.commands.registerCommand(REBUILD_CMD, (arg?: { id?: unknown }) => (isSessionId(arg?.id) ? digests.rebuild(arg.id) : undefined)));
   registerUsage(ctx, { rows: usageRows, resume: (id) => provider.resume(id), log: logErr, onIndex: (fn) => { ctx.subscriptions.push(hub.on('indexed', fn), hub.on('changed', fn)); },

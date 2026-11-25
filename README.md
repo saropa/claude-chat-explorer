@@ -158,6 +158,7 @@ A digest is a short stored record of one session: the goal, your decisions, the 
 - Search covers digest text like message text. A session found only by its digest shows the digest line labeled "Digest". `last:` and `from:` searches skip digest text, since a digest is not a message. Archived sessions' digests are searched in Archive scope.
 - Digests are capped at 20 KB (Files changed is never cut). They live in the extension's storage; Claude Code's session files are never written.
 - "Saropa: Export Session Digests to Project" writes `docs/history/chats/YYYY-MM-DD_<title>_<id>.md` for each digest of the open project, plus `INDEX.md`.
+- "Saropa: Show Decisions Timeline" lists every Dialog and Message decision of the stored digests, newest first and grouped by day, in a read-only editor tab. Pick All projects or one project. Each entry shows the project, the session title, the source, the exact quote (Dialog: question → answer) and a `Session file: <path>:<line>` link that opens the session file at that line. No AI call is made.
 - A session that stopped without a final agent reply is marked "Session ended without a close". When the AI call fails or `claude` is missing, the exact parts are saved and the AI parts are retried on the next build.
 
 ### Organize
@@ -246,6 +247,7 @@ One page answers: what is still open in this repository, and what do I do to clo
 | Saropa: Build Session Digests | Builds a digest for every session with none or an out-of-date one, after a count confirmation. At most 2 `claude` calls run at a time; cancelable. |
 | Saropa: Rebuild Session Digest | Row context menu: rebuilds one session's digest. |
 | Saropa: Export Session Digests to Project | Writes the open project's digests to `docs/history/chats/` with an `INDEX.md`. |
+| Saropa: Show Decisions Timeline | Opens every digest decision (all projects or one), newest first by day, each linked to its line in the session file. |
 | Saropa: Find Related Sessions | Searches `file:<path>` for the chosen file. |
 | Saropa Chats: Project Status | Opens the Project Status page. |
 | Saropa Chats: Open Results in Editor | Opens all matches in a read-only editor tab. |

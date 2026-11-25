@@ -3,7 +3,7 @@
 // (scripts/checks/fixtures/digest/chat.jsonl) and a stub AI runner: claude is never started.
 // Covers exact-part extraction (files, references, dialog answers), staleness, the size-cap trim order,
 // slug and file name, digest: query parsing, the bloom gate (a digest-only hit survives it), the build round trip
-// and the panel's Digest section.
+// the panel's Digest section and the Decisions timeline document (out/digestTimeline.js).
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -21,6 +21,7 @@ const { searchIndex } = require(path.join(OUT, 'search.js'));
 const { parseFile } = require(path.join(OUT, 'parse.js'));
 const { encodeRec, decodeRec } = require(path.join(OUT, 'blob.js'));
 const { buildBloom } = require(path.join(OUT, 'bloom.js'));
+const tl = require(path.join(OUT, 'digestTimeline.js'));
 
 const FIX = path.join(__dirname, 'fixtures', 'digest', 'chat.jsonl');
 const ID = '11111111-2222-4333-8444-555555555555';
@@ -278,6 +279,9 @@ async function buildTests(tmp) {
   const msg = d.decisions.filter((x) => x.src === 'message');
   check('digest: message decision quoted verbatim with index and line; the summary pick is dropped', msg.length === 1 && msg[0].i === 3 && msg[0].a === 'Ship it on Friday, not before. Reference https://example.com/docs/pricing.' && msg[0].line === 9);
   check('digest: decisions in chat order, dialogs before the later message', eq(d.decisions.map((x) => x.src), ['dialog', 'dialog', 'dialog', 'message']));
+  check('digest: dialog decisions carry the answer row time, message decisions the message time', d.decisions[0].at === Date.parse('2026-10-01T10:02:00.000Z') && msg[0].at === rec.ts[3] && msg[0].at > 0);
+  const tsrc = b.timeline();
+  check('timeline source: every stored digest with its session file', tsrc.length === 1 && tsrc[0].file === FIX && tsrc[0].d.decisions.length === 4 && tsrc[0].d.files === undefined);
   check('digest: dates, folder, start, close flag and size/mtime for staleness', d.first === p.first && d.folder === '/w/shop' && d.start === '/w/shop' && d.noClose === true && d.size === chat.size && d.mtime === 1000 && d.ai === 'ok');
   check('build list: fresh after the build, stale after the chat changes', b.todo()[0].state === 'fresh' && (chat.mtime = 2000, b.todo()[0].state === 'stale'));
   check('cache: the stored digest is stale for the changed chat', dg.digestStale(cache.get(ID).d, chat) && cache.get(ID).d.goal === 'Ship the pricing page');
@@ -371,6 +375,41 @@ async function buildTests(tmp) {
   return d;
 }
 
+/** The Decisions timeline: newest-first order, one heading per day, the project filter, exact quotes, file links and the empty state. */
+function timelineTests() {
+  const at = (day, h, m) => new Date(2026, 9, day, h, m, 0).getTime();
+  const shop = { d: { id: 'aaaaaaaa-2222-4333-8444-555555555555', title: 'Pricing  page', folder: '/w/shop', start: '/w/shop', dir: '-w-shop', first: at(1, 9, 0), last: at(2, 18, 0), decisions: [
+    { src: 'dialog', q: 'Which billing period?', a: 'Monthly', opts: ['Monthly', 'Yearly'], line: 3, at: at(1, 10, 2) },
+    { src: 'message', a: 'Ship it on Friday.\nNot before.', i: 7, line: 9, at: at(2, 11, 1) },
+  ] }, file: '/h/.claude/projects/-w-shop/aaaa.jsonl' };
+  // An older digest whose decisions carry no time: they sort and group by the session's last activity.
+  const blog = { d: { id: 'bbbbbbbb-2222-4333-8444-555555555555', title: 'Blog', folder: 'D:\\w\\blog', dir: '-D-w-blog', first: at(1, 8, 0), last: at(1, 12, 30), decisions: [{ src: 'message', a: 'Use Markdown files.', i: 2, line: 5 }] }, file: 'D:\\h\\blog.jsonl' };
+  const empty = { d: { id: 'cccccccc-2222-4333-8444-555555555555', title: 'Docs', folder: '/w/docs', dir: '-w-docs', first: 1, last: 1, decisions: [] }, file: '/h/docs.jsonl' };
+  const srcs = [blog, shop, empty];
+  const all = tl.timelineDoc(srcs);
+  const lines = all.text.split('\n');
+  check('timeline: heading and counts (' + lines.slice(0, 2).join(' / ') + ')', lines[0] === '# Decisions timeline: All projects' && lines[1] === '3 decisions in 2 sessions, newest first.' && all.count === 3);
+  const days = lines.filter((l) => l.startsWith('## '));
+  check('timeline: grouped by day, newest day first, each day once (' + days.join(',') + ')', eq(days, ['## 2026-10-02', '## 2026-10-01']));
+  const entries = lines.filter((l) => /^\d\d:\d\d  /.test(l));
+  check('timeline: newest first across sessions (' + entries.join(' / ') + ')', eq(entries, ['11:01  shop | Pricing page | Message 7', '12:30  blog | Blog | Message 2', '10:02  shop | Pricing page | Dialog']));
+  check('timeline: Dialog quotes question and answer exactly', all.text.includes('    Which billing period? → Monthly\n'));
+  check('timeline: a multi-line message keeps every line', all.text.includes('    Ship it on Friday.\n    Not before.\n'));
+  check('timeline: each entry ends with the session file and line', all.text.includes('    Session file: /h/.claude/projects/-w-shop/aaaa.jsonl:9') && all.text.includes('    Session file: D:\\h\\blog.jsonl:5'));
+  const l0 = all.links[0];
+  check('timeline: file links point at the reference text and the file line', all.links.length === 3 && lines[l0.line].slice(l0.from, l0.to) === '/h/.claude/projects/-w-shop/aaaa.jsonl:9' && l0.file === shop.file && l0.at === 9);
+  const projects = tl.timelineProjects(srcs);
+  check('timeline: every project with a digest is offered, sorted (' + JSON.stringify(projects.map((p) => p.label)) + ')', eq(projects.map((p) => p.label), ['blog', 'docs', 'shop']));
+  const key = projects.find((p) => p.label === 'shop').key;
+  const one = tl.timelineDoc(srcs, key, 'shop');
+  check('timeline: project filter keeps that project only', one.count === 2 && !one.text.includes('| Blog |') && one.text.startsWith('# Decisions timeline: shop\n'));
+  check('timeline: the filter matches another spelling of the same folder', tl.timelineDoc([blog], tl.projectKey('d:\\w\\blog')).count === 1);
+  const none = tl.timelineDoc(srcs, projects.find((p) => p.label === 'docs').key, 'docs');
+  check('timeline: a project without decisions shows the empty state', none.count === 0 && none.text.includes('No digests of docs have decisions yet') && none.text.includes('Saropa: Build Session Digests') && none.links.length === 0);
+  const zero = tl.timelineDoc([]);
+  check('timeline: no digests at all shows the empty state', zero.count === 0 && zero.text.includes(tl.timelineEmpty()) && tl.timelineEmpty().includes('"' + md.BUILD_TITLE + '"'));
+}
+
 function panelTests(d) {
   const page = require(path.join(OUT, 'webview.js')).html();
   const H = createHarness({ page, name: 'digest panel', width: 400 });
@@ -413,6 +452,7 @@ function panelTests(d) {
     queryTests();
     gateTests();
     await aiTests();
+    timelineTests();
     const d = await buildTests(tmp);
     for (const e of panelTests(d)) { failures.push('panel: ' + e); }
   } catch (e) { failures.push('threw: ' + (e && e.stack || e)); }

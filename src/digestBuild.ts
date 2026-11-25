@@ -9,6 +9,7 @@ import { AI_SLOTS, AI_TIMEOUT_MS, AI_TRIES, aiInput, AiInput, AiPart, estCalls, 
 import { DigestCache, readDigest, writeDigest } from './digestStore';
 import { digestFileName, digestMarkdown, inProject, indexMarkdown } from './digestMd';
 import { handoverData } from './handover';
+import { TimelineSrc } from './digestTimeline';
 import { Chat, Rec } from './types';
 
 /** What the build reads from the index (ChatIndex has all of it). */
@@ -158,6 +159,22 @@ export class DigestBuilder {
       ds.push(d);
     }
     return { files: ds.map((d) => ({ name: digestFileName(d), text: digestMarkdown(d) })), index: indexMarkdown(ds), missing, stale };
+  }
+
+  /**
+   * Every stored digest that has decisions, with its session file, for the Decisions timeline. Read straight from disk
+   * like the export, so the timeline shows exactly what is stored. Only the fields the timeline prints are sent back,
+   * which keeps the reply small: files and references can be most of a digest.
+   */
+  timeline(): TimelineSrc[] {
+    const out: TimelineSrc[] = [];
+    for (const c of this.ix.tops()) {
+      const d = readDigest(this.cache.dir, c.id);
+      // A chat without a valid digest adds nothing. A digest without decisions is still sent: the project pick lists every project that has digests.
+      if (!d) { continue; }
+      out.push({ d: { id: d.id, title: d.title, folder: d.folder, start: d.start, dir: d.dir, first: d.first, last: d.last, decisions: d.decisions }, file: this.ix.fileOf(c) });
+    }
+    return out;
   }
 
   /** Session file and size of a chat, for the card's message links (the line comes from the stored digest). */

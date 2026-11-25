@@ -5,6 +5,8 @@ import { encodeDir, normPath } from './fileSessions';
 /** Folder of the exported files, relative to the project root. */
 export const EXPORT_DIR = ['docs', 'history', 'chats'];
 export const INDEX_NAME = 'INDEX.md';
+/** Title of the Build command, named by messages that send the owner there; the one copy, shared by the host and the timeline text. */
+export const BUILD_TITLE = 'Saropa: Build Session Digests';
 const SLUG_MAX = 60;
 
 /** Short labels for the digest notes; one place, shared by the Markdown and the card text the host builds. */
