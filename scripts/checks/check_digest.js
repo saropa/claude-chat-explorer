@@ -205,7 +205,7 @@ async function buildTests(tmp) {
   check('digest: decisions in chat order, dialogs before the later message', eq(d.decisions.map((x) => x.src), ['dialog', 'dialog', 'dialog', 'message']));
   check('digest: dates, folder, start, close flag and size/mtime for staleness', d.first === p.first && d.folder === '/w/shop' && d.start === '/w/shop' && d.noClose === true && d.size === chat.size && d.mtime === 1000 && d.ai === 'ok');
   check('build list: fresh after the build, stale after the chat changes', b.todo()[0].state === 'fresh' && (chat.mtime = 2000, b.todo()[0].state === 'stale'));
-  check('card: digest with stale flag', b.card(ID).stale === true && b.card(ID).d.goal === 'Ship the pricing page');
+  check('cache: the stored digest is stale for the changed chat', dg.digestStale(cache.get(ID).d, chat) && cache.get(ID).d.goal === 'Ship the pricing page');
   // The same chat again with AI off: the exact parts only, and the cache sees the rewrite at once.
   await b.input(ID);
   await b.save(ID, 'off');

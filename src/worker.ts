@@ -208,14 +208,14 @@ async function chatMd(m: any): Promise<unknown> {
   return ix && chat ? { text: chatMarkdown(ix, chat, Date.now()), name: mdName(chat.title, new Date()) } : null;
 }
 
-/** Digest requests from the host: gather (step one), save (step two), the build list, the card, export and invalidation. */
+/** Digest requests from the host: gather (step one), save (step two, which also drops the cached copy), the build list, export and the message-link lookup. */
 async function digestRequest(m: any): Promise<unknown> {
   await loaded;
   if (!digests) { return undefined; }
   const id = String(m.chat ?? '');
   if (m.t === 'digestInput') { return digests.input(id); }
   if (m.t === 'digestSave') {
-    // Only the three states a build can end in are accepted; anything else from the host is a bug and saves nothing.
+    // Only the four states a build can end in are accepted; anything else from the host is a bug and saves nothing.
     const st = String(m.state) as AiState;
     if (!['ok', 'off', 'failed', 'none'].includes(st)) { throw new Error('invalid digest state'); }
     return digests.save(id, st, st === 'ok' ? m.part : undefined);
@@ -223,8 +223,6 @@ async function digestRequest(m: any): Promise<unknown> {
   if (m.t === 'digestTodo') { return digests.todo(); }
   if (m.t === 'digestExport') { return digests.exportFor(String(m.folder ?? '')); }
   if (m.t === 'digestWhere') { return digests.where(id); }
-  // Another window (or this one's host) rebuilt digests: drop the cached copies so the next search reads them fresh.
-  if (m.t === 'digestsChanged') { digests.cache.drop(Array.isArray(m.ids) ? m.ids.filter((x: unknown) => typeof x === 'string') : []); return true; }
   return undefined;
 }
 

@@ -124,12 +124,6 @@ export class DigestBuilder {
     });
   }
 
-  /** The digest of one chat for its card: the digest and whether the chat changed since it was built. */
-  card(id: string): { d: Digest; stale: boolean } | null {
-    const e = this.cache.get(id), c = this.ix.find(id);
-    return e ? { d: e.d, stale: !!c && digestStale(e.d, c) } : null;
-  }
-
   /** Export files of every digest that belongs to the folder, plus INDEX.md; missing counts the folder's chats with no digest yet. */
   exportFor(folder: string): { files: Array<{ name: string; text: string }>; index: string; missing: number; stale: number } {
     const ds: Digest[] = [];
@@ -146,7 +140,7 @@ export class DigestBuilder {
     return { files: ds.map((d) => ({ name: digestFileName(d), text: digestMarkdown(d) })), index: indexMarkdown(ds), missing, stale };
   }
 
-  /** Session file and 1-based line of one message of a chat, for the card's message links. */
+  /** Session file and size of a chat, for the card's message links (the line comes from the stored digest). */
   where(id: string): { file: string; size: number } | undefined {
     const c = this.ix.find(id);
     return c ? { file: this.ix.fileOf(c), size: c.size } : undefined;
