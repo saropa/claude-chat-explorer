@@ -3,6 +3,7 @@
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
 ## [Unreleased]
+- Fixed: when a window started on an older build and the extension host later restarted on a newer one (no window reload), toggling a new setting such as Show All Chats failed silently with VS Code's "not a registered configuration" toast. The extension now checks at startup whether the window knows every setting the installed version declares, and shows one warning with a Reload Window button when it does not. A failed write from the Activity menu or the Options screen shows the same prompt. The text lives in `src/staleConfigUi.ts`, the detection in `src/staleConfig.ts`, covered by `scripts/checks/check_staleconfig.js`.
 - Added: when nothing is in flight, the Activity diagram's caption names the chat it follows and its state, for example "your look scroll fade — waiting for you", plus "· 2 other chats working" when other live chats are running or have background tasks. A live caption from real events still wins; the idle text returns when it clears. It updates when the chat's dot or the focused chat changes.
 - Changed: "Show All Chats" (`saropaChats.activity.allChats`) is now on by default, so the diagram follows every live chat instead of only the focused one. Turn it off in the Activity ... menu or in Settings.
 - Changed: README sidebar screenshot retaken after the rename. It now shows "Saropa Chats", the separate Session Manager pane with New session and Clean up, and the Activity pane below.

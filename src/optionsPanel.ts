@@ -2,6 +2,8 @@
 import * as vscode from 'vscode';
 import { OPT_PREFIX, OptEntry, parseSchema, validateValue } from './optionsForm';
 import { OPT_TITLE, optionsHtml } from './optionsHtml';
+import { isUnregisteredError } from './staleConfig';
+import { promptReload } from './staleConfigUi';
 
 export const OPTIONS_CMD = 'saropaChats.options';
 
@@ -26,7 +28,8 @@ export function registerOptions(ctx: vscode.ExtensionContext, log: (where: strin
     try {
       // The webSessions consent listener (src/webSessions.ts) reacts to this write, so enabling still shows its warning and a decline turns it back off.
       await vscode.workspace.getConfiguration().update(e!.key, chk.value, vscode.ConfigurationTarget.Global);
-    } catch (err) { log('options write', err); push(list, { [e!.key]: 'Could not save this setting.' }, true); return; }
+    } catch (err) { log('options write', err); if (isUnregisteredError(err)) { promptReload(); } // only a stale registry's rejection gets the reload prompt; other errors keep just the inline message
+      push(list, { [e!.key]: 'Could not save this setting.' }, true); return; }
     push(list, undefined, m.type === 'reset');
   };
 

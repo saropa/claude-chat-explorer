@@ -53,6 +53,7 @@ import { contextRingTokens } from './ctxRing';
 import { WorkScan } from './workScan';
 import { WorkPrs } from './workPrs';
 import { PrCache } from './wipPrs';
+import { checkStaleConfig } from './staleConfigUi';
 import { WebSessions } from './webSessions';
 import { AUTO_SETTING, BUILD_CMD, DigestService, EXPORT_CMD, OPEN_LINE_CMD, REBUILD_CMD, TIMELINE_CMD } from './digestRun';
 
@@ -483,8 +484,10 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   const autoCfg = () => vscode.workspace.getConfiguration();
   registerKeepWarm(ctx, logErr); // installs or removes the keep-warm Stop hook to match saropaChats.keepWarm.enabled
   const syncAuto = () => { void vscode.commands.executeCommand('setContext', 'saropaChats.autoTitleEnabled', autoTitleNow(ctx.globalState)); };
-  const extPkg = vscode.extensions.getExtension('saropa.claude-chat-explorer')?.packageJSON as { version?: string; contributes?: { configuration?: { properties?: Record<string, unknown> } } } | undefined;
-  log(`activate: version ${extPkg?.version ?? 'unknown'}, ${AUTO_KEY} in manifest: ${extPkg?.contributes?.configuration?.properties?.[AUTO_KEY] !== undefined}, path ${ctx.extensionPath}`);
+  const extPkg = vscode.extensions.getExtension('saropa.claude-chat-explorer')?.packageJSON as { version?: string; contributes?: { configuration?: { properties?: Record<string, unknown> } | Array<{ properties?: Record<string, unknown> }> } } | undefined;
+  log(`activate: version ${extPkg?.version ?? 'unknown'}, ${AUTO_KEY} in manifest: ${(Array.isArray(extPkg?.contributes?.configuration) ? extPkg.contributes.configuration.some((c) => c.properties?.[AUTO_KEY] !== undefined) : (extPkg?.contributes?.configuration as { properties?: Record<string, unknown> } | undefined)?.properties?.[AUTO_KEY] !== undefined)}, path ${ctx.extensionPath}`);
+  // Window registry older than this build (extension-host-only upgrade): warn once and offer a reload; never blocks activation.
+  try { checkStaleConfig(extPkg?.contributes?.configuration, log); } catch (e) { logErr('stale config check', e); }
   syncAuto();
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
     if (!e.affectsConfiguration(AUTO_KEY)) { return; }

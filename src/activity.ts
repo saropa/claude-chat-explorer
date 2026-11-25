@@ -6,6 +6,7 @@ import { AllChatsTracker } from './activityAll';
 import { BgTracker } from './bgAgents';
 import { CHAT_PALETTE, ColorBook } from './chatColors';
 import { projectsRoot } from './files';
+import { guardedWrite } from './staleConfigUi';
 
 const ALL_KEY = 'activity.allChats'; // setting: show every live chat, each in its own colour
 const ALL_CTX = 'saropaChats.activityAll'; // context key mirroring it, so the menu entry shows a check mark
@@ -21,7 +22,8 @@ async function pickSpeed(key: 'refreshMs' | 'fadeMs', title: string): Promise<vo
   const items = SPEEDS.map((label, i) => ({ label, description: `${CHOICES[key][i]} ms${CHOICES[key][i] === now ? '  (current)' : ''}`, ms: CHOICES[key][i] }));
   const pick = await vscode.window.showQuickPick(items, { title, placeHolder: `Current: ${now} ms (Medium is the default)` });
   if (!pick) { return; }
-  await cfg.update('activity.' + key, pick.ms, targetOf('activity.' + key));
+  // A rejected write (stale registry after an extension-host-only upgrade) shows the reload prompt instead of doing nothing.
+  await guardedWrite(() => cfg.update('activity.' + key, pick.ms, targetOf('activity.' + key)));
 }
 
 /** Where to write an Activity setting: where it is already overridden, so the new value takes effect; else the user settings. */
@@ -129,7 +131,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     vscode.commands.registerCommand('saropaChats.activityRefreshSpeed', () => pickSpeed('refreshMs', 'Activity refresh speed')),
     vscode.commands.registerCommand('saropaChats.activityFadeSpeed', () => pickSpeed('fadeMs', 'Activity fade-out speed')),
     // The menu entry flips the setting; the configuration listener below applies it, so the menu, Settings and settings.json stay in step.
-    vscode.commands.registerCommand('saropaChats.activityAllChats', () => vscode.workspace.getConfiguration('saropaChats').update(ALL_KEY, !allOn(), targetOf(ALL_KEY))),
+    vscode.commands.registerCommand('saropaChats.activityAllChats', () => guardedWrite(() => vscode.workspace.getConfiguration('saropaChats').update(ALL_KEY, !allOn(), targetOf(ALL_KEY)))),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('saropaChats.activity.fadeMs')) { send({ type: 'fade', ms: fade() }); }
       if (e.affectsConfiguration('saropaChats.activity.refreshMs')) { start(); }
