@@ -131,4 +131,30 @@ Changes from the text above, decided while building:
 - 85a4f5b feat: digest marker, Digest card section and digest snippets in the panel
 - a66566f feat: Build, Rebuild and Export digest commands, settings and digest check
 - 47b92e3 refactor: drop unused digest invalidation message and card helper
-- docs: Chat Digests in README and CHANGELOG, plan closed (this commit)
+- c5fb3a4 docs: Chat Digests in README and CHANGELOG, plan closed
+- f8d813d merge of feat/chat-digests into main (conflicts in CHANGELOG.md, package.json, src/webviewLayout.ts resolved by keeping both sides)
+- 7751243 fix: digest review findings
+
+---
+
+## Finish Report (2026-11-25)
+
+**Objective.** Chats hold owner decisions and context that later work needs, but a full chat file is too long to reread and `/compact` drops facts. Each chat now gets a stored digest (goal, decisions, files changed, references, left open) that is shown in the panel, searchable, and exportable as Markdown.
+
+**What was built.** Core in `src/digest.ts` (exact parts, references, dialog answers, size cap), `src/digestAi.ts` (Haiku runner, pieces and merge, 2-slot limit), `src/digestStore.ts` (`<globalStorage>/digests-v1/<id>.json`), `src/digestBuild.ts` (worker side), `src/digestRun.ts` (host commands, auto rebuild, export), `src/digestMd.ts` (Markdown, slug, file names), `src/webviewDigest.ts` (marker and Digest section). Search changes in `match.ts` (digest check before the bloom gate, shared `digestTermsApply` and `digestLineHits`), `query.ts` (`digest:`), `search.ts`, `worker.ts`, `editorSearch.ts`, `export.ts`.
+
+**Review fixes (7751243).**
+- A pending worker build was dropped after 15 minutes, though a worst-case build runs longer. `PENDING_MS` is now derived from the AI constants (pieces, tries, timeout, slots).
+- Search-results export and the results editor listed no digest lines for digest matches. Both now use the shared `digestLineHits`, and plain terms count against the digest only under the same condition `matchChat` uses.
+- CSS hex colors (`#000`, `color: #333`) were extracted as PR references. Leading-zero and color-context matches are now skipped.
+- Re-export after a title change left the old `_<id8>.md` file. `supersededExports` lists the files to delete before the write.
+- Clicking the digest marker on a closed row did not scroll to the Digest section. A pending target is applied once the section renders.
+- Host messages in `digestRun.ts` use `vscode.l10n.t`.
+
+**Verification.** `npx tsc -p .` is clean. `check_digest.js`, `check_webview.js`, `check_scan.js`, `check_api.js`, `check_manifest.js`, `check_keepwarm.js`, `check_ring.js`, `check_options.js` and `check_activity.js` pass on the merged tree. The AI runner is exercised only through a stub. The real `claude` CLI and the running VS Code panel are unverified.
+
+**Known limits.**
+- A bare `#333` with no context is still listed as a PR reference.
+- `PR: #42` is rejected by the colon rule.
+- Webview digest strings are literal; this repo has no webview l10n setup.
+- `check_guards.js` fails because `package.json` (0.49.0) and the top CHANGELOG heading (1.0.0) differ. The cause is outside this feature.
