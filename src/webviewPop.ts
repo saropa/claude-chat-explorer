@@ -32,10 +32,13 @@ const openPair=()=>pairs.find(p=>{const m=el(p[1]);return m&&!m.hidden;});
 function close(except){pairs.forEach(p=>{if(p[1]===except)return;const m=el(p[1]),b=el(p[0]);if(m)m.hidden=true;if(b)b.setAttribute('aria-expanded','false');});}
 /* place(b,m,flip): opens m under b. flip=true (the context popover, which hangs from rows that can sit at the bottom edge) instead opens it above b when it does not fit below and there is more room above; header menus never pass it, so they keep opening downward. */
 function place(b,m,flip){const r=b.getBoundingClientRect(),vw=document.documentElement.clientWidth||window.innerWidth||300,vh=window.innerHeight||600,M=8;let top=r.bottom+2,mh=Math.max(80,vh-top-M);
+/* Width cap from the measured viewport (clientWidth, which excludes a scrollbar that 100vw in the CSS cap includes): in a narrow sidebar the box can never be wider than the viewport minus both margins. Set before measuring, so the flip height below is taken at the capped width. */
+m.style.maxWidth=Math.max(0,vw-2*M)+'px';
 if(flip){/* Bug fixed: place() always used top=r.bottom+2, so a popover opened from a bottom row was clipped by the viewport. The natural height is measured with the previous cap removed, then the box flips above the slot when below is too small and above is larger. */
 m.style.maxHeight='';const h=m.offsetHeight||0,below=vh-top-M,above=r.top-2-M;
 if(h>below&&above>below){top=Math.max(M,r.top-2-Math.min(h,above));mh=r.top-2-top;}}
 m.style.top=top+'px';m.style.maxHeight=mh+'px';
+/* Horizontal clamp: right-align with the anchor, then keep both edges inside the margins (left wins when even the capped box cannot fit). */
 const w=Math.min(m.offsetWidth||0,vw-2*M);m.style.left=Math.max(M,Math.min(r.right-w,vw-M-w))+'px';}
 function toggle(bid,mid){const m=el(mid),open=m.hidden;close(open?mid:'');m.hidden=!open;el(bid).setAttribute('aria-expanded',open?'true':'false');if(open)place(el(bid),m);}
 window.addEventListener('resize',()=>{const o=openPair();if(o)place(el(o[0]),el(o[1]));});

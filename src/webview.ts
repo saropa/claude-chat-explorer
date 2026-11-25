@@ -60,7 +60,7 @@ ${SUM_HTML}
 ${ACT_HTML}
 ${WEB_BODY}
 <div id="tip" role="tooltip" hidden></div>
-<div id="ctxp" class="pop tipc" role="dialog" aria-label="Context usage" hidden></div>
+<div id="ctxp" class="pop tipc" role="dialog" aria-labelledby="ctxh" tabindex="-1" hidden></div>
 <script nonce="${nonce}">${SCRIPT}</script>
 <script nonce="${nonce}">${actScript(fadeMs)}</script></body></html>`;
 }

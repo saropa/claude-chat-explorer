@@ -360,25 +360,37 @@ function ctxPopChecks(rid, check, step) {
   const pop = els.get('ctxp');
   const id3 = () => '00000000-0000-4000-8000-000000000003'; // row 3 has no ctx field
   check('the panel has a hidden context popover using the shared .pop box', !!pop && pop.hidden === true && /id="ctxp" class="pop tipc" role="dialog"/.test(page));
+  // The dialog is named by its heading (id="ctxh", in both the details and the empty message) and can take focus itself when it has no button.
+  check('the context popover is labelled by its heading and focusable as a dialog', /id="ctxp" class="pop tipc" role="dialog" aria-labelledby="ctxh" tabindex="-1"/.test(page) && !/id="ctxp"[^>]*aria-label=/.test(page));
+  // The slot button's name carries the status words and the context percent; its ring and dot are hidden from assistive tech (no role=img nested in a button).
+  const slotM = /<span class="rs[^"]*" role="button" tabindex="0" data-a="ctx"[^>]*aria-label="([^"]*)">([\s\S]*?<\/svg><\/span>(?:<span [^>]*><\/span>)?)<\/span>/.exec(els.get('list').innerHTML);
+  check('the slot button is named with the status and context percent, and its children are aria-hidden', !!slotM && /\. Context 61% full: show details$/.test(slotM[1]) && !/role="img"/.test(slotM[2]) && /class="rg[^"]*" aria-hidden="true"/.test(slotM[2]));
   check('a row with context data renders its ring slot as a button', new RegExp('<span class="rs[^"]*" role="button" tabindex="0" data-a="ctx"').test(els.get('list').innerHTML));
   // The stub DOM cannot hold real nodes, so the click target is a stub whose closest() answers like the slot inside the row.
   const slot = mkEl('slot'); slot.dataset.a = 'ctx'; H.ctx.__slot = slot;
   H.ctx.__ev = { target: { closest: (s) => (s === '.r' ? { dataset: { id: rid } } : s === '[data-a]' ? slot : null) }, stopPropagation() {} };
   const before = posted.length;
   step('ring slot click', () => run('onClick(__ev);', 'ring slot click'));
-  check('ring slot click opens the popover with the bar and the Context details', pop.hidden === false && /class="cxb/.test(pop.innerHTML) && /<b>Context 61% full<\/b>/.test(pop.innerHTML) && /<dt>Model<\/dt>/.test(pop.innerHTML) && /data-a="resume"/.test(pop.innerHTML) && slot.getAttribute('aria-expanded') === 'true');
+  check('ring slot click opens the popover with the bar and the Context details', pop.hidden === false && /class="cxb/.test(pop.innerHTML) && /<b id="ctxh">Context 61% full<\/b>/.test(pop.innerHTML) && /<dt>Model<\/dt>/.test(pop.innerHTML) && /data-a="resume"/.test(pop.innerHTML) && slot.getAttribute('aria-expanded') === 'true');
   check('ring slot click does not open or expand the row', run('open.has(' + JSON.stringify(rid) + ')', 'open state') === false && !posted.slice(before).some((p) => p.type === 'open' || p.type === 'expand'));
   // Tooltip veto: the ring and dot inside the open popover's own slot must not show a tooltip over it (they re-showed it on the next mouseover before).
   const tipEl = els.get('tip'), inSlot = { dataset: { tip: 'x' }, closest: (q) => (q === '.rs[data-a=ctx]' ? { closest: (r) => (r === '.r' ? { dataset: { id: rid } } : null) } : null), setAttribute() {}, removeAttribute() {}, getBoundingClientRect: () => ({ top: 0, bottom: 10, left: 0, right: 10, width: 10, height: 10 }) };
   H.ctx.__tel = inSlot; tipEl.hidden = true;
   step('tooltip over the open slot', () => run('tipper.show(__tel);', 'tip show'));
   check('no tooltip is shown for the ring or dot inside the open popover slot', tipEl.hidden === true);
+  // Positive control: the same element, with the same config minus skip, does show a tooltip. Without this the check above would also pass
+  // if html() returned '' for the stub, so it proves the veto (and nothing else) hides the tip.
+  step('tooltip without the veto', () => run('makeTip(Object.assign({},tipCfg,{skip:undefined})).show(__tel);', 'tip control'));
+  check('positive control: without skip the same element shows a tooltip', tipEl.hidden === false && tipEl.innerHTML !== '');
+  step('hide the control tooltip', () => run('tipHide();', 'tip control hide'));
   step('Escape on the popover', () => fire(document, 'keydown', { key: 'Escape' }));
   check('Escape closes the context popover', pop.hidden === true && run('ctxId', 'ctx state') === '');
   // Empty-data tap: a slot whose chat has no context data still gives a visible outcome (message in the popover), never a silent return.
-  H.ctx.__eid = id3(rid);
+  H.ctx.__eid = id3(rid); const popF0 = pop.focused || 0;
   step('empty-data slot tap', () => run('ctxOpen(__eid, __slot);', 'ctx empty open'));
   check('a tap on a chat without context data shows the "No context data" message', pop.hidden === false && /No context data for this chat/.test(pop.innerHTML));
+  // The empty popover has no button, so focus moves to the dialog itself instead of staying behind on the slot.
+  check('the empty-data popover takes focus itself (no button to focus) and is still named by ctxh', pop.focused === popF0 + 1 && /id="ctxh"/.test(pop.innerHTML));
   step('Escape on the empty popover', () => fire(document, 'keydown', { key: 'Escape' }));
   check('Escape closes the empty-data popover', pop.hidden === true);
 }

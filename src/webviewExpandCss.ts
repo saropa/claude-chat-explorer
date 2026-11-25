@@ -10,6 +10,8 @@ const BASE = String.raw`
 .r.open .hd .t{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;padding:var(--tpy) 0;-webkit-mask-image:none;mask-image:none}
 /* Open rows align the header to the top, so the meta group (only the ring slot here) is dropped until its center meets the center of the first title line: (line box + both paddings - slot) / 2. 1lh is the title's line height (.rc inherits the same font and line-height), so it tracks the editor font size; the old fixed 6px did not. The dot itself is not offset, or it would leave the ring hole. */
 .r.open .hd .rc{margin-top:calc((1lh + 2 * var(--tpy) - var(--rs)) / 2)}
+/* Wrapped titles: .hd is align-items:flex-start and .rc holds only the slot, so the slot stays at the first line whatever the title's line count; the offset above is one line box, never the wrapped block. Engines without the lh unit drop the calc above, which put the slot flush with the top edge: there the title and slot get an explicit line height (--tlh) and the same formula uses it in em. */
+@supports not (height:1lh){.r.open .hd{--tlh:1.25}.r.open .hd .t{line-height:var(--tlh)}.r.open .hd .rc{margin-top:calc((var(--tlh) * 1em + 2 * var(--tpy) - var(--rs)) / 2)}}
 .r.open .hd .ia{display:flex;position:static;transform:none;margin-top:5px}
 .r.open .hd .ic[data-a=exp]{margin-top:2px;position:static;transform:none;opacity:1}
 /* Left padding matches the open header (9px) so the panel lines up with the title; it was 23px when the dot sat at the left. */
