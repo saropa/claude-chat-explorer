@@ -65,6 +65,30 @@ export interface DigestInputReply {
   drift?: string[]; // chat-file layout problems found by the pass ('dialog answers', 'stop_reason'), for the host to log once
 }
 
+/**
+ * Give every decision a numeric `at`. Dialog decisions whose answer row has no parseable timestamp, and message decisions
+ * whose message time is 0, are built without `at`; digestStale treats any decision without `at` as stale, so such a digest
+ * would be rebuilt (a Haiku run) on every automatic pass, forever. This is the ONE place that closes the gap, for both kinds.
+ * Fallback order: the decision's own time, the nearest earlier known message time in the chat, the chat's last activity.
+ * Returns new objects; the inputs are not mutated.
+ */
+export function withDecisionTimes(ds: Decision[], rec: Rec, last: number, built: number): Decision[] {
+  // Last resort when even the chat's last activity is unknown (0 or missing): the build time, so `at` is always a real number.
+  const end = Number.isFinite(last) && last > 0 ? last : built;
+  return ds.map((d) => {
+    // The decision already has its own time: keep it untouched.
+    if (typeof d.at === 'number' && Number.isFinite(d.at)) { return d; }
+    // Find where the decision sits in the message list: a message decision names its index; a dialog decision is placed by
+    // the largest message whose file line is at or before the decision's line (rec.lines ascend in file order).
+    let k = -1;
+    if (typeof d.i === 'number') { k = Math.min(d.i, rec.ts.length - 1); }
+    else if (d.line !== undefined) { for (let j = 0; j < rec.lines.length && rec.lines[j] <= d.line; j++) { k = j; } }
+    // Walk back to the nearest earlier message that has a recorded time (0 means none was recorded).
+    for (; k >= 0; k--) { if (rec.ts[k] > 0) { return { ...d, at: rec.ts[k] }; } }
+    return { ...d, at: end };
+  });
+}
+
 /** Builds digests in the worker; keeps gathered builds until their save arrives. */
 export class DigestBuilder {
   private readonly pend = new Map<string, Pending>();
@@ -127,7 +151,8 @@ export class DigestBuilder {
       if (open.length) { d.open = open; }
       ds = [...ds, ...messageDecisions(p.rec, part!.decisions.filter((x): x is number => Number.isInteger(x) && p.allowed.has(x)))];
     } else if (state === 'ok') { d.ai = 'failed'; }
-    d.decisions = orderDecisions(ds);
+    // Single assembly point for both decision kinds: fill any missing time so the finished digest is never stale by its own content.
+    d.decisions = withDecisionTimes(orderDecisions(ds), p.rec, d.last, d.built);
     const out = capDigest(d);
     await writeDigest(this.cache.dir, out);
     // This window's searches see the new digest at once; other windows pick it up on their next listing.

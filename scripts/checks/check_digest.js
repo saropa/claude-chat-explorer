@@ -305,6 +305,27 @@ async function buildTests(tmp) {
   await b.save(ID, 'off');
   const off = cache.get(ID).d;
   check('AI off: exact parts only, marked off', off.ai === 'off' && off.goal === undefined && off.decisions.length === 3 && off.files.length === 2);
+  // Untimed decisions: a dialog answer row with no timestamp and a message with ts 0 must still get a numeric `at`, so the
+  // finished digest is not stale against its own file (otherwise the auto rebuild re-ran the AI on every pass).
+  const untimed = path.join(tmp, 'untimed.jsonl');
+  const askRow = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'tu1', name: 'AskUserQuestion', input: { questions: [{ question: 'Q?', options: [{ label: 'A' }] }] } }], stop_reason: 'tool_use' } });
+  // No `timestamp` field on the answer row: Date.parse yields nothing, so the decision is built without `at`.
+  const ansRow = JSON.stringify({ type: 'user', toolUseResult: { answers: { 'Q?': 'A' } }, message: { content: [{ type: 'tool_result', tool_use_id: 'tu1', content: 'Your questions have been answered: "Q?"="A". ok' }] } });
+  fs.writeFileSync(untimed, ['{}', askRow, ansRow, '{}'].join('\n') + '\n');
+  for (const [name, ts, want] of [['earlier message time', [500, 0, 0], 500], ['chat last activity', [0, 0, 0], 7777]]) {
+    const uc = { id: 'u1', dir: '-w-shop', title: 'untimed', mtime: 1, size: fs.statSync(untimed).size, last: 7777, first: 1, count: 3, files: [], rec: 'r', len: 1, bloom: buildBloom('x') };
+    const urec = decodeRec(encodeRec({ texts: ['one', 'two', 'three'], ts, roles: [0, 0, 0], lines: [1, 4, 5], cmds: [], cmdAt: [] }));
+    const uix = { find: () => uc, subsOf: () => [], rec: () => urec, fileOf: () => untimed, tops: () => [uc] };
+    const ucache = new store.DigestCache(store.digestDir(path.join(tmp, 'u-' + want)));
+    uix.digests = ucache;
+    const ub = new DigestBuilder(uix, ucache);
+    await ub.input('u1');
+    await ub.save('u1', 'ok', { goal: 'g', decisions: [2], open: [] });
+    const ud = ucache.get('u1').d;
+    check('untimed (' + name + '): dialog and message decisions both exist', ud.decisions.some((x) => x.src === 'dialog') && ud.decisions.some((x) => x.src === 'message'));
+    check('untimed (' + name + '): every decision gets numeric at ' + want + ' (' + JSON.stringify(ud.decisions.map((x) => x.at)) + ')', ud.decisions.every((x) => x.at === want));
+    check('untimed (' + name + '): the built digest is not stale for the same size and mtime', dg.digestStale(ud, uc) === false && ub.todo()[0].state === 'fresh');
+  }
   // AI failed (malformed after every try, or no claude): the exact parts are kept and the AI parts say "not generated".
   await b.input(ID);
   await b.save(ID, 'failed');
