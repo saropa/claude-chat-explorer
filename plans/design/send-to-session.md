@@ -130,7 +130,7 @@ Need: a general "send input to a Claude session" capability. First consumers: Co
 - [ ] Map session pid to a VS Code terminal: `Terminal.processId` (shell pid) equals the claude process parent. Needs a Windows parent-pid source (`windowMarker.ts:20` has none); evaluate cost.
 - [ ] `terminal.show()` then `sendText(text, false)` (no Enter) so the owner submits; auto-submit only behind its own setting.
 
-### Phase 4: closed sessions, unattended (separate decision)
+### Phase 4: closed sessions, unattended (rejected, see D2)
 
 - [ ] `claude -p --resume <id> --output-format json` for S5 when the owner chooses "Run in background" instead of opening. Requires answers to Q5/Q6. Never when any pid for the id is alive.
 
@@ -180,14 +180,17 @@ Action row, left to right: Compact, Run handover, Resume (primary stays Resume).
 - Phase 2 text arrives as a system reminder; the model can treat it as non-user input and decline, which is correct behavior under the owner's own rules. Delivery receipt must report this as "delivered, not acted on" when no handover file appears.
 - Handover writes files into the repo and may commit (per the owner's command); Phase 2 makes that happen without the owner at the keyboard.
 
+## Decisions
+
+- D1 (Q1): popover shows Run handover only; no Compact button.
+- D2 (Q5): closed sessions open with the text pre-filled; no unattended `claude -p --resume` run. Phase 4 is rejected.
+- D3 (Q7): Phase 2 ships a separate inbox Stop hook (`inbox.js`), independent of keep-warm.
+- D4 (Q8): Run handover sends `/handover` plus an instruction to stop after writing the file: no `/clear`, no commit.
+- D5 (Q9): audit log at `~/.claude/saropa-chats/send.log.jsonl`.
+
 ## Open questions
 
-- Q1: Does the owner's `~/.claude/commands/compact.md` shadow the built-in `/compact`? If yes, Compact and Run handover do the same thing here: keep both buttons, or show only Run handover?
 - Q2: Can any hook output run a built-in slash command (`/compact`, `/clear`)? Docs read do not say so.
 - Q3: What `entrypoint` value does a terminal-started CLI session write in `~/.claude/sessions/*.json`?
 - Q4: Does pre-fill work when the session is shown in the agent extension's sidebar (code path exists, not run)?
-- Q5: For closed sessions, should Run handover offer an unattended `claude -p --resume` run (tokens spent with nobody watching, needs `--allowedTools Write,Bash(git ...)`)?
 - Q6: Does `claude -p --resume <id> "/compact"` compact a closed session's transcript? Not covered by the docs read.
-- Q7: Phase 2: extend `keep_warm.js` (one watcher, one hook) or ship a separate inbox hook usable without keep-warm?
-- Q8: Should Run handover send `/handover` bare, or with an instruction to stop after writing the file (no `/clear`, no commit)?
-- Q9: Audit log location: extension storage (per machine, hidden) or `~/.claude/saropa-chats/send.log.jsonl` (next to keep-warm's log)?
