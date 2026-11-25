@@ -17,7 +17,11 @@ A failed preflight, check, build or package step asks "Retry / Ignore / Abort"
 the usual code). Ignore is offered only for checks whose failure cannot publish
 wrong code: a dirty working tree and the store metadata checks. Every other
 failure (wrong branch, out of sync with origin, push, version, build, package)
-offers Retry / Abort. Failures during
+offers Retry / Abort. If nobody answers a
+Retry prompt within AUTO_RETRY_SECONDS (20 s) the step is retried automatically, as if R
+was pressed; any keystroke cancels the timer, and after AUTO_RETRY_MAX (3) automatic
+retries in a row the prompt waits indefinitely so a deterministic failure cannot loop
+forever. Failures during
 publish, tag and release exit at once. Without a terminal every failure exits at once.
 
 Flags: --dry-run, --skip-marketplace, --skip-openvsx, --skip-tag, --skip-release,
@@ -42,6 +46,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -59,6 +64,12 @@ REQUIRED_IN_VSIX = {
     "extension/changelog.md": "CHANGELOG.md",
 }
 FORBIDDEN_IN_VSIX = ("extension/plans/", "extension/scripts/", "extension/src/")
+# Seconds a failed-step prompt waits for an answer before retrying on its own, so an
+# unattended run recovers from a transient failure (network blip, locked file).
+AUTO_RETRY_SECONDS = 20
+# Cap on automatic retries per guarded() call; past it the prompt waits forever so a step
+# that fails every time (wrong branch, version mismatch) cannot loop without a human.
+AUTO_RETRY_MAX = 3
 
 EXIT = dict(
     PREREQUISITE=1, TREE_DIRTY=2, REMOTE_SYNC=3, VERSION_MISMATCH=4, BUILD_FAILED=5,
@@ -114,10 +125,71 @@ def finish(err: StepFailed) -> None:
     sys.exit(EXIT[err.code])
 
 
+def timed_input(prompt: str, seconds: float) -> str | None:
+    """Read one line like input(), but return None if nothing is typed within `seconds`.
+
+    The timer covers only the wait for the FIRST keystroke: once the user starts typing
+    they are mid-answer, and retrying under their fingers would discard it. Ctrl+C raises
+    KeyboardInterrupt and Ctrl+Z / closed stdin raises EOFError, matching input(), so
+    callers keep their existing abort handling."""
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+    deadline = time.monotonic() + seconds
+    if os.name == "nt":
+        # select() does not work on console handles on Windows, so poll msvcrt instead.
+        import msvcrt
+
+        chars: list[str] = []
+        started = False  # True after the first keystroke; disables the timeout
+        while True:
+            if not msvcrt.kbhit():
+                # Only the idle wait before the first key may time out.
+                if not started and time.monotonic() >= deadline:
+                    sys.stdout.write("\n")
+                    return None
+                time.sleep(0.1)
+                continue
+            started = True
+            ch = msvcrt.getwche()  # reads one key and echoes it to the console
+            if ch in ("\r", "\n"):
+                sys.stdout.write("\n")
+                return "".join(chars)
+            if ch == "\x03":  # Ctrl+C arrives as a character in raw console reads
+                raise KeyboardInterrupt
+            if ch == "\x1a":  # Ctrl+Z is end-of-file on Windows consoles
+                raise EOFError
+            if ch in ("\x00", "\xe0"):
+                # Function/arrow keys send a two-char sequence; swallow the second
+                # char so it is not appended to the answer.
+                msvcrt.getwch()
+                continue
+            if ch == "\x08":  # Backspace: getwche echoed it, so erase the glyph on screen
+                if chars:
+                    chars.pop()
+                    sys.stdout.write(" \b")
+                    sys.stdout.flush()
+                continue
+            chars.append(ch)
+    # POSIX: wait for stdin to become readable, then read the whole line (the terminal
+    # is in line mode, so readable means the user pressed Enter).
+    import select
+
+    ready, _, _ = select.select([sys.stdin], [], [], seconds)
+    if not ready:
+        sys.stdout.write("\n")
+        return None
+    line = sys.stdin.readline()
+    if line == "":  # readline returns "" only at EOF
+        raise EOFError
+    return line.rstrip("\r\n")
+
+
 def guarded(name: str, step, *args):
     """Run a step; on a failure ask Retry (default) / Ignore (if allowed) / Abort.
 
-    Without a terminal, exits at once with the failure's code."""
+    An unanswered prompt retries by itself after AUTO_RETRY_SECONDS, at most
+    AUTO_RETRY_MAX times per call. Without a terminal, exits at once with the failure's code."""
+    auto_retries = 0  # automatic retries used so far; counts across repeated failures of this call
     while True:
         try:
             return step(*args)
@@ -126,11 +198,26 @@ def guarded(name: str, step, *args):
                 finish(err)
             opts = "Retry / Ignore / Abort [R/i/a]" if err.ignore else "Retry / Abort [R/a]"
             while True:
+                # Timer only while automatic retries remain; afterwards wait indefinitely.
+                timed = auto_retries < AUTO_RETRY_MAX
+                prompt = f"  {name} failed. {opts}"
+                if timed:
+                    prompt += f" (auto-retry in {AUTO_RETRY_SECONDS} s, {auto_retries + 1} of {AUTO_RETRY_MAX})"
+                prompt += ": "
                 try:
-                    text = input(f"  {name} failed. {opts}: ").strip().lower() or "r"
+                    if timed:
+                        raw = timed_input(prompt, AUTO_RETRY_SECONDS)
+                    else:
+                        raw = input(prompt)
                 except (EOFError, KeyboardInterrupt):
                     print()
-                    text = "a"
+                    raw = "a"
+                if raw is None:
+                    # Timed out: behave as if R was pressed, and count it toward the cap.
+                    auto_retries += 1
+                    info(f"No answer in {AUTO_RETRY_SECONDS} s; retrying automatically")
+                    break
+                text = raw.strip().lower() or "r"
                 if text in ("r", "retry"):
                     break
                 if text in ("i", "ignore") and err.ignore:
