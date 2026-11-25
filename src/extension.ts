@@ -51,6 +51,7 @@ import { WorkScan } from './workScan';
 import { WorkPrs } from './workPrs';
 import { PrCache } from './wipPrs';
 import { WebSessions } from './webSessions';
+import { AUTO_SETTING, BUILD_CMD, DigestService, EXPORT_CMD, REBUILD_CMD } from './digestRun';
 
 const POST_GAP_MS = 100;
 const REVEAL_CMD = 'workbench.view.extension.saropaChats'; // opens the Saropa Chats container and its view
@@ -84,6 +85,7 @@ class Provider implements vscode.WebviewViewProvider {
   activity?: { setVisible(v: boolean): void; setOpen(o: boolean): void };
   actions?: ArchiveActions;
   web?: WebSessions;
+  digests?: DigestService; // digest commands and the card's digest buttons and links
   private readonly gitLive = new GitLiveService(uiExec, ghUiExec, prCache);
   private readonly work = new ChatWork({
     request: (m) => this.client.request(m as Parameters<WorkerClient['request']>[0], true, true), exec: uiExec, ghExec: ghUiExec, cache: prCache, folders: folderPaths, prsOn,
@@ -289,6 +291,10 @@ class Provider implements vscode.WebviewViewProvider {
     else if (m.type === 'pin') { await this.store.togglePin(id); await this.postMeta(); }
     else if (m.type === 'tagAdd') { await this.store.addTag(id, String(m.tag ?? '')); await this.postMeta(); }
     else if (m.type === 'tagRemove') { await this.store.removeTag(id, String(m.tag ?? '')); await this.postMeta(); }
+    // Digest section of a card: build or rebuild it, open a quoted message at its line, or follow a reference.
+    else if (m.type === 'digestBuild') { await this.digests?.rebuild(id); }
+    else if (m.type === 'digestMsg') { await this.digests?.openMessage(id, Number(m.i)); }
+    else if (m.type === 'digestRef') { await this.digests?.openRef(id, String(m.ref ?? '')); }
   }
 
   /** Copy the hand-over note for another page; state reports busy and done to that page. */
@@ -485,6 +491,22 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
     vscode.commands.registerCommand('saropaChats.archiveTiny', () => archiveTiny(tinyDeps)),
     // Clean up button: archive everything that is not open or pinned.
     vscode.commands.registerCommand('saropaChats.archiveClosed', () => archiveClosed(tinyDeps)));
+  // Chat digests: the worker gathers and saves, this service runs the AI and the commands; the store is beside the records.
+  const digests = new DigestService({
+    request: (m, t) => client!.request(m as Parameters<WorkerClient['request']>[0], true, true, t),
+    storage: dir,
+    // Running and waiting chats are mid-turn: the automatic rebuild leaves them alone.
+    busy: () => new Set(Object.entries(provider.watcher?.dots ?? {}).filter(([, d]) => d.s === 'running' || d.s === 'waiting').map(([id]) => id)),
+    post: (m) => provider.post(m), log: logErr, setQuery: (q) => { void provider.showQuery(q); },
+  });
+  provider.digests = digests;
+  digests.syncAuto();
+  ctx.subscriptions.push({ dispose: () => digests.dispose() },
+    vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.' + AUTO_SETTING)) { digests.syncAuto(); } }),
+    vscode.commands.registerCommand(BUILD_CMD, () => digests.buildAll()),
+    vscode.commands.registerCommand(EXPORT_CMD, () => digests.export()),
+    // The row menu passes the chat; the command palette has no chat to pass, so it is hidden there.
+    vscode.commands.registerCommand(REBUILD_CMD, (arg?: { id?: unknown }) => (isSessionId(arg?.id) ? digests.rebuild(arg.id) : undefined)));
   registerUsage(ctx, { rows: usageRows, resume: (id) => provider.resume(id), log: logErr, onIndex: (fn) => { ctx.subscriptions.push(hub.on('indexed', fn), hub.on('changed', fn)); },
     showNearly: async () => { await vscode.commands.executeCommand(REVEAL_CMD); store!.setStatuses(['nearly']); provider.post({ type: 'setStatuses', checked: ['nearly'] }); } });
   registerHeaderCommands(ctx, { reveal: () => vscode.commands.executeCommand(REVEAL_CMD), post: (m) => provider.post(m), sort: () => store!.draft.sort, statuses: () => store!.statuses, setStatuses: (c) => store!.setStatuses(c) });

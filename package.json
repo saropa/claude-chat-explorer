@@ -121,6 +121,18 @@
         "title": "Saropa: Export Session as Markdown"
       },
       {
+        "command": "saropaChats.buildDigests",
+        "title": "Saropa: Build Session Digests"
+      },
+      {
+        "command": "saropaChats.rebuildDigest",
+        "title": "Saropa: Rebuild Session Digest"
+      },
+      {
+        "command": "saropaChats.exportDigests",
+        "title": "Saropa: Export Session Digests to Project"
+      },
+      {
         "command": "saropaChats.openWork",
         "title": "Saropa Chats: Project Status",
         "icon": "$(checklist)"
@@ -295,6 +307,11 @@
           "command": "saropaChats.markRead",
           "when": "webviewId == 'saropaChats.view' && webviewSection == 'chat' && ccsUnread",
           "group": "saropaChats@2"
+        },
+        {
+          "command": "saropaChats.rebuildDigest",
+          "when": "webviewId == 'saropaChats.view' && webviewSection == 'chat'",
+          "group": "saropaChats@4"
         }
       ],
       "commandPalette": [
@@ -348,6 +365,10 @@
         },
         {
           "command": "saropaChats.markRead",
+          "when": "false"
+        },
+        {
+          "command": "saropaChats.rebuildDigest",
           "when": "false"
         }
       ]
@@ -403,6 +424,18 @@
           "type": "boolean",
           "default": false,
           "description": "Let the claude command (Haiku model) write the automatic session title and emoji instead of the rules. Runs in the background and starts a claude process; if it fails, the rule-based title is used. Only applies when automatic titles are on."
+        },
+        "saropaChats.digest.auto": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "description": "Rebuild out-of-date session digests in the background: a digest is rebuilt once its session file has not changed for 10 minutes and the session is not running. Starts the claude command (Haiku) when AI parts are on. Off: digests are built only by the Build and Rebuild commands."
+        },
+        "saropaChats.digest.useAi": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "description": "Let the claude command (Haiku model) write the goal and the work left open of each session digest, and pick the owner messages that are decisions. Off: a digest holds only the exact parts (dialog answers, files changed, references, dates and branch)."
         },
         "saropaChats.emojiRules": {
           "type": "array",
@@ -529,7 +562,7 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "tsc -p .",
-    "vscode:prepublish": "npm run clean && npm run compile && node scripts/checks/check_manifest.js && node scripts/checks/check_webview.js && node scripts/checks/check_openwork.js && node scripts/checks/check_scan.js && node scripts/checks/check_prs.js && node scripts/checks/check_prs_e2e.js && node scripts/checks/check_guards.js && node scripts/checks/check_dots.js && node scripts/checks/check_regen.js && node scripts/checks/check_autotitle.js && node scripts/checks/check_autotitle_flag.js && node scripts/checks/check_web.js && node scripts/checks/check_options.js && node scripts/checks/check_claude_config.js && node scripts/checks/check_account.js && node scripts/checks/check_tokens.js && node scripts/checks/check_api.js && node scripts/checks/check_activity.js",
+    "vscode:prepublish": "npm run clean && npm run compile && node scripts/checks/check_manifest.js && node scripts/checks/check_webview.js && node scripts/checks/check_openwork.js && node scripts/checks/check_scan.js && node scripts/checks/check_prs.js && node scripts/checks/check_prs_e2e.js && node scripts/checks/check_guards.js && node scripts/checks/check_dots.js && node scripts/checks/check_regen.js && node scripts/checks/check_autotitle.js && node scripts/checks/check_autotitle_flag.js && node scripts/checks/check_web.js && node scripts/checks/check_options.js && node scripts/checks/check_claude_config.js && node scripts/checks/check_account.js && node scripts/checks/check_tokens.js && node scripts/checks/check_api.js && node scripts/checks/check_activity.js && node scripts/checks/check_digest.js",
     "package": "npx --yes @vscode/vsce package --allow-missing-repository --skip-license"
   },
   "devDependencies": {
