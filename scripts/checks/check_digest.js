@@ -36,8 +36,20 @@ async function recOf(file) {
 }
 
 function refsTests() {
-  const css = dg.extractRefs(['p { color: #333; background:#000000; border: 1px solid #123 } .a{fill: #000} PR #42 and #7, see https://github.com/o/r/pull/9']);
-  check('refs: CSS hex colors are not PR numbers (' + JSON.stringify(css) + ')', !css.includes('#333') && !css.includes('#000000') && !css.includes('#123') && !css.includes('#000') && css.includes('#42') && css.includes('#7') && css.includes('https://github.com/o/r/pull/9'));
+  // A bare '#123' is a PR number only in PR context: a keyword before it, '(#123)' commit-subject style, or a GitHub URL.
+  const none = (t) => !dg.extractRefs([t]).some((x) => x.startsWith('#'));
+  check('refs: bare #333 is not a PR', none('see #333 here'));
+  check('refs: color: #333 is not a PR', none('p { color: #333; border: 1px solid #123 }'));
+  check('refs: #000000 is not a PR', none('background:#000000'));
+  const one = (t, want) => eq(dg.extractRefs([t]), [want]);
+  check('refs: PR #42', one('merged PR #42 today', '#42'));
+  check('refs: PR: #42 (colon now matches)', one('PR: #42', '#42'));
+  check('refs: pr#5, Pull #6, issue #7, any case', eq(dg.extractRefs(['pr#5 then Pull #6 and ISSUE #7']), ['#5', '#6', '#7']));
+  check('refs: commit-subject (#17)', one('fix thing (#17)', '#17'));
+  check('refs: closes #9, Fixes: #10, resolved #11', eq(dg.extractRefs(['closes #9; Fixes: #10; resolved #11']), ['#9', '#10', '#11']));
+  check('refs: GitHub pull URL', one('see https://github.com/o/r/pull/9.', 'https://github.com/o/r/pull/9'));
+  check('refs: GitHub issue URL', one('https://github.com/o/r/issues/3', 'https://github.com/o/r/issues/3'));
+  check('refs: a keyword glued into a word gives no context (prefix #4)', none('prefix #4 and appr #5'));
   const r = dg.extractRefs([
     'See https://github.com/o/r/pull/7, then fix. Commit a1b2c3d and 3028413a61aa; not deadbeef or 1234567.',
     'Session 07edf7b3-0b92-4f5e-921e-4d3781769fae and color #ff00aa are not refs. PR #42 and &#39; entity.',
@@ -49,7 +61,7 @@ function refsTests() {
   check('refs: PR number, not an HTML entity', r.includes('#42') && !r.includes('#39'));
   check('refs: Markdown paths in both slash styles', r.includes('plans/PLAN_chat_digests.md') && r.includes('D:\\src\\docs\\guide.md'));
   check('refs: first-appearance order', r.indexOf('https://github.com/o/r/pull/7') < r.indexOf('a1b2c3d') && r.indexOf('a1b2c3d') < r.indexOf('#42'));
-  check('refs: cap stops the list', dg.extractRefs(['#1 #2 #3 #4'], 2).length === 2);
+  check('refs: cap stops the list', dg.extractRefs(['PR #1 PR #2 PR #3 PR #4'], 2).length === 2);
 }
 
 async function fileTests() {
@@ -63,7 +75,28 @@ async function fileTests() {
   check('ended without a close: last counted row is a tool call (the meta row after it does not count)', s.noClose === true);
   const end = (stop) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'done' }], stop_reason: stop } });
   check('clean end: a finished agent reply closes the chat', dg.finishFile(dg.newFileAcc(), [end('tool_use'), end('end_turn')]).noClose === false);
-  check('no message rows: not marked as cut off', dg.finishFile(dg.newFileAcc(), ['{"type":"summary"}']).noClose === false);
+  check('no message rows: not marked as cut off', dg.finishFile(dg.newFileAcc(), ['{"type":"summary"}']).noClose !== true);
+  // Layout drift: dialogs asked and answered, yet no answer readable (no toolUseResult, text the fallback cannot parse).
+  const ask = (id) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: 'AskUserQuestion', input: { questions: [{ question: 'Q?', options: [{ label: 'A' }] }] } }], stop_reason: 'tool_use' } });
+  const res = (id, text, extra) => JSON.stringify(Object.assign({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: text }] } }, extra || {}));
+  const drift = dg.newFileAcc();
+  dg.takeFileLine(ask('t1'), 1, drift); dg.takeFileLine(res('t1', 'Answers: Q?=A (a new layout)'), 2, drift);
+  check('drift: no dialog answer readable sets the flag', dg.finishFile(drift, []).dialogUnread === true);
+  const rej = dg.newFileAcc();
+  dg.takeFileLine(ask('t2'), 1, rej); dg.takeFileLine(res('t2', 'The tool use was rejected.', { toolUseResult: 'User rejected tool use' }), 2, rej);
+  check('drift: a rejected dialog is not drift', dg.finishFile(rej, []).dialogUnread === false);
+  const mixed = dg.newFileAcc();
+  dg.takeFileLine(ask('t3'), 1, mixed); dg.takeFileLine(res('t3', 'Your questions have been answered: "Q?"="A". You can now continue.'), 2, mixed);
+  dg.takeFileLine(ask('t4'), 3, mixed); dg.takeFileLine(res('t4', 'odd'), 4, mixed);
+  check('drift: one readable answer means the layout still works', dg.finishFile(mixed, []).dialogUnread === false && mixed.dialogs.length === 1);
+  check('drift: the fixture (answers readable) has no flag', s.dialogUnread === false);
+  // No assistant row has a stop_reason field: the end is unknown, never reported as a crash.
+  const noStop = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'x', name: 'Bash', input: {} }] } });
+  check('stop_reason: none in the file leaves noClose unknown', dg.finishFile(dg.newFileAcc(), [noStop]).noClose === undefined);
+  check('stop_reason: a null field still counts as present', dg.finishFile(dg.newFileAcc(), [JSON.stringify({ type: 'assistant', message: { content: [], stop_reason: null } })]).noClose === true);
+  const tmpNo = path.join(process.env.CCS_TMP || os.tmpdir(), 'ccs-digest-nostop-' + process.pid + '.jsonl');
+  fs.writeFileSync(tmpNo, [JSON.stringify({ type: 'user', message: { content: 'hi' } }), noStop, ''].join('\n'));
+  try { check('stop_reason: a chat file with no stop_reason anywhere has noClose unknown', (await scanChatFile(tmpNo)).noClose === undefined); } finally { fs.rmSync(tmpNo, { force: true }); }
   const t = dg.answersFromText('Your questions have been answered: "A?"="x, y", "B?"="z". You can now continue.');
   check('text fallback parses several pairs', t.get('A?') === 'x, y' && t.get('B?') === 'z');
 }
@@ -165,9 +198,46 @@ async function aiTests() {
   const cut = ai.aiInput(many, new Set(), 3000, 8);
   check('ai input: past 8 pieces the middle is dropped and marked', cut.trimmed && cut.pieces.length === 8 && cut.pieces[0].includes('[0]') && cut.pieces[7].includes('[39]') && !cut.pieces.some((p) => p.includes('[20]')));
   const allowed = new Set(inp.allowed);
-  check('ai parse: picks outside the allowed owner messages are dropped', eq(ai.parseAiPart('x {"goal":" Ship pricing ","decisions":[3,1,2,"0",3],"open":["a",""," b ",7]} y', allowed), { goal: 'Ship pricing', decisions: [0, 3], open: ['a', 'b'] }));
-  let threw = false; try { ai.parseAiPart('{"decisions":[]}', allowed); } catch { threw = true; }
-  check('ai parse: no goal is a failed try', threw);
+  check('ai parse: in-range picks that are not allowed owner messages are dropped', eq(ai.parseAiPart('x {"goal":" Ship pricing ","decisions":[3,1,2,0,3],"open":["a"," b "]} y', allowed, 5), { goal: 'Ship pricing', decisions: [0, 3], open: ['a', 'b'] }));
+  // Strict shape: each malformed reply throws AiReplyError (a failed try) and carries the start of the raw output.
+  const bad = (what, out) => {
+    let err; try { ai.parseAiPart(out, allowed, 5); } catch (e) { err = e; }
+    check('ai parse strict: ' + what + ' (' + (err && err.message) + ')', err instanceof ai.AiReplyError && err.message.includes('output starts:'));
+  };
+  bad('no goal', '{"decisions":[],"open":[]}');
+  bad('no JSON', 'Sure! Here is the digest.');
+  bad('broken JSON', '{"goal": "x", decisions: [}');
+  bad('decisions not a list', '{"goal":"g","decisions":"3","open":[]}');
+  bad('decision index as a string', '{"goal":"g","decisions":["3"],"open":[]}');
+  bad('decision index past the chat', '{"goal":"g","decisions":[99],"open":[]}');
+  bad('negative decision index', '{"goal":"g","decisions":[-1],"open":[]}');
+  bad('fractional decision index', '{"goal":"g","decisions":[1.5],"open":[]}');
+  bad('open not a list', '{"goal":"g","decisions":[],"open":"none"}');
+  bad('open with 6 bullets', '{"goal":"g","decisions":[],"open":["1","2","3","4","5","6"]}');
+  bad('open with a non-text bullet', '{"goal":"g","decisions":[],"open":["a",7]}');
+  bad('open with a blank bullet', '{"goal":"g","decisions":[],"open":["a","  "]}');
+  const long = 'x'.repeat(1000);
+  let ex; try { ai.parseAiPart(long, allowed, 5); } catch (e) { ex = e; }
+  check('ai parse strict: the raw excerpt is short', ex && ex.raw === long && ex.message.length < ai.RAW_EXCERPT + 100);
+  check('ai parse merge: goal and open checked, decisions not needed', eq(ai.parseMerge('{"goal":"G","open":["o"]}'), { goal: 'G', open: ['o'] }));
+  let mThrew = false; try { ai.parseMerge('{"goal":"G","open":["1","2","3","4","5","6"]}'); } catch (e) { mThrew = e instanceof ai.AiReplyError; }
+  check('ai parse merge: too many open bullets is malformed', mThrew);
+  // Malformed on every try: runAi throws the malformed-reply error, so the build keeps the exact parts with AI marked not generated.
+  let tries = 0, lastErr;
+  try { await ai.runAi(inp, async () => { tries++; return '{"goal":"g","decisions":["3"],"open":[]}'; }); } catch (e) { lastErr = e; }
+  check('ai run: malformed every try throws after AI_TRIES calls', tries === ai.AI_TRIES && lastErr instanceof ai.AiReplyError && lastErr.message.includes('not a whole number'));
+  // claude not on PATH: the ENOENT error is thrown on the first try, not retried.
+  let enoTries = 0, eno;
+  try { await ai.runAi(inp, async () => { enoTries++; throw Object.assign(new Error('spawn claude ENOENT'), { code: 'ENOENT' }); }); } catch (e) { eno = e; }
+  check('ai run: ENOENT is not retried', enoTries === 1 && eno && eno.code === 'ENOENT');
+  // Call estimate for the Build confirmation: from body length and message count, an upper bound of the real piece count.
+  check('estimate: empty chat costs no call', ai.estCalls(0, 0) === 0 && ai.estCalls(100, 0) === 0);
+  check('estimate: a small chat is one call', ai.estCalls(5000, 10) === 1);
+  check('estimate: a long chat is pieces plus a merge, capped at MAX_PIECES + 1', ai.estCalls(200000, 200) > 2 && ai.estCalls(1e9, 1e6) === ai.MAX_PIECES + 1);
+  const bigRec = recFrom(Array.from({ length: 120 }, (_, i) => 'm' + i + ' ' + 'y'.repeat(3990)));
+  const bigLen = bigRec.text.length, bigIn = ai.aiInput(bigRec, new Set());
+  check('estimate: never below the real calls (' + ai.estCalls(bigLen, 120) + ' >= ' + (bigIn.pieces.length + 1) + ')', ai.estCalls(bigLen, 120) >= bigIn.pieces.length + (bigIn.pieces.length > 1 ? 1 : 0));
+  check('ai input: the message count travels for the index range check', inp.count === rec.ts.length);
   // Stub runner: fails once (bad output), then answers; the real claude is never started.
   const prompts = [];
   let n = 0;
@@ -180,6 +250,7 @@ async function aiTests() {
   check('ai run: pieces then one merge; decisions are the union', calls.length === 3 && two.goal === 'Merged' && eq(two.decisions, [0, 1]) && eq(two.open, ['last']));
   let failed = false; try { await ai.runAi(inp, async () => { throw new Error('ENOENT'); }); } catch { failed = true; }
   check('ai run: a call that fails every try throws (the build saves the exact parts)', failed);
+  check('ai run: the merge reply is strict too', await ai.runAi({ pieces: ['[0] You: a', '[1] You: b'], allowed: [0, 1], trimmed: false, count: 2 }, async (p) => (p.includes('merge') ? '{"goal":"M","open":7}' : '{"goal":"g","decisions":[0],"open":[]}')).then(() => false, (e) => e instanceof ai.AiReplyError));
 }
 
 async function buildTests(tmp) {
@@ -192,6 +263,7 @@ async function buildTests(tmp) {
   ix.digests = cache;
   const b = new DigestBuilder(ix, cache);
   check('build list: a chat with no digest is listed as none', eq(b.todo().map((x) => x.state), ['none']));
+  check('build list: each chat carries its AI call estimate', b.todo()[0].calls === ai.estCalls(chat.len, chat.count));
   const r = await b.input(ID);
   check('build input: AI input and allowed owner messages', r && r.input.pieces.length === 1 && eq(r.input.allowed, [0, 3]));
   const saved = await b.save(ID, 'ok', { goal: 'Ship the pricing page', decisions: [3, 2], open: ['Friday release'] });
@@ -201,7 +273,8 @@ async function buildTests(tmp) {
   const d = JSON.parse(fs.readFileSync(file, 'utf8'));
   check('store: one file per chat id in digests-v1', fs.existsSync(file) && path.basename(path.dirname(file)) === 'digests-v1');
   check('digest: files merged with the subagent, edited first, complete', eq(d.files.map((f) => f.path + ':' + f.edited), ['/w/shop/src/pricing.ts:true', '/w/shop/README.md:false']));
-  check('digest: references from the chat and its subagents (' + d.refs.join(' ') + ')', ['plans/PLAN_pricing.md', 'https://example.com/docs/pricing', 'a1b2c3d4', '#42', 'https://example.com/sub', '9f8e7d6c'].every((x) => d.refs.includes(x)) && !d.refs.some((x) => x.startsWith('07edf7b3')));
+  check('digest: references from the chat and its subagents (' + d.refs.join(' ') + ')', ['plans/PLAN_pricing.md', 'https://example.com/docs/pricing', 'a1b2c3d4', 'https://example.com/sub', '9f8e7d6c'].every((x) => d.refs.includes(x)) && !d.refs.some((x) => x.startsWith('07edf7b3')));
+  check('digest: a bare "for #42" (no PR context) is not a reference', !d.refs.includes('#42'));
   const msg = d.decisions.filter((x) => x.src === 'message');
   check('digest: message decision quoted verbatim with index and line; the summary pick is dropped', msg.length === 1 && msg[0].i === 3 && msg[0].a === 'Ship it on Friday, not before. Reference https://example.com/docs/pricing.' && msg[0].line === 9);
   check('digest: decisions in chat order, dialogs before the later message', eq(d.decisions.map((x) => x.src), ['dialog', 'dialog', 'dialog', 'message']));
@@ -213,6 +286,15 @@ async function buildTests(tmp) {
   await b.save(ID, 'off');
   const off = cache.get(ID).d;
   check('AI off: exact parts only, marked off', off.ai === 'off' && off.goal === undefined && off.decisions.length === 3 && off.files.length === 2);
+  // AI failed (malformed after every try, or no claude): the exact parts are kept and the AI parts say "not generated".
+  await b.input(ID);
+  await b.save(ID, 'failed');
+  const failedD = cache.get(ID).d;
+  check('AI failed: exact parts kept, AI parts marked not generated', failedD.ai === 'failed' && failedD.goal === undefined && failedD.decisions.length === 3 && md.digestNotes(failedD).includes(md.NOTE_TEXT.failed) && md.digestMarkdown(failedD).includes('_Not generated._'));
+  // A bad part shape from the host (crossed the thread boundary) is treated the same as a failed AI run.
+  await b.input(ID);
+  await b.save(ID, 'ok', { goal: 7, decisions: 'x', open: null });
+  check('AI part with a bad shape: saved as failed', cache.get(ID).d.ai === 'failed');
   await b.input(ID);
   await b.save(ID, 'ok', { goal: 'Ship the pricing page', decisions: [3], open: ['Friday release'] });
 
@@ -270,6 +352,22 @@ async function buildTests(tmp) {
   check('export: other projects get nothing', b.exportFor('/w/other').files.length === 0);
   check('store: a damaged file is no digest', (fs.writeFileSync(path.join(store.digestDir(tmp), '22222222-2222-4333-8444-555555555555.json'), '{bad'), store.readDigest(store.digestDir(tmp), '22222222-2222-4333-8444-555555555555') === undefined));
   check('store: an id that is not a session id names no file', store.digestFile(tmp, '../x') === undefined);
+  // Store versioning: a digest file of another version, or with no version, is never read as current and is rebuilt as stale.
+  const vdir = path.join(tmp, 'ver'), vfile = path.join(store.digestDir(vdir), ID + '.json');
+  fs.mkdirSync(path.dirname(vfile), { recursive: true });
+  const good = Object.assign({}, d);
+  check('store: the written digest carries v: 1', d.v === 1 && dg.DIGEST_VERSION === 1);
+  fs.writeFileSync(vfile, JSON.stringify(Object.assign({}, good, { v: 2 })));
+  const bv = new DigestBuilder(Object.assign({}, ix, { tops: () => [Object.assign({}, chat, { size: d.size, mtime: d.mtime })] }), new store.DigestCache(store.digestDir(vdir)));
+  check('store: another version is not parsed as current', store.readDigest(store.digestDir(vdir), ID) === undefined && bv.cache.get(ID) === undefined);
+  check('store: another version is listed stale (rebuilt)', bv.todo()[0].state === 'stale');
+  const noV = Object.assign({}, good); delete noV.v;
+  fs.writeFileSync(vfile, JSON.stringify(noV));
+  bv.cache.drop([ID]);
+  check('store: a missing version is listed stale (rebuilt)', store.readDigest(store.digestDir(vdir), ID) === undefined && bv.todo()[0].state === 'stale');
+  fs.writeFileSync(vfile, JSON.stringify(good));
+  bv.cache.drop([ID]);
+  check('store: the current version reads as fresh', bv.todo()[0].state === 'fresh');
   return d;
 }
 
@@ -288,6 +386,9 @@ function panelTests(d) {
   H.step('expanded', () => H.deliver({ type: 'expanded', id: ID, offset: 0, lite: false, items: [], total: 0, files: [], commands: [], git: { prs: [], commits: [], moreCommits: 0 }, digest: { d, stale: true } }));
   const html = list.innerHTML;
   H.check('Digest section above the other card sections', html.includes('data-sec="dig:' + ID + '"') && html.indexOf('data-sec="dig:') < html.indexOf('data-sec="git:'));
+  H.step('dialog drift note', () => H.deliver({ type: 'expanded', id: ID, offset: 0, lite: false, items: [], total: 0, files: [], commands: [], git: { prs: [], commits: [], moreCommits: 0 }, digest: { d: Object.assign({}, d, { dialogUnread: true }), stale: false } }));
+  H.check('Digest section shows "Dialog answers could not be read"', list.innerHTML.includes('Dialog answers could not be read'));
+  H.step('expanded again', () => H.deliver({ type: 'expanded', id: ID, offset: 0, lite: false, items: [], total: 0, files: [], commands: [], git: { prs: [], commits: [], moreCommits: 0 }, digest: { d, stale: true } }));
   H.check('Digest section parts', ['Goal', 'Decisions (4)', 'Files changed (2)', 'References (', 'Left open', 'Friday release', '>Dialog<', '>Message<', 'data-a="dgmsg" data-i="3"', 'This session changed after the digest was built', 'Session ended without a close', 'Rebuild digest'].every((x) => html.includes(x)));
   H.check('no raw hex colors in the digest CSS', !/#[0-9a-fA-F]{3,8}\b/.test(require(path.join(OUT, 'webviewDigest.js')).DIGEST_CSS));
   H.step('no digest yet', () => H.deliver({ type: 'expanded', id: ID, offset: 0, lite: false, items: [], total: 0, files: [], commands: [], git: { prs: [], commits: [], moreCommits: 0 }, digest: null }));

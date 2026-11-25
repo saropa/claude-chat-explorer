@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import { AiState, autoDue } from './digest';
-import { AI_SLOTS, AI_TIMEOUT_MS, AiCall, AiPart, runAi } from './digestAi';
+import { AI_SLOTS, AI_TIMEOUT_MS, AI_TRIES, AiCall, AiPart, runAi } from './digestAi';
 import { EXPORT_DIR, INDEX_NAME, supersededExports } from './digestMd';
 import { DigestInputReply } from './digestBuild';
 import { readDigest, digestDir } from './digestStore';
@@ -72,6 +72,7 @@ export class DigestService {
   private timer?: NodeJS.Timeout;
   private autoRunning = false;
   private noCli = false; // claude was not found: later builds of this run skip the AI instead of failing 3 times each
+  private readonly drifted = new Set<string>(); // chat-file layout problems already written to the output channel: each is logged once per window
 
   constructor(private readonly d: DigestDeps, call?: AiCall) { this.call = call ?? haikuCall(this.lim); }
 
@@ -86,6 +87,7 @@ export class DigestService {
     try {
       const r: DigestInputReply | undefined = await this.d.request({ t: 'digestInput', chat: id }, GATHER_MS);
       if (!r) { return 'gone'; }
+      this.logDrift(id, r.drift);
       let state: AiState = 'none';
       let part: AiPart | undefined;
       // Three reasons to skip the AI: nothing to send, the setting is off, or claude is missing (already known this run).
@@ -108,9 +110,30 @@ export class DigestService {
     } finally { this.active.delete(id); }
   }
 
+  /**
+   * Write each chat-file layout problem the worker found to the output channel, once per window: the same drift shows on
+   * every chat of a changed Claude Code version, and one line is enough to report it. The digest itself carries the note.
+   */
+  private logDrift(id: string, drift: unknown): void {
+    // The list crossed a thread boundary: only string entries are trusted.
+    for (const k of Array.isArray(drift) ? drift.filter((x): x is string => typeof x === 'string') : []) {
+      if (this.drifted.has(k)) { continue; }
+      this.drifted.add(k);
+      const what = k === 'dialog answers'
+        ? 'question dialogs were found but none of their answers could be read; the chat-file layout may have changed'
+        : 'no assistant row has a stop_reason field, so whether the session ended cleanly is unknown; the chat-file layout may have changed';
+      this.d.log(`digest layout ${id}`, what);
+    }
+  }
+
+  /** The one error of a command run whose builds found no claude program: what happened and what was saved instead. */
+  private showNoCli(): void {
+    void vscode.window.showErrorMessage(vscode.l10n.t('The claude CLI was not found on PATH. Digests were saved with the exact parts only; install Claude Code or add claude to PATH, then build again.'));
+  }
+
   /** "Build Session Digests": every chat with no digest or an out-of-date one, after a count confirmation, with progress and cancel. */
   async buildAll(): Promise<void> {
-    let todo: Array<{ id: string; state: string }>;
+    let todo: Array<{ id: string; state: string; calls?: number }>;
     try { todo = ((await this.d.request({ t: 'digestTodo' })) ?? []).filter((x: { state: string }) => x.state !== 'fresh'); } catch (e) {
       this.d.log('digest list', e);
       void vscode.window.showErrorMessage(vscode.l10n.t('Could not list the sessions to build digests for: {0}', (e as Error).message));
@@ -119,10 +142,15 @@ export class DigestService {
     if (!todo.length) { void vscode.window.showInformationMessage(vscode.l10n.t('Every session already has an up-to-date digest.')); return; }
     const fresh = todo.filter((x) => x.state === 'none').length, stale = todo.length - fresh;
     const ai = this.useAi();
+    // The cost bound: the most AI calls the run can make (each chat's pieces plus a merge), from the worker's estimate.
+    const calls = todo.reduce((n, x) => n + (typeof x.calls === 'number' && x.calls > 0 ? x.calls : 0), 0);
     const go = vscode.l10n.t('Build');
     const pick = await vscode.window.showInformationMessage(todo.length === 1 ? vscode.l10n.t('Build a digest for 1 session?') : vscode.l10n.t('Build digests for {0} sessions?', todo.length), {
       modal: true,
-      detail: vscode.l10n.t('{0} without a digest, {1} out of date.', fresh, stale) + ' ' + (ai ? vscode.l10n.t('Each digest asks the claude command (Haiku) for the goal, the decisions and the work left open; at most {0} run at a time.', AI_SLOTS) : vscode.l10n.t('AI parts are turned off: only the exact parts are built.')),
+      detail: vscode.l10n.t('{0} sessions: {1} without a digest, {2} out of date.', todo.length, fresh, stale) + ' '
+        // With AI on the owner sees the upper bound of calls before agreeing; with AI off it is stated that nothing is called.
+        + (ai ? vscode.l10n.t('Up to an estimated {0} AI calls to the claude command (Haiku) on the Claude subscription, at most {1} at a time; a malformed reply is retried up to {2} times.', calls, AI_SLOTS, AI_TRIES)
+          : vscode.l10n.t('AI parts are turned off: no AI calls are made, only the exact parts are built.')),
     }, go);
     if (pick !== go) { return; }
     this.noCli = false; // a new run checks for claude again
@@ -151,10 +179,12 @@ export class DigestService {
     const built = n.ok + n.plain + n.failed;
     const parts = [built === 1 ? vscode.l10n.t('Built 1 digest') : vscode.l10n.t('Built {0} digests', built)];
     if (n.plain) { parts.push(vscode.l10n.t('{0} without AI parts (turned off)', n.plain)); }
-    if (n.failed) { parts.push(vscode.l10n.t('{0} without AI parts ({1})', n.failed, this.noCli ? vscode.l10n.t('the claude command was not found') : vscode.l10n.t('the AI call failed; retried on the next build'))); }
+    if (n.failed) { parts.push(vscode.l10n.t('{0} without AI parts ({1})', n.failed, this.noCli ? vscode.l10n.t('the claude CLI was not found') : vscode.l10n.t('the AI call failed; retried on the next build'))); }
     if (n.err) { parts.push(vscode.l10n.t('{0} failed (see the Saropa Chats output)', n.err)); }
     if (n.done < ids.length) { parts.push(vscode.l10n.t('stopped after {0} of {1}', n.done, ids.length)); }
     void vscode.window.showInformationMessage(parts.join(', ') + '.');
+    // A missing claude is not a per-chat failure: one error for the whole run says why the AI parts are missing.
+    if (this.noCli) { this.showNoCli(); }
   }
 
   /** "Rebuild Session Digest" (row menu and the card's button): one chat at once, with the card's button showing busy and done. */
@@ -170,11 +200,13 @@ export class DigestService {
         return this.buildOne(id, ac.signal).catch((e) => { if (ac.signal.aborted) { return 'cancelled' as const; } throw e; });
       });
       this.d.post({ type: 'digestState', id, state: o === 'gone' || o === 'lost' || o === 'cancelled' ? '' : 'done' });
+      // A missing claude gets the one clear error of this run instead of the plain info line.
+      if (o === 'failed' && this.noCli) { this.showNoCli(); return; }
       const msg = o === 'gone' ? vscode.l10n.t('This session is not indexed yet. Try again in a moment.')
         : o === 'lost' ? vscode.l10n.t('The digest build was interrupted. Try again.')
           : o === 'cancelled' ? vscode.l10n.t('Digest build canceled.')
             : o === 'off' ? vscode.l10n.t('Digest built with the exact parts only (AI parts are turned off).')
-              : o === 'failed' ? vscode.l10n.t('Digest built without AI parts: {0}.', this.noCli ? vscode.l10n.t('the claude command was not found') : vscode.l10n.t('the AI call failed'))
+              : o === 'failed' ? vscode.l10n.t('Digest built without AI parts: the AI call failed (see the Saropa Chats output).')
                 : vscode.l10n.t('Digest built.');
       void vscode.window.showInformationMessage(msg);
     } catch (e) {
@@ -187,10 +219,12 @@ export class DigestService {
   /** "Export Session Digests to Project": one Markdown file per digest of the open project, plus INDEX.md, into docs/history/chats. */
   async export(): Promise<void> {
     const folders = vscode.workspace.workspaceFolders ?? [];
-    if (!folders.length) { void vscode.window.showInformationMessage(vscode.l10n.t('Open a project folder first: digests are written into its docs/history/chats folder.')); return; }
-    // With several folders open the owner picks the project; one folder needs no question.
+    // No folder means no place to write: an error, so the command never looks like it did something.
+    if (!folders.length) { void vscode.window.showErrorMessage(vscode.l10n.t('No workspace folder is open: digests are written into the {0} folder of a project. Open a folder and export again.', EXPORT_DIR.join('/'))); return; }
+    // With several folders open the owner picks the project; one folder needs no question, so the first folder is never taken silently.
     const f = folders.length === 1 ? folders[0] : (await vscode.window.showQuickPick(folders.map((x) => ({ label: x.name, description: x.uri.fsPath, x })), { title: vscode.l10n.t('Export session digests: project') }))?.x;
-    if (!f) { return; }
+    // A dismissed pick is the owner's cancel; say so, so the command always ends with a visible outcome.
+    if (!f) { void vscode.window.showInformationMessage(vscode.l10n.t('Export canceled: no project folder picked.')); return; }
     try {
       const r: { files: Array<{ name: string; text: string }>; index: string; missing: number; stale: number } | undefined = await this.d.request({ t: 'digestExport', folder: f.uri.fsPath }, GATHER_MS);
       if (!r || !r.files.length) {

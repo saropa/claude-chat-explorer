@@ -10,6 +10,7 @@ const SLUG_MAX = 60;
 /** Short labels for the digest notes; one place, shared by the Markdown and the card text the host builds. */
 export const NOTE_TEXT = {
   noClose: 'Session ended without a close',
+  dialogUnread: 'Dialog answers could not be read',
   inputTrimmed: 'Input trimmed: the middle of a very long session was not sent to the AI',
   failed: 'AI parts not generated (they are retried on the next build)',
   off: 'AI parts turned off (setting saropaChats.digest.useAi)',
@@ -63,6 +64,8 @@ const oneLine = (s: string): string => s.replace(/\s+/g, ' ').trim();
 export function digestNotes(d: Digest): string[] {
   const out: string[] = [];
   if (d.noClose) { out.push(NOTE_TEXT.noClose); }
+  // The chat asked question dialogs but none of the answers could be read, so Dialog decisions may be missing.
+  if (d.dialogUnread) { out.push(NOTE_TEXT.dialogUnread); }
   if (d.inputTrimmed) { out.push(NOTE_TEXT.inputTrimmed); }
   // Only the two states the owner must know about get a note; 'ok' and 'none' are normal.
   if (d.ai === 'failed') { out.push(NOTE_TEXT.failed); } else if (d.ai === 'off') { out.push(NOTE_TEXT.off); }

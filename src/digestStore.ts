@@ -92,6 +92,9 @@ export class DigestCache implements DigestLookup {
     return e;
   }
 
+  /** True when the store holds a file for the chat, valid or not (get() returns only valid current digests). */
+  has(id: string): boolean { return this.listing().has(id); }
+
   /** Forget the given ids after a build or rebuild, and refresh their presence in the listing at once. */
   drop(ids: string[]): void {
     const set = this.ids;

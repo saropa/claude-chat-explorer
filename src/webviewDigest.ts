@@ -46,8 +46,8 @@ function digOpen(id){if(!open.has(id)){openCard(id);}col.delete('dig:'+id);dgPen
 /* the Build or Rebuild button of the card: label is the idle text; busy and done come from dgs so a click shows an outcome at once */
 function dgBtn(id,label){const st=dgs[id];
 return '<button class="xb'+(st==='busy'?' busy':'')+'" data-a="dgbuild"'+(st==='busy'?' aria-busy="true"':'')+' aria-label="'+esc(label)+'" data-tip="'+esc(label+' (asks the AI model when AI parts are on)')+'">'+XI.note+'<span>'+(st==='busy'?'Building...':st==='done'?'Built':esc(label))+'</span></button>';}
-/* the warnings of a digest (no close, trimmed input, AI failed or off, size cap), one line each, from the same texts as the exported Markdown */
-function dgNotes(d){const n=[];if(d.noClose)n.push(DG_NOTES.noClose);if(d.inputTrimmed)n.push(DG_NOTES.inputTrimmed);
+/* the warnings of a digest (no close, unreadable dialog answers, trimmed input, AI failed or off, size cap), one line each, from the same texts as the exported Markdown */
+function dgNotes(d){const n=[];if(d.noClose)n.push(DG_NOTES.noClose);if(d.dialogUnread)n.push(DG_NOTES.dialogUnread);if(d.inputTrimmed)n.push(DG_NOTES.inputTrimmed);
 if(d.ai==='failed')n.push(DG_NOTES.failed);else if(d.ai==='off')n.push(DG_NOTES.off);
 if(d.capTrimmed&&d.capTrimmed.length)n.push(DG_NOTES.cap+' ('+d.capTrimmed.join(', ')+')');
 return n.map(x=>'<div class="dgn">'+esc(x)+'</div>').join('');}

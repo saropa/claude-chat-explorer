@@ -22,6 +22,10 @@ export const AI_TRIES = 3;
 export const AI_TIMEOUT_MS = 120000;
 export const AI_SLOTS = 2;
 const GOAL_MAX = 400, OPEN_MAX = 5, OPEN_ITEM_MAX = 300, DECISIONS_MAX = 30;
+/** Characters of a malformed reply kept in its error, so the output channel shows what the model sent without flooding it. */
+export const RAW_EXCERPT = 200;
+/** Characters a message block adds besides its text ("[1234] Agent: " and the joining newline), for the call estimate. */
+const BLOCK_OVERHEAD = 16;
 
 /** Owner messages that are harness text, not the owner's words: never offered as a decision. */
 const NOT_OWNER = /^\s*(?:<command-|<local-command-|<system-reminder>|<task-notification>|\[Request interrupted)/;
@@ -30,7 +34,10 @@ const NOT_OWNER = /^\s*(?:<command-|<local-command-|<system-reminder>|<task-noti
 export const msgText = (rec: Rec, i: number): string => rec.text.slice(startOf(rec, i), rec.ends[i]);
 
 /** What the worker hands the host for one build: the pieces to send and the indexes the AI may pick as decisions. */
-export interface AiInput { pieces: string[]; allowed: number[]; trimmed: boolean; }
+export interface AiInput {
+  pieces: string[]; allowed: number[]; trimmed: boolean;
+  count?: number; // messages in the record: a reply index outside 0..count-1 is a malformed reply, not a pick to drop
+}
 
 /**
  * Build the AI input of a record. Each message is one "[n] You:" or "[n] Agent:" block; compaction summaries are
@@ -58,9 +65,23 @@ export function aiInput(rec: Rec, summary: Set<number>, budget = PIECE_CHARS, ma
   // Too long even in pieces: keep the start (the goal) and the end (what is left open), drop the middle.
   if (pieces.length > max) {
     const head = Math.ceil(max / 2), tail = max - head;
-    return { pieces: [...pieces.slice(0, head), ...pieces.slice(pieces.length - tail)], allowed, trimmed: true };
+    return { pieces: [...pieces.slice(0, head), ...pieces.slice(pieces.length - tail)], allowed, trimmed: true, count: rec.ts.length };
   }
-  return { pieces, allowed, trimmed: false };
+  return { pieces, allowed, trimmed: false, count: rec.ts.length };
+}
+
+/**
+ * Most AI calls one chat can cost, from index facts only (body length and message count), so the Build confirmation can
+ * show it without reading any record. Each message is cut to at most OWNER_CHARS, and a piece is closed only when the next
+ * block does not fit, so every closed piece holds more than PIECE_CHARS minus one block: dividing by that is an upper
+ * bound. A chat split into pieces adds one merge call. Retries of a bad reply are not counted (AI_TRIES says how many).
+ */
+export function estCalls(len: number, count: number): number {
+  // An empty chat sends nothing: no call at all.
+  if (!(len > 0) || !(count > 0)) { return 0; }
+  const chars = Math.min(len + count * BLOCK_OVERHEAD, count * (OWNER_CHARS + BLOCK_OVERHEAD));
+  const pieces = Math.min(MAX_PIECES, Math.max(1, Math.ceil(chars / (PIECE_CHARS - OWNER_CHARS - BLOCK_OVERHEAD))));
+  return pieces > 1 ? pieces + 1 : 1;
 }
 
 const HEAD = 'You write a digest of one chat between an owner and a coding agent. The text between <data> tags is the chat. '
@@ -86,22 +107,68 @@ export function mergePrompt(parts: AiPart[]): string {
 /** One checked model reply. */
 export interface AiPart { goal: string; decisions: number[]; open: string[]; }
 
-/** Clean the "open" list: strings only, trimmed, non-empty, at most 5 items of at most 300 characters. */
-const openOf = (v: unknown): string[] => (Array.isArray(v) ? v : []).filter((x): x is string => typeof x === 'string').map((x) => x.trim().slice(0, OPEN_ITEM_MAX)).filter(Boolean).slice(0, OPEN_MAX);
+/** A malformed model reply: the error names what was wrong and carries the start of the raw output for the output channel. */
+export class AiReplyError extends Error {
+  constructor(why: string, readonly raw: string) {
+    super(`malformed AI reply (${why}); output starts: ${JSON.stringify(raw.slice(0, RAW_EXCERPT))}`);
+  }
+}
 
 /**
- * Pull the JSON object out of a model reply and check it. Decisions keep only indexes in allowed (owner messages
- * that are not summaries), so a made-up or agent index can never become a quote. Throws when the reply has no
- * usable JSON or no goal, which makes the caller retry.
+ * The "open" list, strictly: an array of at most OPEN_MAX non-empty strings. Anything else is a malformed reply rather
+ * than something to clean up, so a model that ignored the format is retried instead of half-trusted. Long items are cut.
  */
-export function parseAiPart(out: string, allowed: Set<number>): AiPart {
+function openOf(v: unknown, raw: string): string[] {
+  if (!Array.isArray(v)) { throw new AiReplyError('"open" is not a list', raw); }
+  if (v.length > OPEN_MAX) { throw new AiReplyError(`"open" has ${v.length} items, at most ${OPEN_MAX} allowed`, raw); }
+  return v.map((x) => {
+    // Every item must be real text: a number, null or blank item means the reply did not follow the format.
+    if (typeof x !== 'string' || !x.trim()) { throw new AiReplyError('"open" holds an item that is not text', raw); }
+    return x.trim().slice(0, OPEN_ITEM_MAX);
+  });
+}
+
+/** The JSON object of a reply, or a malformed-reply error: no object, broken JSON, or a value that is not a plain object. */
+function replyObject(out: string): Record<string, unknown> {
   const m = /\{[\s\S]*\}/.exec(out);
-  if (!m) { throw new Error('no JSON in output'); }
-  const r = JSON.parse(m[0]) as { goal?: unknown; decisions?: unknown; open?: unknown };
-  const goal = typeof r.goal === 'string' ? r.goal.trim().replace(/\s+/g, ' ').slice(0, GOAL_MAX) : '';
-  if (!goal) { throw new Error('no goal in output'); }
-  const ds = (Array.isArray(r.decisions) ? r.decisions : []).map((x) => (typeof x === 'string' ? Number(x) : x)).filter((x): x is number => Number.isInteger(x) && allowed.has(x as number));
-  return { goal, decisions: [...new Set(ds)].sort((a, b) => a - b).slice(0, DECISIONS_MAX), open: openOf(r.open) };
+  if (!m) { throw new AiReplyError('no JSON object', out); }
+  let r: unknown;
+  try { r = JSON.parse(m[0]); } catch (e) { throw new AiReplyError('broken JSON: ' + (e as Error).message, out); }
+  // A JSON array or string between braces cannot happen, but a null or other non-object would make every field read undefined.
+  if (!r || typeof r !== 'object' || Array.isArray(r)) { throw new AiReplyError('not a JSON object', out); }
+  return r as Record<string, unknown>;
+}
+
+/** The goal of a reply: required, non-empty text, whitespace collapsed to one line and cut to GOAL_MAX. */
+function goalOf(v: unknown, raw: string): string {
+  const goal = typeof v === 'string' ? v.trim().replace(/\s+/g, ' ').slice(0, GOAL_MAX) : '';
+  if (!goal) { throw new AiReplyError('no goal', raw); }
+  return goal;
+}
+
+/**
+ * Pull the JSON object out of a model reply and check it strictly: goal is non-empty text, decisions is a list of
+ * whole numbers each naming a message of the chat (0..count-1), open is a list of at most 5 text items. Any breach
+ * throws AiReplyError, which makes the caller retry and, after the last try, keep the exact parts only. A valid index
+ * that is not an allowed owner message (an agent reply or a summary) is dropped, so it can never become a quote.
+ */
+export function parseAiPart(out: string, allowed: Set<number>, count = Number.MAX_SAFE_INTEGER): AiPart {
+  const r = replyObject(out);
+  const goal = goalOf(r.goal, out);
+  if (!Array.isArray(r.decisions)) { throw new AiReplyError('"decisions" is not a list', out); }
+  for (const x of r.decisions) {
+    // Numbers only: a string "3" or a fraction means the model did not follow the format, and an index past the chat names no message.
+    if (typeof x !== 'number' || !Number.isInteger(x)) { throw new AiReplyError('"decisions" holds an item that is not a whole number', out); }
+    if (x < 0 || x >= count) { throw new AiReplyError(`decision index ${x} is outside the chat (0 to ${count - 1})`, out); }
+  }
+  const ds = (r.decisions as number[]).filter((x) => allowed.has(x));
+  return { goal, decisions: [...new Set(ds)].sort((a, b) => a - b).slice(0, DECISIONS_MAX), open: openOf(r.open, out) };
+}
+
+/** Check a merge reply: goal and open as strictly as a piece reply; decisions are not asked for, so any sent are ignored. */
+export function parseMerge(out: string): Pick<AiPart, 'goal' | 'open'> {
+  const r = replyObject(out);
+  return { goal: goalOf(r.goal, out), open: openOf(r.open, out) };
 }
 
 /** Runs the model on one prompt and returns its raw output; a rejection is a failed try. */
@@ -112,7 +179,11 @@ async function tried<T>(call: AiCall, prompt: string, parse: (s: string) => T, s
   let last: unknown;
   for (let i = 0; i < AI_TRIES; i++) {
     if (signal?.aborted) { throw new Error('cancelled'); }
-    try { return parse(await call(prompt, signal)); } catch (e) { last = e; }
+    try { return parse(await call(prompt, signal)); } catch (e) {
+      // A missing claude program fails the same way every time: retrying only delays the build, so it is thrown at once.
+      if ((e as NodeJS.ErrnoException)?.code === 'ENOENT') { throw e; }
+      last = e;
+    }
   }
   throw last;
 }
@@ -125,11 +196,11 @@ export async function runAi(input: AiInput, call: AiCall, signal?: AbortSignal):
   const allowed = new Set(input.allowed);
   const parts: AiPart[] = [];
   // Pieces run one after another: the caller's limiter already caps parallel claude processes across chats.
-  for (let k = 0; k < input.pieces.length; k++) { parts.push(await tried(call, piecePrompt(input.pieces[k], k, input.pieces.length), (s) => parseAiPart(s, allowed), signal)); }
+  for (let k = 0; k < input.pieces.length; k++) { parts.push(await tried(call, piecePrompt(input.pieces[k], k, input.pieces.length), (s) => parseAiPart(s, allowed, input.count), signal)); }
   if (parts.length === 1) { return parts[0]; }
   const decisions = [...new Set(parts.flatMap((p) => p.decisions))].sort((a, b) => a - b).slice(0, DECISIONS_MAX);
-  // The merge call needs no decisions: an empty allowed set keeps it from adding any.
-  const merged = await tried(call, mergePrompt(parts), (s) => parseAiPart(s, new Set()), signal);
+  // The merge call asks for no decisions, so its reply is checked without them.
+  const merged = await tried(call, mergePrompt(parts), parseMerge, signal);
   return { goal: merged.goal, decisions, open: merged.open };
 }
 

@@ -124,6 +124,13 @@ Changes from the text above, decided while building:
 - `INDEX.md` sits in `docs/history/chats/` beside the exported files.
 - "Chat ended without a close" means the last main-thread message row is not an agent reply that finished its turn (`stop_reason` end_turn).
 - "Open Results in Editor" lists the matching digest lines of a session found only by its digest.
+- Cross-window visibility lags up to 30 s. A window sees digests built by another window only when its folder listing (`LIST_TTL_MS`, 30 s) is read again. The window that built a digest sees it at once.
+- Digests are keyed by session id: one `<session id>.json` per top-level session. A file name that is not a session id is never read or written. A digest file whose inner id differs from its name is ignored.
+- Digest files carry `v: 1`. A file with another version or no version is not read as a digest. The build list reports it as stale, so Build and the automatic rebuild replace it.
+- Haiku runs through the local `claude` CLI on the Claude subscription it is signed in with. There is no token or spend limit. The only bound is the call estimate in the Build confirmation: each session's pieces from the trimmed input size, plus a merge call when split, at most 2 at a time, each retried up to 3 times on a malformed reply. With AI parts off, the confirmation says no AI calls are made.
+- AI replies are checked strictly: a JSON object, a non-empty goal, whole-number decision indexes inside the chat, and at most 5 non-empty text items in Left open. A malformed reply is retried. After the last try the digest keeps the exact parts, the AI parts are marked not generated, and the start of the raw reply (200 characters) goes to the output channel. A missing `claude` (ENOENT) is not retried and shows one error per command run.
+- A bare `#123` is a PR reference only in PR context: after PR, pull, issue or a GitHub closing keyword (fix, close, resolve and their forms; any case; optional colon), or in `(#123)` commit-subject style. GitHub pull and issue URLs are listed as URLs. The CSS-color heuristics are gone.
+- Layout drift guards: when a session has answered question dialogs but none of the answers can be read, the digest notes "Dialog answers could not be read" and the output channel gets one line per window. When no assistant row has a `stop_reason` field, "ended without a close" is left unknown, not set.
 
 ## Commits
 

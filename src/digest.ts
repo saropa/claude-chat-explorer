@@ -44,7 +44,8 @@ export interface Digest {
   goal?: string; open?: string[]; // AI parts
   decisions: Decision[]; files: FileRef[]; refs: string[];
   ai: AiState;
-  noClose?: boolean; // the chat stopped without a final agent reply (a context crash or an interrupted turn)
+  noClose?: boolean; // the chat stopped without a final agent reply (a context crash or an interrupted turn); omitted when the file has no stop_reason at all
+  dialogUnread?: boolean; // the chat had question dialogs, but no answer of any of them could be read (the chat-file layout changed)
   inputTrimmed?: boolean; // the AI input was over 8 pieces, so the middle of the chat was not sent
   capTrimmed?: string[]; // parts the 20 KB cap shortened, in trim order
 }
@@ -66,6 +67,8 @@ export const autoDue = (mtime: number, now: number, busy: boolean): boolean => !
 export function validDigest(x: unknown): x is Digest {
   const d = x as Digest;
   // Every field the readers index into must have the right type, so a hand-edited file cannot throw later.
+  // The version must be exactly DIGEST_VERSION: a file of another layout (or with no v at all) is never read as a current
+  // digest; the build list reports it as stale (DigestBuilder.todo), so the next build rewrites it in the current layout.
   return !!d && typeof d === 'object' && d.v === DIGEST_VERSION && typeof d.id === 'string' && typeof d.title === 'string'
     && typeof d.size === 'number' && typeof d.mtime === 'number' && Array.isArray(d.decisions) && Array.isArray(d.files) && Array.isArray(d.refs)
     && (d.goal === undefined || typeof d.goal === 'string') && (d.open === undefined || Array.isArray(d.open));
@@ -79,14 +82,14 @@ export function validDigest(x: unknown): x is Digest {
 const URL_RE = /\bhttps?:\/\/[^\s<>"'`)\]}]+/g;
 // 7 to 40 hex characters not glued to other hex, word characters, '#' or '-': this keeps UUID pieces (session ids) and #rrggbb colors out.
 const SHA_RE = /(?<![\w#-])[0-9a-f]{7,40}(?![\w-])/g;
-// A PR number: '#' and 1 to 6 digits, not inside a word or an HTML entity like &#39;.
-const PR_RE = /(?<![\w&#])#\d{1,6}\b/g;
+// A PR number counts only in PR context, because a bare '#123' is just as often a CSS color (#333), a hex color (#000000),
+// a list number or a heading. Context is a keyword right before it: PR, pull (request), issue, or a GitHub closing keyword
+// (fix, fixes, close, closes, resolve, resolves and their past forms), any case, with an optional colon and spaces between.
+const KW_PR_RE = /\b(?:prs?|pull(?:\s+request)?|issues?|fix(?:e[sd])?|close[sd]?|resolve[sd]?)\s*:?\s*(#\d{1,6})\b/gi;
+// The other PR context: the '(#123)' tail a squash merge puts on a commit subject.
+const PAREN_PR_RE = /\((#\d{1,6})\)/g;
 // A Markdown path, with or without folders and a drive letter, either slash direction; the optional leading slash covers absolute paths (/a/b.md, D:\a\b.md).
 const MD_RE = /(?<![\w\\/.-])(?:[A-Za-z]:)?[\\/]?(?:[\w.-]+[\\/])*[\w-][\w.-]*\.md\b/g;
-// What comes right before a '#digits' that makes it a CSS color and not a PR number: a colon (color: #333) or a color property with its colon earlier in the same declaration (border: 1px solid #123).
-const CSS_COLOR_CTX = /(?::\s*|\b(?:color|background|border|fill|stroke|outline|shadow)[\w-]*\s*[:=][^;{}#]*)$/i;
-/** True when a PR-looking match at offset is really a CSS hex color: a leading zero (PR numbers have none: #000, #000000) or a color context before it. */
-const cssColor = (text: string, at: number, ref: string): boolean => ref[1] === '0' || CSS_COLOR_CTX.test(text.slice(Math.max(0, at - 24), at));
 const TRAIL_PUNCT = /[.,;:!?]+$/;
 
 /** A hex run counts as a commit hash only when it mixes letters and digits; plain words (deadbeef) and plain numbers stay out. */
@@ -112,8 +115,10 @@ export function extractRefs(texts: Iterable<string>, max = MAX_REFS): string[] {
       return ' '.repeat(u.length); // same length: the offsets of later matches stay true
     });
     for (const m of rest.matchAll(SHA_RE)) { if (shaLike(m[0])) { found.push([m.index ?? 0, m[0]]); } }
-    // A CSS color like #333 or #000000 has the same shape as a PR number; cssColor tells them apart so colors are not listed as PRs.
-    for (const m of rest.matchAll(PR_RE)) { if (!cssColor(rest, m.index ?? 0, m[0])) { found.push([m.index ?? 0, m[0]]); } }
+    // PR numbers are kept only in PR context (keyword or commit-subject parentheses); the offset is that of the '#', so the
+    // text order matches where the number itself sits. GitHub pull and issue URLs are already listed whole by URL_RE above.
+    for (const m of rest.matchAll(KW_PR_RE)) { found.push([(m.index ?? 0) + m[0].length - m[1].length, m[1]]); }
+    for (const m of rest.matchAll(PAREN_PR_RE)) { found.push([(m.index ?? 0) + 1, m[1]]); }
     for (const m of rest.matchAll(MD_RE)) { found.push([m.index ?? 0, m[0]]); }
     found.sort((a, b) => a[0] - b[0]);
     for (const [, s] of found) { add(s); }
@@ -134,9 +139,13 @@ export interface FileAcc {
   asks: Map<string, AskQ[]>; // tool_use id of an AskUserQuestion call -> its questions, until the result row pairs with it
   dialogs: Decision[];
   compact: Set<number>; // 1-based lines of compaction summary rows: AI input only, never quoted as a decision
+  read: number; // dialog result rows that gave at least one answer
+  unread: number; // dialog result rows that were not a rejection and still gave no answer (layout drift, or keys that no longer match)
+  stopSeen: boolean; // some assistant row carries a stop_reason field; without one the clean-end test has nothing to read
 }
 
-export const newFileAcc = (): FileAcc => ({ asks: new Map(), dialogs: [], compact: new Set() });
+/** A fresh pass state. */
+export const newFileAcc = (): FileAcc => ({ asks: new Map(), dialogs: [], compact: new Set(), read: 0, unread: 0, stopSeen: false });
 
 /** Text of a tool_result content value: a string, or the text blocks of an array. */
 function resultText(c: unknown): string {
@@ -211,11 +220,15 @@ export function takeFileLine(line: string, n: number, a: FileAcc): void {
         const qs = a.asks.get(b.tool_use_id)!;
         a.asks.delete(b.tool_use_id);
         const ans = answersFromResult(row.toolUseResult) ?? answersFromText(resultText(b.content));
+        let got = 0;
         for (const q of qs) {
           const v = ans.get(q.question);
           // An unanswered question (dialog dismissed, or answers keyed differently) yields no decision: nothing to quote.
-          if (v !== undefined && v !== '') { a.dialogs.push({ src: 'dialog', q: q.question, a: v, opts: q.options, line: n }); }
+          if (v !== undefined && v !== '') { a.dialogs.push({ src: 'dialog', q: q.question, a: v, opts: q.options, line: n }); got++; }
         }
+        // A rejected dialog has no answer by design (a plain-string result or an error block); only other empty results count as unreadable.
+        const rejected = b.is_error === true || typeof row.toolUseResult === 'string';
+        if (got) { a.read++; } else if (!rejected) { a.unread++; }
       }
     }
   }
@@ -233,12 +246,33 @@ export function closeOf(line: string): boolean | undefined {
   return row.type === 'assistant' && (stop === 'end_turn' || stop === 'stop_sequence');
 }
 
+/** True when one raw row is an assistant row whose message has a stop_reason field (any value, null included). */
+export function hasStopField(line: string): boolean {
+  // Cheap probe first: most rows never name the field, and parsing every tail row twice would be wasted work.
+  if (!line.includes('"stop_reason"')) { return false; }
+  try {
+    const row = JSON.parse(line);
+    return !!row && row.type === 'assistant' && !!row.message && typeof row.message === 'object' && 'stop_reason' in row.message;
+  } catch { return false; } // a partial last line says nothing
+}
+
+/** What one pass over a chat file found. */
+export interface FileScan {
+  dialogs: Decision[]; compact: Set<number>;
+  noClose?: boolean; // undefined: unknown, because no assistant row in the file has a stop_reason field to judge by
+  dialogUnread: boolean; // dialogs were asked and answered, yet no answer could be read
+}
+
 /** The pass result once the whole file is read; tail holds the last few message rows in file order, for the clean-end test. */
-export function finishFile(a: FileAcc, tail: string[]): { dialogs: Decision[]; compact: Set<number>; noClose: boolean } {
+export function finishFile(a: FileAcc, tail: string[]): FileScan {
   let closed: boolean | undefined;
   // Walk back to the last row that counts; a chat with no such row never started, so it is not "cut off".
   for (let k = tail.length - 1; k >= 0 && closed === undefined; k--) { closed = closeOf(tail[k]); }
-  return { dialogs: a.dialogs, compact: a.compact, noClose: closed === false };
+  // Without any stop_reason field in the file the clean-end test reads a field that is not there and would call every
+  // chat cut off; such a layout leaves the flag unknown. The tail rows count too, for callers that pass only the tail.
+  const stops = a.stopSeen || tail.some(hasStopField);
+  // Only a total miss is drift: one unreadable dialog among readable ones is a single odd row, not a changed layout.
+  return { dialogs: a.dialogs, compact: a.compact, noClose: stops ? closed === false : undefined, dialogUnread: a.unread > 0 && a.read === 0 };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

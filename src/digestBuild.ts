@@ -4,8 +4,8 @@
  * size cap and writes the file. The host runs the AI between the two steps, so the worker never starts a process.
  */
 import { scanLines } from './scan';
-import { capDigest, Decision, Digest, DIGEST_VERSION, extractRefs, finishFile, mergedFiles, newFileAcc, orderDecisions, takeFileLine, AiState, digestStale } from './digest';
-import { AI_SLOTS, AI_TIMEOUT_MS, AI_TRIES, aiInput, AiInput, AiPart, MAX_PIECES, messageDecisions, msgText } from './digestAi';
+import { capDigest, Decision, Digest, DIGEST_VERSION, extractRefs, FileScan, mergedFiles, newFileAcc, orderDecisions, takeFileLine, AiState, digestStale, finishFile } from './digest';
+import { AI_SLOTS, AI_TIMEOUT_MS, AI_TRIES, aiInput, AiInput, AiPart, estCalls, MAX_PIECES, messageDecisions, msgText } from './digestAi';
 import { DigestCache, readDigest, writeDigest } from './digestStore';
 import { digestFileName, digestMarkdown, inProject, indexMarkdown } from './digestMd';
 import { handoverData } from './handover';
@@ -20,6 +20,8 @@ export interface DigestSource {
 const TAIL_ROWS = 6;
 const HEAD = 1024;
 const USER = Buffer.from('"type":"user"'), ASST = Buffer.from('"type":"assistant"');
+/** The field the clean-end test reads; quoted, so an escaped mention inside a message text (\"stop_reason\") does not match. */
+const STOP = Buffer.from('"stop_reason"');
 /**
  * How long a gathered build waits for its AI result before it is dropped (a canceled or crashed host build).
  * Derived from the AI constants so it is never shorter than a real build: every piece plus the merge call, each
@@ -36,7 +38,7 @@ function msgRow(b: Buffer, s: number, e: number): boolean {
 }
 
 /** One pass over a chat file: question-dialog answers, compaction summary lines and whether the chat ended cleanly. */
-export async function scanChatFile(file: string): Promise<ReturnType<typeof finishFile>> {
+export async function scanChatFile(file: string): Promise<FileScan> {
   const a = newFileAcc();
   const tail: string[] = [];
   await scanLines(file, (b, s, e, n) => {
@@ -45,6 +47,8 @@ export async function scanChatFile(file: string): Promise<ReturnType<typeof fini
     if (line.indexOf('AskUserQuestion') >= 0 || line.indexOf('isCompactSummary') >= 0 || (a.asks.size > 0 && line.indexOf('tool_result') >= 0)) { takeFileLine(line.toString('utf8'), n, a); }
     // Keep the last few message rows; the buffer is reused by the scanner, so each kept line is decoded into its own string.
     if (msgRow(b, s, e)) { tail.push(line.toString('utf8')); if (tail.length > TAIL_ROWS) { tail.shift(); } }
+    // One assistant row with a stop_reason field is enough to trust the clean-end test; stop probing once it is found.
+    if (!a.stopSeen && line.indexOf(STOP) >= 0 && line.indexOf(ASST) >= 0) { a.stopSeen = true; }
   });
   return finishFile(a, tail);
 }
@@ -53,7 +57,10 @@ export async function scanChatFile(file: string): Promise<ReturnType<typeof fini
 interface Pending { base: Digest; rec: Rec; at: number; allowed: Set<number>; } // allowed: owner messages the AI may pick (no summaries, no harness text)
 
 /** The reply of step one. */
-export interface DigestInputReply { id: string; title: string; input: AiInput; }
+export interface DigestInputReply {
+  id: string; title: string; input: AiInput;
+  drift?: string[]; // chat-file layout problems found by the pass ('dialog answers', 'stop_reason'), for the host to log once
+}
 
 /** Builds digests in the worker; keeps gathered builds until their save arrives. */
 export class DigestBuilder {
@@ -82,11 +89,14 @@ export class DigestBuilder {
     const start = c.cwds?.[0] ?? c.cwd;
     if (start) { base.start = start; }
     if (h.branch) { base.branch = h.branch; }
-    if (scan.noClose) { base.noClose = true; }
+    // noClose undefined (no stop_reason anywhere) stays omitted: an unknown end is not reported as a crash.
+    if (scan.noClose === true) { base.noClose = true; }
+    if (scan.dialogUnread) { base.dialogUnread = true; }
     if (input.trimmed) { base.inputTrimmed = true; }
     this.sweep();
     this.pend.set(c.id, { base, rec, at: this.now(), allowed: new Set(input.allowed) });
-    return { id: c.id, title: c.title, input };
+    const drift = [...(scan.dialogUnread ? ['dialog answers'] : []), ...(scan.noClose === undefined && rec.ts.length ? ['stop_reason'] : [])];
+    return drift.length ? { id: c.id, title: c.title, input, drift } : { id: c.id, title: c.title, input };
   }
 
   /** Drop gathered builds whose host never came back: only those older than PENDING_MS, which is longer than any real build, so a build still in flight is never swept. */
@@ -123,10 +133,14 @@ export class DigestBuilder {
   }
 
   /** Top-level chats (archived ones too) with their digest state, for the Build command and the automatic rebuild. */
-  todo(): Array<{ id: string; title: string; mtime: number; state: 'none' | 'stale' | 'fresh' }> {
+  todo(): Array<{ id: string; title: string; mtime: number; state: 'none' | 'stale' | 'fresh'; calls: number }> {
     return this.ix.tops().map((c) => {
       const e = this.cache.get(c.id);
-      return { id: c.id, title: c.title, mtime: c.mtime, state: !e ? 'none' as const : digestStale(e.d, c) ? 'stale' as const : 'fresh' as const };
+      // A file that is there but not a valid current digest (another version, no version, damaged) is stale, not absent:
+      // it is rebuilt by the Build command and by the automatic rebuild, which only touches stale digests.
+      const state = !e ? (this.cache.has(c.id) ? 'stale' as const : 'none' as const) : digestStale(e.d, c) ? 'stale' as const : 'fresh' as const;
+      // The call estimate bounds the cost shown in the Build confirmation; it is computed from index facts, without reading the record.
+      return { id: c.id, title: c.title, mtime: c.mtime, state, calls: estCalls(c.len, c.count) };
     });
   }
 
