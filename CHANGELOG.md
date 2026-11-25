@@ -2,7 +2,7 @@
 
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
-## Unreleased
+## 1.1.0
 - Added: when stored digests show that the session file layout changed, the panel's status area shows one line, for example "Session file layout changed: 2 digests could not read dialog answers, 1 digest had no end-of-turn field", with a Show Output action that opens the Saropa Chats output. The counts come from flags stored in the digests (new `noStopField` flag), so the line survives reloads. Each Build, Rebuild and automatic pass recomputes it. It is hidden when both counts are 0. Digests built before this change have no `noStopField` flag, so they count as 0 for it until rebuilt.
 - Changed: digest AI replies are no longer failed for small slips. An index sent as text ("3") is read as a number, duplicate and out-of-range indexes are dropped, blank Left open items are dropped and only the first 5 are kept. Each correction is written to the Saropa Chats output. Only a reply that is not JSON, has no goal, or has fields of the wrong type is retried.
 - Added: setting `saropaChats.digest.maxAiCallsPerRun` (default 200, 0 turns AI parts off; also on the Options screen). A Build, a Rebuild or one automatic pass stops calling the AI once it has made that many calls, retries included. The remaining sessions keep the exact parts and read "not generated", and the completion message says the cap was reached.
