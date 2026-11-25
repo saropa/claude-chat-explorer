@@ -31,6 +31,8 @@ const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const OPTS = { all: true, cs: false, ww: false, re: false, any: false, when: 'any', subs: true, last: 0, from: 'both' };
 
 /** A record built the way the index builds it: parse the file, encode, decode. */
+/** Read one stored digest straight from a store root (a DigestCache dir parent), bypassing any cache. */
+function readDigestFile(root, id) { return JSON.parse(fs.readFileSync(path.join(store.digestDir(root), id + ".json"), "utf8")); }
 async function recOf(file) {
   const p = await parseFile(file, 1, 20000);
   return { p, rec: decodeRec(encodeRec(p)) };
@@ -112,10 +114,21 @@ async function fileTests() {
   check('text fallback parses several pairs', t.get('A?') === 'x, y' && t.get('B?') === 'z');
 }
 
+/** The panel's drift line: counts come from the stored flags only (exactly true), and the line is hidden when both are 0. */
+function driftTests() {
+  const c = dg.driftCounts([{ dialogUnread: true }, { noStopField: true, dialogUnread: true }, { noStopField: 'yes' }, undefined, {}]);
+  check('drift counts: only flags that are exactly true count (' + JSON.stringify(c) + ')', eq(c, { dialog: 2, stop: 1 }));
+  check('drift line: both counts', md.driftLine({ dialog: 2, stop: 3 }) === 'Session file layout changed: 2 digests could not read dialog answers, 3 digests had no end-of-turn field');
+  check('drift line: singular and one kind only', md.driftLine({ dialog: 0, stop: 1 }) === 'Session file layout changed: 1 digest had no end-of-turn field' && md.driftLine({ dialog: 1, stop: 0 }) === 'Session file layout changed: 1 digest could not read dialog answers');
+  check('drift line: empty (hidden) when both counts are 0', md.driftLine({ dialog: 0, stop: 0 }) === '');
+}
+
 function staleTests() {
   const d = { size: 10, mtime: 5 };
   check('stale: same size and mtime is fresh', dg.digestStale(d, { size: 10, mtime: 5 }) === false);
-  check('stale: a decision without a time makes the digest stale', dg.digestStale({ size: 10, mtime: 5, decisions: [{ at: 1 }, {}] }, { size: 10, mtime: 5 }) && !dg.digestStale({ size: 10, mtime: 5, decisions: [{ at: 1 }] }, { size: 10, mtime: 5 }));
+  // A decision without a time no longer makes the digest stale (that re-ran the AI); repairTimes fills it without AI instead.
+  check('stale: a decision without a time is not stale (it is repaired, not rebuilt)', !dg.digestStale({ size: 10, mtime: 5, decisions: [{ at: 1 }, {}] }, { size: 10, mtime: 5 }));
+  check('needsTimes: true only for a real decision without a numeric time', dg.needsTimes({ decisions: [{ at: 1 }, {}] }) && !dg.needsTimes({ decisions: [{ at: 1 }, null] }) && dg.needsTimes({ decisions: [{ at: NaN }] }));
   check('stale: size or mtime differ', dg.digestStale(d, { size: 11, mtime: 5 }) && dg.digestStale(d, { size: 10, mtime: 6 }));
   const now = 100 * 60000;
   check('auto: waits 10 minutes of quiet and skips busy chats', !dg.autoDue(now - 9 * 60000, now, false) && dg.autoDue(now - 11 * 60000, now, false) && !dg.autoDue(now - 11 * 60000, now, true));
@@ -201,6 +214,33 @@ function gateTests() {
     && matchChat(c, compile('nothinghere digest:monthly', OPTS), ctx, ID, load, Date.now(), undefined, lines) === null);
 }
 
+/** The run's AI call cap: every try counts, a refused call is never retried, 0 makes no call, and the confirmation bound uses AI_TRIES. */
+async function callCapTests(inp) {
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
+  const setting = pkg.contributes.configuration.properties['saropaChats.digest.maxAiCallsPerRun'];
+  check('cap: setting declared as a machine-scoped number, minimum 0, default from the code', setting && setting.type === 'number' && setting.minimum === 0 && setting.scope === 'machine' && setting.default === ai.DEFAULT_MAX_AI_CALLS);
+  // Two pieces plus a merge need 3 calls; a cap of 2 lets two through and refuses the third with code ECAP, untried.
+  let made = 0;
+  const b2 = new ai.CallBudget(2);
+  let capErr;
+  try { await ai.runAi({ pieces: ['[0] You: a', '[1] You: b'], allowed: [0, 1], trimmed: false, count: 2 }, ai.budgeted(async () => { made++; return '{"goal":"g","decisions":[0],"open":[]}'; }, b2)); } catch (e) { capErr = e; }
+  check('cap: the call past the cap is refused, not retried (' + made + ' calls)', made === 2 && capErr && capErr.code === ai.CAP_CODE && b2.reached && b2.left() === 0);
+  // Retries draw from the same budget: a bad reply retried twice uses three calls of the cap.
+  let bad = 0;
+  const b3 = new ai.CallBudget(3);
+  try { await ai.runAi(inp, ai.budgeted(async () => { bad++; return 'not json'; }, b3)); } catch { /* expected: malformed on every try */ }
+  check('cap: retries count against the cap', bad === ai.AI_TRIES && b3.left() === 3 - ai.AI_TRIES && !b3.reached);
+  let none = 0;
+  const b0 = new ai.CallBudget(0);
+  let zero;
+  try { await ai.runAi(inp, ai.budgeted(async () => { none++; return '{}'; }, b0)); } catch (e) { zero = e; }
+  check('cap: 0 makes no AI call at all', none === 0 && zero && zero.code === ai.CAP_CODE && b0.reached);
+  check('cap: a damaged cap falls back to the default; a fraction is cut', new ai.CallBudget(-1).cap === ai.DEFAULT_MAX_AI_CALLS && new ai.CallBudget(NaN).cap === ai.DEFAULT_MAX_AI_CALLS && new ai.CallBudget(2.7).cap === 2);
+  const cb = ai.callBound(10, 200);
+  check('bound: K calls, at most K x AI_TRIES with retries', cb.calls === 10 && cb.withRetries === 10 * ai.AI_TRIES && !cb.capped && !cb.off);
+  check('bound: a cap below the retry bound is named; 0 is off', ai.callBound(10, 12).capped && ai.callBound(10, 0).off && ai.callBound(-3, 5).calls === 0);
+}
+
 async function aiTests() {
   const { rec } = await recOf(FIX);
   const inp = ai.aiInput(rec, new Set([2]));
@@ -210,7 +250,9 @@ async function aiTests() {
   const cut = ai.aiInput(many, new Set(), 3000, 8);
   check('ai input: past 8 pieces the middle is dropped and marked', cut.trimmed && cut.pieces.length === 8 && cut.pieces[0].includes('[0]') && cut.pieces[7].includes('[39]') && !cut.pieces.some((p) => p.includes('[20]')));
   const allowed = new Set(inp.allowed);
-  check('ai parse: in-range picks that are not allowed owner messages are dropped', eq(ai.parseAiPart('x {"goal":" Ship pricing ","decisions":[3,1,2,0,3],"open":["a"," b "]} y', allowed, 5), { goal: 'Ship pricing', decisions: [0, 3], open: ['a', 'b'] }));
+  // The repeated 3 is a duplicate (noted in fixed); the comparison covers the AI parts only.
+  const picks = ai.parseAiPart('x {"goal":" Ship pricing ","decisions":[3,1,2,0,3],"open":["a"," b "]} y', allowed, 5);
+  check('ai parse: in-range picks that are not allowed owner messages are dropped', eq({ goal: picks.goal, decisions: picks.decisions, open: picks.open }, { goal: 'Ship pricing', decisions: [0, 3], open: ['a', 'b'] }));
   // Strict shape: each malformed reply throws AiReplyError (a failed try) and carries the start of the raw output.
   const bad = (what, out) => {
     let err; try { ai.parseAiPart(out, allowed, 5); } catch (e) { err = e; }
@@ -220,23 +262,30 @@ async function aiTests() {
   bad('no JSON', 'Sure! Here is the digest.');
   bad('broken JSON', '{"goal": "x", decisions: [}');
   bad('decisions not a list', '{"goal":"g","decisions":"3","open":[]}');
-  bad('decision index as a string', '{"goal":"g","decisions":["3"],"open":[]}');
-  bad('decision index past the chat', '{"goal":"g","decisions":[99],"open":[]}');
-  bad('negative decision index', '{"goal":"g","decisions":[-1],"open":[]}');
   bad('fractional decision index', '{"goal":"g","decisions":[1.5],"open":[]}');
   bad('open not a list', '{"goal":"g","decisions":[],"open":"none"}');
-  bad('open with 6 bullets', '{"goal":"g","decisions":[],"open":["1","2","3","4","5","6"]}');
   bad('open with a non-text bullet', '{"goal":"g","decisions":[],"open":["a",7]}');
-  bad('open with a blank bullet', '{"goal":"g","decisions":[],"open":["a","  "]}');
+  bad('decision index as a word', '{"goal":"g","decisions":["three"],"open":[]}');
+  bad('decision index null', '{"goal":"g","decisions":[null],"open":[]}');
+  bad('blank goal (no valid content)', '{"goal":"   ","decisions":[0],"open":[]}');
+  bad('JSON array at the top', '[{"goal":"g"}]');
+  // Lenient: benign deviations are normalized and listed in fixed instead of failing the reply (which cost a retry each).
+  const len = ai.parseAiPart('{"goal":" g ","decisions":["3"," 0 ",3,99,-1],"open":["  a ","","b","c","d","e","f"," "]}', allowed, 5);
+  check('ai parse lenient: numeric text read as numbers, duplicates and out-of-range dropped (' + JSON.stringify(len.decisions) + ')', eq(len.decisions, [0, 3]));
+  check('ai parse lenient: blank items dropped, first 5 open items kept, trimmed (' + JSON.stringify(len.open) + ')', eq(len.open, ['a', 'b', 'c', 'd', 'e']));
+  check('ai parse lenient: every normalization is noted (' + JSON.stringify(len.fixed) + ')', Array.isArray(len.fixed) && len.fixed.length === 5
+    && len.fixed.some((f) => f.includes('"3"')) && len.fixed.some((f) => f.includes('duplicate') && f.includes('3')) && len.fixed.some((f) => f.includes('99') && f.includes('-1'))
+    && len.fixed.some((f) => f.includes('2 blank')) && len.fixed.some((f) => f.includes('first 5 of 6')));
+  check('ai parse lenient: a clean reply has no fixed list', ai.parseAiPart('{"goal":"g","decisions":[0],"open":[]}', allowed, 5).fixed === undefined);
   const long = 'x'.repeat(1000);
   let ex; try { ai.parseAiPart(long, allowed, 5); } catch (e) { ex = e; }
   check('ai parse strict: the raw excerpt is short', ex && ex.raw === long && ex.message.length < ai.RAW_EXCERPT + 100);
   check('ai parse merge: goal and open checked, decisions not needed', eq(ai.parseMerge('{"goal":"G","open":["o"]}'), { goal: 'G', open: ['o'] }));
-  let mThrew = false; try { ai.parseMerge('{"goal":"G","open":["1","2","3","4","5","6"]}'); } catch (e) { mThrew = e instanceof ai.AiReplyError; }
-  check('ai parse merge: too many open bullets is malformed', mThrew);
+  const m6 = ai.parseMerge('{"goal":"G","open":["1","2","3","4","5","6"]}');
+  check('ai parse merge: six open bullets keep the first 5, noted', eq(m6.open, ['1', '2', '3', '4', '5']) && m6.fixed.length === 1);
   // Malformed on every try: runAi throws the malformed-reply error, so the build keeps the exact parts with AI marked not generated.
   let tries = 0, lastErr;
-  try { await ai.runAi(inp, async () => { tries++; return '{"goal":"g","decisions":["3"],"open":[]}'; }); } catch (e) { lastErr = e; }
+  try { await ai.runAi(inp, async () => { tries++; return '{"goal":"g","decisions":[1.5],"open":[]}'; }); } catch (e) { lastErr = e; }
   check('ai run: malformed every try throws after AI_TRIES calls', tries === ai.AI_TRIES && lastErr instanceof ai.AiReplyError && lastErr.message.includes('not a whole number'));
   // claude not on PATH: the ENOENT error is thrown on the first try, not retried.
   let enoTries = 0, eno;
@@ -266,6 +315,10 @@ async function aiTests() {
   check('ai run: pieces then one merge; decisions are the union', calls.length === 3 && two.goal === 'Merged' && eq(two.decisions, [0, 1]) && eq(two.open, ['last']));
   let failed = false; try { await ai.runAi(inp, async () => { throw new Error('ENOENT'); }); } catch { failed = true; }
   check('ai run: a call that fails every try throws (the build saves the exact parts)', failed);
+  // Fixed notes of every reply travel up, each naming its call.
+  const fx = await ai.runAi({ pieces: ['[0] You: a', '[1] You: b'], allowed: [0, 1], trimmed: false, count: 2 }, async (p) => (p.includes('merge') ? '{"goal":"M","open":["x",""]}' : '{"goal":"g","decisions":["0"],"open":[]}'));
+  check('ai run: fixed notes name their part and the merge (' + JSON.stringify(fx.fixed) + ')', fx.fixed.length === 3 && fx.fixed[0].startsWith('part 1: ') && fx.fixed[2].startsWith('merge: ') && eq(fx.decisions, [0]));
+  await callCapTests(inp);
   check('ai run: the merge reply is strict too', await ai.runAi({ pieces: ['[0] You: a', '[1] You: b'], allowed: [0, 1], trimmed: false, count: 2 }, async (p) => (p.includes('merge') ? '{"goal":"M","open":7}' : '{"goal":"g","decisions":[0],"open":[]}')).then(() => false, (e) => e instanceof ai.AiReplyError));
 }
 
@@ -278,8 +331,8 @@ async function buildTests(tmp) {
   const cache = new store.DigestCache(store.digestDir(tmp));
   ix.digests = cache;
   const b = new DigestBuilder(ix, cache);
-  check('build list: a chat with no digest is listed as none', eq(b.todo().map((x) => x.state), ['none']));
-  check('build list: each chat carries its AI call estimate', b.todo()[0].calls === ai.estCalls(chat.len, chat.count));
+  check('build list: a chat with no digest is listed as none', eq((await b.todo()).map((x) => x.state), ['none']));
+  check('build list: each chat carries its AI call estimate', (await b.todo())[0].calls === ai.estCalls(chat.len, chat.count));
   const r = await b.input(ID);
   check('build input: AI input and allowed owner messages', r && r.input.pieces.length === 1 && eq(r.input.allowed, [0, 3]));
   const saved = await b.save(ID, 'ok', { goal: 'Ship the pricing page', decisions: [3, 2], open: ['Friday release'] });
@@ -295,15 +348,18 @@ async function buildTests(tmp) {
   check('digest: message decision quoted verbatim with index and line; the summary pick is dropped', msg.length === 1 && msg[0].i === 3 && msg[0].a === 'Ship it on Friday, not before. Reference https://example.com/docs/pricing.' && msg[0].line === 9);
   check('digest: decisions in chat order, dialogs before the later message', eq(d.decisions.map((x) => x.src), ['dialog', 'dialog', 'dialog', 'message']));
   check('digest: dialog decisions carry the answer row time, message decisions the message time', d.decisions[0].at === Date.parse('2026-10-01T10:02:00.000Z') && msg[0].at === rec.ts[3] && msg[0].at > 0);
-  const tsrc = b.timeline();
+  const tsrc = await b.timeline();
   check('timeline source: every stored digest with its session file', tsrc.length === 1 && tsrc[0].file === FIX && tsrc[0].d.decisions.length === 4 && tsrc[0].d.files === undefined);
   check('digest: dates, folder, start, close flag and size/mtime for staleness', d.first === p.first && d.folder === '/w/shop' && d.start === '/w/shop' && d.noClose === true && d.size === chat.size && d.mtime === 1000 && d.ai === 'ok');
-  check('build list: fresh after the build, stale after the chat changes', b.todo()[0].state === 'fresh' && (chat.mtime = 2000, b.todo()[0].state === 'stale'));
+  const freshNow = (await b.todo())[0];
+  chat.mtime = 2000;
+  check('build list: fresh after the build, stale after the chat changes', freshNow.state === 'fresh' && !freshNow.aiMissing && (await b.todo())[0].state === 'stale');
   check('cache: the stored digest is stale for the changed chat', dg.digestStale(cache.get(ID).d, chat) && cache.get(ID).d.goal === 'Ship the pricing page');
   // The same chat again with AI off: the exact parts only, and the cache sees the rewrite at once.
   await b.input(ID);
   await b.save(ID, 'off');
   const off = cache.get(ID).d;
+  check('drift: the fixture chat has readable dialogs and stop_reason fields, so no drift is counted', eq(b.drift(), { dialog: 0, stop: 0 }) && off.noStopField === undefined && off.dialogUnread === undefined);
   check('AI off: exact parts only, marked off', off.ai === 'off' && off.goal === undefined && off.decisions.length === 3 && off.files.length === 2);
   // Untimed decisions: a dialog answer row with no timestamp and a message with ts 0 must still get a numeric `at`, so the
   // finished digest is not stale against its own file (otherwise the auto rebuild re-ran the AI on every pass).
@@ -324,17 +380,60 @@ async function buildTests(tmp) {
     const ud = ucache.get('u1').d;
     check('untimed (' + name + '): dialog and message decisions both exist', ud.decisions.some((x) => x.src === 'dialog') && ud.decisions.some((x) => x.src === 'message'));
     check('untimed (' + name + '): every decision gets numeric at ' + want + ' (' + JSON.stringify(ud.decisions.map((x) => x.at)) + ')', ud.decisions.every((x) => x.at === want));
-    check('untimed (' + name + '): the built digest is not stale for the same size and mtime', dg.digestStale(ud, uc) === false && ub.todo()[0].state === 'fresh');
+    check('untimed (' + name + '): the built digest is not stale for the same size and mtime', dg.digestStale(ud, uc) === false && (await ub.todo())[0].state === 'fresh');
   }
+  // Layout drift: assistant rows without any stop_reason field store noStopField, which the drift counts read back from disk.
+  const nostop = path.join(tmp, 'nostop.jsonl');
+  fs.writeFileSync(nostop, [JSON.stringify({ type: 'user', message: { content: 'hi' } }), JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'hello' }] } })].join(String.fromCharCode(10)) + String.fromCharCode(10));
+  const nc = { id: 'n1', dir: '-w-shop', title: 'nostop', mtime: 1, size: fs.statSync(nostop).size, last: 5, first: 1, count: 2, files: [], rec: 'r', len: 1, bloom: buildBloom('x') };
+  const nrec = decodeRec(encodeRec({ texts: ['hi', 'hello'], ts: [1, 2], roles: [0, 1], lines: [1, 2], cmds: [], cmdAt: [] }));
+  const ncache = new store.DigestCache(store.digestDir(path.join(tmp, 'nostop')));
+  const nb = new DigestBuilder({ find: () => nc, subsOf: () => [], rec: () => nrec, fileOf: () => nostop, tops: () => [nc] }, ncache);
+  const nin = await nb.input('n1');
+  await nb.save('n1', 'off');
+  check('drift: a session file without stop_reason stores the flag and reports it once', ncache.get('n1').d.noStopField === true && eq(nin.drift, ['stop_reason']) && eq(nb.drift(), { dialog: 0, stop: 1 }));
   // AI failed (malformed after every try, or no claude): the exact parts are kept and the AI parts say "not generated".
   await b.input(ID);
   await b.save(ID, 'failed');
   const failedD = cache.get(ID).d;
+  check('AI failed: listed as missing AI parts, so Build retries it', (await b.todo())[0].aiMissing === true);
   check('AI failed: exact parts kept, AI parts marked not generated', failedD.ai === 'failed' && failedD.goal === undefined && failedD.decisions.length === 3 && md.digestNotes(failedD).includes(md.NOTE_TEXT.failed) && md.digestMarkdown(failedD).includes('_Not generated._'));
   // A bad part shape from the host (crossed the thread boundary) is treated the same as a failed AI run.
   await b.input(ID);
   await b.save(ID, 'ok', { goal: 7, decisions: 'x', open: null });
   check('AI part with a bad shape: saved as failed', cache.get(ID).d.ai === 'failed');
+  await b.input(ID);
+  await b.save(ID, 'ok', { goal: 'Ship the pricing page', decisions: [3], open: ['Friday release'] });
+
+  // Call cap used up (keepPrior): the stored AI parts survive an exact-parts rebuild, and Build still retries the session.
+  await b.input(ID);
+  await b.save(ID, 'failed', undefined, true);
+  const keptD = cache.get(ID).d;
+  check('cap: the previous goal, Left open and message decision are carried forward', keptD.goal === 'Ship the pricing page' && eq(keptD.open, ['Friday release']) && keptD.decisions.filter((x) => x.src === 'message').length === 1 && keptD.decisions.length === 4);
+  check('cap: kept digest stays marked failed, so Build retries it', keptD.ai === 'failed' && (await b.todo())[0].aiMissing === true);
+  await b.input(ID);
+  await b.save(ID, 'failed', undefined, true);
+  check('cap: a second capped run keeps the parts too', cache.get(ID).d.goal === 'Ship the pricing page');
+  await b.input(ID);
+  await b.save(ID, 'failed');
+  check('no cap flag: a failed run still replaces the AI parts (unchanged behavior)', cache.get(ID).d.goal === undefined);
+  // A session with no previous digest still gets the exact parts.
+  const kb = new DigestBuilder(ix, new store.DigestCache(store.digestDir(path.join(tmp, 'keepnone'))));
+  await kb.input(ID);
+  await kb.save(ID, 'failed', undefined, true);
+  const keptNone = readDigestFile(path.join(tmp, 'keepnone'), ID);
+  check('cap: no previous digest gets the exact parts only', keptNone.goal === undefined && keptNone.ai === 'failed' && keptNone.decisions.length === 3);
+  // Cap 0 saves 'off': a second Build has nothing to list (the card promises no retry).
+  const ob = new DigestBuilder(ix, new store.DigestCache(store.digestDir(path.join(tmp, 'capzero'))));
+  await ob.input(ID);
+  await ob.save(ID, 'off', undefined, true);
+  const o1 = (await ob.todo())[0];
+  check('cap 0: saved off, listed fresh with no missing AI parts (a second Build reports up to date)', o1.state === 'fresh' && o1.aiMissing === false);
+  check('off note promises no retry', !md.NOTE_TEXT.off.includes('retried') && md.NOTE_TEXT.failed.includes('retried'));
+  // Drift wording: one table feeds both the English default and any translator.
+  const seen = [];
+  const tx = md.driftTextWith((m, ...a) => { seen.push(m); return md.fillPlain(m, ...a); });
+  check('drift text: the translator receives only DRIFT_STRINGS entries and renders the same English', md.driftLine({ dialog: 2, stop: 1 }, tx) === md.driftLine({ dialog: 2, stop: 1 }) && seen.every((m) => Object.values(md.DRIFT_STRINGS).includes(m)) && seen.length > 0);
   await b.input(ID);
   await b.save(ID, 'ok', { goal: 'Ship the pricing page', decisions: [3], open: ['Friday release'] });
 
@@ -400,14 +499,31 @@ async function buildTests(tmp) {
   fs.writeFileSync(vfile, JSON.stringify(Object.assign({}, good, { v: 2 })));
   const bv = new DigestBuilder(Object.assign({}, ix, { tops: () => [Object.assign({}, chat, { size: d.size, mtime: d.mtime })] }), new store.DigestCache(store.digestDir(vdir)));
   check('store: another version is not parsed as current', store.readDigest(store.digestDir(vdir), ID) === undefined && bv.cache.get(ID) === undefined);
-  check('store: another version is listed stale (rebuilt)', bv.todo()[0].state === 'stale');
+  check('store: another version is listed stale (rebuilt)', (await bv.todo())[0].state === 'stale');
   const noV = Object.assign({}, good); delete noV.v;
   fs.writeFileSync(vfile, JSON.stringify(noV));
   bv.cache.drop([ID]);
-  check('store: a missing version is listed stale (rebuilt)', store.readDigest(store.digestDir(vdir), ID) === undefined && bv.todo()[0].state === 'stale');
+  check('store: a missing version is listed stale (rebuilt)', store.readDigest(store.digestDir(vdir), ID) === undefined && (await bv.todo())[0].state === 'stale');
   fs.writeFileSync(vfile, JSON.stringify(good));
   bv.cache.drop([ID]);
-  check('store: the current version reads as fresh', bv.todo()[0].state === 'fresh');
+  check('store: the current version reads as fresh', (await bv.todo())[0].state === 'fresh');
+  // An old digest whose decisions carry no time: repaired in place from the record, never rebuilt, and no AI call is made.
+  const rdir = path.join(tmp, 'repair'), rfile = path.join(store.digestDir(rdir), ID + '.json');
+  fs.mkdirSync(path.dirname(rfile), { recursive: true });
+  const oldD = Object.assign({}, good, { decisions: good.decisions.map((x) => { const y = Object.assign({}, x); delete y.at; return y; }) });
+  fs.writeFileSync(rfile, JSON.stringify(oldD));
+  const rchat = Object.assign({}, chat, { size: d.size, mtime: d.mtime });
+  // The builder has no AI path: the repair reads only the record, so "fresh and same build time" proves no rebuild (no AI call) ran.
+  const rix = Object.assign({}, ix, { tops: () => [rchat], rec: (c) => ix.rec(c === rchat ? chat : c) });
+  const rb = new DigestBuilder(rix, new store.DigestCache(store.digestDir(rdir)));
+  const rtodo = await rb.todo();
+  const fixedD = JSON.parse(fs.readFileSync(rfile, 'utf8'));
+  check('repair: an old digest without times is fresh, not queued for an AI rebuild', rtodo[0].state === 'fresh' && !rtodo[0].aiMissing);
+  check('repair: the file is rewritten with every decision timed from the record (' + JSON.stringify(fixedD.decisions.map((x) => x.at)) + ')', fixedD.decisions.every((x) => typeof x.at === 'number') && fixedD.decisions.find((x) => x.src === 'message').at === rec.ts[3]);
+  check('repair: AI parts, size, mtime and build time are kept', fixedD.goal === oldD.goal && fixedD.size === oldD.size && fixedD.mtime === oldD.mtime && fixedD.built === oldD.built && fixedD.ai === oldD.ai);
+  fs.writeFileSync(rfile, JSON.stringify(oldD));
+  const rtl = await rb.timeline();
+  check('repair: the timeline read repairs too', rtl[0].d.decisions.every((x) => typeof x.at === 'number') && JSON.parse(fs.readFileSync(rfile, 'utf8')).decisions.every((x) => typeof x.at === 'number'));
   return d;
 }
 
@@ -433,7 +549,7 @@ function timelineTests() {
   check('timeline: a multi-line message keeps every line', all.text.includes('    Ship it on Friday.\n    Not before.\n'));
   check('timeline: each entry ends with the session file and line', all.text.includes('    Session file: /h/.claude/projects/-w-shop/aaaa.jsonl:9') && all.text.includes('    Session file: D:\\h\\blog.jsonl:5'));
   const l0 = all.links[0];
-  check('timeline: file links point at the reference text and the file line', all.links.length === 3 && lines[l0.line].slice(l0.from, l0.to) === '/h/.claude/projects/-w-shop/aaaa.jsonl:9' && l0.file === shop.file && l0.at === 9);
+  check('timeline: file links point at the reference text and the file line', all.links.length === 3 && lines[l0.line].slice(l0.from, l0.to) === '/h/.claude/projects/-w-shop/aaaa.jsonl:9' && l0.file === shop.file && l0.at === 9 && l0.id === shop.d.id);
   const projects = tl.timelineProjects(srcs);
   check('timeline: every project with a digest is offered, sorted (' + JSON.stringify(projects.map((p) => p.label)) + ')', eq(projects.map((p) => p.label), ['blog', 'docs', 'shop']));
   const key = projects.find((p) => p.label === 'shop').key;
@@ -469,6 +585,10 @@ function panelTests(d) {
   H.step('restore', () => H.deliver({ type: 'restore', max: 500, state: { query: '', results: [], searched: '', subs: true, when: 'any', sort: 'time' }, history: [], archOpen: false, advOpen: false }));
   H.step('sessions', () => H.deliver({ type: 'sessions', sn: 0, rows: [row], total: 1, arch: [], archTotal: 0, max: 500 }));
   H.check('row marker with the goal as its tooltip', /class="dgm"[^>]*data-a="dig"/.test(list.innerHTML) && list.innerHTML.includes('Digest: Ship the pricing page'));
+  // The host's localized table replaces the English defaults; bad keys and non-string values are ignored, so a bad message cannot break the page.
+  H.step('localized digest text', () => H.deliver({ type: 'digestText', text: { mark: 'Zusammenfassung', bogus: 'x', section: 42 } }));
+  H.check('digest text: the localized marker label shows; a non-string value keeps the English', list.innerHTML.includes('Zusammenfassung: Ship the pricing page') && !list.innerHTML.includes('Digest: Ship'));
+  H.step('restore English digest text', () => H.deliver({ type: 'digestText', text: { mark: 'Digest' } }));
   H.step('open card', () => H.run('openCard(' + JSON.stringify(ID) + ');rerender();', 'open card'));
   H.step('expanded', () => H.deliver({ type: 'expanded', id: ID, offset: 0, lite: false, items: [], total: 0, files: [], commands: [], git: { prs: [], commits: [], moreCommits: 0 }, digest: { d, stale: true } }));
   const html = list.innerHTML;
@@ -495,6 +615,7 @@ function panelTests(d) {
     refsTests();
     await fileTests();
     staleTests();
+    driftTests();
     capTests();
     nameTests();
     queryTests();

@@ -218,13 +218,16 @@ async function digestRequest(m: any): Promise<unknown> {
     // Only the four states a build can end in are accepted; anything else from the host is a bug and saves nothing.
     const st = String(m.state) as AiState;
     if (!['ok', 'off', 'failed', 'none'].includes(st)) { throw new Error('invalid digest state'); }
-    return digests.save(id, st, st === 'ok' ? m.part : undefined);
+    // keepAi: the host skipped the AI only for the call cap, so a stored digest's good AI parts are carried forward.
+    return digests.save(id, st, st === 'ok' ? m.part : undefined, m.keepAi === true);
   }
   if (m.t === 'digestTodo') { return digests.todo(); }
   if (m.t === 'digestExport') { return digests.exportFor(String(m.folder ?? '')); }
   if (m.t === 'digestWhere') { return digests.where(id); }
   // The Decisions timeline: every stored digest's decisions with its session file.
   if (m.t === 'digestTimeline') { return digests.timeline(); }
+  // The layout-drift counts of the stored digests, for the panel's drift line.
+  if (m.t === 'digestDrift') { return digests.drift(); }
   return undefined;
 }
 

@@ -53,6 +53,8 @@ check('reset ok', v(syn[2], undefined));
 check('array rejected', !v(syn[5], [1]));
 check('unknown key rejected', !v(undefined, 1));
 const real = Object.fromEntries(entries.map((e) => [e.key, e]));
+// The digest call cap: 0 (AI off for the run) is valid, a negative cap is refused by the Options screen.
+check('real digest call cap bounds', v(real['saropaChats.digest.maxAiCallsPerRun'], 0) && v(real['saropaChats.digest.maxAiCallsPerRun'], 200) && !v(real['saropaChats.digest.maxAiCallsPerRun'], -1));
 check('real maxResults bounds', !v(real['saropaChats.maxResults'], 10) && v(real['saropaChats.maxResults'], 500) && !v(real['saropaChats.search.contextLines'], 2.5));
 
 if (fails.length) { console.error('Options check FAILED:\n - ' + fails.join('\n - ')); process.exit(1); }

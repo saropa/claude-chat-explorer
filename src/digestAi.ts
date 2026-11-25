@@ -80,7 +80,7 @@ export function aiInput(rec: Rec, summary: Set<number>, budget = PIECE_CHARS, ma
  * Most AI calls one chat can cost, from index facts only (body length and message count), so the Build confirmation can
  * show it without reading any record. Each message is cut to at most OWNER_CHARS, and a piece is closed only when the next
  * block does not fit, so every closed piece holds more than PIECE_CHARS minus one block: dividing by that is an upper
- * bound. A chat split into pieces adds one merge call. Retries of a bad reply are not counted (AI_TRIES says how many).
+ * bound. A chat split into pieces adds one merge call. Retries are not counted here; callBound multiplies by AI_TRIES.
  */
 export function estCalls(len: number, count: number): number {
   // An empty chat sends nothing: no call at all.
@@ -110,8 +110,11 @@ export function mergePrompt(parts: AiPart[]): string {
     + `<data>\n${data}\n</data>`;
 }
 
-/** One checked model reply. */
-export interface AiPart { goal: string; decisions: number[]; open: string[]; }
+/**
+ * One checked model reply. fixed lists the benign deviations that were normalized on the way in (a number sent as text, a
+ * duplicate or out-of-range index, a blank or sixth Left open item), so the host can log them; absent when the reply was clean.
+ */
+export interface AiPart { goal: string; decisions: number[]; open: string[]; fixed?: string[]; }
 
 /** A malformed model reply: the error names what was wrong and carries the start of the raw output for the output channel. */
 export class AiReplyError extends Error {
@@ -120,18 +123,56 @@ export class AiReplyError extends Error {
   }
 }
 
+/** A decision index sent as text: digits only, optional sign and surrounding spaces ("3", " 12 "). Anything else stays text. */
+const NUM_TEXT = /^\s*-?\d+\s*$/;
+
 /**
- * The "open" list, strictly: an array of at most OPEN_MAX non-empty strings. Anything else is a malformed reply rather
- * than something to clean up, so a model that ignored the format is retried instead of half-trusted. Long items are cut.
+ * The "open" list. Benign deviations are normalized and noted in fixed: items are trimmed, blank items are dropped, and
+ * past OPEN_MAX only the first OPEN_MAX are kept. Only structure is rejected (AiReplyError, which makes the caller retry):
+ * a value that is not a list, or an item that is not text at all. Long items are cut to OPEN_ITEM_MAX.
  */
-function openOf(v: unknown, raw: string): string[] {
+function openOf(v: unknown, raw: string, fixed: string[]): string[] {
   if (!Array.isArray(v)) { throw new AiReplyError('"open" is not a list', raw); }
-  if (v.length > OPEN_MAX) { throw new AiReplyError(`"open" has ${v.length} items, at most ${OPEN_MAX} allowed`, raw); }
-  return v.map((x) => {
-    // Every item must be real text: a number, null or blank item means the reply did not follow the format.
-    if (typeof x !== 'string' || !x.trim()) { throw new AiReplyError('"open" holds an item that is not text', raw); }
-    return x.trim().slice(0, OPEN_ITEM_MAX);
-  });
+  const out: string[] = [];
+  let blank = 0;
+  for (const x of v) {
+    // A number, null or object item means the model ignored the format: that is structure, not something to clean up.
+    if (typeof x !== 'string') { throw new AiReplyError('"open" holds an item that is not text', raw); }
+    const t = x.trim();
+    // A blank item carries nothing: drop it instead of failing the whole reply.
+    if (!t) { blank++; continue; }
+    out.push(t.slice(0, OPEN_ITEM_MAX));
+  }
+  if (blank) { fixed.push(`dropped ${blank} blank "open" item${blank === 1 ? '' : 's'}`); }
+  // More than OPEN_MAX items: the model was asked for at most OPEN_MAX, and the first ones are the ones it led with.
+  if (out.length > OPEN_MAX) { fixed.push(`kept the first ${OPEN_MAX} of ${out.length} "open" items`); out.length = OPEN_MAX; }
+  return out;
+}
+
+/**
+ * The decision list. Normalized and noted in fixed: an index sent as digits-only text becomes a number, a duplicate is
+ * dropped, an index outside the chat (0..count-1) is dropped. Rejected (structure): not a list, or an item that is neither
+ * a whole number nor digits-only text (a fraction, a word, null). Indexes that are valid but not allowed owner messages
+ * (agent replies, summaries, harness text) are dropped silently: that is the filter, not a deviation.
+ */
+function decisionsOf(v: unknown, raw: string, allowed: Set<number>, count: number, fixed: string[]): number[] {
+  if (!Array.isArray(v)) { throw new AiReplyError('"decisions" is not a list', raw); }
+  const seen = new Set<number>(), texts: string[] = [], dups: number[] = [], outside: number[] = [];
+  for (const x of v) {
+    let n: unknown = x;
+    // Digits sent as text are the commonest harmless slip; convert them and remember which ones for the log.
+    if (typeof x === 'string' && NUM_TEXT.test(x)) { texts.push(x.trim()); n = Number(x.trim()); }
+    if (typeof n !== 'number' || !Number.isInteger(n)) { throw new AiReplyError('"decisions" holds an item that is not a whole number', raw); }
+    // An index past either end of the chat names no message: drop it rather than retry a reply whose other picks are fine.
+    if (n < 0 || n >= count) { outside.push(n); continue; }
+    // The same index twice is one decision; the copy is dropped and noted.
+    if (seen.has(n)) { dups.push(n); continue; }
+    seen.add(n);
+  }
+  if (texts.length) { fixed.push(`read decision index text ${texts.map((t) => JSON.stringify(t)).join(', ')} as numbers`); }
+  if (dups.length) { fixed.push(`dropped duplicate decision indexes ${dups.join(', ')}`); }
+  if (outside.length) { fixed.push(`dropped decision indexes ${outside.join(', ')} outside the chat (0 to ${count - 1})`); }
+  return [...seen].filter((x) => allowed.has(x)).sort((a, b) => a - b).slice(0, DECISIONS_MAX);
 }
 
 /** The JSON object of a reply, or a malformed-reply error: no object, broken JSON, or a value that is not a plain object. */
@@ -145,40 +186,94 @@ function replyObject(out: string): Record<string, unknown> {
   return r as Record<string, unknown>;
 }
 
-/** The goal of a reply: required, non-empty text, whitespace collapsed to one line and cut to GOAL_MAX. */
+/** The goal of a reply: required, non-empty text, whitespace collapsed to one line and cut to GOAL_MAX. No goal is no valid content. */
 function goalOf(v: unknown, raw: string): string {
   const goal = typeof v === 'string' ? v.trim().replace(/\s+/g, ' ').slice(0, GOAL_MAX) : '';
   if (!goal) { throw new AiReplyError('no goal', raw); }
   return goal;
 }
 
-/**
- * Pull the JSON object out of a model reply and check it strictly: goal is non-empty text, decisions is a list of
- * whole numbers each naming a message of the chat (0..count-1), open is a list of at most 5 text items. Any breach
- * throws AiReplyError, which makes the caller retry and, after the last try, keep the exact parts only. A valid index
- * that is not an allowed owner message (an agent reply or a summary) is dropped, so it can never become a quote.
- */
-export function parseAiPart(out: string, allowed: Set<number>, count = Number.MAX_SAFE_INTEGER): AiPart {
-  const r = replyObject(out);
-  const goal = goalOf(r.goal, out);
-  if (!Array.isArray(r.decisions)) { throw new AiReplyError('"decisions" is not a list', out); }
-  for (const x of r.decisions) {
-    // Numbers only: a string "3" or a fraction means the model did not follow the format, and an index past the chat names no message.
-    if (typeof x !== 'number' || !Number.isInteger(x)) { throw new AiReplyError('"decisions" holds an item that is not a whole number', out); }
-    if (x < 0 || x >= count) { throw new AiReplyError(`decision index ${x} is outside the chat (0 to ${count - 1})`, out); }
-  }
-  const ds = (r.decisions as number[]).filter((x) => allowed.has(x));
-  return { goal, decisions: [...new Set(ds)].sort((a, b) => a - b).slice(0, DECISIONS_MAX), open: openOf(r.open, out) };
+/** The part with its fixed notes attached only when there are any, so a clean reply keeps its plain shape. */
+function withFixed<T extends object>(p: T, fixed: string[]): T & { fixed?: string[] } {
+  // No deviation: return the part unchanged, so callers and checks see no empty fixed list.
+  if (!fixed.length) { return p; }
+  return { ...p, fixed };
 }
 
-/** Check a merge reply: goal and open as strictly as a piece reply; decisions are not asked for, so any sent are ignored. */
-export function parseMerge(out: string): Pick<AiPart, 'goal' | 'open'> {
-  const r = replyObject(out);
-  return { goal: goalOf(r.goal, out), open: openOf(r.open, out) };
+/**
+ * Pull the JSON object out of a model reply, normalize benign deviations (see decisionsOf and openOf; each one is listed in
+ * the result's fixed) and reject only structural failures: no JSON object, no goal, or a field of the wrong type after
+ * normalizing. A rejection throws AiReplyError, which makes the caller retry and, after the last try, keep the exact parts
+ * only. A valid index that is not an allowed owner message is dropped, so it can never become a quote.
+ */
+export function parseAiPart(out: string, allowed: Set<number>, count = Number.MAX_SAFE_INTEGER): AiPart {
+  const r = replyObject(out), fixed: string[] = [];
+  const goal = goalOf(r.goal, out);
+  const decisions = decisionsOf(r.decisions, out, allowed, count, fixed);
+  return withFixed({ goal, decisions, open: openOf(r.open, out, fixed) }, fixed);
+}
+
+/** Check a merge reply: goal and open as a piece reply (same normalizing); decisions are not asked for, so any sent are ignored. */
+export function parseMerge(out: string): Pick<AiPart, 'goal' | 'open' | 'fixed'> {
+  const r = replyObject(out), fixed: string[] = [];
+  return withFixed({ goal: goalOf(r.goal, out), open: openOf(r.open, out, fixed) }, fixed);
 }
 
 /** Runs the model on one prompt and returns its raw output; a rejection is a failed try. */
 export type AiCall = (prompt: string, signal?: AbortSignal) => Promise<string>;
+
+/** Error code of a call refused by the run's call cap (CallBudget); like ENOENT it is never retried. */
+export const CAP_CODE = 'ECAP';
+/** Default of the saropaChats.digest.maxAiCallsPerRun setting; package.json states the same number (check_digest compares them). */
+export const DEFAULT_MAX_AI_CALLS = 200;
+
+/**
+ * The AI calls one run (a Build, a Rebuild or one automatic pass) may still make. Every try counts, retries included,
+ * because each one starts a claude process. reached turns true once a call was refused, so the run can report that the
+ * cap cut sessions short; a run that used exactly the cap and needed no more does not count as reached.
+ */
+export class CallBudget {
+  private used = 0;
+  reached = false;
+  readonly cap: number;
+
+  // A non-finite or negative cap (a hand-edited setting) falls back to the default; a fraction is cut to a whole call count.
+  constructor(cap: number) { this.cap = Number.isFinite(cap) && cap >= 0 ? Math.floor(cap) : DEFAULT_MAX_AI_CALLS; }
+
+  /** Calls left in this run. */
+  left(): number { return Math.max(0, this.cap - this.used); }
+
+  /** Take one call; false (and reached set) when the cap is used up. */
+  take(): boolean {
+    // Used up: refuse, and remember it so the run's report names the cap.
+    if (this.used >= this.cap) { this.reached = true; return false; }
+    this.used++;
+    return true;
+  }
+
+  /** Mark the cap as reached without trying a call: a session skipped because no call was left. */
+  refuse(): void { this.reached = true; }
+}
+
+/** The call wrapped so each try draws from the budget; a refused call rejects with code CAP_CODE and starts nothing. */
+export function budgeted(call: AiCall, b: CallBudget): AiCall {
+  return (prompt, signal) => {
+    // Checked per try, not per chat, so a chat whose retries would cross the cap stops at the cap.
+    if (!b.take()) { return Promise.reject(Object.assign(new Error('the AI call cap of this run was reached'), { code: CAP_CODE })); }
+    return call(prompt, signal);
+  };
+}
+
+/**
+ * The call bound the Build confirmation states: K estimated calls, at most K times AI_TRIES when every reply is retried,
+ * and whether the run's cap cuts that bound (capped) or turns the AI off for the run (off: cap 0).
+ */
+export function callBound(calls: number, cap: number): { calls: number; withRetries: number; cap: number; capped: boolean; off: boolean } {
+  // A missing or damaged estimate counts as no call, never as a negative or fractional bound.
+  const k = Number.isFinite(calls) && calls > 0 ? Math.floor(calls) : 0;
+  const c = new CallBudget(cap).cap;
+  return { calls: k, withRetries: k * AI_TRIES, cap: c, capped: c < k * AI_TRIES, off: c === 0 };
+}
 
 /** Call and parse with up to AI_TRIES tries; the last error is thrown. A canceled build stops at once. */
 async function tried<T>(call: AiCall, prompt: string, parse: (s: string) => T, signal?: AbortSignal): Promise<T> {
@@ -186,8 +281,10 @@ async function tried<T>(call: AiCall, prompt: string, parse: (s: string) => T, s
   for (let i = 0; i < AI_TRIES; i++) {
     if (signal?.aborted) { throw new Error('cancelled'); }
     try { return parse(await call(prompt, signal)); } catch (e) {
-      // A missing claude program fails the same way every time: retrying only delays the build, so it is thrown at once.
-      if ((e as NodeJS.ErrnoException)?.code === 'ENOENT') { throw e; }
+      const code = (e as NodeJS.ErrnoException)?.code;
+      // A missing claude program fails the same way every time, and a refused call (cap reached) would be refused again:
+      // retrying either only delays the build, so both are thrown at once.
+      if (code === 'ENOENT' || code === CAP_CODE) { throw e; }
       last = e;
     }
   }
@@ -196,7 +293,8 @@ async function tried<T>(call: AiCall, prompt: string, parse: (s: string) => T, s
 
 /**
  * Run the AI parts of one chat: one call per piece, then (for more than one piece) one merge call for the goal and
- * "left open". Decisions are the union of every piece's picks. Throws when any call fails all its tries.
+ * "left open". Decisions are the union of every piece's picks; the fixed notes of every reply are collected. Throws when
+ * any call fails all its tries.
  */
 export async function runAi(input: AiInput, call: AiCall, signal?: AbortSignal): Promise<AiPart> {
   const allowed = new Set(input.allowed);
@@ -207,7 +305,9 @@ export async function runAi(input: AiInput, call: AiCall, signal?: AbortSignal):
   const decisions = [...new Set(parts.flatMap((p) => p.decisions))].sort((a, b) => a - b).slice(0, DECISIONS_MAX);
   // The merge call asks for no decisions, so its reply is checked without them.
   const merged = await tried(call, mergePrompt(parts), parseMerge, signal);
-  return { goal: merged.goal, decisions, open: merged.open };
+  // Each note names its reply (piece k or the merge), so the log says which call deviated.
+  const fixed = [...parts.flatMap((p, k) => (p.fixed ?? []).map((f) => `part ${k + 1}: ${f}`)), ...(merged.fixed ?? []).map((f) => `merge: ${f}`)];
+  return withFixed({ goal: merged.goal, decisions, open: merged.open }, fixed);
 }
 
 /** Message decisions of the AI's picks, quoted verbatim from the record with their message index and file line. */

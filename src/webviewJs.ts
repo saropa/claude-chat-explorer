@@ -147,6 +147,8 @@ else if(d.type==='setSort'){sortSet(d.sort);draft();if(sessOn&&!hasResults)askSe
 else if(d.type==='setStatuses'){stLoad(d.checked);rerender();}
 else if(d.type==='digestChanged')digChanged(d); /* a digest was built: row markers and an open card update in place */
 else if(d.type==='digestState')digState(d);
+else if(d.type==='digestText')digText(d); /* the localized digest strings from the host */
+else if(d.type==='digestDrift')digDrift(d); /* the session-file layout drift line of the status area, from the stored digests */
 else if(!live)return;
 else if(d.type==='start'){acc=[];prog=null;tot=null;}
 else if(d.type==='batch'){if(!busy)return;acc=acc.concat(d.results).sort((a,b)=>b.score-a.score).slice(0,capN);if(d.totals){tot=d.totals;capN=d.totals.max;}prog={done:d.done,total:d.total};

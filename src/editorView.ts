@@ -107,9 +107,11 @@ export function registerEditorView(ctx: vscode.ExtensionContext, d: EditorDeps, 
           k.tooltip = 'Resume this session in the agent panel';
           return k;
         });
-        // File links: a file URI with an L<line> fragment, which VS Code's link opener turns into a selection at that line.
+        // File links: a link that names a command runs it (the digest opener, with its size check); any other is a file URI
+        // with an L<line> fragment, which VS Code's link opener turns into a selection at that line.
         const files = (doc?.files ?? []).map((f) => {
-          const k = new vscode.DocumentLink(new vscode.Range(f.line, f.from, f.line, f.to), vscode.Uri.file(f.file).with({ fragment: f.at ? `L${f.at}` : '' }));
+          const target = f.cmd ? vscode.Uri.parse(`command:${f.cmd.command}?${encodeURIComponent(JSON.stringify(f.cmd.args))}`) : vscode.Uri.file(f.file).with({ fragment: f.at ? `L${f.at}` : '' });
+          const k = new vscode.DocumentLink(new vscode.Range(f.line, f.from, f.line, f.to), target);
           k.tooltip = f.at ? vscode.l10n.t('Open the session file at line {0}', f.at) : vscode.l10n.t('Open the session file');
           return k;
         });

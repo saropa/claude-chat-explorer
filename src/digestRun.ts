@@ -8,8 +8,9 @@ import * as os from 'os';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import { AiState, autoDue } from './digest';
-import { AI_SLOTS, AI_TIMEOUT_MS, AI_TRIES, AiCall, AiPart, runAi } from './digestAi';
-import { BUILD_TITLE, TIMELINE_TITLE, EXPORT_DIR, INDEX_NAME, supersededExports } from './digestMd';
+import { AI_SLOTS, AI_TIMEOUT_MS, AiCall, AiPart, budgeted, CallBudget, callBound, CAP_CODE, DEFAULT_MAX_AI_CALLS, runAi } from './digestAi';
+import { BUILD_TITLE, TIMELINE_TITLE, EXPORT_DIR, INDEX_NAME, DriftText, driftLine, driftTextWith, supersededExports } from './digestMd';
+import { DIGEST_TEXT, DigestTextTable } from './webviewDigest';
 import { DigestInputReply } from './digestBuild';
 import { readDigest, digestDir } from './digestStore';
 import { Limiter } from './execLimit';
@@ -22,9 +23,13 @@ export const BUILD_CMD = 'saropaChats.buildDigests';
 export const REBUILD_CMD = 'saropaChats.rebuildDigest';
 export const EXPORT_CMD = 'saropaChats.exportDigests';
 export const TIMELINE_CMD = 'saropaChats.showDecisionsTimeline';
+/** Internal command behind the timeline's session-file links (not in the palette): opens a decision's line through openLine. */
+export const OPEN_LINE_CMD = 'saropaChats.openDigestDecision';
 const CFG = 'saropaChats';
 export const AUTO_SETTING = 'digest.auto';
 export const AI_SETTING = 'digest.useAi';
+/** Most AI calls (retries included) one Build, Rebuild or automatic pass may make; 0 turns the AI off for every run. */
+export const CAP_SETTING = 'digest.maxAiCallsPerRun';
 /** Gathering scans the whole chat file, which can take a while for a very large chat: a long, soft worker request. */
 const GATHER_MS = 120000;
 const AUTO_EVERY_MS = 2 * 60 * 1000; // how often the automatic rebuild looks for idle stale digests
@@ -62,8 +67,11 @@ export function haikuCall(lim: Limiter): AiCall {
   };
 }
 
-/** How one build ended: its AI state, or gone (the chat is no longer indexed) or lost (the gathered build expired). */
-type Outcome = AiState | 'gone' | 'lost';
+/**
+ * How one build ended: its AI state, gone (the chat is no longer indexed), lost (the gathered build expired) or capped
+ * (saved with the exact parts only because the run's AI call cap was used up; stored as 'failed', so Build retries it).
+ */
+type Outcome = AiState | 'gone' | 'lost' | 'capped';
 
 /**
  * The timeline's user-facing strings, localized in the host through vscode.l10n.t; the formatter (digestTimeline.ts) is
@@ -82,6 +90,15 @@ const timelineText = (): TimelineText => ({
   sessionFile: vscode.l10n.t('Session file:'),
 });
 
+/** The drift line's strings, localized in the host: the shared English table (DRIFT_STRINGS) passed through vscode.l10n.t. */
+const driftText = (): DriftText => driftTextWith((m, ...a) => vscode.l10n.t(m, ...a));
+
+/**
+ * The digest webview's strings, localized in the host: every DIGEST_TEXT entry (the one English source) passed through
+ * vscode.l10n.t. The {0} placeholders stay in the text; the page fills them, so word order can change per language.
+ */
+export const digestTextL10n = (): DigestTextTable => Object.fromEntries(Object.entries(DIGEST_TEXT).map(([k, v]) => [k, vscode.l10n.t(v)])) as DigestTextTable;
+
 /** Digest commands and the automatic rebuild of one window. */
 export class DigestService {
   private readonly lim = new Limiter(AI_SLOTS, AI_SLOTS);
@@ -91,14 +108,23 @@ export class DigestService {
   private autoRunning = false;
   private noCli = false; // claude was not found: later builds of this run skip the AI instead of failing 3 times each
   private readonly drifted = new Set<string>(); // chat-file layout problems already written to the output channel: each is logged once per window
+  private driftMsg?: { type: 'digestDrift'; text: string; action: string }; // the last drift line posted, re-posted when the panel reloads
 
   constructor(private readonly d: DigestDeps, call?: AiCall) { this.call = call ?? haikuCall(this.lim); }
 
   private cfg(): vscode.WorkspaceConfiguration { return vscode.workspace.getConfiguration(CFG); }
   private useAi(): boolean { return this.cfg().get(AI_SETTING) !== false; }
+  /** The saropaChats.digest.maxAiCallsPerRun setting; a missing, negative or non-number value falls back to the default (CallBudget clamps it). */
+  private maxCalls(): number { return new CallBudget(Number(this.cfg().get(CAP_SETTING, DEFAULT_MAX_AI_CALLS))).cap; }
+  /** A fresh call cap for one run (a Build, a Rebuild or one automatic pass). */
+  private budget(): CallBudget { return new CallBudget(this.maxCalls()); }
 
-  /** Build one digest: gather, run the AI (unless off or nothing to send), save. A cancel stops before the save, so no half digest is written. */
-  async buildOne(id: string, signal?: AbortSignal): Promise<Outcome> {
+  /**
+   * Build one digest: gather, run the AI (unless off, nothing to send, or the run's call cap is used up), save. A cancel
+   * stops before the save, so no half digest is written. budget is the run's call cap; without one (a caller that has no
+   * run) a fresh budget from the setting is used, so no build path is ever uncapped.
+   */
+  async buildOne(id: string, signal?: AbortSignal, budget: CallBudget = this.budget()): Promise<Outcome> {
     // A second build of the same chat while one runs would race on the worker's gathered state.
     if (this.active.has(id)) { return 'lost'; }
     this.active.add(id);
@@ -108,26 +134,44 @@ export class DigestService {
       this.logDrift(id, r.drift);
       let state: AiState = 'none';
       let part: AiPart | undefined;
-      // Three reasons to skip the AI: nothing to send, the setting is off, or claude is missing (already known this run).
+      let capped = false;
+      // True when the AI was skipped only for the call cap: the save then keeps the stored digest's AI parts.
+      let keepAi = false;
+      // Four reasons to skip the AI: nothing to send, the setting is off, claude is missing (already known this run), or
+      // the run's call cap is used up (the session keeps the exact parts and its AI parts read "not generated").
       if (!r.input.pieces.length) { state = 'none'; }
       else if (!this.useAi()) { state = 'off'; }
+      // A cap of 0 is a deliberate "AI off", not a failure: saved as 'off', so Build does not list it as missing AI parts
+      // and retry it forever. A stored digest's AI parts are still kept (keepAi below).
+      else if (budget.cap <= 0) { state = 'off'; keepAi = true; }
       else if (this.noCli) { state = 'failed'; }
+      else if (budget.left() <= 0) { budget.refuse(); capped = true; state = 'failed'; }
       else {
-        try { part = await runAi(r.input, this.call, signal); state = 'ok'; } catch (e) {
+        try {
+          part = await runAi(r.input, budgeted(this.call, budget), signal);
+          state = 'ok';
+          // Benign deviations were normalized instead of retried; the output channel names them so a drifting model is visible.
+          if (part.fixed?.length) { this.d.log(`digest AI ${id}`, 'reply normalized: ' + part.fixed.join('; ')); }
+        } catch (e) {
           if (signal?.aborted) { throw e; } // canceled: no save
-          if ((e as NodeJS.ErrnoException).code === 'ENOENT') { this.noCli = true; }
-          this.d.log(`digest AI ${id}`, e);
+          const code = (e as NodeJS.ErrnoException).code;
+          if (code === 'ENOENT') { this.noCli = true; }
+          // The cap stopped this session mid-way: not an AI failure, so it is counted as capped, not logged as an error.
+          if (code === CAP_CODE) { capped = true; } else { this.d.log(`digest AI ${id}`, e); }
           state = 'failed';
         }
       }
-      const s = await this.d.request({ t: 'digestSave', chat: id, state, part });
+      // The notes stay on the host: the worker's save takes the AI parts only.
+      const sent = part ? { goal: part.goal, decisions: part.decisions, open: part.open } : undefined;
+      // A capped session keeps the AI parts of its previous digest instead of replacing them with "not generated";
+      // the state stays 'failed' so the next Build retries it.
+      const s = await this.d.request({ t: 'digestSave', chat: id, state, part: sent, keepAi: keepAi || capped });
       if (!s) { return 'lost'; }
       // The page updates the row marker and an open card at once; no new search is needed.
       this.d.post({ type: 'digestChanged', id, goal: s.goal ?? '' });
-      return state;
+      return capped ? 'capped' : state;
     } finally { this.active.delete(id); }
   }
-
   /**
    * Write each chat-file layout problem the worker found to the output channel, once per window: the same drift shows on
    * every chat of a changed Claude Code version, and one line is enough to report it. The digest itself carries the note.
@@ -144,15 +188,39 @@ export class DigestService {
     }
   }
 
+  /**
+   * Recompute the panel's layout-drift line from the stored digests' flags and post it. Called at start, after every Build,
+   * Rebuild and automatic pass, so the line persists until a build changes the flags. An empty text hides the line.
+   */
+  async syncDrift(): Promise<void> {
+    try {
+      // Long timeout: the worker answers only after the index has loaded, which can exceed the default 6 s soft limit.
+      const c = await this.d.request({ t: 'digestDrift' }, GATHER_MS);
+      // The counts crossed a thread boundary: anything that is not a count reads as 0.
+      const n = { dialog: Number(c?.dialog) || 0, stop: Number(c?.stop) || 0 };
+      this.driftMsg = { type: 'digestDrift', text: driftLine(n, driftText()), action: vscode.l10n.t('Show Output') };
+      this.d.post(this.driftMsg);
+    } catch (e) { this.d.log('digest drift', e); }
+  }
+
+  /** Post the localized digest card/marker strings to the page; a (re)loaded panel starts with the English defaults. */
+  postText(): void { this.d.post({ type: 'digestText', text: digestTextL10n() }); }
+
+  /** Post the last drift line again (a reloaded panel starts empty); computes it first when none was computed yet. */
+  postDrift(): void {
+    if (this.driftMsg) { this.d.post(this.driftMsg); } else { void this.syncDrift(); }
+  }
+
   /** The one error of a command run whose builds found no claude program: what happened and what was saved instead. */
   private showNoCli(): void {
     void vscode.window.showErrorMessage(vscode.l10n.t('The claude CLI was not found on PATH. Digests were saved with the exact parts only; install Claude Code or add claude to PATH, then build again.'));
   }
 
-  /** "Build Session Digests": every chat with no digest or an out-of-date one, after a count confirmation, with progress and cancel. */
+  /** "Build Session Digests": every chat with no digest, an out-of-date one or missing AI parts, after a count confirmation, with progress and cancel. */
   async buildAll(): Promise<void> {
-    let todo: Array<{ id: string; state: string; calls?: number }>;
-    try { todo = ((await this.d.request({ t: 'digestTodo' })) ?? []).filter((x: { state: string }) => x.state !== 'fresh'); } catch (e) {
+    let todo: Array<{ id: string; state: string; calls?: number; aiMissing?: boolean }>;
+    // A fresh digest whose AI parts were not generated (failed, or cut by the call cap) is retried by Build, as its note says.
+    try { todo = ((await this.d.request({ t: 'digestTodo' }, GATHER_MS)) ?? []).filter((x: { state: string; aiMissing?: boolean }) => x.state !== 'fresh' || x.aiMissing === true); } catch (e) {
       this.d.log('digest list', e);
       void vscode.window.showErrorMessage(vscode.l10n.t('Could not list the sessions to build digests for: {0}', (e as Error).message));
       return;
@@ -160,33 +228,38 @@ export class DigestService {
     if (!todo.length) { void vscode.window.showInformationMessage(vscode.l10n.t('Every session already has an up-to-date digest.')); return; }
     const fresh = todo.filter((x) => x.state === 'none').length, stale = todo.length - fresh;
     const ai = this.useAi();
-    // The cost bound: the most AI calls the run can make (each chat's pieces plus a merge), from the worker's estimate.
-    const calls = todo.reduce((n, x) => n + (typeof x.calls === 'number' && x.calls > 0 ? x.calls : 0), 0);
+    // The cost bound: the most AI calls the run can make (each chat's pieces plus a merge), from the worker's estimate,
+    // times AI_TRIES for the retries, and cut by the run's call cap.
+    const b = callBound(todo.reduce((n, x) => n + (typeof x.calls === 'number' && x.calls > 0 ? x.calls : 0), 0), this.maxCalls());
     const go = vscode.l10n.t('Build');
+    // With AI on the owner sees the upper bound of calls before agreeing; with AI off (or a cap of 0) it is stated that nothing is called.
+    const cost = !ai ? vscode.l10n.t('AI parts are turned off: no AI calls are made, only the exact parts are built.')
+      : b.off ? vscode.l10n.t('The AI call cap (setting {0}) is 0: no AI calls are made, only the exact parts are built.', CFG + '.' + CAP_SETTING)
+        : vscode.l10n.t('Up to an estimated {0} AI calls, at most {1} with retries, to the claude command (Haiku) on the Claude subscription, {2} at a time.', b.calls, b.withRetries, AI_SLOTS)
+          // The cap is named only when it can cut the run short; a cap above the bound changes nothing.
+          + (b.capped ? ' ' + vscode.l10n.t('The run stops calling the AI after {0} calls (setting {1}); the remaining sessions get the exact parts only.', b.cap, CFG + '.' + CAP_SETTING) : '');
     const pick = await vscode.window.showInformationMessage(todo.length === 1 ? vscode.l10n.t('Build a digest for 1 session?') : vscode.l10n.t('Build digests for {0} sessions?', todo.length), {
       modal: true,
       // A single session reads "1 session", not "1 sessions".
-      detail: (todo.length === 1 ? vscode.l10n.t('1 session: {0} without a digest, {1} out of date.', fresh, stale) : vscode.l10n.t('{0} sessions: {1} without a digest, {2} out of date.', todo.length, fresh, stale)) + ' '
-        // With AI on the owner sees the upper bound of calls before agreeing; with AI off it is stated that nothing is called.
-        + (ai ? vscode.l10n.t('Up to an estimated {0} AI calls to the claude command (Haiku) on the Claude subscription, at most {1} at a time; a malformed reply is retried up to {2} times.', calls, AI_SLOTS, AI_TRIES)
-          : vscode.l10n.t('AI parts are turned off: no AI calls are made, only the exact parts are built.')),
+      detail: (todo.length === 1 ? vscode.l10n.t('1 session: {0} without a digest, {1} out of date or missing AI parts.', fresh, stale) : vscode.l10n.t('{0} sessions: {1} without a digest, {2} out of date or missing AI parts.', todo.length, fresh, stale)) + ' ' + cost,
     }, go);
     if (pick !== go) { return; }
     this.noCli = false; // a new run checks for claude again
     await this.runMany(todo.map((x) => x.id), vscode.l10n.t('Building session digests'), true);
   }
 
-  /** Build a list of chats with a cancelable progress notification, then report the counts. */
+  /** Build a list of chats with a cancelable progress notification, under one call cap, then report the counts. */
   private async runMany(ids: string[], title: string, report: boolean): Promise<void> {
-    const n = { ok: 0, plain: 0, failed: 0, err: 0, done: 0 };
+    const n = { ok: 0, plain: 0, failed: 0, capped: 0, err: 0, done: 0 };
+    const budget = this.budget();
     await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title, cancellable: true }, async (prog, token) => {
       const ac = new AbortController();
       token.onCancellationRequested(() => ac.abort());
       await pool(ids, AI_SLOTS, async (id) => {
         try {
-          const o = await this.buildOne(id, ac.signal);
-          // 'ok' and 'none' are complete digests; 'off' and 'failed' hold the exact parts only.
-          if (o === 'ok' || o === 'none') { n.ok++; } else if (o === 'off') { n.plain++; } else if (o === 'failed') { n.failed++; } else { n.err++; }
+          const o = await this.buildOne(id, ac.signal, budget);
+          // 'ok' and 'none' are complete digests; 'off', 'failed' and 'capped' hold the exact parts only.
+          if (o === 'ok' || o === 'none') { n.ok++; } else if (o === 'off') { n.plain++; } else if (o === 'failed') { n.failed++; } else if (o === 'capped') { n.capped++; } else { n.err++; }
         } catch (e) {
           if (!ac.signal.aborted) { n.err++; this.d.log(`digest ${id}`, e); }
         }
@@ -194,11 +267,20 @@ export class DigestService {
         prog.report({ message: vscode.l10n.t('{0} of {1}', n.done, ids.length), increment: 100 / Math.max(ids.length, 1) });
       }, () => ac.signal.aborted);
     });
+    // The drift line is recomputed from the stored flags after every run, so it clears once rebuilt digests read fine.
+    void this.syncDrift();
     if (!report) { return; }
-    const built = n.ok + n.plain + n.failed;
+    const built = n.ok + n.plain + n.failed + n.capped;
     const parts = [built === 1 ? vscode.l10n.t('Built 1 digest') : vscode.l10n.t('Built {0} digests', built)];
     if (n.plain) { parts.push(vscode.l10n.t('{0} without AI parts (turned off)', n.plain)); }
-    if (n.failed) { parts.push(vscode.l10n.t('{0} without AI parts ({1})', n.failed, this.noCli ? vscode.l10n.t('the claude CLI was not found') : vscode.l10n.t('the AI call failed; retried on the next build'))); }
+    // One total for every digest whose AI parts were not generated, then the reasons, so the owner sees the count at a glance.
+    const notGen = n.failed + n.capped;
+    if (notGen) {
+      const why: string[] = [];
+      if (n.failed) { why.push(this.noCli ? vscode.l10n.t('{0}: the claude CLI was not found', n.failed) : vscode.l10n.t('{0}: the AI call failed', n.failed)); }
+      if (n.capped) { why.push(vscode.l10n.t('{0}: the cap of {1} AI calls per run was reached (setting {2})', n.capped, budget.cap, CFG + '.' + CAP_SETTING)); }
+      parts.push(vscode.l10n.t('{0} with AI parts not generated ({1}; retried on the next build)', notGen, why.join('; ')));
+    }
     if (n.err) { parts.push(vscode.l10n.t('{0} failed (see the Saropa Chats output)', n.err)); }
     if (n.done < ids.length) { parts.push(vscode.l10n.t('stopped after {0} of {1}', n.done, ids.length)); }
     void vscode.window.showInformationMessage(parts.join(', ') + '.');
@@ -220,18 +302,24 @@ export class DigestService {
       });
       this.d.post({ type: 'digestState', id, state: o === 'gone' || o === 'lost' || o === 'cancelled' ? '' : 'done' });
       // A missing claude gets the one clear error of this run instead of the plain info line.
-      if (o === 'failed' && this.noCli) { this.showNoCli(); return; }
+      if (o === 'failed' && this.noCli) { this.showNoCli(); return; } // the finally below still refreshes the drift line
       const msg = o === 'gone' ? vscode.l10n.t('This session is not indexed yet. Try again in a moment.')
         : o === 'lost' ? vscode.l10n.t('The digest build was interrupted. Try again.')
           : o === 'cancelled' ? vscode.l10n.t('Digest build canceled.')
             : o === 'off' ? vscode.l10n.t('Digest built with the exact parts only (AI parts are turned off).')
               : o === 'failed' ? vscode.l10n.t('Digest built without AI parts: the AI call failed (see the Saropa Chats output).')
-                : vscode.l10n.t('Digest built.');
+                // The cap applies to a single rebuild too (each command is one run), so a cap of 0 keeps AI off here as well.
+                : o === 'capped' ? vscode.l10n.t('Digest built without AI parts: the cap of {0} AI calls per run was reached (setting {1}).', this.maxCalls(), CFG + '.' + CAP_SETTING)
+                  : vscode.l10n.t('Digest built.');
       void vscode.window.showInformationMessage(msg);
     } catch (e) {
       this.d.post({ type: 'digestState', id, state: '' });
       this.d.log('rebuild digest', e);
       void vscode.window.showErrorMessage(vscode.l10n.t('Could not build the digest: {0}', (e as Error).message));
+    } finally {
+      // A rebuilt digest may clear (or add) a drift flag: recompute the panel line from the stored flags. In a finally so
+      // the no-claude early return and an error path refresh it too (they used to skip it).
+      void this.syncDrift();
     }
   }
 
@@ -298,7 +386,9 @@ export class DigestService {
       // Built inside the try: the stored digests are disk data, and a failure here must show the error message, not become an unhandled rejection.
       const doc = timelineDoc(srcs, chosen.key, chosen.key === undefined ? undefined : chosen.label, text);
       // The fallback is what the tab shows once the document was dropped from memory; it names this command, not the search.
-      await showReadOnly(vscode.l10n.t('Decisions: {0}', chosen.label), { text: doc.text, spans: [], links: [], files: doc.links }, vscode.l10n.t('This timeline is no longer available. Run "{0}" again.', TIMELINE_TITLE));
+      // Each link runs the digest opener (size check, stored line) instead of a raw file URI, the same path as the card's Message links.
+      const files = doc.links.map((l) => ({ ...l, cmd: { command: OPEN_LINE_CMD, args: [l.id, l.at ?? 0] } }));
+      await showReadOnly(vscode.l10n.t('Decisions: {0}', chosen.label), { text: doc.text, spans: [], links: [], files }, vscode.l10n.t('This timeline is no longer available. Run "{0}" again.', TIMELINE_TITLE));
     } catch (e) {
       this.d.log('decisions timeline', e);
       void vscode.window.showErrorMessage(vscode.l10n.t('Could not open the decisions timeline: {0}', (e as Error).message));
@@ -310,11 +400,30 @@ export class DigestService {
     const dg = readDigest(digestDir(this.d.storage), id);
     const line = dg?.decisions.find((x) => x.src === 'message' && x.i === i)?.line;
     if (!dg || !line) { void vscode.window.showInformationMessage(vscode.l10n.t('That message is not in the stored digest any more. Rebuild the digest.')); return; }
+    await this.openAt(id, line);
+  }
+
+  /**
+   * A timeline link: open the session file at a decision's line. The command URI can be built by anyone, so the id must be a
+   * session id and the line must be the line of a decision in that session's stored digest (0: a decision with no line, opened
+   * at the top). Then the same opener as the card's Message links runs, with its 50 MB check.
+   */
+  async openLine(id: unknown, line: unknown): Promise<void> {
+    if (!isSessionId(id)) { return; }
+    const n = typeof line === 'number' && Number.isInteger(line) && line > 0 ? line : 0;
+    const dg = readDigest(digestDir(this.d.storage), id);
+    // A line that is no decision's line (the digest was rebuilt since the timeline opened) is refused with a visible reason.
+    if (!dg || !dg.decisions.some((x) => !!x && typeof x === 'object' && (x.line ?? 0) === n)) { void vscode.window.showInformationMessage(vscode.l10n.t('That decision is not in the stored digest any more. Run "{0}" again.', TIMELINE_TITLE)); return; }
+    await this.openAt(id, n || 1);
+  }
+
+  /** Open a session file at a 1-based line in the editor; files over OPEN_MAX_BYTES are named with the line instead, since VS Code handles them badly. */
+  private async openAt(id: string, line: number): Promise<void> {
     try {
       const w: { file: string; size: number } | undefined = await this.d.request({ t: 'digestWhere', chat: id });
       if (!w) { void vscode.window.showInformationMessage(vscode.l10n.t('This session is not indexed yet. Try again in a moment.')); return; }
       // VS Code handles very large single-line files badly; name the line instead of opening such a file.
-      if (w.size > OPEN_MAX_BYTES) { void vscode.window.showInformationMessage(vscode.l10n.t('The session file is too large to open in the editor ({0} MB). The message is on line {1}.', Math.round(w.size / 1048576), line)); return; }
+      if (w.size > OPEN_MAX_BYTES) { void vscode.window.showInformationMessage(vscode.l10n.t('The session file is too large to open in the editor ({0} MB). The decision is on line {1}.', Math.round(w.size / 1048576), line)); return; }
       const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(w.file));
       const pos = new vscode.Position(Math.max(0, line - 1), 0);
       await vscode.window.showTextDocument(doc, { selection: new vscode.Range(pos, pos), preview: true });
@@ -349,11 +458,17 @@ export class DigestService {
     if (this.autoRunning) { return; }
     this.autoRunning = true;
     try {
-      const todo: Array<{ id: string; mtime: number; state: string }> = (await this.d.request({ t: 'digestTodo' })) ?? [];
+      const todo: Array<{ id: string; mtime: number; state: string }> = (await this.d.request({ t: 'digestTodo' }, GATHER_MS)) ?? [];
       const busy = this.d.busy(), now = Date.now();
       const due = todo.filter((x) => x.state === 'stale' && autoDue(x.mtime, now, busy.has(x.id))).map((x) => x.id);
       // Background work: no notification; each rebuilt digest updates its row, and failures go to the output channel.
-      await pool(due, AI_SLOTS, async (id) => { try { await this.buildOne(id); } catch (e) { this.d.log(`auto digest ${id}`, e); } });
+      // One call cap per pass: the background rebuild can never spend more than one Build run would.
+      const budget = this.budget();
+      await pool(due, AI_SLOTS, async (id) => { try { await this.buildOne(id, undefined, budget); } catch (e) { this.d.log(`auto digest ${id}`, e); } });
+      // The owner gets no notification for a background pass, so a cap that cut it short is at least in the output channel.
+      if (budget.reached) { this.d.log('auto digest', `the cap of ${budget.cap} AI calls per run was reached; the remaining sessions got the exact parts only`); }
+      // Rebuilt digests may change the drift counts; the panel line follows the stored flags.
+      if (due.length) { void this.syncDrift(); }
     } catch (e) { this.d.log('auto digest', e); }
     finally { this.autoRunning = false; }
   }

@@ -6,7 +6,12 @@ export interface Span { line: number; from: number; to: number; }
 /** A chat header line that resumes the chat: zero-based line, last column before the colon, session id. */
 export interface HeadLink { line: number; to: number; id: string; }
 /** A link that opens a file at a line: zero-based document line and columns, the file, and its 1-based line (none: the file's top). */
-export interface FileLink { line: number; from: number; to: number; file: string; at?: number; }
+/**
+ * A clickable file reference in a read-only document. cmd, when set, is the command the link runs instead of opening the file
+ * URI directly: the decisions timeline routes through the digest opener, which checks the file size first (very large session
+ * files are not opened in the editor).
+ */
+export interface FileLink { line: number; from: number; to: number; file: string; at?: number; cmd?: { command: string; args: unknown[] }; }
 /** A results document: its text, highlights, chat links (resume) and, for other read-only documents such as the decisions timeline, file links. */
 export interface Doc { text: string; spans: Span[]; links: HeadLink[]; files?: FileLink[]; }
 export interface DocMeta { query: string; flags: string[]; }

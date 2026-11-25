@@ -17,9 +17,63 @@ export const NOTE_TEXT = {
   dialogUnread: 'Dialog answers could not be read',
   inputTrimmed: 'Input trimmed: the middle of a very long session was not sent to the AI',
   failed: 'AI parts not generated (they are retried on the next build)',
-  off: 'AI parts turned off (setting saropaChats.digest.useAi)',
+  // Off is a deliberate choice (the useAi setting, or a call cap of 0): no retry is promised, unlike a failed run.
+  off: 'AI parts turned off (settings saropaChats.digest.useAi and saropaChats.digest.maxAiCallsPerRun)',
   cap: 'Shortened to fit the 20 KB digest size',
 } as const;
+
+/**
+ * The strings of the panel's layout-drift line. The host fills them through vscode.l10n.t (this file has no vscode import,
+ * so it stays testable); DRIFT_STRINGS below is the one English source. Singular and plural are whole strings.
+ */
+export interface DriftText {
+  line: (parts: string) => string; // the whole line around the joined clauses
+  dialog: (n: number) => string; // digests that could not read dialog answers
+  stop: (n: number) => string; // digests whose session file had no end-of-turn (stop_reason) field
+  join: string; // between the two clauses
+}
+
+/**
+ * The English source of every drift-line string, with {0} placeholders: the ONE table both the host (which passes each
+ * entry through vscode.l10n.t) and the checks (which use the English directly) read, so the wording exists once.
+ * Singular and plural are whole strings so each language can inflect them.
+ */
+export const DRIFT_STRINGS = {
+  line: 'Session file layout changed: {0}',
+  dialogOne: '1 digest could not read dialog answers',
+  dialogMany: '{0} digests could not read dialog answers',
+  stopOne: '1 digest had no end-of-turn field',
+  stopMany: '{0} digests had no end-of-turn field',
+  join: ', ',
+} as const;
+
+/** A translator: takes one English source string and its {0}-style arguments (vscode.l10n.t on the host). */
+export type DriftTr = (s: string, ...args: Array<string | number>) => string;
+
+/** Plain-English translator for the checks: fills {0}, {1} placeholders in order and changes no wording. */
+export const fillPlain: DriftTr = (s, ...args) => s.replace(/\{(\d+)\}/g, (m, k) => (args[Number(k)] === undefined ? m : String(args[Number(k)])));
+
+/** Build the DriftText from DRIFT_STRINGS through a translator, so the host and the checks share one wording table. */
+export function driftTextWith(tr: DriftTr): DriftText {
+  return {
+    line: (parts) => tr(DRIFT_STRINGS.line, parts),
+    dialog: (n) => (n === 1 ? tr(DRIFT_STRINGS.dialogOne) : tr(DRIFT_STRINGS.dialogMany, n)),
+    stop: (n) => (n === 1 ? tr(DRIFT_STRINGS.stopOne) : tr(DRIFT_STRINGS.stopMany, n)),
+    join: tr(DRIFT_STRINGS.join),
+  };
+}
+
+/** The English drift text, derived from the same table: driftLine's default and what the unit checks use. */
+export const DEFAULT_DRIFT_TEXT: DriftText = driftTextWith(fillPlain);
+
+/** The panel's drift line from the stored-flag counts; '' (the line is hidden) when both counts are 0. */
+export function driftLine(c: { dialog: number; stop: number }, t: DriftText = DEFAULT_DRIFT_TEXT): string {
+  const parts: string[] = [];
+  // A clause appears only for a count above 0, so a single kind of drift reads as one plain sentence.
+  if (c.dialog > 0) { parts.push(t.dialog(c.dialog)); }
+  if (c.stop > 0) { parts.push(t.stop(c.stop)); }
+  return parts.length ? t.line(parts.join(t.join)) : '';
+}
 
 /** Title as a file-name slug: lowercased, every run outside [a-z0-9] becomes one dash, trimmed, at most 60 characters, "untitled" when empty. */
 export function slugOf(title: string): string {

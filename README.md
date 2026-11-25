@@ -160,6 +160,10 @@ A digest is a short stored record of one session: the goal, your decisions, the 
 - "Saropa: Export Session Digests to Project" writes `docs/history/chats/YYYY-MM-DD_<title>_<id>.md` for each digest of the open project, plus `INDEX.md`.
 - "Saropa: Show Decisions Timeline" lists every Dialog and Message decision of the stored digests, newest first and grouped by day, in a read-only editor tab. Pick All projects or one project. Each entry shows the project, the session title, the source, the exact quote (Dialog: question → answer) and a `Session file: <path>:<line>` link that opens the session file at that line. No AI call is made.
 - A session that stopped without a final agent reply is marked "Session ended without a close". When the AI call fails or `claude` is missing, the exact parts are saved and the AI parts are retried on the next build.
+- The Build confirmation states the bound: up to K AI calls, at most K×3 with retries. Each Build, Rebuild and automatic pass stops calling the AI after `saropaChats.digest.maxAiCallsPerRun` calls (default 200; 0 turns AI parts off). Sessions past the cap keep the exact parts, read "not generated", and are retried by the next Build. The completion message gives the count.
+- Small slips in an AI reply (an index sent as text, a duplicate, a sixth Left open item, a blank item) are corrected and listed in the Saropa Chats output instead of costing a retry.
+- When stored digests show that the session file layout changed (dialog answers could not be read, or no end-of-turn `stop_reason` field), the panel's status area shows one line with the counts and a Show Output action. Each build recomputes it, and it is hidden when both counts are 0.
+- Digests built before decisions carried a time get the times filled in from the session record the next time digests are listed or the timeline opens. No AI call is made for that.
 
 ### Organize
 
@@ -280,6 +284,7 @@ One page answers: what is still open in this repository, and what do I do to clo
 | `saropaChats.autoTitle.useHaiku` | false | Let `claude -p --model haiku` write the title in the background instead of the rules. Falls back to the rules on failure. |
 | `saropaChats.digest.auto` | false | Rebuild out-of-date digests in the background once the session file has been quiet for 10 minutes and the session is not running. |
 | `saropaChats.digest.useAi` | true | Let `claude -p --model haiku` write the goal and the work left open, and pick the decision messages. Off: digests hold only the exact parts. |
+| `saropaChats.digest.maxAiCallsPerRun` | 200 | Most AI calls, retries included, one Build, Rebuild or automatic pass may make. Past it, sessions get the exact parts only. 0 turns AI parts off. |
 | `saropaChats.emojiRules` | [] | Your own `{ "emoji": "🐾", "keywords": ["dog", "cat"] }` rules. Same emoji as a built-in rule replaces its keywords; others are added. |
 | `saropaChats.emojiRulesReplaceDefaults` | false | Ignore the built-in emoji rules and use only yours. |
 

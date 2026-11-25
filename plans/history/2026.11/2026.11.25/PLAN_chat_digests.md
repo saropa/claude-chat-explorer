@@ -190,3 +190,18 @@ Changes from the text above, decided while building:
 - `dc290f9`: every decision of a built digest gets a numeric `at` (own time, then the nearest earlier message time, then the chat's last activity). Before this, the stale rule could rebuild such a digest on every pass.
 
 Verification: `npx tsc -p .` is clean. `check_digest.js`, `check_api.js`, `check_webview.js`, `check_scan.js`, `check_manifest.js` and `check_options.js` pass. The real `claude` CLI and the running VS Code UI (quick picks, timeline tab, link clicks, error messages) are unverified.
+
+### Follow-up (2026-11-25): lenient replies, call cap, timeline links, time repair
+
+- AI replies: benign deviations are normalized before validation and logged to the output channel. Numeric text becomes a number, duplicate and out-of-range indexes are dropped, blank Left open items are dropped, only the first 5 are kept, and whitespace is trimmed. Retry and "not generated" are kept for structural failures only: not JSON, not an object, no goal, a field of the wrong type after normalizing.
+- Call bound: the Build confirmation says "up to K AI calls, at most K×`AI_TRIES` with retries".
+- Call cap: `saropaChats.digest.maxAiCallsPerRun` (number, default 200, minimum 0, machine). Every try counts. Each Build, Rebuild and automatic pass gets its own budget. Sessions past the cap are saved with the exact parts and `ai: 'failed'` ("not generated"). The Build completion message gives the count and names the cap. 0 makes no AI call. A digest with `ai: 'failed'` is listed as `aiMissing`, so Build retries it. The automatic pass does not retry it.
+- Timeline links run the internal command `saropaChats.openDigestDecision` (session id, line). It checks that the line belongs to a decision of the stored digest, then uses the Digest card's opener, which has the 50 MB check.
+- Old digests without decision `at`: `digestStale` no longer flags them. `DigestBuilder.repairTimes` fills the times from the record with `withDecisionTimes` and rewrites the file. Size, mtime, build time and AI parts are kept, and no AI call is made. It runs in the build list (Build and the automatic pass) and in the timeline read.
+- Webview strings: the panel has no webview l10n setup, and adding one is shared infrastructure, so none was built. Every digest webview string is in `DIGEST_TEXT` (`src/webviewDigest.ts`), with `{0}` placeholders, ready for a later l10n pass. Host strings use `vscode.l10n.t`.
+- Drift warnings in the panel: the digest stores `noStopField` (assistant rows but no `stop_reason` field) beside `dialogUnread`. The worker counts both flags over the stored digests (`driftCounts`, request `digestDrift`). The host formats one status-area line (`driftLine`, strings through `vscode.l10n.t`) with a Show Output action that opens the output channel. The line is recomputed at start and after every Build, Rebuild and automatic pass, posted again when the panel reloads, and hidden when both counts are 0. Digests stored before `noStopField` existed count 0 for it until rebuilt.
+
+Known limits:
+- No spending cap beyond `maxAiCallsPerRun`. There is no token, cost or per-day limit, and the cap is per run, so repeated runs (or automatic passes every 2 minutes) can each spend up to it.
+- Digests are keyed by session id. A session file copied under a new id gets its own digest, and a digest file whose inner id differs from its name is ignored.
+- Cross-window lag: another window sees a new or repaired digest only when its 30 s folder listing (`LIST_TTL_MS`) is read again.

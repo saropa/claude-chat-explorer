@@ -47,6 +47,7 @@ export interface Digest {
   ai: AiState;
   noClose?: boolean; // the chat stopped without a final agent reply (a context crash or an interrupted turn); omitted when the file has no stop_reason at all
   dialogUnread?: boolean; // the chat had question dialogs, but no answer of any of them could be read (the chat-file layout changed)
+  noStopField?: boolean; // assistant rows exist but none has a stop_reason field (the chat-file layout changed); counted for the panel's drift line
   inputTrimmed?: boolean; // the AI input was over 8 pieces, so the middle of the chat was not sent
   capTrimmed?: string[]; // parts the 20 KB cap shortened, in trim order
 }
@@ -58,11 +59,36 @@ export interface DigestEntry { d: Digest; lines: DigestLine[]; }
 /** What search and the list rows read: the cached digest of a chat id, if any. */
 export interface DigestLookup { get(id: string): DigestEntry | undefined; }
 
-/** True when the chat file changed since the digest was built (size or mtime differ), or the digest predates decision times. */
-export const digestStale = (d: Pick<Digest, 'size' | 'mtime'> & { decisions?: Array<{ at?: number }> }, c: { size: number; mtime: number }): boolean =>
-  d.size !== c.size || d.mtime !== c.mtime
-  // A digest built before decisions carried a time has decisions without `at`; it counts as stale so Build and the auto rebuild refresh it and the timeline can place its decisions.
-  || (d.decisions ?? []).some((x) => typeof x.at !== 'number');
+/**
+ * True when the chat file changed since the digest was built (size or mtime differ). A digest built before decisions carried
+ * a time is NOT stale for that reason: counting it stale re-ran the AI on it. DigestBuilder.repairTimes fills the missing
+ * times from the record, without AI, where digests are listed (Build, the automatic pass) and read for the timeline.
+ */
+export const digestStale = (d: Pick<Digest, 'size' | 'mtime'>, c: { size: number; mtime: number }): boolean =>
+  d.size !== c.size || d.mtime !== c.mtime;
+
+/** True when some decision of a stored digest has no numeric time (a digest built before decisions carried one). */
+export const needsTimes = (d: Pick<Digest, 'decisions'>): boolean =>
+  // A damaged entry (not an object) is left for the readers to skip; only real decisions without a time need the repair.
+  d.decisions.some((x) => !!x && typeof x === 'object' && (typeof x.at !== 'number' || !Number.isFinite(x.at)));
+
+/** How many stored digests carry each layout-drift flag; the panel's drift line is built from these counts, so it survives reloads. */
+export interface DriftCounts { dialog: number; stop: number; }
+
+/**
+ * Count the layout-drift flags of stored digests: dialog answers that could not be read, and assistant rows without a
+ * stop_reason field. Only a flag that is exactly true counts, so a hand-edited or damaged value is not reported as drift.
+ */
+export function driftCounts(ds: Iterable<Pick<Digest, 'dialogUnread' | 'noStopField'> | undefined>): DriftCounts {
+  const n: DriftCounts = { dialog: 0, stop: 0 };
+  for (const d of ds) {
+    // A missing digest (no file, damaged file) carries no flag.
+    if (!d) { continue; }
+    if (d.dialogUnread === true) { n.dialog++; }
+    if (d.noStopField === true) { n.stop++; }
+  }
+  return n;
+}
 
 /** True when the automatic rebuild may run for a chat: not busy, and its file has been quiet for AUTO_IDLE_MS. */
 export const autoDue = (mtime: number, now: number, busy: boolean): boolean => !busy && now - mtime > AUTO_IDLE_MS;

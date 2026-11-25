@@ -53,7 +53,7 @@ import { WorkScan } from './workScan';
 import { WorkPrs } from './workPrs';
 import { PrCache } from './wipPrs';
 import { WebSessions } from './webSessions';
-import { AUTO_SETTING, BUILD_CMD, DigestService, EXPORT_CMD, REBUILD_CMD, TIMELINE_CMD } from './digestRun';
+import { AUTO_SETTING, BUILD_CMD, DigestService, EXPORT_CMD, OPEN_LINE_CMD, REBUILD_CMD, TIMELINE_CMD } from './digestRun';
 
 const POST_GAP_MS = 100;
 const REVEAL_CMD = 'workbench.view.extension.saropaChats'; // opens the Saropa Chats container and its view
@@ -132,6 +132,9 @@ class Provider implements vscode.WebviewViewProvider {
     this.progress = null;
     this.status.hide();
     this.post({ type: 'indexed' });
+    // The drift line is computed from the index's chats: an early request (at activation) may have found none or timed
+    // out, so it is recomputed whenever indexing finishes.
+    void this.digests?.syncDrift();
     if (was?.first) {
       const n = was.total - was.subs;
       void vscode.window.showInformationMessage(`Saropa Chats: indexed ${n} sessions and ${was.subs} subagent files.`);
@@ -200,6 +203,10 @@ class Provider implements vscode.WebviewViewProvider {
     this.postRing();
     void this.postMeta();
     if (this.progress) { this.post({ type: 'indexing', ...this.progress }); }
+    // A reloaded panel starts without the digest drift line: post the last one again.
+    this.digests?.postDrift();
+    // And the localized digest strings (the page holds the English table until this arrives).
+    this.digests?.postText();
     this.queue.setReady(true);
   }
 
@@ -297,6 +304,8 @@ class Provider implements vscode.WebviewViewProvider {
     else if (m.type === 'digestBuild') { await this.digests?.rebuild(id); }
     else if (m.type === 'digestMsg') { await this.digests?.openMessage(id, Number(m.i)); }
     else if (m.type === 'digestRef') { await this.digests?.openRef(id, String(m.ref ?? '')); }
+    // The drift line's Show Output action: the output channel holds one line per kind of drift with the details.
+    else if (m.type === 'digestOutput') { channel.show(true); }
   }
 
   /** Copy the hand-over note for another page; state reports busy and done to that page. */
@@ -506,12 +515,16 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   });
   provider.digests = digests;
   digests.syncAuto();
+  // The panel's drift line comes from the stored digests' flags, so it is shown again after a window reload.
+  void digests.syncDrift();
   ctx.subscriptions.push({ dispose: () => digests.dispose() },
     vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.' + AUTO_SETTING)) { digests.syncAuto(); } }),
     vscode.commands.registerCommand(BUILD_CMD, () => digests.buildAll()),
     vscode.commands.registerCommand(EXPORT_CMD, () => digests.export()),
     // The decisions timeline reads every stored digest; it starts no AI call.
     vscode.commands.registerCommand(TIMELINE_CMD, () => digests.timeline()),
+    // The timeline's session-file links: the same opener (and 50 MB check) as the card's Message links; arguments are checked there.
+    vscode.commands.registerCommand(OPEN_LINE_CMD, (id: unknown, line: unknown) => digests.openLine(id, line)),
     // The row menu passes the chat; the command palette has no chat to pass, so it is hidden there.
     vscode.commands.registerCommand(REBUILD_CMD, (arg?: { id?: unknown }) => (isSessionId(arg?.id) ? digests.rebuild(arg.id) : undefined)));
   registerUsage(ctx, { rows: usageRows, resume: (id) => provider.resume(id), log: logErr, onIndex: (fn) => { ctx.subscriptions.push(hub.on('indexed', fn), hub.on('changed', fn)); },

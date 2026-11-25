@@ -460,6 +460,13 @@
           "scope": "machine",
           "description": "Let the claude command (Haiku model) write the goal and the work left open of each session digest, and pick the owner messages that are decisions. Off: a digest holds only the exact parts (dialog answers, files changed, references, dates and branch)."
         },
+        "saropaChats.digest.maxAiCallsPerRun": {
+          "type": "number",
+          "default": 200,
+          "minimum": 0,
+          "scope": "machine",
+          "description": "Most AI calls (claude command, Haiku model), retries included, that one Build Session Digests run, one Rebuild, or one automatic background pass may make. Once a run reaches it, the remaining sessions get the exact parts only and their AI parts read \"not generated\" (the next Build retries them). 0 turns AI parts off for every run."
+        },
         "saropaChats.emojiRules": {
           "type": "array",
           "default": [],

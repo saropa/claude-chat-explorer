@@ -393,6 +393,16 @@ function ctxPopChecks(rid, check, step) {
   check('the empty-data popover takes focus itself (no button to focus) and is still named by ctxh', pop.focused === popF0 + 1 && /id="ctxh"/.test(pop.innerHTML));
   step('Escape on the empty popover', () => fire(document, 'keydown', { key: 'Escape' }));
   check('Escape closes the empty-data popover', pop.hidden === true);
+  // Digest layout-drift line of the status area: shown with its Show Output action, which posts digestOutput; hidden on an empty text.
+  const dgw = els.get('dgw');
+  check('drift line: the status area has the element, hidden at start', !!dgw && dgw.hidden === true);
+  step('drift counts arrive', () => deliver({ type: 'digestDrift', text: 'Session file layout changed: 2 digests could not read dialog answers', action: 'Show Output' }));
+  check('drift line: shown with its text and the Show Output action', dgw.hidden === false && dgw.innerHTML.includes('2 digests could not read dialog answers') && dgw.innerHTML.includes('data-a="dgout"') && dgw.innerHTML.includes('Show Output'));
+  const outBefore = posted.filter((m) => m.type === 'digestOutput').length;
+  step('Show Output click', () => fire('dgw', 'click', { target: Object.assign(mkEl('dgoutBtn'), { closest: (s) => (s === '[data-a="dgout"]' ? {} : null) }) }));
+  check('drift line: Show Output posts digestOutput', posted.filter((m) => m.type === 'digestOutput').length === outBefore + 1);
+  step('drift cleared', () => deliver({ type: 'digestDrift', text: '', action: 'Show Output' }));
+  check('drift line: hidden when both counts are 0 (empty text)', dgw.hidden === true && dgw.innerHTML === '');
 }
 
 function report() { H.report('panel script ran ' + posted.length + ' posts, no exceptions'); }

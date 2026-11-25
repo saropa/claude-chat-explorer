@@ -4,7 +4,7 @@
  * size cap and writes the file. The host runs the AI between the two steps, so the worker never starts a process.
  */
 import { scanLines } from './scan';
-import { capDigest, Decision, Digest, DIGEST_VERSION, extractRefs, FileScan, mergedFiles, newFileAcc, orderDecisions, takeFileLine, AiState, digestStale, finishFile } from './digest';
+import { capDigest, Decision, Digest, DIGEST_VERSION, DriftCounts, driftCounts, extractRefs, FileScan, mergedFiles, needsTimes, newFileAcc, orderDecisions, takeFileLine, AiState, digestStale, finishFile } from './digest';
 import { AI_SLOTS, AI_TIMEOUT_MS, AI_TRIES, aiInput, AiInput, AiPart, estCalls, MAX_PIECES, messageDecisions, msgText } from './digestAi';
 import { DigestCache, readDigest, writeDigest } from './digestStore';
 import { digestFileName, digestMarkdown, inProject, indexMarkdown } from './digestMd';
@@ -20,6 +20,8 @@ export interface DigestSource {
 /** Last message rows kept for the clean-end test; a few, because meta rows (command output) can follow the final reply. */
 const TAIL_ROWS = 6;
 const HEAD = 1024;
+/** Most old digests the build list repairs in one call (see todo); the rest wait for the next listing. */
+const MAX_REPAIRS_PER_TODO = 100;
 const USER = Buffer.from('"type":"user"'), ASST = Buffer.from('"type":"assistant"');
 /** The field the clean-end test reads; quoted, so an escaped mention inside a message text (\"stop_reason\") does not match. */
 const STOP = Buffer.from('"stop_reason"');
@@ -67,8 +69,9 @@ export interface DigestInputReply {
 
 /**
  * Give every decision a numeric `at`. Dialog decisions whose answer row has no parseable timestamp, and message decisions
- * whose message time is 0, are built without `at`; digestStale treats any decision without `at` as stale, so such a digest
- * would be rebuilt (a Haiku run) on every automatic pass, forever. This is the ONE place that closes the gap, for both kinds.
+ * whose message time is 0, are built without `at`; such a digest used to count as stale, so it
+ * was rebuilt (a Haiku run) on every automatic pass. This is the ONE rule that fills the gap, for both kinds: builds use it, and
+ * DigestBuilder.repairTimes applies it to digests stored before decisions carried a time.
  * Fallback order: the decision's own time, the nearest earlier known message time in the chat, the chat's last activity.
  * Returns new objects; the inputs are not mutated.
  */
@@ -119,10 +122,13 @@ export class DigestBuilder {
     // noClose undefined (no stop_reason anywhere) stays omitted: an unknown end is not reported as a crash.
     if (scan.noClose === true) { base.noClose = true; }
     if (scan.dialogUnread) { base.dialogUnread = true; }
+    // Stored, not only logged: the panel's drift line counts this flag across digests, so it survives a reload.
+    const noStop = scan.noClose === undefined && rec.ts.length > 0;
+    if (noStop) { base.noStopField = true; }
     if (input.trimmed) { base.inputTrimmed = true; }
     this.sweep();
     this.pend.set(c.id, { base, rec, at: this.now(), allowed: new Set(input.allowed) });
-    const drift = [...(scan.dialogUnread ? ['dialog answers'] : []), ...(scan.noClose === undefined && rec.ts.length ? ['stop_reason'] : [])];
+    const drift = [...(scan.dialogUnread ? ['dialog answers'] : []), ...(noStop ? ['stop_reason'] : [])];
     return drift.length ? { id: c.id, title: c.title, input, drift } : { id: c.id, title: c.title, input };
   }
 
@@ -137,12 +143,27 @@ export class DigestBuilder {
    * or turned-off AI keeps the exact parts and says so. Returns the goal for the list marker, or undefined when the
    * gathered build expired (the host then starts over).
    */
-  async save(id: string, state: AiState, part?: AiPart): Promise<{ goal?: string } | undefined> {
+  async save(id: string, state: AiState, part?: AiPart, keepPrior = false): Promise<{ goal?: string } | undefined> {
     const p = this.pend.get(id);
     if (!p) { return undefined; }
     this.pend.delete(id);
     const d: Digest = { ...p.base, ai: state, built: this.now() };
     let ds: Decision[] = d.decisions;
+    // keepPrior: the AI was skipped only because the run's call cap was used up (or is 0). A stored digest with good AI
+    // parts must not lose them to an exact-parts-only rebuild, so its goal, Left open and picked message decisions are
+    // carried forward; the exact parts are still refreshed. The state stays as given ('failed' keeps Build retrying it).
+    // A session with no good previous digest falls through and gets the exact parts only.
+    if (keepPrior && state !== 'ok') {
+      const prior = readDigest(this.cache.dir, id);
+      // Any prior with a goal has AI parts: a digest already carried forward once is 'failed' but still holds them, and
+      // a second capped run must not drop them either.
+      if (prior && typeof prior.goal === 'string' && prior.goal) {
+        d.goal = prior.goal;
+        if (Array.isArray(prior.open) && prior.open.length) { d.open = prior.open; }
+        // Message decisions are the AI-picked ones; dialog decisions come fresh from the build, so only these are carried.
+        ds = [...ds, ...(Array.isArray(prior.decisions) ? prior.decisions.filter((x) => !!x && typeof x === 'object' && x.src === 'message') : [])];
+      }
+    }
     // The part crossed a thread boundary: check its shape before any field is used, and treat a bad one as a failed AI run.
     const good = !!part && typeof part.goal === 'string' && Array.isArray(part.decisions) && Array.isArray(part.open);
     if (state === 'ok' && good) {
@@ -160,18 +181,51 @@ export class DigestBuilder {
     return { goal: out.goal };
   }
 
-  /** Top-level chats (archived ones too) with their digest state, for the Build command and the automatic rebuild. */
-  todo(): Array<{ id: string; title: string; mtime: number; state: 'none' | 'stale' | 'fresh'; calls: number }> {
-    return this.ix.tops().map((c) => {
+  /**
+   * Fill the missing decision times of a stored digest from its record, without AI, and rewrite the file in place. A digest
+   * built before decisions carried a time used to count as stale, which re-ran the AI on it; now it keeps its AI parts and
+   * only gains the times, from the same rule a build uses (withDecisionTimes). Size and mtime are kept, so the repaired digest
+   * stays exactly as fresh as it was. Returns the repaired digest, or the one given when nothing was missing.
+   */
+  async repairTimes(c: Chat, d: Digest): Promise<Digest> {
+    if (!needsTimes(d)) { return d; }
+    // An unreadable record (deleted meanwhile) still repairs: with no message times the rule falls back to the chat's last activity.
+    const rec = safeRec(() => this.ix.rec(c)) ?? ({ ts: [], lines: [] } as unknown as Rec);
+    // Damaged entries (not objects) are passed through untouched: the readers skip them, and repairing them would invent data.
+    const decisions = d.decisions.map((x) => (x && typeof x === 'object' ? withDecisionTimes([x], rec, d.last, d.built)[0] : x));
+    const out: Digest = { ...d, decisions };
+    // Another window may have rebuilt the digest since it was read: only rewrite the file when it is still the same build.
+    const now = readDigest(this.cache.dir, d.id);
+    if (!now || now.built !== d.built) { return now ?? out; }
+    try {
+      await writeDigest(this.cache.dir, out);
+      this.cache.drop([d.id]);
+    } catch { /* a failed write keeps the old file; this reply still carries the repaired times, and the next listing retries */ }
+    return out;
+  }
+
+  /**
+   * Top-level chats (archived ones too) with their digest state, for the Build command and the automatic rebuild. Digests
+   * without decision times are repaired here (repairTimes), so neither caller rebuilds them. aiMissing marks a fresh digest
+   * whose AI parts were not generated (failed, or skipped by the call cap): Build retries it, the automatic pass does not.
+   */
+  async todo(): Promise<Array<{ id: string; title: string; mtime: number; state: 'none' | 'stale' | 'fresh'; calls: number; aiMissing: boolean }>> {
+    const out: Array<{ id: string; title: string; mtime: number; state: 'none' | 'stale' | 'fresh'; calls: number; aiMissing: boolean }> = [];
+    let repaired = 0;
+    for (const c of this.ix.tops()) {
       const e = this.cache.get(c.id);
+      // Old digest without decision times: fill them now, so it is never queued for an AI rebuild. Bounded per call: the
+      // repair reads a record and rewrites a file, and the listing runs inside one worker request; the rest are repaired
+      // by the next listing (the state below does not depend on the times, so an unrepaired digest is still listed right).
+      if (e && repaired < MAX_REPAIRS_PER_TODO && needsTimes(e.d)) { repaired++; await this.repairTimes(c, e.d); }
       // A file that is there but not a valid current digest (another version, no version, damaged) is stale, not absent:
       // it is rebuilt by the Build command and by the automatic rebuild, which only touches stale digests.
       const state = !e ? (this.cache.has(c.id) ? 'stale' as const : 'none' as const) : digestStale(e.d, c) ? 'stale' as const : 'fresh' as const;
       // The call estimate bounds the cost shown in the Build confirmation; it is computed from index facts, without reading the record.
-      return { id: c.id, title: c.title, mtime: c.mtime, state, calls: estCalls(c.len, c.count) };
-    });
+      out.push({ id: c.id, title: c.title, mtime: c.mtime, state, calls: estCalls(c.len, c.count), aiMissing: !!e && e.d.ai === 'failed' });
+    }
+    return out;
   }
-
   /** Export files of every digest that belongs to the folder, plus INDEX.md; missing counts the folder's chats with no digest yet. */
   exportFor(folder: string): { files: Array<{ name: string; text: string }>; index: string; missing: number; stale: number } {
     const ds: Digest[] = [];
@@ -190,18 +244,24 @@ export class DigestBuilder {
 
   /**
    * Every stored digest that has decisions, with its session file, for the Decisions timeline. Read straight from disk
-   * like the export, so the timeline shows exactly what is stored. Only the fields the timeline prints are sent back,
-   * which keeps the reply small: files and references can be most of a digest.
+   * like the export, so the timeline shows exactly what is stored. A digest without decision times is repaired first
+   * (repairTimes), so its decisions are placed by their own times instead of the session's last activity. Only the fields
+   * the timeline prints are sent back, which keeps the reply small: files and references can be most of a digest.
    */
-  timeline(): TimelineSrc[] {
+  async timeline(): Promise<TimelineSrc[]> {
     const out: TimelineSrc[] = [];
     for (const c of this.ix.tops()) {
-      const d = readDigest(this.cache.dir, c.id);
+      const read = readDigest(this.cache.dir, c.id);
       // A chat without a valid digest adds nothing. A digest without decisions is still sent: the project pick lists every project that has digests.
-      if (!d) { continue; }
+      if (!read) { continue; }
+      const d = await this.repairTimes(c, read);
       out.push({ d: { id: d.id, title: d.title, folder: d.folder, start: d.start, dir: d.dir, first: d.first, last: d.last, decisions: d.decisions }, file: this.ix.fileOf(c) });
     }
     return out;
+  }
+  /** Layout-drift counts over the stored digests of every top-level chat, from their flags (not from any log), for the panel's drift line. */
+  drift(): DriftCounts {
+    return driftCounts(this.ix.tops().map((c) => this.cache.get(c.id)?.d));
   }
 
   /** Session file and size of a chat, for the card's message links (the line comes from the stored digest). */

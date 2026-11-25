@@ -16,8 +16,11 @@ export interface TimelineSrc {
 /** A project of the quick pick: key is the normalized folder (two spellings of one folder match), label its last folder name, path the folder as written. */
 export interface TimelineProject { key: string; label: string; path: string; }
 
-/** A clickable session-file reference in the document: zero-based document line and columns, the file and its 1-based line. */
-export interface TimelineLink { line: number; from: number; to: number; file: string; at?: number; }
+/**
+ * A clickable session-file reference in the document: zero-based document line and columns, the file and its 1-based line,
+ * and the session id, so the host can open it through the same digest opener the Digest card uses.
+ */
+export interface TimelineLink { line: number; from: number; to: number; file: string; at?: number; id: string; }
 
 /** The document: its text, the session-file links in it, and how many decisions it lists. */
 export interface TimelineDoc { text: string; links: TimelineLink[]; count: number; }
@@ -121,7 +124,7 @@ export function timelineDoc(srcs: TimelineSrc[], project?: string, projectLabel?
     for (const q of quote.split(/\r\n|\r|\n/)) { lines.push(q ? '    ' + q : ''); }
     // The session-file reference: path and line, the whole of it a link that opens the file at that line.
     const ref = it.x.line ? `${it.s.file}:${it.x.line}` : it.s.file, pre = `    ${text.sessionFile} `;
-    links.push({ line: lines.length, from: pre.length, to: pre.length + ref.length, file: it.s.file, at: it.x.line });
+    links.push({ line: lines.length, from: pre.length, to: pre.length + ref.length, file: it.s.file, at: it.x.line, id: it.s.d.id });
     lines.push(pre + ref);
   }
   return { text: lines.join('\n') + '\n', links, count: items.length };
