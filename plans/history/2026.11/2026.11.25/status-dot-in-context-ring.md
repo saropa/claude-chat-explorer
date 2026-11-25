@@ -43,3 +43,18 @@ Chat rows showed the status dot at the left edge and the context ring in the mid
 
 - `npm run compile`: clean. `check_dots`, `check_ring`, `check_webview`, `check_activity`: OK after each part.
 - Visual rendering (slot hover wash, popover placement and width, bar colors, open-row alignment at different font sizes) not verified in a running webview.
+
+## Review fixes
+
+Six review findings on the context popover were fixed:
+
+- Placement: `place()` in `src/webviewPop.ts` takes an optional `flip` argument. The context popover passes it and opens above the slot when it does not fit below and more room exists above; header menus do not pass it and still open downward.
+- Tooltip: `makeTip` accepts a `skip(el)` veto, checked in `show()`. The sidebar vetoes any element inside the open popover's own slot, so the ring and dot tooltips no longer cover the popover.
+- Scroll: a scroll re-places the popover while the slot is inside the viewport and the results area, and closes it only when the slot has left the view (`ctxVisible`).
+- Live update: the popover is a `.cxd` details container plus a static `.cxa` action row. `ctxSync` rewrites only `.cxd`, so the Resume button keeps its node and focus.
+- Pinned rows: `renderPinned` now uses `patch()` like the main list. `ctxClose(true)` records the id, and the next `ctxSync` focuses the slot again if the render replaced it.
+- Empty data: `ctxOpen` opens the popover with "No context data for this chat." instead of returning silently; `ctxSync` shows the same message if the data disappears while open.
+
+Checks: `check_ring` runs the real `POP_JS`, `CTX_JS` and `CTX_POP_JS` against a fake DOM and asserts flip placement, default downward placement for page menus, scroll behavior (visible and out of view), node identity of the Resume button across a live update, focus restore and the empty-data message. `check_webview` asserts the tooltip veto and the empty-data message in the real page script.
+
+Not verified: rendering in a running webview (actual flip geometry, scroll anchoring, pinned-row patch behavior with a focused slot).

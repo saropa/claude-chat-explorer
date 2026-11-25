@@ -54,9 +54,14 @@ return '<span '+a+b+'>'+rg+(dc?dotHtml(r.id):'')+'</span>';}
 /* Horizontal token bar for the popover: tokens used of the ring limit, filled and colored with the same steps as the ring (ringCls), plus the same "136.8k of 300k tokens" text. */
 function ctxBar(t){const f=t/ringMax,w=(Math.min(f,1)*100).toFixed(1),lab=ringTok(t)+' of '+ringTok(ringMax)+' tokens';
 return '<div class="cxb'+ringCls(f)+'" role="img" aria-label="'+lab+'"><svg viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="rt" width="100" height="6"/><rect class="rf" width="'+w+'" height="6"/></svg></div><p class="tsm">'+lab+' (ring limit)</p>';}
-/* Popover body: the Context tooltip (tipCtx, the single source of the details) with the bar placed under its heading, then a Resume button. Resume is the one existing safe action on a chat; the extension has no way to run /compact in a session, so none is offered. Empty when the chat has no context data. */
-function ctxPopHtml(r){const h=r&&r.ctx&&r.ctx.tokens>0?tipCtx(r):'';if(!h)return '';const i=h.indexOf('</b>')+4;
-return h.slice(0,i)+ctxBar(r.ctx.tokens)+h.slice(i)+'<div class="cxa"><button class="xb pri" data-a="resume" aria-label="Resume session">'+XI.play+'<span>Resume</span></button></div>';}
+/* Popover details: the Context tooltip (tipCtx, the single source of the details) with the bar placed under its heading. Empty when the chat has no context data. Split from the actions so a live update can rewrite only this part. */
+function ctxDetails(r){const h=r&&r.ctx&&r.ctx.tokens>0?tipCtx(r):'';if(!h)return '';const i=h.indexOf('</b>')+4;
+return h.slice(0,i)+ctxBar(r.ctx.tokens)+h.slice(i);}
+/* Shown when a slot is activated for a chat with no context data (stale slot): a visible outcome instead of a silent no-op. */
+const CTX_EMPTY='<p class="nt">No context data for this chat.</p>';
+/* Popover body: a details container (.cxd, rewritten in place on live updates) and a static action row (.cxa, written once so a focused Resume button is never destroyed by an update). Resume is the one existing safe action on a chat; the extension has no way to run /compact in a session, so none is offered. Empty when the chat has no context data. */
+function ctxPopHtml(r){const d=ctxDetails(r);if(!d)return '';
+return '<div class="cxd">'+d+'</div><div class="cxa"><button class="xb pri" data-a="resume" aria-label="Resume session">'+XI.play+'<span>Resume</span></button></div>';}
 function ctxKey(r){return r.ctx?r.ctx.pct*1e9+r.ctx.tokens:-1;}
 function tipCtx(r){const c=r.ctx;if(!c)return '';
 return '<b>Context '+c.pct+'% full</b>'+kv([['Used',tokText(c.tokens)+' of '+tokText(c.window)+' tokens'],['Model',esc(c.model)],['Compactions',c.comp>0?c.comp:'']])
@@ -70,22 +75,30 @@ return '<span class="cp l'+l+'" role="img" aria-label="Context '+c.pct+' percent
  * while CTX_JS must stay pure so check_ring can evaluate its functions without a DOM. Needs POP_JS (makePop) and the CORE helpers ($, resOf, openId).
  */
 export const CTX_POP_JS = String.raw`
-const ctxEl=$('ctxp'),ctxPop=makePop([]); /* makePop with no pairs: only its place() is used, so the popover sits under its slot exactly like the page menus */
-let ctxHtml='';
+const ctxEl=$('ctxp'),ctxPop=makePop([]); /* makePop with no pairs: only its place() is used; the popover passes flip=true so it opens above a slot near the bottom edge */
+let ctxHtml=''; /* the details html currently shown ('' when the empty message shows): compared so only a real change rewrites .cxd */
 /* The slot the popover hangs from: rows re-render often, so it is looked up again by chat id instead of kept as a node. */
-function ctxAnchor(){return ctxId?Array.from(document.querySelectorAll('[data-a=ctx]')).find(x=>{const r=x.closest('.r');return !!r&&r.dataset.id===ctxId;})||null:null;}
-/* Click (or Enter/Space) on a slot: a second activation of the same slot closes the popover; otherwise it shows that chat and moves focus to its first button so the keyboard can act on it. */
+function ctxSlot(id){return id?Array.from(document.querySelectorAll('[data-a=ctx]')).find(x=>{const r=x.closest('.r');return !!r&&r.dataset.id===id;})||null:null;}
+function ctxAnchor(){return ctxSlot(ctxId);}
+/* True while the slot is inside the viewport and the results area; the popover follows it then and closes only once the slot scrolled out of view. */
+function ctxVisible(a){const r=a.getBoundingClientRect(),b=res.getBoundingClientRect();return r.bottom>Math.max(0,b.top)&&r.top<Math.min(window.innerHeight,b.bottom);}
+/* Click (or Enter/Space) on a slot: a second activation of the same slot closes the popover; otherwise it shows that chat and moves focus to its first button so the keyboard can act on it. A chat without context data (stale slot) still opens the popover with a short message, so the tap always has a visible outcome. */
 function ctxOpen(id,anchor){if(ctxId===id){ctxClose(true);return;}
-const r=resOf(id),h=ctxPopHtml(r);if(!h)return; /* no context data (stale slot): nothing to show */
+const r=resOf(id),h=ctxPopHtml(r);
 if(ctxId)ctxClose(false);
-ctxId=id;ctxHtml=h;ctxEl.innerHTML=h;ctxEl.hidden=false;tipHide();anchor.setAttribute('aria-expanded','true');ctxPop.place(anchor,ctxEl);
+ctxId=id;ctxHtml=h?ctxDetails(r):'';ctxEl.innerHTML=h||CTX_EMPTY;ctxEl.hidden=false;tipHide();anchor.setAttribute('aria-expanded','true');ctxPop.place(anchor,ctxEl,true);
 const b=ctxEl.querySelector('button');if(b)b.focus();}
-/* Close; back=true returns focus to the slot (Escape, second click), so keyboard users land where they started. ctxId is cleared first so the focus move does not count as focus leaving. */
-function ctxClose(back){if(!ctxId)return;const a=ctxAnchor();ctxId='';ctxHtml='';ctxEl.hidden=true;ctxEl.innerHTML='';
-if(a){a.setAttribute('aria-expanded','false');if(back)a.focus();}}
-/* Called after every render: refresh the content only when the chat's numbers changed (so focus inside is not lost) and re-place it under the new slot; close when the row or its context data is gone. */
-function ctxSync(){if(!ctxId)return;const a=ctxAnchor(),h=ctxPopHtml(resOf(ctxId));if(!a||!h){ctxClose(false);return;}
-if(h!==ctxHtml){ctxHtml=h;ctxEl.innerHTML=h;}ctxPop.place(a,ctxEl);}
+/* Close; back=true returns focus to the slot (Escape, second click), so keyboard users land where they started. ctxId is cleared first so the focus move does not count as focus leaving. The id is remembered in ctxRefocus because a pinned row's slot may be replaced by the next render; ctxSync focuses the slot again then. */
+let ctxRefocus='';
+function ctxClose(back){if(!ctxId)return;const a=ctxAnchor(),id=ctxId;ctxId='';ctxHtml='';ctxEl.hidden=true;ctxEl.innerHTML='';
+if(a){a.setAttribute('aria-expanded','false');if(back){a.focus();ctxRefocus=id;}}}
+/* Called after every render: first restores focus to a slot whose popover was just closed with focus return (a re-render may have replaced the focused node); then rewrites only the details container when the chat's numbers changed (the Resume button is a static sibling, so it keeps its node and focus), re-places the popover under the new slot, and closes when the row is gone. */
+function ctxSync(){if(ctxRefocus){const s=ctxId?null:ctxSlot(ctxRefocus);ctxRefocus='';if(s&&document.activeElement!==s)s.focus();}
+if(!ctxId)return;const a=ctxAnchor();if(!a){ctxClose(false);return;}
+const r=resOf(ctxId),d=ctxDetails(r),box=ctxEl.querySelector('.cxd');
+if(d){if(!box){ctxEl.innerHTML=ctxPopHtml(r);}else if(d!==ctxHtml){box.innerHTML=d;}ctxHtml=d;} /* data returned after the empty message: build the full body once */
+else if(ctxHtml!==''){ctxHtml='';ctxEl.innerHTML=CTX_EMPTY;} /* data vanished: say so instead of leaving stale numbers */
+ctxPop.place(a,ctxEl,true);}
 /* Popover buttons: Resume opens the chat, as the card's Resume does. The popover sits outside the results list, so it needs its own click handler. */
 ctxEl.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||!ctxId)return;const id=ctxId;
 if(b.dataset.a==='resume'){ctxClose(false);openId(id);}});
@@ -95,8 +108,8 @@ document.addEventListener('pointerdown',e=>{if(ctxId&&!e.target.closest('#ctxp')
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&ctxId){e.preventDefault();e.stopPropagation();ctxClose(true);}},true);
 /* Focus moving anywhere except into the popover or back to its slot closes it (Tab past the last button, a click elsewhere). */
 document.addEventListener('focusin',e=>{if(ctxId&&!e.target.closest('#ctxp')&&e.target!==ctxAnchor())ctxClose(false);});
-/* Scrolling the list moves the slot away from the fixed popover, so close it, as the page menus do; scrolling inside the popover is allowed. */
-document.addEventListener('scroll',e=>{if(ctxId&&!(e.target&&e.target.closest&&e.target.closest('#ctxp')))ctxClose(false);},true);
+/* Bug fixed: closing on every scroll also fired for scrolls the user never made (scroll anchoring after a re-render). Now the popover is re-placed under its slot while the slot is still in view, and closes only when the slot scrolled out of view; scrolling inside the popover is ignored. */
+document.addEventListener('scroll',e=>{if(!ctxId||(e.target&&e.target.closest&&e.target.closest('#ctxp')))return;const a=ctxAnchor();if(a&&ctxVisible(a))ctxPop.place(a,ctxEl,true);else ctxClose(false);},true);
 /* A resize can move the slot: keep the popover under it. */
-window.addEventListener('resize',()=>{const a=ctxAnchor();if(a)ctxPop.place(a,ctxEl);});
+window.addEventListener('resize',()=>{const a=ctxAnchor();if(a)ctxPop.place(a,ctxEl,true);});
 `;

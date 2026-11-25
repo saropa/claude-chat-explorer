@@ -48,9 +48,61 @@ pb.setMax(300000);
 const pr = { ctx: { tokens: 240000, pct: 24, window: 1000000, model: 'opus', comp: 2, pend: true, approx: false } };
 const body = pb.ctxPopHtml(pr), tc = pb.tipCtx(pr);
 check('popover shows the token bar (warning step at 80% of the ring limit, proportional fill) and its text', /<div class="cxb rw" role="img" aria-label="240k of 300k tokens"><svg[^>]*><rect class="rt" width="100" height="6"\/><rect class="rf" width="80\.0" height="6"\/>/.test(body) && /240k of 300k tokens \(ring limit\)/.test(body));
-check('popover includes every part of the Context tooltip (heading, used, model, compactions, lag note)', body.startsWith('<b>Context 24% full</b><div class="cxb') && body.includes(tc.slice(tc.indexOf('</b>') + 4)) && /Lags one turn/.test(body));
+check('popover includes every part of the Context tooltip (heading, used, model, compactions, lag note)', body.startsWith('<div class="cxd"><b>Context 24% full</b><div class="cxb') && body.includes(tc.slice(tc.indexOf('</b>') + 4)) && /Lags one turn/.test(body));
 check('popover offers Resume and no compact action', /data-a="resume"/.test(body) && !/data-a="compact"|\/compact/.test(body));
 check('popover is empty for a chat without context data, and has no inline style', pb.ctxPopHtml({}) === '' && !/style=/.test(body));
+// Popover behavior (placement, scroll, live update, empty tap, focus restore): the real POP_JS + CTX_JS + CTX_POP_JS run against a small fake DOM.
+// The fake popover replaces its child nodes whenever innerHTML is assigned (as a real DOM does), so node identity proves what a live update rewrites.
+const { POP_JS } = require(path.join(OUT, 'webviewPop.js'));
+const { CTX_POP_JS } = require(path.join(OUT, 'webviewCtx.js'));
+function ctxRig() {
+  const L = {}, rows = {}, rect = { top: 100, bottom: 116, right: 380, left: 364 };
+  const popEl = {
+    hidden: true, style: {}, offsetHeight: 300, offsetWidth: 260, _h: '', cxd: null, btn: null,
+    get innerHTML() { return this._h; },
+    set innerHTML(v) { this._h = v; this.cxd = /class="cxd"/.test(v) ? { innerHTML: v } : null; this.btn = /<button/.test(v) ? { focus() {} } : null; },
+    addEventListener() {}, querySelector(s) { return s === '.cxd' ? this.cxd : s === 'button' ? this.btn : null; }, closest: () => null
+  };
+  const slot = { focused: 0, closest: (s) => (s === '.r' ? { dataset: { id: 'a' } } : null), getBoundingClientRect: () => rect, setAttribute() {}, focus() { this.focused++; } };
+  const doc = { addEventListener: (t, f) => { (L[t] = L[t] || []).push(f); }, querySelectorAll: () => [slot], documentElement: { clientWidth: 400 }, activeElement: null };
+  const win = { innerHeight: 800, innerWidth: 400, addEventListener() {} };
+  const f = new Function('document', 'window', '$', 'resOf', 'openId', 'tipHide', 'res', 'XI', 'esc', 'tokTotalText', 'kv', 'tokText',
+    POP_JS + '\n' + CTX_JS + '\n' + CTX_POP_JS + '\nringMax=300000;return {ctxOpen, ctxSync, ctxClose, makePop, ctxId:()=>ctxId};');
+  const api = f(doc, win, () => popEl, (id) => rows[id], () => {}, () => {}, { getBoundingClientRect: () => ({ top: 0, bottom: 800 }) }, { play: '' }, (x) => String(x), () => '',
+    (r) => '<dl>' + r.filter((x) => x[1] !== '').map((x) => '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>').join('') + '</dl>', (n) => String(n));
+  return { api, L, rows, rect, popEl, slot };
+}
+const cx = ctxRig();
+cx.rows.a = { ctx: { tokens: 100000, pct: 10, window: 1000000, model: 'm', comp: 0, pend: false, approx: false } };
+cx.rect.top = 760; cx.rect.bottom = 776;
+cx.api.ctxOpen('a', cx.slot);
+// Before: place() always used top=bottom+2, so a bottom row's popover ran off the viewport. After: flips above the slot (760-2-300=458).
+check('popover flips above a slot near the bottom edge when it does not fit below', cx.popEl.style.top === '458px' && !cx.popEl.hidden);
+cx.api.ctxClose(false); cx.rect.top = 100; cx.rect.bottom = 116; cx.api.ctxOpen('a', cx.slot);
+check('popover opens below a slot with room under it', cx.popEl.style.top === '118px');
+check('page menus (no flip argument) still open below even at the bottom edge', (() => { cx.rect.top = 760; cx.rect.bottom = 776; cx.api.makePop([]).place(cx.slot, cx.popEl); return cx.popEl.style.top === '778px'; })());
+// Scroll: re-place while the slot is in view, close once it scrolled out.
+cx.rect.top = 200; cx.rect.bottom = 216;
+const fireScroll = () => (cx.L.scroll || []).forEach((fn) => fn({ target: { closest: () => null } }));
+fireScroll();
+check('scroll keeps the popover open and re-places it while the slot is still visible', cx.api.ctxId() === 'a' && !cx.popEl.hidden && cx.popEl.style.top === '218px');
+cx.rect.top = -50; cx.rect.bottom = -34; fireScroll();
+check('scroll closes the popover once the slot scrolled out of view', cx.api.ctxId() === '' && cx.popEl.hidden === true);
+// Live update: the Resume button node must survive (it was destroyed by innerHTML replacement before), while the numbers change.
+cx.rect.top = 100; cx.rect.bottom = 116; cx.api.ctxOpen('a', cx.slot);
+const btn0 = cx.popEl.btn;
+cx.rows.a = { ctx: { tokens: 120000, pct: 12, window: 1000000, model: 'm', comp: 0, pend: false, approx: false } };
+cx.api.ctxSync();
+check('a live update keeps the same Resume button node and rewrites the details in place', !!btn0 && cx.popEl.btn === btn0 && /Context 12% full/.test(cx.popEl.cxd.innerHTML) && /120k of 300k tokens/.test(cx.popEl.cxd.innerHTML));
+// Focus restore for a re-rendered (pinned) slot: after close with focus return, the next sync focuses the slot again.
+const f0 = cx.slot.focused; cx.api.ctxClose(true); const f1 = cx.slot.focused; cx.api.ctxSync();
+check('after a close with focus return, the next render focuses the slot again', f1 === f0 + 1 && cx.slot.focused === f1 + 1);
+// Empty data: a tap on a stale slot shows a message instead of doing nothing.
+cx.api.ctxOpen('none', cx.slot);
+check('a tap on a chat with no context data opens the popover with a visible message', !cx.popEl.hidden && /No context data for this chat/.test(cx.popEl.innerHTML) && cx.api.ctxId() === 'none');
+cx.api.ctxClose(false);
+const tipSrc = fs.readFileSync(path.join(ROOT, 'src', 'webviewTip.ts'), 'utf8'), popSrc = fs.readFileSync(path.join(ROOT, 'src', 'webviewPop.ts'), 'utf8');
+check('tooltip engine honors a skip veto and the sidebar vetoes the open popover\'s own slot', /if\(cfg\.skip&&cfg\.skip\(el\)\)return/.test(popSrc) && /skip:el=>\{const s=ctxId&&el\.closest\('\.rs\[data-a=ctx\]'\)/.test(tipSrc));
 check('live states tint the ring segment and outrank warn/error', ['running', 'waiting', 'unread', 'background'].every((k) => CTX_CSS.includes('.rs.' + k + ' .rg .rf{stroke:var(--k-' + k + ')}')));
 const rowCss = Object.values(require(path.join(OUT, 'webviewCss.js'))).join('');
 check('hover hides the row meta but never the ring slot (the dot stays visible)', /\.rh:hover \.hd \.rc>:not\(\.rs\)/.test(rowCss) && !/\.rh:hover \.hd \.rc[,{]/.test(rowCss));

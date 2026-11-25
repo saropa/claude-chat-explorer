@@ -68,8 +68,9 @@ function pinnedLive(){return pinned.filter(r=>!arch.has(r.id));}
 function pinShown(){return sessOn&&!lastQ&&!busy&&pinnedLive().length>0;}
 function sessBase(){return hasResults||!sessOn||!sess?[]:(pinShown()?sess.rows.filter(r=>!pins.has(r.id)):sess.rows);}
 function renderPinned(){
-if(!pinShown()){pinEl.innerHTML='';return;}
-const pl=pinnedLive();pinEl.innerHTML=sec('sec:pin','Pinned',pl.length,pl.map(rowHtml).join(''),'sl');}
+/* Bug fixed: pinEl was rebuilt with innerHTML on every render, destroying the focused slot (and its restored focus after the context popover closed). patch() diffs by key and keeps unchanged nodes and focus, as for the main list; an empty string removes the section. */
+if(!pinShown()){patch(pinEl,'');return;}
+const pl=pinnedLive();patch(pinEl,sec('sec:pin','Pinned',pl.length,pl.map(rowHtml).join(''),'sl'));}
 function progTxt(d,t){return d<t?'Searched '+d+' of '+t+' sessions':'';}
 function noteText(){return '';}
 function nkey(x,seen){const b=x.dataset.sec?'s:'+x.dataset.sec:'r:'+(x.dataset.id||x.className);seen[b]=(seen[b]||0)+1;return b+'#'+seen[b];}

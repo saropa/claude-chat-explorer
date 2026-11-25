@@ -3,6 +3,7 @@
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
 ## 1.0.0
+- Fixed: context popover review findings. It opens above a ring slot near the bottom edge instead of being clipped; the ring tooltip no longer reappears over it; scrolling re-places it while the slot is in view and closes it only when the slot leaves the view; a live update rewrites the details in place so a focused Resume button keeps its focus; focus returns to a pinned row's slot after closing (pinned rows now update by diff); a tap on a chat with no context data shows a "No context data for this chat" message instead of nothing.
 - Added: clicking the context ring on a chat row (or focusing it and pressing Enter or Space) opens a small context popover: a token bar of the ring limit in the ring's colors, the context details (percent full, used of the model window, model, compactions, lag and approximate notes) and a Resume button. Escape, a second click or a click elsewhere closes it; the click does not open the row. No compact action is offered: the extension has no way to run /compact in a session.
 - Added: `scripts/install_local.py` and the VS Code task "Install local build" build the extension with `npm run package` and install the .vsix into local VS Code for testing (`--skip-package` reuses the existing file); the install is verified with `--list-extensions --show-versions`.
 - Added: each background-task pill shows how long its oldest task has run (for example 4m 12s), updated every second while a pill is visible.

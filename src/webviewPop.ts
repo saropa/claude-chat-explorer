@@ -30,8 +30,12 @@ function makePop(pairs){
 const el=id=>document.getElementById(id);
 const openPair=()=>pairs.find(p=>{const m=el(p[1]);return m&&!m.hidden;});
 function close(except){pairs.forEach(p=>{if(p[1]===except)return;const m=el(p[1]),b=el(p[0]);if(m)m.hidden=true;if(b)b.setAttribute('aria-expanded','false');});}
-function place(b,m){const r=b.getBoundingClientRect(),vw=document.documentElement.clientWidth||window.innerWidth||300,vh=window.innerHeight||600,M=8,top=r.bottom+2;
-m.style.top=top+'px';m.style.maxHeight=Math.max(80,vh-top-M)+'px';
+/* place(b,m,flip): opens m under b. flip=true (the context popover, which hangs from rows that can sit at the bottom edge) instead opens it above b when it does not fit below and there is more room above; header menus never pass it, so they keep opening downward. */
+function place(b,m,flip){const r=b.getBoundingClientRect(),vw=document.documentElement.clientWidth||window.innerWidth||300,vh=window.innerHeight||600,M=8;let top=r.bottom+2,mh=Math.max(80,vh-top-M);
+if(flip){/* Bug fixed: place() always used top=r.bottom+2, so a popover opened from a bottom row was clipped by the viewport. The natural height is measured with the previous cap removed, then the box flips above the slot when below is too small and above is larger. */
+m.style.maxHeight='';const h=m.offsetHeight||0,below=vh-top-M,above=r.top-2-M;
+if(h>below&&above>below){top=Math.max(M,r.top-2-Math.min(h,above));mh=r.top-2-top;}}
+m.style.top=top+'px';m.style.maxHeight=mh+'px';
 const w=Math.min(m.offsetWidth||0,vw-2*M);m.style.left=Math.max(M,Math.min(r.right-w,vw-M-w))+'px';}
 function toggle(bid,mid){const m=el(mid),open=m.hidden;close(open?mid:'');m.hidden=!open;el(bid).setAttribute('aria-expanded',open?'true':'false');if(open)place(el(bid),m);}
 window.addEventListener('resize',()=>{const o=openPair();if(o)place(el(o[0]),el(o[1]));});
@@ -44,7 +48,7 @@ return{close:close,place:place,toggle:toggle,isOpen:()=>!!openPair()};}
 
 /**
  * makeTip(cfg): cfg.html(el) returns the tooltip html of an element with data-tip (empty string shows nothing);
- * cfg.bounds() returns {left,right,width} of the area the tip must stay inside; cfg.focusTarget(t) optionally maps a focused element to the one carrying data-tip.
+ * cfg.bounds() returns {left,right,width} of the area the tip must stay inside; cfg.skip(el) optionally vetoes showing a tooltip for el; cfg.focusTarget(t) optionally maps a focused element to the one carrying data-tip.
  * cfg.above(el) optionally returns an element (such as a table row) the tip opens above instead of below el, falling back to below it at the top edge; without it the tip sits below el.
  * Needs a hidden element with id "tip" (or cfg.id). Returns {show, hide, sync}.
  */
@@ -62,7 +66,8 @@ let y=a.bottom+G;if(y+h>vh-M&&a.top-G-h>=M)y=a.top-G-h;
 const up=cfg.above?cfg.above(el):null;
 if(up){const u=up.getBoundingClientRect();y=u.top-G-h;if(y<M)y=Math.min(u.bottom+G,Math.max(M,vh-M-h));}
 tipEl.style.left=Math.round(x)+'px';tipEl.style.top=Math.round(y)+'px';}
-function show(el){const h=cfg.html(el);if(!h)return;
+function show(el){if(cfg.skip&&cfg.skip(el))return; /* cfg.skip(el): the page vetoes a tooltip (e.g. over its own open popover); checked here so hover, focus and the delay timer all honor it */
+const h=cfg.html(el);if(!h)return;
 tipFor=el;tipEl.innerHTML=h;tipEl.hidden=false;place(el);el.setAttribute('aria-describedby',tipEl.id||'tip');}
 function hide(){clearTimeout(tipT);if(tipFor){tipOff=Date.now();tipFor.removeAttribute('aria-describedby');}tipFor=null;tipEl.hidden=true;}
 function sync(){if(tipFor&&!tipFor.isConnected)hide();}
