@@ -47,6 +47,8 @@ export function registerActivityBrowser(ctx: vscode.ExtensionContext, deps: Brow
     try {
       // asExternalUri maps the port when VS Code runs remotely (SSH, WSL, containers); locally it returns the same address.
       const target = await vscode.env.asExternalUri(vscode.Uri.parse(url));
+      // The browser sends the forwarded address as Host; the server refuses any Host it was not told about (remote windows would otherwise get 404).
+      server.allowHost(target.authority);
       if (await vscode.env.openExternal(target)) { return; }
       deps.log('activity browser: openExternal returned false for ' + target.toString());
     } catch (e) { deps.log('activity browser: could not open the browser: ' + String(e)); }

@@ -57,6 +57,16 @@ async function main() {
     check('wrong token on the stream is 404', (await get(url, { path: '/wrong/events' })).status === 404);
     check('foreign Host header is 404 (rebinding)', (await get(url, { host: 'evil.example:' + base.port })).status === 404);
     check('Host without the port is 404', (await get(url, { host: '127.0.0.1' })).status === 404);
+    // Remote windows: the forwarded address (what asExternalUri returns) is allowed as an exact Host; any other host stays refused.
+    server.allowHost('Forwarded.Example:50123');
+    check('an allowed forwarded Host is served (case-insensitive)', (await get(url, { host: 'forwarded.example:50123' })).status === 200);
+    check('an unlisted Host is still 404 after allowHost', (await get(url, { host: 'forwarded.example:50124' })).status === 404 && (await get(url, { host: 'other.example:50123' })).status === 404);
+    check('the allowed Host still needs the token', (await get(url, { host: 'forwarded.example:50123', path: '/wrong/' })).status === 404);
+    // Two overlapping start() calls share one bind: same URL, one listening server.
+    const twin = new ActivityServer({ ...server.deps, tracker });
+    const [u1, u2] = await Promise.all([twin.start(), twin.start()]);
+    check('concurrent start() calls share one server', u1 === u2);
+    twin.dispose();
     check('non-GET is 404', (await get(url, { method: 'POST' })).status === 404);
     check('unknown path under the token is 404', (await get(url, { path: base.pathname + 'nope' })).status === 404);
 

@@ -61,8 +61,13 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
   const checkAll = async (cur: string): Promise<void> => {
     const r = await tracker.check(cur, liveIds());
     sendColors(r.colors);
-    // Dropped when the focus moved meanwhile or the mode was switched off: the events belong to a view that is gone.
-    if (r.events.length && all && cur === currentId()) { send({ type: 'events', events: r.events }); }
+    // Mode switched off meanwhile: the events belong to a view that is gone.
+    if (!r.events.length || !all) { return; }
+    // Focus moved meanwhile: tracker.check already advanced every read position, so dropping the batch would lose flashes and background-pill
+    // changes for good (a pill is re-sent only when its count changes). Those carry their chat's colour and stay valid; the caption, busy ring
+    // and waiting state belong to the chat that WAS focused and the page was just reset for the new one, so only those are dropped.
+    const moved = cur !== currentId(), events = moved ? r.events.filter((e) => e.t === 'flash' || e.t === 'sub' || e.t === 'bg') : r.events;
+    if (events.length) { send({ type: 'events', events }); }
   };
   const poke = (): void => {
     if (!timer) { return; } // not visible or collapsed: no work

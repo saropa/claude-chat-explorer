@@ -3,6 +3,7 @@
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
 ## 1.0.0
+- Fixed: "Open Activity in Browser" showed "Not found" in remote windows (SSH, WSL, Codespaces) because the forwarded address was refused; that exact address is now accepted. The token check is unchanged.
 - Added: "Saropa: Open Activity in Browser" (Command Palette and the pane's ... menu) shows the Activity diagram in the external browser under the project title, in the all-chats mode with each chat's colour and a legend of live chats. It is served by a local-only server (127.0.0.1, random port, secret token in the address; other hosts are refused) and updates live; nothing is read from the chat logs while no browser page is open. On a remote window the port is forwarded by VS Code. If the browser cannot be opened, the address is shown to copy.
 - Added: README embeds an animated GIF of the Activity diagram (images/activity_panel.gif) showing nodes lighting up as Claude works.
 - Changed: chat row header. The context ring moved to the far right of the row (after branch, size and time) in a fixed-width slot, so rings line up in a column across rows. The status dot now sits inside the ring instead of at the row's left, and the title starts at the row's left edge. While the dot is running, waiting, unread or background (including alternating multi-state colours) the ring segment takes the dot's colour; idle chats keep the blue, warning and error ring colours.

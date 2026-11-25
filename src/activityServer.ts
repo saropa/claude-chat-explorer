@@ -34,6 +34,8 @@ const KEEPALIVE_MS = 15000; // proxies and browsers drop an idle stream; a comme
  */
 export class ActivityServer {
   private server?: http.Server;
+  private starting?: Promise<string>; // the start in flight: concurrent callers share it, so only one http.Server is ever created
+  private readonly hosts = new Set<string>(); // extra exact Host values accepted besides 127.0.0.1:<port>: the forwarded address of a remote window
   private readonly token = randomBytes(18).toString('base64url');
   private port = 0;
   private readonly clients = new Set<http.ServerResponse>();
@@ -50,8 +52,21 @@ export class ActivityServer {
   /** Number of connected pages (for tests and for the idle check). */
   get clientCount(): number { return this.clients.size; }
 
+  /**
+   * Accepts one more exact Host header value (e.g. `localhost:50123` or a tunnel hostname). In a remote window (SSH, WSL, Codespaces) the browser
+   * reaches the server through the address asExternalUri returns, and sends that as Host; without this every request there would be refused.
+   * Exact strings only, never a wildcard, so the DNS-rebinding protection stays.
+   */
+  allowHost(host: string): void { if (host) { this.hosts.add(host.toLowerCase()); } }
+
   /** Starts the server if needed and returns the page URL. Rejects when no port can be bound. */
-  async start(): Promise<string> {
+  start(): Promise<string> {
+    // A second call while the first is still binding must not create a second server (the first would leak and its port would be lost).
+    this.starting ??= this.bind().finally(() => { this.starting = undefined; });
+    return this.starting;
+  }
+
+  private async bind(): Promise<string> {
     if (!this.server) {
       const srv = http.createServer((req, res) => this.handle(req, res));
       await new Promise<void>((ok, fail) => {
@@ -74,13 +89,16 @@ export class ActivityServer {
     this.clients.clear();
     this.server?.close();
     this.server = undefined;
+    this.starting = undefined;
   }
 
   /** Routes one request; anything that is not a GET with the right Host and token is a plain 404 that reveals nothing. */
   private handle(req: http.IncomingMessage, res: http.ServerResponse): void {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1'), base = `/${this.token}/`;
-    // Host must be exactly what the URL we handed out uses; a rebinding page reaches this server under its own hostname.
-    if (req.method !== 'GET' || req.headers.host !== `127.0.0.1:${this.port}` || !url.pathname.startsWith(base)) { this.deny(res); return; }
+    // Host must be exactly what a URL we handed out uses (the loopback address, or the forwarded address allowed with allowHost);
+    // a rebinding page reaches this server under its own hostname and is refused.
+    const host = (req.headers.host ?? '').toLowerCase();
+    if (req.method !== 'GET' || (host !== `127.0.0.1:${this.port}` && !this.hosts.has(host)) || !url.pathname.startsWith(base)) { this.deny(res); return; }
     const rest = url.pathname.slice(base.length);
     if (rest === '') { this.page(res); } else if (rest === 'events') { this.stream(req, res); } else { this.deny(res); }
   }
