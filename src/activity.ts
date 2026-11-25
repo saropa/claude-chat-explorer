@@ -37,10 +37,11 @@ export interface ActivityHost { activity?: { setVisible(v: boolean): void; setOp
  * While the page is visible AND the section is open, one interval (setting `activity.refreshMs`) checks the log for appended bytes; the tab moving also triggers a check.
  * Hidden or collapsed: no interval, no work.
  */
-export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => string, post: (m: unknown) => void, host: ActivityHost, liveIds: () => string[]): { poke(): void; book: ColorBook; files: BgTracker } {
-  const feed = new ActivityFeed();
-  // All-chats mode: a tracker over one feed per tailed chat, sharing one transcript locator, plus the stable chat-to-colour book.
-  const files = new BgTracker(projectsRoot());
+export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => string, post: (m: unknown) => void, host: ActivityHost, liveIds: () => string[], log: (msg: string) => void = () => undefined): { poke(): void; book: ColorBook; files: BgTracker } {
+  // One locator for every consumer. A launch line whose task id cannot be read is logged once: the pills would otherwise silently stop working if the log format changed.
+  const files = new BgTracker(projectsRoot(), () => log('activity: a background-task launch line has no readable task id; the log format may have changed, so background pills can be missing'));
+  const feed = new ActivityFeed(undefined, undefined, files);
+  // All-chats mode: a tracker over one feed per tailed chat, sharing the transcript locator, plus the stable chat-to-colour book.
   const book = new ColorBook(ctx.globalState.get(COLORS_KEY), (m) => { void ctx.globalState.update(COLORS_KEY, m); });
   const tracker = new AllChatsTracker(files, book); // the pane's own read positions; the browser view has its own tracker over the same files and book
   const allOn = (): boolean => vscode.workspace.getConfiguration('saropaChats').get(ALL_KEY) === true;

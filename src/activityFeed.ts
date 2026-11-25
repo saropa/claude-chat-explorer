@@ -17,6 +17,9 @@ function splitLines(tail: Buffer, buf: Buffer): { lines: string[]; tail: Buffer 
   return { lines, tail: all.subarray(at) };
 }
 
+/** The bg key of "nothing running" (count, earliest launch, count, earliest launch): what the page shows after a reset, so it is not re-sent. */
+const NO_BG = '0,,0,';
+
 export const REFRESH_MS = { def: 250, min: 100, max: 2000 };
 /** The `activity.refreshMs` setting as a usable interval: a number clamped to 100..2000, else 250. */
 export const refreshMsOf = (raw: unknown): number => typeof raw === 'number' && Number.isFinite(raw) ? Math.min(REFRESH_MS.max, Math.max(REFRESH_MS.min, Math.round(raw))) : REFRESH_MS.def;
@@ -37,7 +40,7 @@ export class ActivityFeed {
   private subSince = 0;
   private subScan = 0;
   private readonly pending = new Map<string, Group>(); // calls in flight: tool call id to group, so a failed result finds its node; cleared with the position
-  private bgKey = '0,0'; // shell,agent counts last reported to the page; the page forgets them on a chat switch, so this resets with the position
+  private bgKey = NO_BG; // shell and agent counts (with earliest launch) last reported to the page; the page forgets them on a chat switch, so this resets with the position
 
   /**
    * `lookGapMs`: the least time between searches of the projects folder for a log that does not exist yet.
@@ -46,11 +49,11 @@ export class ActivityFeed {
   constructor(private readonly lookGapMs = 2000, private readonly scanGapMs = SUB_SCAN_MS, private readonly files: BgTracker = new BgTracker(projectsRoot())) {}
 
   /** Forget the position: the next check only marks the end of the log, so nothing that arrived meanwhile flashes. */
-  mark(): void { this.gen++; this.id = ''; this.size = 0; this.tail = Buffer.alloc(0); this.missing = undefined; this.pending.clear(); this.bgKey = '0,0'; }
+  mark(): void { this.gen++; this.id = ''; this.size = 0; this.tail = Buffer.alloc(0); this.missing = undefined; this.pending.clear(); this.bgKey = NO_BG; }
 
   /** New events (flashes, captions, busy and waiting states) of the chat `id` since the last call. The first call for a chat (open or switch) only marks its end, so nothing replays. */
   async check(id: string): Promise<ActivityEvent[]> {
-    if (id !== this.reqId) { this.reqId = id; this.gen++; this.bgKey = '0,0'; }
+    if (id !== this.reqId) { this.reqId = id; this.gen++; this.bgKey = NO_BG; }
     const [main, sub, bg] = await Promise.all([this.checkMain(id), this.checkSubs(id, this.gen), this.checkBg(id, this.gen)]);
     return main.concat(sub, bg);
   }
@@ -63,10 +66,16 @@ export class ActivityFeed {
     if (!id) { return []; }
     const file = await this.files.fileOf(id);
     if (!file) { return []; }
-    const kinds = [...(await this.files.scan(file)).values()], shell = kinds.filter((k) => k === 'shell').length, agent = kinds.length - shell, key = shell + ',' + agent;
-    if (gen !== this.gen || key === this.bgKey) { return []; } // a stale check writes nothing; unchanged counts are not re-sent
+    const tasks = [...(await this.files.tasks(file)).values()];
+    // Earliest launch per kind (NaN launches are ignored), so the pill's timer shows how long the oldest task of that kind has run.
+    const of = (k: string): { n: number; at?: number } => {
+      const own = tasks.filter((t) => t.kind === k), ats = own.map((t) => t.at).filter((v) => Number.isFinite(v));
+      return { n: own.length, at: ats.length ? Math.min(...ats) : undefined };
+    };
+    const shell = of('shell'), agent = of('agent'), key = [shell.n, shell.at, agent.n, agent.at].join(',');
+    if (gen !== this.gen || key === this.bgKey) { return []; } // a stale check writes nothing; unchanged state is not re-sent
     this.bgKey = key;
-    return [{ t: 'bg', shell, agent }];
+    return [{ t: 'bg', shell: shell.n, agent: agent.n, shellAt: shell.at, agentAt: agent.at }];
   }
 
   /** Tool calls and messages of the chat's sub-agents since the last call. Every log found is registered: one born before the first look (or with an unknown birth time) is marked at its end, a later one is read from its start. A folder scan (readdir, stat) runs at most every 2 s; each call only re-stats the recently written, at most 8. */

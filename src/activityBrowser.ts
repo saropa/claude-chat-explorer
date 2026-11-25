@@ -17,6 +17,8 @@ export interface BrowserDeps {
   currentId(): string;
   liveIds(): string[];
   titleOf(id: string): string;
+  /** Reveals a chat's session in VS Code. */
+  focusChat(id: string): Promise<void>;
   log(msg: string): void;
 }
 
@@ -31,10 +33,10 @@ export function registerActivityBrowser(ctx: vscode.ExtensionContext, deps: Brow
   const cfg = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('saropaChats');
   // The browser view has its own tracker (its own read positions) over the shared locator and colour book.
   const server = new ActivityServer({
-    projectTitle, currentId: deps.currentId, liveIds: deps.liveIds, titleOf: deps.titleOf, log: deps.log,
+    projectTitle, currentId: deps.currentId, liveIds: deps.liveIds, titleOf: deps.titleOf, focusChat: deps.focusChat, log: deps.log,
     tracker: new AllChatsTracker(deps.files, deps.book),
     refreshMs: () => refreshMsOf(cfg().get('activity.refreshMs')), fadeMs: () => fadeMsOf(cfg().get('activity.fadeMs')),
-    texts: { subtitle: 'Activity of all live chats', lost: 'Connection lost. Reconnecting...', unknownChat: 'Chat' },
+    texts: { subtitle: 'Activity of all live chats', lost: 'Connection lost. Reconnecting...', unknownChat: 'Chat', focusSent: 'Opening the chat in VS Code...', focusDone: 'Chat opened in VS Code.', focusFailed: 'Could not open the chat in VS Code.' },
   });
   ctx.subscriptions.push(server, vscode.commands.registerCommand('saropaChats.activityBrowser', async () => {
     let url: string;

@@ -107,6 +107,8 @@ const ids = Array.from({ length: 20 }, (_, i) => 'chat' + i), first = book.resol
 check('20 live chats get 20 different colours', new Set(first.values()).size === 20 && saved && Object.keys(saved).length === 20);
 const reloaded = new ColorBook(saved, () => { throw new Error('nothing changed, nothing to save'); });
 check('colours are stable across a reload and a smaller live set', [...reloaded.resolve(['chat7', 'chat3']).entries()].every(([id, c]) => first.get(id) === c));
+const again = new ColorBook(saved, () => {}), mixed = again.resolve(['chat1', 'chat5', ...Array.from({ length: 10 }, (_, i) => 'new' + i)]);
+check('after a reload, up to 20 live chats (old and new) never share a colour', new Set(mixed.values()).size === 12 && mixed.get('chat1') === first.get('chat1') && mixed.get('chat5') === first.get('chat5'));
 check('a chat beyond 20 still gets a colour', new ColorBook(undefined, () => {}).resolve(Array.from({ length: 25 }, (_, i) => 'c' + i)).size === 25);
 check('a damaged saved map is ignored', new ColorBook({ a: 99, b: 'x', c: 2 }, () => {}).resolve(['a', 'b', 'c']).get('c') === CHAT_PALETTE[2]);
 const mix = new ColorBook({ old: 5 }, () => {}).resolve(['new', 'old']);

@@ -34,7 +34,7 @@ export type ActivityEvent =
   | { t: 'wait'; g: 'think' | 'chat' }
   | { t: 'wake' }
   | { t: 'sub'; g: Group }
-  | { t: 'bg'; shell: number; agent: number }; // background shells and agents still running; 0 hides that pill
+  | { t: 'bg'; shell: number; agent: number; shellAt?: number; agentAt?: number }; // background shells and agents still running; 0 hides that pill. shellAt/agentAt: epoch ms of the earliest launch of that kind (absent when unknown), for the pill's elapsed timer
 
 const CAPTION_MAX = 80, PENDING_MAX = 200;
 const clip = (s: string): string => { const t = Array.from(s.replace(/\s+/g, ' ').trim()); return t.length > CAPTION_MAX ? t.slice(0, CAPTION_MAX - 1).join('') + '…' : t.join(''); };

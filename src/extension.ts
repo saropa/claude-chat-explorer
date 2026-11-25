@@ -446,9 +446,9 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
     onChange: () => { provider.postDots(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); titler.onLive(ids); } });
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.search.contextLines')) { provider.postCtxLines(); } }));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.contextRingTokens')) { provider.postRing(); } }));
-  const activity = registerActivity(ctx, () => provider.currentId(), (m) => provider.post(m), provider, () => provider.watcher?.liveIds ?? []);
+  const activity = registerActivity(ctx, () => provider.currentId(), (m) => provider.post(m), provider, () => provider.watcher?.liveIds ?? [], log);
   // The browser view shows every live chat with the pane's colours; titles come from the open tabs' (truncated) titles.
-  registerActivityBrowser(ctx, { book: activity.book, files: activity.files, currentId: () => provider.currentId(), liveIds: () => provider.watcher?.liveIds ?? [], titleOf: (id) => provider.watcher?.tabInfo.find((t) => t.id === id)?.title ?? '', log });
+  registerActivityBrowser(ctx, { book: activity.book, files: activity.files, currentId: () => provider.currentId(), liveIds: () => provider.watcher?.liveIds ?? [], titleOf: (id) => provider.watcher?.tabInfo.find((t) => t.id === id)?.title ?? '', focusChat: (id) => provider.resume(id), log });
   const tabMoved = () => { provider.clearViewed(); provider.postDots(); provider.watcher?.poke(); activity.poke(); };
   ctx.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(tabMoved), vscode.window.tabGroups.onDidChangeTabGroups(tabMoved));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.animateDots')) { provider.postDots(); hub.emit('dots', logErr); } }));

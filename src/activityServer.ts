@@ -18,13 +18,16 @@ export interface ServerDeps {
   titleOf(id: string): string;
   /** Tracker for this view's own read positions (shares the locator and colour book with the pane). */
   tracker: AllChatsTracker;
+  /** Reveals a chat's session in VS Code (the same action as clicking it in the session list). */
+  focusChat(id: string): Promise<void>;
   refreshMs(): number;
   fadeMs(): number;
   log(msg: string): void;
   /** Page strings. */
-  texts: { subtitle: string; lost: string; unknownChat: string };
+  texts: { subtitle: string; lost: string; unknownChat: string; focusSent: string; focusDone: string; focusFailed: string };
 }
 
+const FOCUS_BODY_MAX = 1024; // a focus request is one short id: anything bigger is refused unread, so a page cannot make the extension buffer a large body
 const KEEPALIVE_MS = 15000; // proxies and browsers drop an idle stream; a comment line every 15 s keeps it open and reveals a dead peer
 
 /**
@@ -92,22 +95,63 @@ export class ActivityServer {
     this.starting = undefined;
   }
 
-  /** Routes one request; anything that is not a GET with the right Host and token is a plain 404 that reveals nothing. */
+  /** Routes one request; anything but a GET (or the one POST, /focus) with the right Host and token is a plain 404 that reveals nothing. */
   private handle(req: http.IncomingMessage, res: http.ServerResponse): void {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1'), base = `/${this.token}/`;
     // Host must be exactly what a URL we handed out uses (the loopback address, or the forwarded address allowed with allowHost);
     // a rebinding page reaches this server under its own hostname and is refused.
     const host = (req.headers.host ?? '').toLowerCase();
-    if (req.method !== 'GET' || (host !== `127.0.0.1:${this.port}` && !this.hosts.has(host)) || !url.pathname.startsWith(base)) { this.deny(res); return; }
+    if ((req.method !== 'GET' && req.method !== 'POST') || (host !== `127.0.0.1:${this.port}` && !this.hosts.has(host)) || !url.pathname.startsWith(base)) { this.deny(res); return; }
     const rest = url.pathname.slice(base.length);
+    if (req.method === 'POST') { if (rest === 'focus') { this.focus(req, res, host); } else { this.deny(res); } return; }
     if (rest === '') { this.page(res); } else if (rest === 'events') { this.stream(req, res); } else { this.deny(res); }
+  }
+
+  /** Chat ids the page can show (the legend's): the only ids a focus request may name. */
+  private shownIds(): string[] {
+    const cur = this.deps.currentId(), live = this.deps.liveIds();
+    return [...new Set(cur ? [cur, ...live] : live)];
+  }
+
+  /**
+   * POST /focus {chat}: reveals that chat's session in VS Code. This is the one request that changes anything, so it is stricter than the reads:
+   * the Origin must be present and name this very server (a page on another site cannot forge it), the body must be small JSON, and the id must be
+   * one the legend shows. Every refusal is the same 404; only a handler that fails gives a different answer (500), so the page can say it failed.
+   */
+  private focus(req: http.IncomingMessage, res: http.ServerResponse, host: string): void {
+    let origin = '';
+    try { origin = new URL(String(req.headers.origin ?? '')).host.toLowerCase(); } catch { /* missing or malformed: refused below */ }
+    // A JSON content type cannot be sent by a plain cross-site form, so requiring it adds to the Origin check.
+    const jsonBody = String(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json');
+    if (!origin || origin !== host || !jsonBody) { req.resume(); this.deny(res); return; }
+    let body = '', over = false;
+    req.setEncoding('utf8');
+    req.on('data', (c: string) => {
+      if (over) { return; }
+      body += c;
+      if (body.length > FOCUS_BODY_MAX) { over = true; body = ''; this.deny(res); }
+    });
+    req.on('end', () => {
+      if (over) { return; }
+      let id = '';
+      try { id = String((JSON.parse(body) as { chat?: unknown }).chat ?? ''); } catch { /* not JSON: refused below */ }
+      if (!id || !this.shownIds().includes(id)) { this.deny(res); return; }
+      this.deps.focusChat(id).then(() => {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        res.end('{"ok":true}');
+      }, (e) => {
+        this.deps.log('activity server: focus failed: ' + String(e));
+        res.writeHead(500, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' });
+        res.end('Failed');
+      });
+    });
   }
 
   /** The one answer for every refused request: the same body whatever was wrong, so a probe learns nothing. */
   private deny(res: http.ServerResponse): void { res.writeHead(404, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }); res.end('Not found'); }
 
   private page(res: http.ServerResponse): void {
-    const html = browserPage({ title: this.deps.projectTitle(), fadeMs: this.deps.fadeMs(), subtitle: this.deps.texts.subtitle, lost: this.deps.texts.lost });
+    const t = this.deps.texts, html = browserPage({ title: this.deps.projectTitle(), fadeMs: this.deps.fadeMs(), subtitle: t.subtitle, lost: t.lost, focus: { sent: t.focusSent, done: t.focusDone, failed: t.focusFailed } });
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' });
     res.end(html);
   }
@@ -157,7 +201,7 @@ export class ActivityServer {
         if (e.t === 'bg') { if (e.shell || e.agent) { this.bg.set(e.ch, e); } else { this.bg.delete(e.ch); } }
       }
       if (r.events.length && this.clients.size) { this.broadcast({ type: 'events', events: r.events }); }
-      const ids = [...new Set(cur ? [cur, ...live] : live)];
+      const ids = this.shownIds();
       this.sendLegend(ids.map((id) => ({ id, title: this.deps.titleOf(id) || this.deps.texts.unknownChat, col: r.colors.get(id) ?? '' })));
     }).catch((e) => this.deps.log('activity server check failed: ' + String(e))).finally(() => {
       this.busy = false;

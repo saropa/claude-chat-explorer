@@ -3,6 +3,11 @@
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
 ## 1.0.0
+- Added: each background-task pill shows how long its oldest task has run (for example 4m 12s), updated every second while a pill is visible.
+- Added: in the browser view, clicking a legend entry or a pill reveals that chat's session in VS Code. The page reports each click as sent, done or failed. The request is POST /focus with the token, a matching Origin and Host, a JSON body and a chat id the legend shows; anything else is a 404.
+- Fixed: a background task whose finish notice never arrived kept a pill and a background dot forever. A task stops counting once both its launch and the last write to its chat log are more than 6 hours old; a log written again brings it back.
+- Fixed: a change in the log format of background-task launches silently emptied the pills. A launch line with no readable task id is now written once to the output channel.
+- Changed: new check `check_bg` (fixture-based task parsing, stale limit, drift notice, all-chats cap and idle cost) runs in `vscode:prepublish`; `check_browser` covers the focus request and the timer format; `check_activity` covers colours after a reload.
 - Changed: the ring-slot geometry has one source. `--rs` (slot size) and `--rg` (gap before the slot) are set once; the hover offset `--rw`, the slot box, the ring size and the row gap all derive from them, so the hover buttons and chevron stay clear of the ring if either value changes.
 - Fixed: in open rows the ring slot now centers on the first title line using the title's line height (`1lh`) instead of a fixed 6px drop, so it stays aligned at any editor font size.
 - Changed: `check_ring` now runs in `vscode:prepublish` (after `check_dots`) and asserts that the slot offset is derived, not a literal.

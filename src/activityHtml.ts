@@ -53,7 +53,7 @@ const PILLS: { k: string; icon: string; label: string }[] = [{ k: 'shell', icon:
 
 /** The pill row under the diagram. Pills glow while their task runs, so a long quiet stretch does not read as a locked-up diagram. */
 export function pillsHtml(): string {
-  return '<div id="bg">' + PILLS.map((p) => `<span class="pill" data-k="${p.k}" title="${p.label}" data-l="${p.label}" hidden>${icon(p.icon, 8, 8, 12)}<b></b></span>`).join('') + '</div>';
+  return '<div id="bg">' + PILLS.map((p) => `<span class="pill" data-k="${p.k}" title="${p.label}" data-l="${p.label}" hidden>${icon(p.icon, 8, 8, 12)}<b></b><i class="tm"></i></span>`).join('') + '</div>';
 }
 
 const HOT = 'var(--hl)'; // the flash color: the link color, or the error color on a group marked .err
@@ -96,6 +96,8 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .pill[hidden]{display:none;}
 .pill .ic{position:static;width:12px;height:12px;opacity:1;}
 .pill b{font-weight:normal;}
+.pill .tm{font-style:normal;font-variant-numeric:tabular-nums;opacity:.8;}
+.pill .tm:empty{display:none;}
 @keyframes pill{0%,100%{box-shadow:0 0 0 0 transparent;opacity:.75;}50%{box-shadow:0 0 6px 1px var(--hl);opacity:1;}}
 #cap{max-width:300px;height:1.4em;line-height:1.4em;margin:6px auto 0;font-size:11px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.8;}
 .hold{filter:drop-shadow(0 0 4px ${HOT});}
@@ -140,10 +142,10 @@ const lastOf = new Map(); // chat key -> group of its last flash, so the connect
 let capText = '', capAt = 0, capTimer = 0;
 // Background tasks: a glowing pill per running kind (shell, agent), with a count when there are several. They are separate from the flashes, which only mark calls as they happen.
 // In the all-chats mode each chat has its own pills in its own colour; otherwise everything is under the one key ''.
-const bgBy = new Map(); // chat key -> { shell, agent, col }
+const bgBy = new Map(); // chat key -> { shell, agent, shellAt, agentAt, col }
 function pills(m) {
   const key = m.ch || '', shell = Number(m.shell) || 0, agent = Number(m.agent) || 0;
-  if (shell || agent) { bgBy.set(key, { shell, agent, col: m.col || '' }); } else { bgBy.delete(key); }
+  if (shell || agent) { bgBy.set(key, { shell, agent, shellAt: Number(m.shellAt) || 0, agentAt: Number(m.agentAt) || 0, col: m.col || '' }); } else { bgBy.delete(key); }
   drawPills();
 }
 // The pills in the markup are hidden templates; the visible ones are clones, rebuilt from bgBy on every change (a handful at most).
@@ -158,10 +160,27 @@ function drawPills() {
       p.classList.add('live'); p.hidden = false;
       p.querySelector('b').textContent = n > 1 ? String(n) : '';
       p.title = t.dataset.l + (n > 1 ? 's: ' + n : '');
+      p.dataset.at = String(b[k + 'At'] || 0); // earliest launch of this kind, for the timer; 0 = unknown, no timer
+      p.dataset.ch = key; // the chat it belongs to, so the browser view can reveal it on a click
       if (b.col) { p.style.setProperty('--hl', b.col); }
       bar.appendChild(p);
     }
   }
+  tick();
+  // The timer needs a tick only while a pill is shown, so an idle page runs no interval.
+  if (bar.querySelector('.pill.live')) { if (!tickTimer) { tickTimer = setInterval(tick, 1000); } } else { clearInterval(tickTimer); tickTimer = 0; }
+}
+let tickTimer = 0;
+// Elapsed time of a background task as 45s, 4m 12s or 1h 5m. The launch time is the log's clock and this is the page's clock; they are the same machine except in a remote window, where a skew only shifts the number, and a negative value is shown as 0s.
+function elapsed(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+  return h ? h + 'h ' + m + 'm' : m ? m + 'm ' + (s % 60) + 's' : s + 's';
+}
+function tick() {
+  document.querySelectorAll('.pill.live').forEach((p) => {
+    const at = Number(p.dataset.at), tm = p.querySelector('.tm');
+    tm.textContent = at > 0 ? elapsed(Date.now() - at) : '';
+  });
 }
 // col: the chat's colour in the all-chats mode. It is set per element (CSSOM, which the page's CSP allows) and dropped for an error, so the error color still wins.
 function pulse(el, key, err, col) {
@@ -299,6 +318,10 @@ header p{margin:2px 0 0;font-size:12px;color:var(--vscode-descriptionForeground)
 .lg{display:inline-flex;align-items:center;gap:6px;max-width:220px;}
 .lg i{flex:none;width:10px;height:10px;border-radius:50%;}
 .lg span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#note{min-height:1.4em;margin-top:8px;text-align:center;font-size:12px;color:var(--vscode-descriptionForeground);}
+.lg{background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;}
+.lg:hover span,.lg:focus-visible span{text-decoration:underline;}
+#bg .pill.live[data-ch]:not([data-ch=""]){cursor:pointer;}
 #conn{min-height:1.4em;margin-top:8px;text-align:center;font-size:12px;color:var(--vscode-errorForeground);}`;
 
 /** Escapes text for HTML element content and attribute values: the project title comes from the user's folder name. */
@@ -309,7 +332,7 @@ const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;',
  * `connect-src 'self'` is the one addition to the CSP, needed for the EventSource; nothing else is loaded from anywhere.
  * `subtitle` and `lost` are the user-facing strings, passed in so they live with the other extension strings rather than in this file.
  */
-export function browserPage(o: { title: string; fadeMs: number; subtitle: string; lost: string }): string {
+export function browserPage(o: { title: string; fadeMs: number; subtitle: string; lost: string; focus: { sent: string; done: string; failed: string } }): string {
   const nonce = randomBytes(18).toString('base64url');
   // The stream carries the same messages the webview gets; they are re-dispatched as window messages so the diagram script runs unchanged.
   // A 'legend' message is the page's own: the live chats with their colours and titles.
@@ -317,15 +340,30 @@ export function browserPage(o: { title: string; fadeMs: number; subtitle: string
 const mq = matchMedia('(prefers-color-scheme: light)');
 const theme = () => document.body.classList.toggle('vscode-light', mq.matches);
 theme(); mq.addEventListener('change', theme);
-const legend = document.getElementById('legend'), conn = document.getElementById('conn');
+const legend = document.getElementById('legend'), conn = document.getElementById('conn'), note = document.getElementById('note');
+const focusText = ${JSON.stringify(o.focus)};
+// Legend entries are buttons (keyboard and screen-reader reachable); each carries its chat id for the reveal request.
 function drawLegend(chats) {
   legend.textContent = '';
   for (const c of chats) {
-    const item = document.createElement('span'), dot = document.createElement('i'), name = document.createElement('span');
-    item.className = 'lg'; dot.style.background = String(c.col); name.textContent = String(c.title); item.title = String(c.title);
+    const item = document.createElement('button'), dot = document.createElement('i'), name = document.createElement('span');
+    item.type = 'button'; item.className = 'lg'; item.dataset.ch = String(c.id); dot.style.background = String(c.col); name.textContent = String(c.title); item.title = String(c.title);
     item.append(dot, name); legend.append(item);
   }
 }
+// Reveal a chat in VS Code: POST /focus with the chat id. Every click shows its outcome in the status line (sent, done or failed), never silently.
+async function focusChat(id) {
+  note.textContent = focusText.sent;
+  try {
+    const r = await fetch('focus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: id }) });
+    note.textContent = r.ok ? focusText.done : focusText.failed;
+  } catch { note.textContent = focusText.failed; }
+}
+// One delegated listener for the legend buttons and the live pills (both are rebuilt often); no inline handlers, which the page's CSP forbids.
+document.addEventListener('click', (e) => {
+  const t = e.target.closest ? e.target.closest('[data-ch]') : null;
+  if (t && t.dataset.ch) { focusChat(t.dataset.ch); }
+});
 const es = new EventSource('events');
 es.onmessage = (e) => {
   let m; try { m = JSON.parse(e.data); } catch { return; }
@@ -336,5 +374,5 @@ es.onopen = () => { conn.textContent = ''; };
 es.onerror = () => { conn.textContent = ${JSON.stringify(o.lost)}; };`;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(o.title)} - Activity</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; connect-src 'self';">
-<style nonce="${nonce}">:root{--fade:${o.fadeMs}ms;}${CSS}${BROWSER_THEME}</style></head><body><header><h1>${esc(o.title)}</h1><p>${esc(o.subtitle)}</p></header>${diagramSvg()}${pillsHtml()}<div id="cap" aria-live="polite"></div><div id="legend"></div><div id="conn" role="status"></div><script nonce="${nonce}">${SCRIPT.replace('__FADE__', String(o.fadeMs))}${shell}</script></body></html>`;
+<style nonce="${nonce}">:root{--fade:${o.fadeMs}ms;}${CSS}${BROWSER_THEME}</style></head><body><header><h1>${esc(o.title)}</h1><p>${esc(o.subtitle)}</p></header>${diagramSvg()}${pillsHtml()}<div id="cap" aria-live="polite"></div><div id="legend"></div><div id="note" role="status" aria-live="polite"></div><div id="conn" role="status"></div><script nonce="${nonce}">${SCRIPT.replace('__FADE__', String(o.fadeMs))}${shell}</script></body></html>`;
 }
