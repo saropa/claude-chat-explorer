@@ -47,6 +47,10 @@ function refsTests() {
   check('refs: PR: #42 (colon now matches)', one('PR: #42', '#42'));
   check('refs: pr#5, Pull #6, issue #7, any case', eq(dg.extractRefs(['pr#5 then Pull #6 and ISSUE #7']), ['#5', '#6', '#7']));
   check('refs: commit-subject (#17)', one('fix thing (#17)', '#17'));
+  check('refs: a mid-sentence (#333) color is not a PR', none('use dark gray (#333) for body'));
+  check('refs: (#000000) is not a PR', none('color (#000000)'));
+  check('refs: closes #0 is not a PR', none('closes #0'));
+  check('refs: (#17). with trailing punctuation still counts', one('fix thing (#17).', '#17'));
   check('refs: closes #9, Fixes: #10, resolved #11', eq(dg.extractRefs(['closes #9; Fixes: #10; resolved #11']), ['#9', '#10', '#11']));
   check('refs: GitHub pull URL', one('see https://github.com/o/r/pull/9.', 'https://github.com/o/r/pull/9'));
   check('refs: GitHub issue URL', one('https://github.com/o/r/issues/3', 'https://github.com/o/r/issues/3'));
@@ -98,6 +102,12 @@ async function fileTests() {
   const tmpNo = path.join(process.env.CCS_TMP || os.tmpdir(), 'ccs-digest-nostop-' + process.pid + '.jsonl');
   fs.writeFileSync(tmpNo, [JSON.stringify({ type: 'user', message: { content: 'hi' } }), noStop, ''].join('\n'));
   try { check('stop_reason: a chat file with no stop_reason anywhere has noClose unknown', (await scanChatFile(tmpNo)).noClose === undefined); } finally { fs.rmSync(tmpNo, { force: true }); }
+  // No assistant row at all (a crash before the first reply): judged normally (cut off), and never the unknown state that logs drift.
+  const userOnly = JSON.stringify({ type: 'user', message: { content: 'hi' } });
+  check('stop_reason: a chat with no assistant row is cut off, not unknown', dg.finishFile(dg.newFileAcc(), [userOnly]).noClose === true);
+  const tmpUser = path.join(process.env.CCS_TMP || os.tmpdir(), 'ccs-digest-useronly-' + process.pid + '.jsonl');
+  fs.writeFileSync(tmpUser, userOnly + '\n');
+  try { check('stop_reason: a file with no assistant row has noClose true (no drift)', (await scanChatFile(tmpUser)).noClose === true); } finally { fs.rmSync(tmpUser, { force: true }); }
   const t = dg.answersFromText('Your questions have been answered: "A?"="x, y", "B?"="z". You can now continue.');
   check('text fallback parses several pairs', t.get('A?') === 'x, y' && t.get('B?') === 'z');
 }
@@ -105,6 +115,7 @@ async function fileTests() {
 function staleTests() {
   const d = { size: 10, mtime: 5 };
   check('stale: same size and mtime is fresh', dg.digestStale(d, { size: 10, mtime: 5 }) === false);
+  check('stale: a decision without a time makes the digest stale', dg.digestStale({ size: 10, mtime: 5, decisions: [{ at: 1 }, {}] }, { size: 10, mtime: 5 }) && !dg.digestStale({ size: 10, mtime: 5, decisions: [{ at: 1 }] }, { size: 10, mtime: 5 }));
   check('stale: size or mtime differ', dg.digestStale(d, { size: 11, mtime: 5 }) && dg.digestStale(d, { size: 10, mtime: 6 }));
   const now = 100 * 60000;
   check('auto: waits 10 minutes of quiet and skips busy chats', !dg.autoDue(now - 9 * 60000, now, false) && dg.autoDue(now - 11 * 60000, now, false) && !dg.autoDue(now - 11 * 60000, now, true));
@@ -238,6 +249,10 @@ async function aiTests() {
   const bigRec = recFrom(Array.from({ length: 120 }, (_, i) => 'm' + i + ' ' + 'y'.repeat(3990)));
   const bigLen = bigRec.text.length, bigIn = ai.aiInput(bigRec, new Set());
   check('estimate: never below the real calls (' + ai.estCalls(bigLen, 120) + ' >= ' + (bigIn.pieces.length + 1) + ')', ai.estCalls(bigLen, 120) >= bigIn.pieces.length + (bigIn.pieces.length > 1 ? 1 : 0));
+  // Many compaction summaries: their header is the longest, and the estimate must still cover the real piece count.
+  const sumRec = recFrom(Array.from({ length: 120 }, (_, i) => 's' + i + ' ' + 'z'.repeat(3990)));
+  const sumIn = ai.aiInput(sumRec, new Set(Array.from({ length: 120 }, (_, i) => i)));
+  check('estimate: covers a chat of many summaries (' + ai.estCalls(sumRec.text.length, 120) + ' >= ' + (sumIn.pieces.length + 1) + ')', ai.estCalls(sumRec.text.length, 120) >= sumIn.pieces.length + (sumIn.pieces.length > 1 ? 1 : 0));
   check('ai input: the message count travels for the index range check', inp.count === rec.ts.length);
   // Stub runner: fails once (bad output), then answers; the real claude is never started.
   const prompts = [];
@@ -407,7 +422,19 @@ function timelineTests() {
   const none = tl.timelineDoc(srcs, projects.find((p) => p.label === 'docs').key, 'docs');
   check('timeline: a project without decisions shows the empty state', none.count === 0 && none.text.includes('No digests of docs have decisions yet') && none.text.includes('Saropa: Build Session Digests') && none.links.length === 0);
   const zero = tl.timelineDoc([]);
-  check('timeline: no digests at all shows the empty state', zero.count === 0 && zero.text.includes(tl.timelineEmpty()) && tl.timelineEmpty().includes('"' + md.BUILD_TITLE + '"'));
+  check('timeline: no digests at all shows the empty state', zero.count === 0 && zero.text.includes(tl.DEFAULT_TIMELINE_TEXT.empty()) && tl.DEFAULT_TIMELINE_TEXT.empty().includes('"' + md.BUILD_TITLE + '"'));
+  // Damaged stored decisions (non-string answer or question, non-finite time) are skipped; the rest of the document still builds.
+  const bad = { d: Object.assign({}, shop.d, { decisions: [{ src: 'message', a: 42, i: 1, line: 2, at: at(2, 9, 0) }, { src: 'dialog', q: null, a: 'x', line: 3 }, { src: 'message', a: 'ok', i: 2, line: 4, at: 'soon' }, { src: 'message', a: 'Kept.', i: 3, line: 5, at: NaN }] }), file: shop.file };
+  let damaged;
+  try { damaged = tl.timelineDoc([bad]); } catch (e) { damaged = e; }
+  check('timeline: damaged decisions are skipped, not thrown (' + (damaged instanceof Error ? damaged.message : damaged.count) + ')', !(damaged instanceof Error) && damaged.count === 1 && damaged.text.includes('    Kept.'));
+  // A lone CR is a line break for VS Code: the document must split on it so link line numbers stay right.
+  const cr = tl.timelineDoc([{ d: Object.assign({}, shop.d, { decisions: [{ src: 'message', a: 'one\rtwo\r\nthree', i: 1, line: 4, at: at(2, 9, 0) }] }), file: shop.file }]);
+  const crLines = cr.text.split(/\r\n|\r|\n/);
+  check('timeline: a lone CR splits the quote and the link line matches', !cr.text.includes('\r') && crLines[cr.links[0].line].includes('Session file:') && crLines.includes('    two') && crLines.includes('    three'));
+  // The host passes localized strings in; the formatter only places them.
+  const fr = tl.timelineDoc(srcs, undefined, undefined, { all: 'Tous', heading: (l) => '# T: ' + l, empty: () => 'vide', counts: (n, m) => n + '/' + m, sessionFile: 'Fichier:' });
+  check('timeline: injected strings are used', fr.text.startsWith('# T: Tous\n3/2\n') && fr.text.includes('    Fichier: /h/'));
 }
 
 function panelTests(d) {

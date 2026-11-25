@@ -22,6 +22,14 @@ export interface EditorDeps {
 }
 
 const docs = new Map<string, Doc>();
+/** Per-document message shown when the document was dropped from memory (search results and timelines tell different next steps). Bounded like docs, with slack so a dropped document's message outlives it. */
+const gone = new Map<string, string>();
+const SEARCH_GONE = 'These results are no longer available. Run the search again.';
+/** Remember the fallback of one document and keep the map small: the oldest messages go first. */
+function setGone(uri: string, msg: string): void {
+  gone.set(uri, msg);
+  for (const k of [...gone.keys()].slice(0, Math.max(0, gone.size - KEEP_DOCS * 10))) { gone.delete(k); }
+}
 let seq = 0;
 const highlight = vscode.window.createTextEditorDecorationType({
   backgroundColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
@@ -50,11 +58,14 @@ async function show(out: EdOut, m: DocMeta): Promise<void> {
 /**
  * Open any read-only text in the results-editor scheme: the same provider, link support and memory cap as search
  * results, so other views (the decisions timeline) reuse it instead of registering a second scheme. File links open the
- * file at their line; the title is the document's name in the tab.
+ * file at their line; the title is the document's name in the tab. goneMsg is what the tab shows once the document was
+ * dropped from memory.
  */
-export async function showReadOnly(title: string, doc: Doc): Promise<void> {
+export async function showReadOnly(title: string, doc: Doc, goneMsg: string = SEARCH_GONE): Promise<void> {
   const uri = vscode.Uri.from({ scheme: SCHEME, path: '/' + title.replace(/[\\/]+/g, ' ').slice(0, TITLE_MAX), query: String(++seq) });
   docs.set(uri.toString(), doc);
+  // Per-document fallback: a dropped timeline must not tell the user to run a search.
+  setGone(uri.toString(), goneMsg);
   // The same memory cap as search results: the oldest documents are dropped first.
   for (const k of [...docs.keys()].slice(0, Math.max(0, docs.size - KEEP_DOCS))) { docs.delete(k); }
   const td = await vscode.workspace.openTextDocument(uri);
@@ -87,7 +98,7 @@ export async function openInEditor(m: any, d: EditorDeps): Promise<void> {
 export function registerEditorView(ctx: vscode.ExtensionContext, d: EditorDeps, fallback: () => object): void {
   const sel: vscode.DocumentSelector = { scheme: SCHEME };
   ctx.subscriptions.push(
-    vscode.workspace.registerTextDocumentContentProvider(SCHEME, { provideTextDocumentContent: (u) => docs.get(u.toString())?.text ?? 'These results are no longer available. Run the search again.' }),
+    vscode.workspace.registerTextDocumentContentProvider(SCHEME, { provideTextDocumentContent: (u) => docs.get(u.toString())?.text ?? gone.get(u.toString()) ?? SEARCH_GONE }),
     vscode.languages.registerDocumentLinkProvider(sel, {
       provideDocumentLinks: (td) => {
         const doc = docs.get(td.uri.toString());

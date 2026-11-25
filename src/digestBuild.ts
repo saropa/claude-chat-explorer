@@ -48,6 +48,8 @@ export async function scanChatFile(file: string): Promise<FileScan> {
     if (line.indexOf('AskUserQuestion') >= 0 || line.indexOf('isCompactSummary') >= 0 || (a.asks.size > 0 && line.indexOf('tool_result') >= 0)) { takeFileLine(line.toString('utf8'), n, a); }
     // Keep the last few message rows; the buffer is reused by the scanner, so each kept line is decoded into its own string.
     if (msgRow(b, s, e)) { tail.push(line.toString('utf8')); if (tail.length > TAIL_ROWS) { tail.shift(); } }
+    // Remember that any assistant row exists: without one, a missing stop_reason is not layout drift.
+    if (!a.asstSeen && line.indexOf(ASST) >= 0) { a.asstSeen = true; }
     // One assistant row with a stop_reason field is enough to trust the clean-end test; stop probing once it is found.
     if (!a.stopSeen && line.indexOf(STOP) >= 0 && line.indexOf(ASST) >= 0) { a.stopSeen = true; }
   });

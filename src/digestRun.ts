@@ -9,13 +9,13 @@ import * as path from 'path';
 import { execFile } from 'child_process';
 import { AiState, autoDue } from './digest';
 import { AI_SLOTS, AI_TIMEOUT_MS, AI_TRIES, AiCall, AiPart, runAi } from './digestAi';
-import { BUILD_TITLE, EXPORT_DIR, INDEX_NAME, supersededExports } from './digestMd';
+import { BUILD_TITLE, TIMELINE_TITLE, EXPORT_DIR, INDEX_NAME, supersededExports } from './digestMd';
 import { DigestInputReply } from './digestBuild';
 import { readDigest, digestDir } from './digestStore';
 import { Limiter } from './execLimit';
 import { Exec, ExecResult, pool } from './wipExec';
 import { isSessionId } from './sessionId';
-import { ALL_PROJECTS, TimelineSrc, timelineDoc, timelineEmpty, timelineProjects } from './digestTimeline';
+import { TimelineSrc, TimelineText, timelineDoc, timelineProjects } from './digestTimeline';
 import { showReadOnly } from './editorView';
 
 export const BUILD_CMD = 'saropaChats.buildDigests';
@@ -64,6 +64,23 @@ export function haikuCall(lim: Limiter): AiCall {
 
 /** How one build ended: its AI state, or gone (the chat is no longer indexed) or lost (the gathered build expired). */
 type Outcome = AiState | 'gone' | 'lost';
+
+/**
+ * The timeline's user-facing strings, localized in the host through vscode.l10n.t; the formatter (digestTimeline.ts) is
+ * pure and only places them. The empty-state sentence is shared by the document and the "nothing to show" message.
+ */
+const timelineText = (): TimelineText => ({
+  all: vscode.l10n.t('All projects'),
+  heading: (label) => vscode.l10n.t('Decisions timeline: {0}', label),
+  empty: (project) => (project
+    ? vscode.l10n.t('No digests of {0} have decisions yet. Run "{1}" to build digests.', project, BUILD_TITLE)
+    : vscode.l10n.t('No digests have decisions yet. Run "{0}" to build digests.', BUILD_TITLE)),
+  // Singular and plural are separate whole strings so each language can inflect them.
+  counts: (n, sessions) => (n === 1
+    ? (sessions === 1 ? vscode.l10n.t('1 decision in 1 session, newest first.') : vscode.l10n.t('1 decision in {0} sessions, newest first.', sessions))
+    : (sessions === 1 ? vscode.l10n.t('{0} decisions in 1 session, newest first.', n) : vscode.l10n.t('{0} decisions in {1} sessions, newest first.', n, sessions))),
+  sessionFile: vscode.l10n.t('Session file:'),
+});
 
 /** Digest commands and the automatic rebuild of one window. */
 export class DigestService {
@@ -148,7 +165,8 @@ export class DigestService {
     const go = vscode.l10n.t('Build');
     const pick = await vscode.window.showInformationMessage(todo.length === 1 ? vscode.l10n.t('Build a digest for 1 session?') : vscode.l10n.t('Build digests for {0} sessions?', todo.length), {
       modal: true,
-      detail: vscode.l10n.t('{0} sessions: {1} without a digest, {2} out of date.', todo.length, fresh, stale) + ' '
+      // A single session reads "1 session", not "1 sessions".
+      detail: (todo.length === 1 ? vscode.l10n.t('1 session: {0} without a digest, {1} out of date.', fresh, stale) : vscode.l10n.t('{0} sessions: {1} without a digest, {2} out of date.', todo.length, fresh, stale)) + ' '
         // With AI on the owner sees the upper bound of calls before agreeing; with AI off it is stated that nothing is called.
         + (ai ? vscode.l10n.t('Up to an estimated {0} AI calls to the claude command (Haiku) on the Claude subscription, at most {1} at a time; a malformed reply is retried up to {2} times.', calls, AI_SLOTS, AI_TRIES)
           : vscode.l10n.t('AI parts are turned off: no AI calls are made, only the exact parts are built.')),
@@ -265,19 +283,22 @@ export class DigestService {
     // No decision anywhere: say so and offer the Build command, instead of opening an empty document or an empty pick.
     if (!srcs.some((s) => s.d.decisions.length)) {
       const build = vscode.l10n.t('Build Session Digests');
-      const pick = await vscode.window.showInformationMessage(timelineEmpty(), build);
+      const pick = await vscode.window.showInformationMessage(timelineText().empty(), build);
       if (pick === build) { await vscode.commands.executeCommand(BUILD_CMD); }
       return;
     }
     const projects = timelineProjects(srcs);
     // The first item is the whole timeline; the rest are the projects that have digests, each with its folder for telling same-named projects apart.
-    const items: Array<vscode.QuickPickItem & { key?: string }> = [{ label: ALL_PROJECTS }, ...projects.map((p) => ({ label: p.label, description: p.path, key: p.key }))];
+    const text = timelineText();
+    const items: Array<vscode.QuickPickItem & { key?: string }> = [{ label: text.all }, ...projects.map((p) => ({ label: p.label, description: p.path, key: p.key }))];
     const chosen = await vscode.window.showQuickPick(items, { title: vscode.l10n.t('Decisions timeline: project'), matchOnDescription: true });
     // A dismissed pick is the owner's cancel; it still gets a visible outcome.
     if (!chosen) { void vscode.window.showInformationMessage(vscode.l10n.t('Decisions timeline canceled: no project picked.')); return; }
-    const doc = timelineDoc(srcs, chosen.key, chosen.key === undefined ? undefined : chosen.label);
     try {
-      await showReadOnly(vscode.l10n.t('Decisions: {0}', chosen.label), { text: doc.text, spans: [], links: [], files: doc.links });
+      // Built inside the try: the stored digests are disk data, and a failure here must show the error message, not become an unhandled rejection.
+      const doc = timelineDoc(srcs, chosen.key, chosen.key === undefined ? undefined : chosen.label, text);
+      // The fallback is what the tab shows once the document was dropped from memory; it names this command, not the search.
+      await showReadOnly(vscode.l10n.t('Decisions: {0}', chosen.label), { text: doc.text, spans: [], links: [], files: doc.links }, vscode.l10n.t('This timeline is no longer available. Run "{0}" again.', TIMELINE_TITLE));
     } catch (e) {
       this.d.log('decisions timeline', e);
       void vscode.window.showErrorMessage(vscode.l10n.t('Could not open the decisions timeline: {0}', (e as Error).message));

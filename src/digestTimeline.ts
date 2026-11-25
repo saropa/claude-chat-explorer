@@ -22,8 +22,31 @@ export interface TimelineLink { line: number; from: number; to: number; file: st
 /** The document: its text, the session-file links in it, and how many decisions it lists. */
 export interface TimelineDoc { text: string; links: TimelineLink[]; count: number; }
 
-/** Heading label of the unfiltered timeline; also the first item of the host's quick pick, so both say the same. */
+/**
+ * The user-facing strings of the document. The host fills them through vscode.l10n.t (this file has no vscode import, so
+ * it stays testable); the formatter only places them. DEFAULT_TIMELINE_TEXT is the English set the checks use.
+ */
+export interface TimelineText {
+  all: string; // label of the unfiltered timeline; also the first item of the host's quick pick
+  heading: (label: string) => string; // first line of the document
+  empty: (project?: string) => string; // the empty state, with the command that builds digests
+  counts: (decisions: number, sessions: number) => string; // the line under the heading
+  sessionFile: string; // label before the session-file link
+}
+
+/** Heading label of the unfiltered timeline, English; the host passes its translated label in TimelineText.all. */
 export const ALL_PROJECTS = 'All projects';
+
+/** The English text set: the source strings of the host's l10n calls, and what the unit checks use. */
+export const DEFAULT_TIMELINE_TEXT: TimelineText = {
+  all: ALL_PROJECTS,
+  heading: (label) => `# Decisions timeline: ${label}`,
+  empty: (project) => (project
+    ? `No digests of ${project} have decisions yet. Run "${BUILD_TITLE}" to build digests.`
+    : `No digests have decisions yet. Run "${BUILD_TITLE}" to build digests.`),
+  counts: (n, sessions) => `${n} decision${n === 1 ? '' : 's'} in ${sessions} session${sessions === 1 ? '' : 's'}, newest first.`,
+  sessionFile: 'Session file:',
+};
 
 /** The folder a digest belongs to: the folder the session started in, else its working folder (the same rule as the export). */
 const folderOf = (d: TimelineSrc['d']): string => d.start ?? d.folder;
@@ -45,11 +68,6 @@ export function timelineProjects(srcs: TimelineSrc[]): TimelineProject[] {
   return [...m.values()].sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()) || a.path.localeCompare(b.path));
 }
 
-/** The empty-state sentence: no decisions to list, and the command that builds digests. Shared by the document and the host message. */
-export const timelineEmpty = (project?: string): string => (project
-  ? `No digests of ${project} have decisions yet. Run "${BUILD_TITLE}" to build digests.`
-  : `No digests have decisions yet. Run "${BUILD_TITLE}" to build digests.`);
-
 /** One decision with what the timeline needs to sort and print it. */
 interface Item { x: Decision; s: TimelineSrc; at: number; }
 
@@ -68,19 +86,27 @@ const oneLine = (s: string): string => s.replace(/\s+/g, ' ').trim();
  * by session and file line, so the order is stable. Each entry names project, session title and source, quotes the
  * decision exactly (Dialog: question and answer), and ends with the session file and line, which is a link.
  */
-export function timelineDoc(srcs: TimelineSrc[], project?: string, projectLabel?: string): TimelineDoc {
+export function timelineDoc(srcs: TimelineSrc[], project?: string, projectLabel?: string, text: TimelineText = DEFAULT_TIMELINE_TEXT): TimelineDoc {
   const items: Item[] = [];
   for (const s of srcs) {
     // The project filter compares normalized keys, the same as the quick pick that produced the key.
     if (project !== undefined && projectKey(folderOf(s.d)) !== project) { continue; }
-    for (const x of s.d.decisions) { items.push({ x, s, at: typeof x.at === 'number' && Number.isFinite(x.at) ? x.at : s.d.last }); }
+    for (const x of s.d.decisions) {
+      // A damaged stored decision (non-string answer or question, non-finite time) is skipped: one bad row must not break the whole document.
+      if (!x || typeof x.a !== 'string' || (x.src === 'dialog' && typeof x.q !== 'string')) { continue; }
+      if (x.at !== undefined && typeof x.at !== 'number') { continue; }
+      // A non-finite time falls back to the session's last activity; a non-finite fallback leaves the decision out (it cannot be placed on a day).
+      const at = typeof x.at === 'number' && Number.isFinite(x.at) ? x.at : s.d.last;
+      if (typeof at !== 'number' || !Number.isFinite(at)) { continue; }
+      items.push({ x, s, at });
+    }
   }
   items.sort((a, b) => b.at - a.at || a.s.d.id.localeCompare(b.s.d.id) || (b.x.line ?? 0) - (a.x.line ?? 0));
-  const head = `# Decisions timeline: ${project === undefined ? ALL_PROJECTS : projectLabel ?? project}`;
+  const head = text.heading(project === undefined ? text.all : projectLabel ?? project);
   // Nothing to list: the empty state names the command that builds digests, so the document is never blank.
-  if (!items.length) { return { text: [head, '', timelineEmpty(project === undefined ? undefined : projectLabel ?? project)].join('\n') + '\n', links: [], count: 0 }; }
+  if (!items.length) { return { text: [head, '', text.empty(project === undefined ? undefined : projectLabel ?? project)].join('\n') + '\n', links: [], count: 0 }; }
   const sessions = new Set(items.map((i) => i.s.d.id)).size;
-  const lines = [head, `${items.length} decision${items.length === 1 ? '' : 's'} in ${sessions} session${sessions === 1 ? '' : 's'}, newest first.`];
+  const lines = [head, text.counts(items.length, sessions)];
   const links: TimelineLink[] = [];
   let day = '';
   for (const it of items) {
@@ -91,9 +117,10 @@ export function timelineDoc(srcs: TimelineSrc[], project?: string, projectLabel?
     lines.push('', `${clockOf(it.at)}  ${baseName(folderOf(it.s.d))} | ${oneLine(it.s.d.title)} | ${src}`);
     // The quote is exact: a Dialog shows its question and the chosen answer; every line of a multi-line quote is indented, never joined.
     const quote = it.x.src === 'dialog' ? `${oneLine(it.x.q ?? '')} → ${it.x.a}` : it.x.a;
-    for (const q of quote.split(/\r?\n/)) { lines.push(q ? '    ' + q : ''); }
+    // Split on every line break VS Code counts (CRLF, lone CR, LF), so the document line numbers match the link targets.
+    for (const q of quote.split(/\r\n|\r|\n/)) { lines.push(q ? '    ' + q : ''); }
     // The session-file reference: path and line, the whole of it a link that opens the file at that line.
-    const ref = it.x.line ? `${it.s.file}:${it.x.line}` : it.s.file, pre = '    Session file: ';
+    const ref = it.x.line ? `${it.s.file}:${it.x.line}` : it.s.file, pre = `    ${text.sessionFile} `;
     links.push({ line: lines.length, from: pre.length, to: pre.length + ref.length, file: it.s.file, at: it.x.line });
     lines.push(pre + ref);
   }

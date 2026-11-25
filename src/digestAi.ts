@@ -24,8 +24,14 @@ export const AI_SLOTS = 2;
 const GOAL_MAX = 400, OPEN_MAX = 5, OPEN_ITEM_MAX = 300, DECISIONS_MAX = 30;
 /** Characters of a malformed reply kept in its error, so the output channel shows what the model sent without flooding it. */
 export const RAW_EXCERPT = 200;
-/** Characters a message block adds besides its text ("[1234] Agent: " and the joining newline), for the call estimate. */
-const BLOCK_OVERHEAD = 16;
+/**
+ * Block headers, shared by aiInput (which writes them) and the call estimate (which sizes them), so the two cannot drift.
+ * The index is at most 7 digits in the estimate; the compaction summary header is the longest.
+ */
+const SUMMARY_HEADER = (i: number | string): string => `[${i}] Summary (earlier part, input only): `;
+const ROLE_HEADER = (i: number | string, own: boolean): string => `[${i}] ${own ? 'You' : 'Agent'}: `;
+/** Characters a message block adds besides its text: the longest header (7-digit index) plus the joining newline; an upper bound for the call estimate. */
+const BLOCK_OVERHEAD = Math.max(SUMMARY_HEADER('9999999').length, ROLE_HEADER('9999999', true).length, ROLE_HEADER('9999999', false).length) + 1;
 
 /** Owner messages that are harness text, not the owner's words: never offered as a decision. */
 const NOT_OWNER = /^\s*(?:<command-|<local-command-|<system-reminder>|<task-notification>|\[Request interrupted)/;
@@ -50,9 +56,9 @@ export function aiInput(rec: Rec, summary: Set<number>, budget = PIECE_CHARS, ma
     const t = msgText(rec, i).trim();
     if (!t) { continue; } // an empty message adds nothing for the model
     const own = rec.roles[i] === 0;
-    if (summary.has(i)) { blocks.push(`[${i}] Summary (earlier part, input only): ${t.slice(0, OWNER_CHARS)}`); continue; }
+    if (summary.has(i)) { blocks.push(`${SUMMARY_HEADER(i)}${t.slice(0, OWNER_CHARS)}`); continue; }
     if (own && !NOT_OWNER.test(t)) { allowed.push(i); }
-    blocks.push(`[${i}] ${own ? 'You' : 'Agent'}: ${t.slice(0, own ? OWNER_CHARS : AGENT_CHARS)}`);
+    blocks.push(`${ROLE_HEADER(i, own)}${t.slice(0, own ? OWNER_CHARS : AGENT_CHARS)}`);
   }
   // Pack blocks into pieces of at most budget characters; a single block longer than that gets a piece of its own.
   const pieces: string[] = [];

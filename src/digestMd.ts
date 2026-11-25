@@ -7,6 +7,8 @@ export const EXPORT_DIR = ['docs', 'history', 'chats'];
 export const INDEX_NAME = 'INDEX.md';
 /** Title of the Build command, named by messages that send the owner there; the one copy, shared by the host and the timeline text. */
 export const BUILD_TITLE = 'Saropa: Build Session Digests';
+/** Title of the timeline command (package.json says the same), named in the timeline's "no longer available" fallback. */
+export const TIMELINE_TITLE = 'Saropa: Show Decisions Timeline';
 const SLUG_MAX = 60;
 
 /** Short labels for the digest notes; one place, shared by the Markdown and the card text the host builds. */
