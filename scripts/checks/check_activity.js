@@ -85,7 +85,15 @@ check('page has no emoji', !/\p{Extended_Pictographic}/u.test(page));
 check('page has a polite caption line with reserved height, throttled to 2 a second', page.includes('id="cap" aria-live="polite"') && /#cap\{[^}]*height:1\.4em/.test(page) && page.includes('500 - (Date.now() - capAt)'));
 check('page uses the error color with a dashed shape cue, and a ripple and busy ring', page.includes('--vscode-editorError-foreground,var(--vscode-errorForeground)') && !page.includes('#f14c4c') && page.includes('stroke-dasharray:3 2') && page.includes('.rip .rp') && page.includes('.busy .br'));
 check('page clears busy on reset and after a safety timeout, and has no external resources', page.includes('function reset()') && page.includes('pend.clear()') && page.includes('600000') && !/https?:\/\//.test(page));
-check('page shows static states with reduced motion', page.includes('.busy .br,.rip .rp{animation:none;}'));
+check('page shows static states with reduced motion', page.includes('.busy .br,.rip .rp,.pill{animation:none;}'));
+check('page has a glowing pill per background kind (shell, agent), hidden until used', ['shell', 'agent'].every((k) => page.includes('class="pill" data-k="' + k + '"')) && page.includes('@keyframes pill') && page.includes("v.t === 'bg'"));
+const { feed: bgFeed } = require('../../out/bgAgents');
+const open = new Map();
+bgFeed(open, '{"toolUseResult":{"backgroundTaskId":"b1"}}');
+bgFeed(open, '{"toolUseResult":{"status":"async_launched","agentId":"a1"}}');
+check('background launches are tracked by kind', open.get('b1') === 'shell' && open.get('a1') === 'agent');
+bgFeed(open, '<task-notification><task-id>b1</task-id>');
+check('a finish notice removes the task', !open.has('b1') && open.has('a1'));
 
 const fast = activityHtml(2000);
 check('fade value reaches the page: CSS custom property, animations and timer', page.includes(':root{--fade:4000ms;}') && fast.includes(':root{--fade:2000ms;}') && fast.includes('let fade = 2000;') && fast.includes('calm.matches ? 600 : fade') && page.includes('animation:glow var(--fade)') && !/animation:[a-z]+ 4s/.test(page));

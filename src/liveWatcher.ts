@@ -96,5 +96,8 @@ export class LiveWatcher {
   /** Ids of live sessions whose process belongs to this window. */
   get hereIds(): string[] { return [...this.win].filter(([, w]) => w === 'this').map(([id]) => id); }
 
+  /** Ids of every live session of every window, for the all-chats Activity mode. */
+  get liveIds(): string[] { return [...this.live.keys()]; }
+
   dispose(): void { clearInterval(this.timer); }
 }

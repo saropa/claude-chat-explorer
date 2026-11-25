@@ -3,12 +3,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const MAX_CHUNK = 8 * 1024 * 1024; // bytes read per poll per chat; a bigger gap is read over later polls
-const LAUNCH_ID = /"toolUseResult":\{.*?"(?:agentId|backgroundTaskId)":"(\w+)"/;
+const LAUNCH_ID = /"toolUseResult":\{.*?"(agentId|backgroundTaskId)":"(\w+)"/;
+/** What a background task is: an agent (launch carries `agentId`) or a shell command (launch carries `backgroundTaskId`). */
+export type BgKind = 'shell' | 'agent';
 const IS_LAUNCH = /"status":"async_launched"|"backgroundTaskId":"/;
 
-interface Track { size: number; open: Set<string>; tail: string; }
+interface Track { size: number; open: Map<string, BgKind>; tail: string; }
 
-/** Task ids launched in the background and not yet finished, per transcript; read incrementally so a poll only reads new bytes. */
+/** Task ids (with their kind) launched in the background and not yet finished, per transcript; read incrementally so a poll only reads new bytes. */
 export class BgTracker {
   private readonly tracks = new Map<string, Track>();
   private readonly files = new Map<string, string>();
@@ -42,11 +44,11 @@ export class BgTracker {
   }
 
   /** Task ids launched and not finished in one transcript. */
-  async scan(file: string): Promise<Set<string>> {
+  async scan(file: string): Promise<Map<string, BgKind>> {
     let t = this.tracks.get(file);
     try {
       const size = (await fs.promises.stat(file)).size;
-      if (!t || size < t.size) { t = { size: 0, open: new Set(), tail: '' }; this.tracks.set(file, t); } // new or rewritten file: read from the start
+      if (!t || size < t.size) { t = { size: 0, open: new Map(), tail: '' }; this.tracks.set(file, t); } // new or rewritten file: read from the start
       if (size === t.size) { return t.open; }
       const len = Math.min(size - t.size, MAX_CHUNK), buf = Buffer.alloc(len);
       const fh = await fs.promises.open(file, 'r');
@@ -56,18 +58,18 @@ export class BgTracker {
       t.tail = lines.pop() ?? ''; // an unfinished last line waits for the next read
       lines.forEach((l) => feed(t!.open, l));
     } catch { /* unreadable: keep what was known */ }
-    return t?.open ?? new Set();
+    return t?.open ?? new Map();
   }
 }
 
 /** Apply one transcript line: a launch adds its task id, a task-notification removes the ids it names. */
-export function feed(open: Set<string>, line: string): void {
+export function feed(open: Map<string, BgKind>, line: string): void {
   if (line.includes('<task-notification>')) {
     for (const m of line.matchAll(/<task-id>(\w+)<\/task-id>/g)) { open.delete(m[1]); }
     return;
   }
   if (line.includes('"toolUseResult"') && IS_LAUNCH.test(line)) {
     const m = LAUNCH_ID.exec(line);
-    if (m) { open.add(m[1]); }
+    if (m) { open.set(m[2], m[1] === 'agentId' ? 'agent' : 'shell'); } // the key name tells agents from shells
   }
 }

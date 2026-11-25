@@ -1,5 +1,5 @@
 /** The Activity section of the session list page: a collapsible header and the diagram below it (drawn inside a shadow root, see activitySection). */
-import { activitySection, diagramSvg } from './activityHtml';
+import { activitySection, diagramSvg, pillsHtml } from './activityHtml';
 
 /** Page CSS for the section frame only; the diagram's own CSS lives inside its shadow root. */
 export const ACT_CSS = `
@@ -32,7 +32,7 @@ const root = host.attachShadow({ mode: 'open' });
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(${JSON.stringify(s.css)});
 root.adoptedStyleSheets = [sheet];
-root.innerHTML = ${JSON.stringify(diagramSvg() + '<div id="cap" aria-live="polite"></div>')};
+root.innerHTML = ${JSON.stringify(diagramSvg() + pillsHtml() + '<div id="cap" aria-live="polite"></div>')};
 host.style.setProperty('--fade', '${fadeMs}ms');
 ${s.script}
 })();`; // the collapse toggle itself (secSet) lives in the list page's layout script, which also restores the saved state

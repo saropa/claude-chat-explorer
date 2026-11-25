@@ -2,6 +2,10 @@
 
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
+## 1.0.0
+- Fixed: the Activity diagram showed nothing while Claude waited on a background shell or agent. A glowing pill (terminal icon for shells, agent icon for agents, with a count when several) now shows under the diagram until the task finishes.
+- Fixed: PowerShell tool calls lit Control instead of Terminal; they now light Terminal and show the same caption as Bash.
+
 ## 0.49.0
 - Added: drag the splitter above Activity to resize it vertically (arrow keys work too, double-click resets); height is remembered per workspace
 

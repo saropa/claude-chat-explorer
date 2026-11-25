@@ -37,19 +37,36 @@ export class ActivityFeed {
   private subSince = 0;
   private subScan = 0;
   private readonly pending = new Map<string, Group>(); // calls in flight: tool call id to group, so a failed result finds its node; cleared with the position
-  private readonly files = new BgTracker(projectsRoot());
+  private bgKey = '0,0'; // shell,agent counts last reported to the page; the page forgets them on a chat switch, so this resets with the position
 
-  /** `lookGapMs`: the least time between searches of the projects folder for a log that does not exist yet. */
-  constructor(private readonly lookGapMs = 2000, private readonly scanGapMs = SUB_SCAN_MS) {}
+  /**
+   * `lookGapMs`: the least time between searches of the projects folder for a log that does not exist yet.
+   * `files`: the transcript locator; the all-chats mode shares one between its feeds so the projects folder is searched once, not once per chat.
+   */
+  constructor(private readonly lookGapMs = 2000, private readonly scanGapMs = SUB_SCAN_MS, private readonly files: BgTracker = new BgTracker(projectsRoot())) {}
 
   /** Forget the position: the next check only marks the end of the log, so nothing that arrived meanwhile flashes. */
-  mark(): void { this.gen++; this.id = ''; this.size = 0; this.tail = Buffer.alloc(0); this.missing = undefined; this.pending.clear(); }
+  mark(): void { this.gen++; this.id = ''; this.size = 0; this.tail = Buffer.alloc(0); this.missing = undefined; this.pending.clear(); this.bgKey = '0,0'; }
 
   /** New events (flashes, captions, busy and waiting states) of the chat `id` since the last call. The first call for a chat (open or switch) only marks its end, so nothing replays. */
   async check(id: string): Promise<ActivityEvent[]> {
-    if (id !== this.reqId) { this.reqId = id; this.gen++; }
-    const [main, sub] = await Promise.all([this.checkMain(id), this.checkSubs(id, this.gen)]);
-    return main.concat(sub);
+    if (id !== this.reqId) { this.reqId = id; this.gen++; this.bgKey = '0,0'; }
+    const [main, sub, bg] = await Promise.all([this.checkMain(id), this.checkSubs(id, this.gen), this.checkBg(id, this.gen)]);
+    return main.concat(sub, bg);
+  }
+
+  /**
+   * Reports how many background shells and agents are still running whenever either count changes. Without this the diagram sat completely still while Claude
+   * waited on a background task: the launching call had already returned and nothing is appended to the chat log until the task finishes.
+   */
+  private async checkBg(id: string, gen: number): Promise<ActivityEvent[]> {
+    if (!id) { return []; }
+    const file = await this.files.fileOf(id);
+    if (!file) { return []; }
+    const kinds = [...(await this.files.scan(file)).values()], shell = kinds.filter((k) => k === 'shell').length, agent = kinds.length - shell, key = shell + ',' + agent;
+    if (gen !== this.gen || key === this.bgKey) { return []; } // a stale check writes nothing; unchanged counts are not re-sent
+    this.bgKey = key;
+    return [{ t: 'bg', shell, agent }];
   }
 
   /** Tool calls and messages of the chat's sub-agents since the last call. Every log found is registered: one born before the first look (or with an unknown birth time) is marked at its end, a later one is read from its start. A folder scan (readdir, stat) runs at most every 2 s; each call only re-stats the recently written, at most 8. */
@@ -123,4 +140,25 @@ export class ActivityFeed {
       return r.lines.flatMap((l) => eventsOf(l, this.pending));
     } catch { return []; }
   }
+}
+
+/** Most chats tailed at once in the all-chats mode: each costs a stat per refresh, so the number is capped. */
+export const ALL_CHATS_MAX = 8;
+
+/** The chats to tail in the all-chats mode: the current chat first (its waiting state and caption are shown), then the other live ones, at most `max`. */
+export function tailIds(current: string, live: readonly string[], max = ALL_CHATS_MAX): string[] {
+  const rest = live.filter((id) => id && id !== current);
+  return (current ? [current, ...rest] : rest).slice(0, max);
+}
+
+/** An event with the chat it came from and that chat's colour, so the page can glow it in that colour and keep each chat's own state apart. */
+export type TaggedEvent = ActivityEvent & { ch: string; col: string };
+
+/**
+ * Tags the events of one chat for the all-chats page. Only the current chat keeps its captions, busy rings and waiting states: the page holds
+ * one of each, and showing the newest of several chats' captions would make them flicker. Every chat keeps its flashes, sub-agent flashes and
+ * background-task counts, which is the overview this mode is for.
+ */
+export function tagEvents(events: ActivityEvent[], ch: string, col: string, isCurrent: boolean): TaggedEvent[] {
+  return events.filter((e) => isCurrent || e.t === 'flash' || e.t === 'sub' || e.t === 'bg').map((e) => ({ ...e, ch, col }));
 }

@@ -16,7 +16,8 @@ const isMemoryPath = (p: unknown): boolean => {
 export function toolGroup(name: string, input?: { file_path?: unknown; path?: unknown }): Group {
   if (name === 'Read' && (isMemoryPath(input?.file_path) || isMemoryPath(input?.path))) { return 'memory'; }
   if (FILES.has(name)) { return 'files'; }
-  if (name === 'Bash') { return 'terminal'; }
+  // PowerShell is the Windows shell tool: without it every PowerShell call landed on Control, so shell work never lit Terminal.
+  if (name === 'Bash' || name === 'PowerShell') { return 'terminal'; }
   if (name === 'WebSearch' || name === 'WebFetch') { return 'web'; }
   if (AGENTS.has(name)) { return 'agents'; }
   if (name === 'AskUserQuestion') { return 'chat'; }
@@ -32,7 +33,8 @@ export type ActivityEvent =
   | { t: 'end'; id: string; g: Group }
   | { t: 'wait'; g: 'think' | 'chat' }
   | { t: 'wake' }
-  | { t: 'sub'; g: Group };
+  | { t: 'sub'; g: Group }
+  | { t: 'bg'; shell: number; agent: number }; // background shells and agents still running; 0 hides that pill
 
 const CAPTION_MAX = 80, PENDING_MAX = 200;
 const clip = (s: string): string => { const t = Array.from(s.replace(/\s+/g, ' ').trim()); return t.length > CAPTION_MAX ? t.slice(0, CAPTION_MAX - 1).join('') + '…' : t.join(''); };
@@ -50,7 +52,7 @@ const commandLine = (cmd: unknown): string => {
 export function captionOf(name: string, input: any): string {
   const i = input ?? {};
   let t = '';
-  if (name === 'Bash') { t = str(i.description) ? 'Running: ' + str(i.description) : commandLine(i.command); }
+  if (name === 'Bash' || name === 'PowerShell') { t = str(i.description) ? 'Running: ' + str(i.description) : commandLine(i.command); }
   else if (name === 'Read' || name === 'Edit' || name === 'Write' || name === 'NotebookEdit') { const f = base(i.file_path ?? i.notebook_path); t = f && (name === 'Read' ? 'Reading ' : name === 'Write' ? 'Writing ' : 'Editing ') + f; }
   else if (name === 'Grep' || name === 'Glob') { t = 'Searching files'; }
   else if (name === 'WebSearch') { t = str(i.query) && 'Searching the web: ' + str(i.query); }

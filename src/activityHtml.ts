@@ -48,6 +48,14 @@ export function diagramSvg(): string {
     + `<g class="grp" data-g="think"><circle class="rp" cx="${C}" cy="${C}" r="${CR}"/><circle class="core" cx="${C}" cy="${C}" r="${CR}"/><circle class="sh" cx="${C}" cy="${C}" r="${CR}"/>${icon('lightbulb', C, C - 6, 14)}<text x="${C}" y="${C + 8}" text-anchor="middle">Claude</text></g></svg>`;
 }
 
+/** Kinds of background task shown as pills: icon only (the tooltip names it), each hidden until a task of that kind runs. */
+const PILLS: { k: string; icon: string; label: string }[] = [{ k: 'shell', icon: 'terminal', label: 'Background shell' }, { k: 'agent', icon: 'hubot', label: 'Background agent' }];
+
+/** The pill row under the diagram. Pills glow while their task runs, so a long quiet stretch does not read as a locked-up diagram. */
+export function pillsHtml(): string {
+  return '<div id="bg">' + PILLS.map((p) => `<span class="pill" data-k="${p.k}" title="${p.label}" data-l="${p.label}" hidden>${icon(p.icon, 8, 8, 12)}<b></b></span>`).join('') + '</div>';
+}
+
 const HOT = 'var(--hl)'; // the flash color: the link color, or the error color on a group marked .err
 const CSS = `
 :root{--hl:var(--vscode-textLink-foreground);}
@@ -83,6 +91,12 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .wait .nd,.wait .core{stroke:var(--hl);stroke-opacity:.7;}
 .rip .rp{animation:rip 1.8s ease-out;transform-box:fill-box;transform-origin:center;}
 .vscode-high-contrast .wait .nd,.vscode-high-contrast .wait .core,.vscode-high-contrast-light .wait .nd,.vscode-high-contrast-light .wait .core{stroke:var(--hl);stroke-opacity:1;stroke-width:2;}
+#bg{display:flex;justify-content:center;gap:6px;margin:6px auto 0;min-height:20px;}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:10px;font-size:11px;border:1px solid var(--hl);color:var(--hl);background:color-mix(in srgb,var(--hl) 12%,transparent);animation:pill 2s ease-in-out infinite;}
+.pill[hidden]{display:none;}
+.pill .ic{position:static;width:12px;height:12px;opacity:1;}
+.pill b{font-weight:normal;}
+@keyframes pill{0%,100%{box-shadow:0 0 0 0 transparent;opacity:.75;}50%{box-shadow:0 0 6px 1px var(--hl);opacity:1;}}
 #cap{max-width:300px;height:1.4em;line-height:1.4em;margin:6px auto 0;font-size:11px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.8;}
 .hold{filter:drop-shadow(0 0 4px ${HOT});}
 .hold .core{stroke:${HOT};stroke-opacity:1;stroke-width:1.75;fill:${HOT};fill-opacity:.4;}
@@ -100,7 +114,7 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 @keyframes ic{from{color:${HOT};opacity:1;}}
 @keyframes tx{from{fill:${HOT};fill-opacity:1;}}
 @media (prefers-reduced-motion:reduce){
-.busy .br,.rip .rp{animation:none;}
+.busy .br,.rip .rp,.pill{animation:none;}
 .busy .br{stroke-opacity:.4;}
 .vscode-high-contrast .busy .br,.vscode-high-contrast-light .busy .br{stroke-opacity:1;}
 .hot,.cn.hot,.hot .ln,.hot .nd,.hot .core,.hot .ic,.hot text{animation:none;}
@@ -123,6 +137,15 @@ const core = document.querySelector('.grp[data-g="think"]');
 const cap = document.getElementById('cap');
 const grp = (g) => document.querySelector('.grp[data-g="' + g + '"]');
 let last = '', capText = '', capAt = 0, capTimer = 0;
+// Background tasks: a glowing pill per running kind (shell, agent), with a count when there are several. They are separate from the flashes, which only mark calls as they happen.
+function pills(m) {
+  document.querySelectorAll('.pill').forEach((p) => {
+    const n = Number(m[p.dataset.k]) || 0;
+    p.hidden = !n;
+    p.querySelector('b').textContent = n > 1 ? String(n) : '';
+    p.title = p.dataset.l + (n > 1 ? 's: ' + n : '');
+  });
+}
 function pulse(el, key, err) {
   el.classList.remove('hot', 'hold', 'err', 'sb');
   void el.getBoundingClientRect();
@@ -140,8 +163,7 @@ function endCall(id) {
   const p = pend.get(id);
   if (!p) { return; }
   clearTimeout(p.t); pend.delete(id);
-  grp(p.g).classList.toggle('busy', [...pend.values()].some((q) => q.g === p.g));
-}
+  grp(p.g).classList.toggle('busy', [...pend.values()].some((q) => q.g === p.g));}
 function startCall(id, g) {
   endCall(id);
   pend.set(id, { g, t: setTimeout(() => endCall(id), 600000) });
@@ -152,6 +174,7 @@ function reset() {
   for (const p of pend.values()) { clearTimeout(p.t); }
   pend.clear();
   document.querySelectorAll('.busy, .wait, .rip, .err').forEach((el) => el.classList.remove('busy', 'wait', 'rip', 'err'));
+  pills({}); // the feed re-reports the new chat's background tasks on its next check
   clearTimeout(capTimer); capTimer = 0; capAt = 0; cap.textContent = ''; last = '';
 }
 // Waiting for you: one ripple from the core (none with reduced motion), then a quiet outline until the next message.
@@ -203,6 +226,8 @@ addEventListener('message', (e) => {
     else if (v.t === 'end') { endCall(v.id); if (v.g === 'chat') { grp('chat').classList.remove('wait'); } if (!pend.size) { caption(''); } }
     else if (v.t === 'wait' && grp(v.g)) { wait(v.g); }
     else if (v.t === 'wake') { last = ''; document.querySelectorAll('.wait').forEach((el) => el.classList.remove('wait', 'rip')); caption(''); }
+    // bg: the core breathes only for background tasks (no tool call is ever attributed to it)
+    else if (v.t === 'bg') { pills(v); }
   }
 });`;
 
@@ -231,5 +256,5 @@ export function activityHtml(fadeMs = 4000): string {
   const nonce = randomBytes(18).toString('base64url');
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Activity</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">:root{--fade:${fadeMs}ms;}${CSS}</style></head><body>${diagramSvg()}<div id="cap" aria-live="polite"></div><script nonce="${nonce}">${SCRIPT.replace('__FADE__', String(fadeMs))}</script></body></html>`;
+<style nonce="${nonce}">:root{--fade:${fadeMs}ms;}${CSS}</style></head><body>${diagramSvg()}${pillsHtml()}<div id="cap" aria-live="polite"></div><script nonce="${nonce}">${SCRIPT.replace('__FADE__', String(fadeMs))}</script></body></html>`;
 }

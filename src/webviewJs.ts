@@ -23,7 +23,7 @@ const q=$('q'),all=$('all'),subs=$('subs'),arc=$('arc'),when=$('when'),sort={val
 const flags={cs:$('cs'),ww:$('ww'),any:$('any'),re:$('re')};
 let timer,history=[],hasResults=false,busy=false,acc=[],prog=null,lastRs=[],lastMsg='',ix=null,dirty=false,sn=0,stale=false,lastQ='',sessOn=false,sess=null,sessTimer;
 const ixb=$('ixb'),ixt=$('ixt');
-let pins=new Set(),tags={},pinned=[],open=new Set(),ex={},col=new Set(),arch=new Set(),dots={},archOpen=false,curId='';
+let pins=new Set(),tags={},pinned=[],open=new Set(),ex={},col=new Set(),arch=new Set(),dots={},archOpen=false,curId='',ccol={};
 function cur(){return{query:q.value.trim(),all:all.checked,subs:subs.checked,arc:arc.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),any:flags.any.classList.contains('on'),re:flags.re.classList.contains('on'),when:when.value,last:+msgSel.value,from:frm.value,sort:sort.value};}
 function setFlag(k,v){flags[k].classList.toggle('on',!!v);flags[k].setAttribute('aria-pressed',v?'true':'false');const rx=flags.re.classList.contains('on');flags.any.disabled=rx;flags.any.title=rx?'Match any order is off while regular expressions are on':'Match words in any order (Alt+O)';}
 function showErr(m){err.style.display=m?'block':'none';err.textContent=m||'';q.classList.toggle('bad',!!m);}
@@ -135,6 +135,7 @@ else if(d.type==='indexed'){ix=null;showIx();if(dirty){dirty=false;go();}}
 else if(d.type==='history'){history=d.history||[];histIdx=-1;if(!history.length)lastRec='';ahSync();}
 else if(d.type==='sessions'){if(d.sn!==sn)return;sess={rows:d.rows||[],total:d.total||0,arch:d.arch||[],archTotal:d.archTotal||0};capN=d.max||capN;rerender();}
 else if(d.type==='dots'){dots=d.map||{};curId=d.cur||'';document.documentElement.classList.toggle('noanim',d.anim===false);rerender();}
+else if(d.type==='chatColors'){ccol=d.map||{};rerender();}
 else if(d.type==='ctxlines'){document.documentElement.style.setProperty('--ctxl',String(d.n>=1&&d.n<=4?Math.round(d.n):1));rerender();}
 else if(d.type==='ring'){ringMax=d.max>0?d.max:300000;rerender();}
 else if(d.type==='setQuery'){q.value=d.query||'';histIdx=-1;go();}

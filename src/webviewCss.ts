@@ -56,6 +56,8 @@ input.bad{border-color:var(--vscode-inputValidation-errorBorder)}
 .r.cur>.rh{background:var(--vscode-list-inactiveSelectionBackground);color:var(--vscode-list-inactiveSelectionForeground)}
 html:not(.nf) .r.cur>.rh{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}
 .r.cur .hd .t{font-weight:600}
+/* All-chats Activity mode: the chat's colour as a bar on the left edge of its row (same colour as its glow on the diagram) */
+.r.cc>.rh{box-shadow:inset 3px 0 0 var(--cc)}
 .r:focus-visible>.rh,.rr:focus-visible{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}
 .hd,.rr{display:flex;align-items:center;gap:6px;min-height:28px;padding:0 8px 0 10px;cursor:pointer;box-sizing:border-box}
 .rr{min-height:24px;padding-left:2px;}
