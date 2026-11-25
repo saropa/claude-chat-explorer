@@ -8,6 +8,7 @@ plans/**
 .git/**
 .github/**
 .vscode/**
+.claude/**
 .gitignore
 out/**/*.map
 **/__pycache__/**
