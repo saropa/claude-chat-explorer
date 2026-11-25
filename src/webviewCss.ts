@@ -65,7 +65,8 @@ html:not(.nf) .r.cur>.rh{background:var(--vscode-list-activeSelectionBackground)
 .dot{--dc:var(--vscode-descriptionForeground,#9d9d9d);width:8px;height:8px;border-radius:50%;flex:none;box-sizing:border-box;background:var(--dc)}
 .dot.idle{opacity:.4}
 .dot.none{visibility:hidden}
-.rh:hover .hd .rc,.r:focus-within .hd .rc{visibility:hidden}
+/* Hover/focus hides the row meta so the action buttons can use that space, but not the ring slot: it holds the status dot, which must stay visible (and keep its tooltip) while the row is hovered or focused. */
+.rh:hover .hd .rc>:not(.rs),.r:focus-within .hd .rc>:not(.rs){visibility:hidden}
 .dot,.rs{--k-running:#89d185;--k-waiting:#3b82f6;--k-unread:#d97757;--k-background:#b180d7;--k-idle:#9d9d9d}
 .dot.running{--dc:var(--k-running)}
 .dot.waiting{--dc:var(--k-waiting)}
@@ -75,12 +76,13 @@ html:not(.nf) .r.cur>.rh{background:var(--vscode-list-activeSelectionBackground)
 .pj{flex:none;max-width:25%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--vscode-descriptionForeground)}
 .tm{flex:none;min-width:22px;text-align:right;font-size:calc(var(--vscode-font-size) - 2px);color:var(--vscode-descriptionForeground)}
 .r:focus-visible>.rh .tm,.r:focus-visible>.rh .s,.r:focus-visible>.rh .pj,.rr:focus-visible .tm{color:inherit;opacity:.85}
-.hd{--cw:16px;position:relative;padding-right:4px}
-.ia{display:none;position:absolute;right:calc(var(--cw) + 6px);top:50%;transform:translateY(-50%);align-items:center;gap:2px}
+/* --rw: the ring slot (16px) plus the .rc gap (6px). The hover actions and chevron sit that far left so they never cover the always-visible slot at the right end. */
+.hd{--cw:16px;--rw:22px;position:relative;padding-right:4px}
+.ia{display:none;position:absolute;right:calc(var(--cw) + 6px + var(--rw));top:50%;transform:translateY(-50%);align-items:center;gap:2px}
 .rh:hover .ia,.r:focus-within .ia{display:flex}
 .rh:hover .hd .t,.r:focus-within .hd .t{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 78px),transparent calc(100% - 60px));mask-image:linear-gradient(to right,#000 calc(100% - 78px),transparent calc(100% - 60px))}
 .ic{display:inline-flex;align-items:center;justify-content:center;flex:none;width:18px;height:18px;padding:0;border:none;border-radius:3px;background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;line-height:1}
-.ic[data-a=exp]{width:var(--cw);height:24px;position:absolute;right:4px;top:50%;transform:translateY(-50%);opacity:0}
+.ic[data-a=exp]{width:var(--cw);height:24px;position:absolute;right:calc(4px + var(--rw));top:50%;transform:translateY(-50%);opacity:0}
 .rh:hover .ic[data-a=exp],.r:focus-within .ic[data-a=exp],.ic[data-a=exp]:focus-visible{opacity:1}
 .ic:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 .ic.tg svg{width:13px;height:13px}

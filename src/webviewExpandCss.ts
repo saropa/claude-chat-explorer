@@ -7,10 +7,12 @@ const BASE = String.raw`
 .r.open .hd .ic.ar,.r.open .hd .ic.pn,.r.open .mt .gi,.r.open .rh>.chips{display:none}
 .r.open .hd{align-items:flex-start}
 .r.open .hd .t{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;padding:4px 0;-webkit-mask-image:none;mask-image:none}
-.r.open .hd .dot{margin-top:10px}
+/* Open rows align the header to the top: drop the meta group (ring slot) 6px so it lines up with the first title line. The dot itself is not offset, or it would leave the ring hole. */
+.r.open .hd .rc{margin-top:6px}
 .r.open .hd .ia{display:flex;position:static;transform:none;margin-top:5px}
 .r.open .hd .ic[data-a=exp]{margin-top:2px;position:static;transform:none;opacity:1}
-.ex{display:flex;flex-direction:column;gap:13px;margin:0;padding:4px 8px 10px 23px;border:0;cursor:default}
+/* Left padding matches the open header (9px) so the panel lines up with the title; it was 23px when the dot sat at the left. */
+.ex{display:flex;flex-direction:column;gap:13px;margin:0;padding:4px 8px 10px 9px;border:0;cursor:default}
 .xca,.xcl,.xcb{display:contents}
 .xa{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
 .xb{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 6px;border:1px solid transparent;border-radius:3px;background:transparent;color:var(--vscode-foreground);font:inherit;cursor:pointer;white-space:nowrap}

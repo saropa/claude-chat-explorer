@@ -24,6 +24,23 @@ check('tooltip adds the cumulative total line only when r.tok exists', /\nTotal 
 check('no inline style attribute in the ring', !/style=/.test(a));
 check('ring CSS uses theme variables and has warning and error colors', /\.rg\.rw/.test(CTX_CSS) && /\.rg\.re/.test(CTX_CSS) && /--vscode-editorWarning-foreground/.test(CTX_CSS) && /--vscode-editorError-foreground/.test(CTX_CSS));
 
+// Ring slot: the status dot sits inside the ring at the right end of the row. slotHtml needs dots/decorated/dotAttrs/dotHtml from
+// the shared webview scope, so they are stubbed here with the real dotAttrs from group.js.
+const { dotAttrs } = require(path.join(OUT, 'group.js'));
+const makeSlot = new Function('esc', 'tokTotalText', 'dots', 'decorated', 'dotAttrs', 'dotHtml',
+  'return (function(){' + CTX_JS + '\nreturn {slotHtml, setMax(n){ringMax=n;}};})()');
+const dots = { live: { s: 'running' }, multi: { s: 'waiting', also: ['running'] } };
+const slot = makeSlot((x) => String(x), () => '', dots, (r) => !!dots[r.id], dotAttrs, (id) => '<span ' + dotAttrs(dots[id]) + '></span>');
+slot.setMax(300000);
+const live = slot.slotHtml({ id: 'live', ctx: { tokens: 150000 } });
+// Before: the dot rendered at the row's left and the ring had no state. After: one slot holds the ring then the dot, carrying the dot's state classes.
+check('slot copies the live dot state and holds the ring before the dot', /^<span class="rs running"/.test(live) && live.indexOf('class="rg') < live.indexOf('class="dot running'));
+check('slot copies multi-state classes so the ring alternates with the dot', /^<span class="rs waiting m2 [^"]*c1-waiting[^"]*c2-running/.test(slot.slotHtml({ id: 'multi' })));
+check('an undecorated row with no context data still renders an empty slot (keeps the column aligned)', slot.slotHtml({ id: 'none' }) === '<span class="rs"></span>');
+check('live states tint the ring segment and outrank warn/error', ['running', 'waiting', 'unread', 'background'].every((k) => CTX_CSS.includes('.rs.' + k + ' .rg .rf{stroke:var(--k-' + k + ')}')));
+const rowCss = Object.values(require(path.join(OUT, 'webviewCss.js'))).join('');
+check('hover hides the row meta but never the ring slot (the dot stays visible)', /\.rh:hover \.hd \.rc>:not\(\.rs\)/.test(rowCss) && !/\.rh:hover \.hd \.rc[,{]/.test(rowCss));
+
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const set = pkg.contributes.configuration.properties['saropaChats.contextRingTokens'];
 check('contextRingTokens is a number, default 300000, minimum 10000', !!set && set.type === 'number' && set.default === 300000 && set.minimum === 10000);
