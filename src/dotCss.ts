@@ -1,6 +1,7 @@
 /** Dot animation shared by both webviews: a throb for active states (a waiting dot instead bounces once for 0.6s of an 8.6s cycle, so it stays quiet), an alternating color cycle when a chat has two or three states at once (classes m2, m3; colors in --c1..--c3, set by the c1-, c2-, c3- state classes because the CSP forbids inline styles). The noanim class (the setting) and prefers-reduced-motion switch it all off, leaving the plain primary color. */
 const KEYS = ['waiting', 'running', 'unread', 'background'];
-const SLOTS = [1, 2, 3].map((n) => KEYS.map((k) => `.dot.c${n}-${k},.rs.c${n}-${k}{--c${n}:var(--k-${k})}`).join('')).join('\n');
+/* Separate .dot and .rs rules, not one combined selector: check_dots matches the exact .dot rule text, and the ring slot needs the same colour slots so its segment tracks the dot. */
+const SLOTS = [1, 2, 3].map((n) => KEYS.map((k) => `.dot.c${n}-${k}{--c${n}:var(--k-${k})}.rs.c${n}-${k}{--c${n}:var(--k-${k})}`).join('')).join('\n');
 
 export const DOT_ANIM_CSS = String.raw`
 @keyframes dotThrob{50%{transform:scale(1.15);opacity:.8}}
@@ -17,6 +18,9 @@ export const DOT_ANIM_CSS = String.raw`
 .rs.m2 .rg .rf{animation:ringAlt2 2.4s ease-in-out infinite alternate}
 .rs.m3 .rg .rf{animation:ringAlt3 3.6s ease-in-out infinite}
 .dot.idle,.dot.none{animation:none!important}
-.noanim .dot,.noanim .rs .rf{animation:none!important}
-@media (prefers-reduced-motion:reduce){.dot,.rs .rf{animation:none!important}}
+/* .dot and ring rules kept separate so check_dots can match the exact .dot rule; the ring segment animation is switched off by the same setting and media query */
+.noanim .dot{animation:none!important}
+.noanim .rs .rf{animation:none!important}
+@media (prefers-reduced-motion:reduce){.dot{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.rs .rf{animation:none!important}}
 ` + SLOTS + '\n';
