@@ -3,6 +3,12 @@
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
 ## 1.0.0
+- Added: session digests. "Saropa: Build Session Digests" builds a short record of each session (goal, your decisions, files changed, references, work left open), after a count confirmation, with a cancelable progress notification. Decisions are quoted exactly: answers from the question dialog (with the question) and the messages the AI marks as decisions, each linking to its line in the session file.
+- Added: rows with a digest show a small page marker (hover for the goal, click to open the Digest section), and the expanded card has a Digest section with a Rebuild button.
+- Added: search covers digest text. A session found only by its digest shows the digest line labeled "Digest". New `digest:<text>` token searches digest text only.
+- Added: "Saropa: Rebuild Session Digest" in the row context menu, and "Saropa: Export Session Digests to Project", which writes `docs/history/chats/YYYY-MM-DD_<title>_<id>.md` per session plus `INDEX.md`.
+- Added: settings `saropaChats.digest.auto` (off: rebuild out-of-date digests in the background once a session has been quiet for 10 minutes) and `saropaChats.digest.useAi` (on: Haiku writes the goal and the work left open).
+- Changed: "Open Results in Editor" lists the matching digest lines of a session found only by its digest.
 - Fixed: the Activity diagram showed nothing while Claude waited on a background shell or agent. A glowing pill (terminal icon for shells, agent icon for agents, with a count when several) now shows under the diagram until the task finishes.
 - Fixed: PowerShell tool calls lit Control instead of Terminal; they now light Terminal and show the same caption as Bash.
 

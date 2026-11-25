@@ -62,6 +62,7 @@ Or open the Extensions view, choose `...` then "Install from VSIX...", and pick 
 | `sha:<prefix>` | `sha:a1b2c3d` | Sessions with a commit that starts with it (4 to 40 hex characters). |
 | `pr:<number>` | `pr:#123` | Sessions linked to that PR. `pr:123` works too. |
 | `branch:<text>` | `branch:main` | Sessions with a branch name containing the text, including branches a tool call of the session or its subagents created. |
+| `digest:<text>` | `digest:pricing` | Sessions whose digest holds the text. Digest text only; plain words in the same search still scan the messages. |
 
 - Tokens combine with plain words and with each other.
 - Tokens ignore case. A search needs at least 2 characters.
@@ -143,6 +144,19 @@ The chevron opens the row as a card with an action bar (Resume, Pin, Archive, Ma
 - The card reads the worktree the session (or one of its subagents) created, else the worktree it ran in, else the one for the branch its rows record, else its last folder.
 - One request per section and working folder runs at a time. A section that fails shows a Retry link.
 - Copy hand-over note copies the title, session id, folder, branch, last active time, context percent, matched files and live git state. A part that cannot be read in 5 seconds is written as "not available".
+
+### Session digests
+
+A digest is a short stored record of one session: the goal, your decisions, the files changed, the references and the work left open. Run "Saropa: Build Session Digests" to build them.
+
+- Goal and Left open are written by `claude -p --model haiku`. The AI also picks which of your messages are decisions; the quote is copied exactly from the session, never rewritten.
+- Decisions: "Dialog" answers from the question dialog (with the question beside them) and "Message" decisions. A Message decision links to its line in the session file.
+- Files changed is the complete list, edited files first, including subagents' files. References are URLs, commit hashes, PR numbers and Markdown paths, exactly as written.
+- Rows with a digest show a small page marker; hover it for the goal, click it to open the card at its Digest section. The card's Digest section has a Rebuild button and says when the session changed after the digest was built.
+- Search covers digest text like message text. A session found only by its digest shows the digest line labeled "Digest". `last:` and `from:` searches skip digest text, since a digest is not a message. Archived sessions' digests are searched in Archive scope.
+- Digests are capped at 20 KB (Files changed is never cut). They live in the extension's storage; Claude Code's session files are never written.
+- "Saropa: Export Session Digests to Project" writes `docs/history/chats/YYYY-MM-DD_<title>_<id>.md` for each digest of the open project, plus `INDEX.md`.
+- A session that stopped without a final agent reply is marked "Session ended without a close". When the AI call fails or `claude` is missing, the exact parts are saved and the AI parts are retried on the next build.
 
 ### Organize
 
@@ -227,6 +241,9 @@ One page answers: what is still open in this repository, and what do I do to clo
 | Saropa: Archive Empty and Tiny Sessions | Archives sessions with 0 to 3 messages after a modal count confirmation. Pinned and open sessions are skipped. |
 | Saropa: Copy Resume Command | Copies `cd <folder> && claude --resume <id>`. |
 | Saropa: Export Session as Markdown | Writes one session to a `.md` file through a save dialog. |
+| Saropa: Build Session Digests | Builds a digest for every session with none or an out-of-date one, after a count confirmation. At most 2 `claude` calls run at a time; cancelable. |
+| Saropa: Rebuild Session Digest | Row context menu: rebuilds one session's digest. |
+| Saropa: Export Session Digests to Project | Writes the open project's digests to `docs/history/chats/` with an `INDEX.md`. |
 | Saropa: Find Related Sessions | Searches `file:<path>` for the chosen file. |
 | Saropa Chats: Project Status | Opens the Project Status page. |
 | Saropa Chats: Open Results in Editor | Opens all matches in a read-only editor tab. |
@@ -256,6 +273,8 @@ One page answers: what is still open in this repository, and what do I do to clo
 | `saropaChats.webSessions.enabled` | false | Show Web (cloud) sessions in a Web tab. Unofficial API, uses your Claude Code login token. |
 | `saropaChats.autoTitle.enabled` | false | Name sessions automatically: topic emoji plus the first sentence of the first prompt, renamed once after the third prompt. Skips sessions you named yourself. |
 | `saropaChats.autoTitle.useHaiku` | false | Let `claude -p --model haiku` write the title in the background instead of the rules. Falls back to the rules on failure. |
+| `saropaChats.digest.auto` | false | Rebuild out-of-date digests in the background once the session file has been quiet for 10 minutes and the session is not running. |
+| `saropaChats.digest.useAi` | true | Let `claude -p --model haiku` write the goal and the work left open, and pick the decision messages. Off: digests hold only the exact parts. |
 | `saropaChats.emojiRules` | [] | Your own `{ "emoji": "🐾", "keywords": ["dog", "cat"] }` rules. Same emoji as a built-in rule replaces its keywords; others are added. |
 | `saropaChats.emojiRulesReplaceDefaults` | false | Ignore the built-in emoji rules and use only yours. |
 
