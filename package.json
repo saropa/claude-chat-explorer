@@ -84,6 +84,10 @@
         "title": "Saropa: Open Activity in Browser"
       },
       {
+        "command": "saropaChats.keepWarmSettings",
+        "title": "Saropa Chats: Keep Warm Settings"
+      },
+      {
         "command": "saropaChats.options",
         "title": "Saropa Chats: Options"
       },
@@ -397,7 +401,8 @@
         "saropaChats.keepWarm.enabled": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Keep Claude Code sessions warm. Adds a Stop hook to `~/.claude/settings.json` that pings an idle session after 50 minutes with a short \"warm\" reply, so the 1-hour prompt cache is re-read instead of rewritten at the higher write rate. Stops after 20 pings in a row until a real message is sent. Needs Node.js on the PATH. Off by default: when off, the hook is removed and nothing is written. To pause without changing the hook, create `~/.claude/keepwarm.off` (all projects) or `.claude/keepwarm.off` in a project."
+          "scope": "application",
+          "markdownDescription": "Keep Claude Code sessions warm. Adds a Stop hook to `~/.claude/settings.json` that pings an idle session with a short \"warm\" reply before the 1-hour prompt cache expires, so the cache is re-read instead of rewritten at the higher write rate. Stops after a run of pings until a real message is sent. Needs Node.js on the PATH. Off by default: when off, the hook is removed and nothing is written. To pause without changing the hook, create `~/.claude/keepwarm.off` (all projects) or `.claude/keepwarm.off` in a project."
         },
         "saropaChats.showFileSessionsStatusBar": {
           "type": "boolean",
@@ -581,6 +586,7 @@
     "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "tsc -p .",
     "vscode:prepublish": "npm run clean && npm run compile && node scripts/checks/check_manifest.js && node scripts/checks/check_webview.js && node scripts/checks/check_openwork.js && node scripts/checks/check_scan.js && node scripts/checks/check_prs.js && node scripts/checks/check_prs_e2e.js && node scripts/checks/check_guards.js && node scripts/checks/check_dots.js && node scripts/checks/check_ring.js && node scripts/checks/check_regen.js && node scripts/checks/check_autotitle.js && node scripts/checks/check_autotitle_flag.js && node scripts/checks/check_web.js && node scripts/checks/check_options.js && node scripts/checks/check_claude_config.js && node scripts/checks/check_account.js && node scripts/checks/check_tokens.js && node scripts/checks/check_api.js && node scripts/checks/check_activity.js && node scripts/checks/check_bg.js && node scripts/checks/check_browser.js && node scripts/checks/check_keepwarm.js && node scripts/checks/check_digest.js",
+    "vscode:uninstall": "node ./resources/uninstall_keepwarm.js",
     "package": "npx --yes @vscode/vsce package --allow-missing-repository --skip-license"
   },
   "devDependencies": {

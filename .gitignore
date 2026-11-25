@@ -4,3 +4,6 @@ out
 .DS_Store
 .saropa/
 __pycache__/
+
+# Saropa Capture
+reports/

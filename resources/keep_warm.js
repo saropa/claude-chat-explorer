@@ -13,13 +13,20 @@
  *     state file; the older one exits 0 (silent) on its next poll.
  *   * After IDLE_MINUTES with no transcript activity the watcher exits 2 with an
  *     instruction on stderr; asyncRewake wakes the session and Claude replies
- *     "warm - <time>". That turn's Stop starts the next watcher.
- *   * A reply starting with the warm marker is a ping turn; any other reply is a
- *     real turn and resets the consecutive-ping counter. MAX_PINGS caps a
- *     forgotten session.
+ *     "warm · <time>". That turn's Stop starts the next watcher.
+ *   * Before waking the session the watcher sets pendingPing in the state file.
+ *     The next Stop is a ping turn if the reply starts with the warm marker, OR
+ *     pendingPing is set AND the trimmed reply is at most PING_REPLY_MAX_CHARS long
+ *     (the model may paraphrase the marker, but a paraphrase is short); the flag is
+ *     then cleared. Any other turn (including a long reply after a wake) is a real
+ *     turn and resets the consecutive-ping counter. MAX_PINGS caps a forgotten session.
+ *
+ * Config dir: CLAUDE_CONFIG_DIR when set, else ~/.claude (all paths below are under it).
+ * Heartbeat: every run with valid input writes <config>/saropa-chats/last_run.json
+ * so the extension can warn when Claude Code stops invoking the hook.
  *
  * Off switches (either file disables pings):
- *   * Global:      ~/.claude/keepwarm.off
+ *   * Global:      <config dir>/keepwarm.off (default ~/.claude/keepwarm.off)
  *   * Per project: <session cwd>/.claude/keepwarm.off
  *
  * Port of keep_warm.py to dependency-free Node.js. The Saropa Chats extension
@@ -38,10 +45,16 @@ const MAX_PINGS = 20; // Consecutive pings before waiting for a real message.
 const MAX_RUNTIME_MINUTES = 62; // Watcher self-terminates; must stay under hook timeout.
 const WARM_MARKER = 'warm ·'; // Prefix the ping reply must start with ("warm · ").
 const TAIL_BYTES = 65536; // Transcript tail window searched for the last assistant entry.
-const CLAUDE_DIR = path.join(os.homedir(), '.claude');
+const PING_REPLY_MAX_CHARS = 80; // With pendingPing set, a reply longer than this is a real user turn, not a ping answer.
+const HEARTBEAT_VERSION = 1; // Schema version of last_run.json.
+// Standalone copy of claudeConfigDir() in src/keepWarmSettings.ts: this script runs without the compiled extension,
+// so the rule (CLAUDE_CONFIG_DIR when non-blank, else ~/.claude) is repeated here and must stay in step with it.
+const CLAUDE_DIR = (process.env.CLAUDE_CONFIG_DIR || '').trim() || path.join(os.homedir(), '.claude');
 const STATE_DIR = path.join(CLAUDE_DIR, 'keepwarm');
 const GLOBAL_OFF = path.join(CLAUDE_DIR, 'keepwarm.off');
 const LOG_FILE = path.join(STATE_DIR, 'log.jsonl');
+// Same folder and file name as KEEP_WARM_STABLE_DIR / KEEP_WARM_HEARTBEAT_NAME in src/keepWarmSettings.ts.
+const HEARTBEAT_FILE = path.join(CLAUDE_DIR, 'saropa-chats', 'last_run.json');
 
 /** Promise-based sleep so the watcher does not block the event loop. */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -120,6 +133,16 @@ function log(event) {
   }
 }
 
+/** Record that the hook ran; logging-grade best effort, because a failed heartbeat must not fail the session. */
+function writeHeartbeat() {
+  try {
+    fs.mkdirSync(path.dirname(HEARTBEAT_FILE), { recursive: true });
+    fs.writeFileSync(HEARTBEAT_FILE, JSON.stringify({ t: Date.now(), version: HEARTBEAT_VERSION }), 'utf8');
+  } catch (e) {
+    /* ignored on purpose: the extension only warns when the file is stale */
+  }
+}
+
 /** Read all of stdin as text (the hook payload is one JSON document). */
 function readStdin() {
   return new Promise((resolve) => {
@@ -149,6 +172,9 @@ async function main() {
   if (!data || typeof data !== 'object') {
     return 0; // Valid JSON but not an object: nothing to read a session from.
   }
+  // Heartbeat before every other early exit (remote, missing session id): it proves Claude Code still calls the hook
+  // with a parseable payload, which is exactly what hook-format drift would break.
+  writeHeartbeat();
   const session = data.session_id || '';
   const cwd = data.cwd || '';
   const transcript = data.transcript_path || '';
@@ -162,8 +188,12 @@ async function main() {
   const state = readState(statePath);
 
   // Classify the turn that just ended: ping turn keeps the count, real turn resets.
-  const reply = String(data.last_assistant_message || '').trimStart();
-  const isPingTurn = reply.startsWith(WARM_MARKER);
+  const reply = String(data.last_assistant_message || '').trim();
+  // pendingPing (set by the watcher just before it woke the session) makes the count immune to a reply that is not
+  // exactly "warm · ...": previously a paraphrased reply looked like a real turn, reset the counter and defeated MAX_PINGS.
+  // The length cap fixes the opposite bug: a flag alone also swallowed a long, real reply typed before the ping answer,
+  // so the user's real turn never reset the count. A long reply after a wake is a real user turn.
+  const isPingTurn = reply.startsWith(WARM_MARKER) || (state.pendingPing === true && reply.length <= PING_REPLY_MAX_CHARS);
   const stored = parseInt(state.pings, 10);
   const pings = isPingTurn && Number.isFinite(stored) ? stored : 0;
 
@@ -178,7 +208,7 @@ async function main() {
   }
 
   // Publish a fresh token FIRST so any older watcher retires even when this
-  // session is capped/disabled below.
+  // session is capped/disabled below. pendingPing is deliberately not carried over: one Stop consumes it.
   const token = `${BigInt(Date.now()) * 1000000n + (process.hrtime.bigint() % 1000000n)}-${process.pid}`;
   fs.writeFileSync(statePath, JSON.stringify({ token, pings }), 'utf8');
 
@@ -205,8 +235,8 @@ async function main() {
       lastActive = started;
     }
     if (nowSec() - lastActive >= IDLE_MINUTES * 60) {
-      // Count the ping before waking so a crash cannot cause unbounded pings.
-      fs.writeFileSync(statePath, JSON.stringify({ token, pings: pings + 1 }), 'utf8');
+      // Count the ping and flag it before waking so a crash cannot cause unbounded pings and the next Stop knows it is a ping turn.
+      fs.writeFileSync(statePath, JSON.stringify({ token, pings: pings + 1, pendingPing: true }), 'utf8');
       // Model has no clock, so the script supplies the timestamp.
       const msg = `Keep-warm ping. Reply with exactly "${WARM_MARKER} ${stamp()}" and nothing `
         + 'else. No tools, no file changes, no other text.';

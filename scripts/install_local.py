@@ -13,6 +13,8 @@ Exit codes:
   0 success            3 VSIX_MISSING
   1 PREREQUISITE       4 INSTALL_FAILED
   2 PACKAGE_FAILED     5 VERIFY_FAILED
+
+A failed `npm run package` always exits 2; npm's own exit code is printed in the message.
 """
 
 import argparse
@@ -86,14 +88,15 @@ def find_code_cli(override: str | None) -> str:
     return found
 
 
-def package(vsix: Path) -> None:
+def package() -> None:
     """Build the .vsix via `npm run package` and confirm it exists."""
     print("\n== Package ==")
     res = run(["npm", "run", "package"])
     if res.returncode != 0:
-        # Surface the child's own exit code so callers can tell build failures apart.
-        print(f"  [FAIL] 'npm run package' failed with exit code {res.returncode}")
-        sys.exit(res.returncode or EXIT["PACKAGE_FAILED"])
+        # Bug fix: the script used to exit with npm's own code, which could be 0-adjacent or
+        # collide with this script's other codes (1 PREREQUISITE, 3, 4, 5). Always exit with
+        # the documented PACKAGE_FAILED code and print npm's code in the message instead.
+        fail_exit("PACKAGE_FAILED", f"'npm run package' failed with exit code {res.returncode}")
 
 
 def main() -> None:
@@ -114,7 +117,7 @@ def main() -> None:
     if args.skip_package:
         print("  [INFO] --skip-package: using the existing .vsix")
     else:
-        package(vsix)
+        package()
 
     # Checked even after a successful package: npm can exit 0 without writing the
     # file if the script's output name drifts from package.json.
