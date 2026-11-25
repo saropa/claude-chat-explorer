@@ -1,4 +1,5 @@
 /** Shared types for the index, search, worker and UI layers. */
+import type { Digest } from './digest';
 
 export interface FileRef { path: string; edited: boolean; }
 
@@ -49,7 +50,8 @@ export type From = 'both' | 'you' | 'agent';
 export interface Options { all: boolean; cs: boolean; ww: boolean; re: boolean; any?: boolean; when: string; subs: boolean; arc?: boolean; last: number; from?: From; }
 export interface Abort { aborted: boolean; }
 
-export type TokenKind = 'file' | 'edited' | 'cmd' | 'tag' | 'sha' | 'pr' | 'branch';
+/** digest matches stored digest text only (digest.ts), never the chat's messages. */
+export type TokenKind = 'file' | 'edited' | 'cmd' | 'tag' | 'sha' | 'pr' | 'branch' | 'digest';
 export interface Token { kind: TokenKind; value: string; }
 /** grams: trigram hashes every matching chat must contain (bloom prefilter); empty means no prefilter. last: only the final N messages match (0 = all). from: whose messages match. */
 export interface Compiled { terms: RegExp[]; tokens: Token[]; grams: number[]; last: number; from: From; }
@@ -74,6 +76,8 @@ export interface Result {
   snipAt?: number; snipSub?: string; snipDesc?: string; snipRole?: string; mc?: number; // newest match: time, subagent type and description, role; mc = matching messages (own and subagents)
   subs?: SubResult[]; subTotal?: number;
   touch?: 'edited' | 'read'; // file:/edited: searches: whether the chat edited or only read a matching file
+  dg?: boolean; dgGoal?: string; dgStale?: boolean; // the chat has a digest (list marker), its goal line (marker tooltip) and whether the chat changed since
+  snipDig?: boolean; // the snippet is a digest line: a digest-only hit, labeled "Digest", that opens the card at the Digest section
 }
 
 /** A chat that shares files with another chat. */
@@ -88,4 +92,5 @@ export interface Expanded {
   items: ExpandItem[]; total: number;
   files: Array<{ path: string; edited: boolean }>; commands: string[];
   git: { prs: Array<{ number: number; repository: string }>; commits: Array<{ sha: string; branch: string }>; moreCommits: number };
+  digest?: { d: Digest; stale: boolean } | null; // the stored digest for the card's Digest section (full replies only); null when the chat has none
 }

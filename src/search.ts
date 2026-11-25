@@ -9,13 +9,25 @@ import { projectOf, statFields } from './stats';
 import { touchFields } from './touch';
 import { clampMax, DEFAULT_MAX_RESULTS, HIT_DISPLAY_CAP, newTally, Tally, tallyAdd, totalsOf } from './limits';
 import { Abort, Chat, Compiled, Ctx, Expanded, ExpandItem, Options, Rec, Result, SubResult } from './types';
+import { digestStale, DigestLookup } from './digest';
 
 export const EXPAND_PAGE = 20;
 export const MAX_SUBS = 10; // nested subagent rows sent per parent
 const YIELD_MS = 8;
 
-/** What search needs from the index. */
-export interface Source { tops(): Chat[]; subsOf(p: Chat): Chat[]; rec(c: Chat): Rec; fileOf(c: Chat): string; }
+/** What search needs from the index. digests is the worker's digest cache; without it (tests, other callers) digests are simply not searched. */
+export interface Source { tops(): Chat[]; subsOf(p: Chat): Chat[]; rec(c: Chat): Rec; fileOf(c: Chat): string; digests?: DigestLookup; }
+
+/** List-row marker fields of a chat with a digest: the marker, its goal line for the tooltip, and whether the chat changed since. */
+export function digestMark(ix: Source, c: Chat): Partial<Result> {
+  const e = ix.digests?.get(c.id);
+  if (!e) { return {}; }
+  const out: Partial<Result> = { dg: true };
+  if (e.d.goal) { out.dgGoal = e.d.goal; }
+  // A stale digest still shows its marker; the tooltip says it is out of date so the owner knows to rebuild.
+  if (digestStale(e.d, c)) { out.dgStale = true; }
+  return out;
+}
 export type OnResult = (r: Result | null, done: number, total: number, tally: Tally) => void;
 export type SearchOut = { results: Result[] } & ReturnType<typeof totalsOf>;
 
@@ -93,7 +105,9 @@ export function gitView(sc: Scan, p: Chat, matched: Chat[]): Chat {
 /** Match one parent chat and its subagents; null when nothing matched. */
 export function findIn(sc: Scan, p: Chat): Found | null {
   const subs = sc.o.subs ? subHits(sc, p) : [];
-  const own = matchChat(gitView(sc, p, subs.map(([s]) => s)), sc.c, sc.ctx, p.id, (x) => sc.ix.rec(x), sc.now, topWinOf(sc.c.last, sc.c.from));
+  // The parent's digest also holds its subagents' facts, so a digest hit lands on the parent row only.
+  const dg = sc.ix.digests?.get(p.id)?.lines;
+  const own = matchChat(gitView(sc, p, subs.map(([s]) => s)), sc.c, sc.ctx, p.id, (x) => sc.ix.rec(x), sc.now, topWinOf(sc.c.last, sc.c.from), dg);
   const self = own && p.last >= sc.cutoff ? own : null;
   return self || subs.length ? { p, own: self, subs } : null;
 }
@@ -110,7 +124,7 @@ export function toResult(sc: Scan, f: Found, maxSubs: number = MAX_SUBS): Result
   const r: Result = {
     file: sc.ix.fileOf(p), id: p.id, title: p.title, hits, last: p.last, project: projectOf(p), ...statFields(p, sc.o.subs ? sc.ix.subsOf(p) : []),
     snippet: snip.snippet, ranges: snip.ranges, score: scoreOf(p.title, sc.c.terms, weight, p.last, sc.now), self: !!own,
-    ...shown(p.title, sc.c.terms, 'title'), ...latestFields(lat, own, subs), ...touchFields([p, ...subs.map(([s]) => s)], sc.c, p.last),
+    ...shown(p.title, sc.c.terms, 'title'), ...latestFields(lat, own, subs), ...touchFields([p, ...subs.map(([s]) => s)], sc.c, p.last), ...digestMark(sc.ix, p),
   };
   if (subs.length) { r.subs = subs.slice(0, maxSubs).map(([s, h]) => subResult(sc, s, h)); r.subTotal = subs.length; }
   return r;
@@ -183,7 +197,13 @@ function gitOf(ix: Source, chat: Chat, subs: boolean): Expanded['git'] {
 
 const NO_GIT: Expanded['git'] = { prs: [], commits: [], moreCommits: 0 };
 
-/** Matching messages of a chat and its matching subagents (newest first), plus matched files, commands and Git. lite skips everything but the messages. */
+/** The card's Digest section data: the stored digest and whether it is stale; null when the chat has none. */
+function digestOf(ix: Source, chat: Chat): Expanded['digest'] {
+  const e = ix.digests?.get(chat.id);
+  return e ? { d: e.d, stale: digestStale(e.d, chat) } : null;
+}
+
+/** Matching messages of a chat and its matching subagents (newest first), plus matched files, commands, Git and the digest. lite skips everything but the messages. */
 export function expandChat(ix: Source, chat: Chat, c: Compiled, o: Options, ctx: Ctx, offset: number, lite = false): Expanded {
   const now = Date.now(), cutoff = cutoffOf(o.when);
   const rec = ix.rec(chat);
@@ -204,5 +224,7 @@ export function expandChat(ix: Source, chat: Chat, c: Compiled, o: Options, ctx:
     items: hits.slice(offset, offset + EXPAND_PAGE).map((h) => itemOf(h, c.terms)), total: hits.length,
     files: [...files].slice(0, 50).map(([p, edited]) => ({ path: p, edited })),
     commands: [...commands].slice(0, 50), git: lite ? NO_GIT : gitOf(ix, chat, o.subs),
+    // A lite reply (the "+N more" list) leaves the digest out: the card keeps the one from its full reply.
+    ...(lite ? {} : { digest: digestOf(ix, chat) }),
   };
 }

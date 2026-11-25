@@ -8,6 +8,7 @@ import { chatOf, code, emptyRec } from './recChat';
 import { DIR_PREFIX, FORMAT, isCorrupt, parseRecord, readRecordSync, recName } from './record';
 import { buildFileMap, FileMap, relatedChats } from './related';
 import { Chat, Rec, Related } from './types';
+import type { DigestLookup } from './digest';
 
 const REPARSE_DELAY = 1000;
 const READ_FAILS = 3;
@@ -27,6 +28,8 @@ export abstract class RecReader {
   readonly recDir: string;
   onChange?: () => void;
   onError?: (where: string, e: unknown) => void;
+  /** The worker's digest cache; search and the list rows read digests through it (unset: digests are not searched). */
+  digests?: DigestLookup;
 
   constructor(protected readonly dir: string, readonly root: string) {
     this.recDir = path.join(dir, DIR_PREFIX + FORMAT);

@@ -19,12 +19,12 @@ export function cutoffOf(when: string, now: number = Date.now()): number {
 
 // One left-to-right scan so a quoted phrase is claimed first and "see file:x" stays phrase text.
 // Groups: 1 token kind, 2 quoted token value (an unclosed quote runs to the end), 3 bare token value, 4 last:<n>, 5 from:<who>.
-const SCAN = /(?:^|\s)(?:(file|edited|cmd|tag|sha|pr|branch):(?:"([^"]*)"?|(\S*))|last:(\d+)(?=\s|$)|from:(you|agent|claude|both)(?=\s|$))|"[^"]*(?:"|$)|\S+/gi;
+const SCAN = /(?:^|\s)(?:(file|edited|cmd|tag|sha|pr|branch|digest):(?:"([^"]*)"?|(\S*))|last:(\d+)(?=\s|$)|from:(you|agent|claude|both)(?=\s|$))|"[^"]*(?:"|$)|\S+/gi;
 /** A double-quoted phrase (an unclosed quote runs to the end) or a bare word. */
 const PIECE = /"([^"]*)(?:"|$)|(\S+)/g;
 export const MIN_QUERY_CHARS = 2;
 
-/** Split a query into plain text, file:/edited:/cmd:/tag:/sha:/pr:/branch: tokens (values lowercased), the last:<n> limit (0 = none) and the from:you|agent|both choice (from:claude stays accepted as agent) (undefined = not given). */
+/** Split a query into plain text, file:/edited:/cmd:/tag:/sha:/pr:/branch:/digest: tokens (values lowercased), the last:<n> limit (0 = none) and the from:you|agent|both choice (from:claude stays accepted as agent) (undefined = not given). */
 export function parseQuery(query: string): { plain: string; tokens: Token[]; last: number; from?: From } {
   const tokens: Token[] = [];
   let last = 0, from: From | undefined;
@@ -95,7 +95,7 @@ export function regexLiterals(src: string): string[] {
   return out;
 }
 
-/** Trigrams every match must contain, for the bloom prefilter. */
+/** Trigrams every match must contain, for the bloom prefilter. A digest: value is left out on purpose: the bloom holds only chat text, never digest text. */
 function gramsFor(plain: string, tokens: Token[], o: Options): number[] {
   const q = plain.trim();
   const lits = !q ? [] : o.re ? regexLiterals(q) : o.any ? pieces(q).map((p) => p.text) : phraseOf(q).split(' '); // phrase: whitespace is flexible, so grams per word

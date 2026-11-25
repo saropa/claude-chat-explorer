@@ -18,11 +18,15 @@ import { allChats, allWork, chatBase } from './apiChats';
 import { accountData } from './accountScan';
 import { rowOf, sessionRows } from './sessions';
 import { Abort, Compiled, Ctx, Result } from './types';
+import { DigestCache, digestDir } from './digestStore';
+import { DigestBuilder } from './digestBuild';
+import { AiState } from './digest';
 
 const BATCH_MS = 50;
 const PROGRESS_MS = 100;
 const port = parentPort!;
 let ix: ChatIndex | undefined;
+let digests: DigestBuilder | undefined; // digest builds and the digest cache search reads; set by init beside the index
 let loaded: Promise<void> = Promise.resolve();
 let busy = false; // an index pass is running; searches use what is indexed so far
 let passed = false; // the first index pass has finished
@@ -51,6 +55,10 @@ async function refresh(): Promise<void> {
 async function init(m: any): Promise<void> {
   ix = new ChatIndex(m.dir, m.root || undefined);
   ix.onError = log;
+  // The digest store sits beside the records folder; the index hands its cache to search and the list rows.
+  const cache = new DigestCache(digestDir(m.dir));
+  ix.digests = cache;
+  digests = new DigestBuilder(ix, cache);
   ix.onChange = () => post({ t: 'changed' });
   loaded = ix.load(); // never rejects: the load catches its own errors and falls back to memory
   await loaded;
@@ -200,7 +208,28 @@ async function chatMd(m: any): Promise<unknown> {
   return ix && chat ? { text: chatMarkdown(ix, chat, Date.now()), name: mdName(chat.title, new Date()) } : null;
 }
 
+/** Digest requests from the host: gather (step one), save (step two), the build list, the card, export and invalidation. */
+async function digestRequest(m: any): Promise<unknown> {
+  await loaded;
+  if (!digests) { return undefined; }
+  const id = String(m.chat ?? '');
+  if (m.t === 'digestInput') { return digests.input(id); }
+  if (m.t === 'digestSave') {
+    // Only the three states a build can end in are accepted; anything else from the host is a bug and saves nothing.
+    const st = String(m.state) as AiState;
+    if (!['ok', 'off', 'failed', 'none'].includes(st)) { throw new Error('invalid digest state'); }
+    return digests.save(id, st, st === 'ok' ? m.part : undefined);
+  }
+  if (m.t === 'digestTodo') { return digests.todo(); }
+  if (m.t === 'digestExport') { return digests.exportFor(String(m.folder ?? '')); }
+  if (m.t === 'digestWhere') { return digests.where(id); }
+  // Another window (or this one's host) rebuilt digests: drop the cached copies so the next search reads them fresh.
+  if (m.t === 'digestsChanged') { digests.cache.drop(Array.isArray(m.ids) ? m.ids.filter((x: unknown) => typeof x === 'string') : []); return true; }
+  return undefined;
+}
+
 async function request(m: any): Promise<unknown> {
+  if (typeof m.t === 'string' && m.t.startsWith('digest')) { return digestRequest(m); }
   if (m.t === 'chatCwd') { return cwdOf(m); }
   if (m.t === 'chatFacts') { return factsOf(m); }
   if (m.t === 'chatHits') { return hitsOf(m); }
