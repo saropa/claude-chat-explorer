@@ -26,6 +26,7 @@
         "**/ios/build/**": true,
         "**/ios/Pods/**": true,
         "**/ios/.symlinks/**": true,
-        "**/DerivedData/**": true
+        "**/DerivedData/**": true,
+        "**/.claude/worktrees/**": true
     }
 }

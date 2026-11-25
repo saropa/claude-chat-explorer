@@ -1,6 +1,7 @@
 /** The Activity section of the session list page: a diagram under the session list that flashes a group when the current chat gets a message of that kind. */
+import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { idleText, IdleInfo } from './activityIdle';
+import { IDLE_STRINGS, IdleDot, IdleGate, IdleInfo, cutTitle, idleMsg, isWorking, pickBusiest } from './activityIdle';
 import { ActivityFeed, fadeMsOf, refreshMsOf } from './activityFeed';
 import { AllChatsTracker } from './activityAll';
 import { BgTracker } from './bgAgents';
@@ -8,7 +9,9 @@ import { CHAT_PALETTE, ColorBook } from './chatColors';
 import { projectsRoot } from './files';
 import { guardedWrite } from './staleConfigUi';
 
-const ALL_KEY = 'activity.allChats'; // setting: show every live chat, each in its own colour
+// Setting: show every live chat, each in its own colour. Its manifest default is true; the default only applies when no value is set,
+// so a user, workspace or folder value of `false` written before the default changed still wins (allOn reads the resolved value).
+const ALL_KEY = 'activity.allChats';
 const ALL_CTX = 'saropaChats.activityAll'; // context key mirroring it, so the menu entry shows a check mark
 const COLORS_KEY = 'saropaChats.chatColors'; // globalState key of the persisted chat-to-colour map
 
@@ -33,24 +36,32 @@ function targetOf(key: string): vscode.ConfigurationTarget {
 }
 
 /** What the page host must offer: the Activity section registers itself here to hear about the page being shown or hidden and its section being opened or collapsed. */
-export interface ActivityHost { activity?: { setVisible(v: boolean): void; setOpen(o: boolean): void } }
+export interface ActivityHost { activity?: { setVisible(v: boolean): void; setOpen(o: boolean): void; focusOther?(): Promise<void> } }
+
+/** What a click on the idle caption's "N other chats working" hint needs: the live dots, a title per chat and a way to open a chat. */
+export interface FocusDeps { dots(): { [id: string]: IdleDot }; titleOf(id: string): string; open(id: string): Promise<boolean> } // open: true when the chat was opened
 
 /**
  * `currentId` is the chat of this window; `post` sends a message to the page (wrapped so it cannot collide with the list page's own message types).
  * While the page is visible AND the section is open, one interval (setting `activity.refreshMs`) checks the log for appended bytes; the tab moving also triggers a check.
  * Hidden or collapsed: no interval, no work.
  */
-export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => string, post: (m: unknown) => void, host: ActivityHost, liveIds: () => string[], log: (msg: string) => void = () => undefined, idleInfo: (id: string) => IdleInfo = () => ({ title: '', state: undefined, others: 0 })): { poke(): void; idle(): void; book: ColorBook; files: BgTracker } {
+export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => string, post: (m: unknown) => void, host: ActivityHost, liveIds: () => string[], log: (msg: string) => void = () => undefined, idleInfo: (id: string) => IdleInfo = () => ({ title: '', dot: undefined, others: 0 }), focus?: FocusDeps): { poke(): void; idle(): void; book: ColorBook; files: BgTracker } {
   // One locator for every consumer. A launch line whose task id cannot be read is logged once: the pills would otherwise silently stop working if the log format changed.
   const files = new BgTracker(projectsRoot(), () => log('activity: a background-task launch line has no readable task id; the log format may have changed, so background pills can be missing'));
   const feed = new ActivityFeed(undefined, undefined, files);
   // All-chats mode: a tracker over one feed per tailed chat, sharing the transcript locator, plus the stable chat-to-colour book.
   const book = new ColorBook(ctx.globalState.get(COLORS_KEY), (m) => { void ctx.globalState.update(COLORS_KEY, m); });
   const tracker = new AllChatsTracker(files, book); // the pane's own read positions; the browser view has its own tracker over the same files and book
+  // The resolved value (default, user, workspace or folder): an explicit `false` from any scope keeps the mode off despite the true default.
   const allOn = (): boolean => vscode.workspace.getConfiguration('saropaChats').get(ALL_KEY) === true;
-  let all = allOn(), colorSig = '', idleSig = ''; // idleSig: the last idle caption sent, so an unchanged text is not re-sent
+  let all = allOn(), colorSig = '';
   let visible = false, open = true; // the section starts open, matching the page's markup
-  let busy = false, again = false, shownId = '';
+  let busy = false, again = false;
+  // Which chat the page shows and the last idle message sent; owns the reset-before-idle ordering (pure, so the checks drive it directly).
+  const gate = new IdleGate();
+  /** The host's translator: vscode.l10n.t over the English table in activityIdle.ts (the pure formatter has no vscode import). */
+  const tr = (m: string, ...a: Array<string | number>): string => vscode.l10n.t(m, ...a);
   let timer: ReturnType<typeof setInterval> | undefined;
   const send = (m: unknown): void => post({ type: 'act', m });
   /** Tells the session list which chats have which colour (an empty map when the mode is off, which removes the bars). */
@@ -73,26 +84,50 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     const moved = cur !== currentId(), events = moved ? r.events.filter((e) => e.t === 'flash' || e.t === 'sub' || e.t === 'bg') : r.events;
     if (events.length) { send({ type: 'events', events }); }
   };
-  /** Sends the idle caption (followed chat + state + other busy chats) when its text changed. The page shows it only while no live caption is up. */
-  const sendIdle = (): void => {
-    const text = idleText(idleInfo(currentId()));
-    if (text === idleSig) { return; } // unchanged: no message
-    idleSig = text;
-    send({ type: 'idle', text });
+  /** The idle message for chat `id` (caption text plus, while other chats work, the click label), built lazily so the gate skips it when nothing is sent. */
+  const idleOf = (id: string) => () => idleMsg(idleInfo(id), tr);
+  /** Dots, a title or the focused chat changed: refresh the idle caption. Hidden or collapsed sections skip it (show() re-sends on reveal). */
+  const idle = (): void => {
+    if (!timer) { return; }
+    // The gate drops it while a chat switch is pending; poke() then sends reset first and the new chat's caption after it.
+    const id = currentId();
+    gate.idle(id, idleOf(id)).forEach(send);
   };
-  /** Dots or the focused chat changed: refresh the idle caption. Hidden or collapsed sections skip it (show() re-sends on reveal). */
-  const idle = (): void => { if (timer) { sendIdle(); } };
+  /** Shows a one-off outcome of a click in the caption (the page holds it like a live caption, then falls back to the idle text). */
+  const note = (text: string, err = false): void => send({ type: 'note', text, err });
+  /** Last activity time of a chat: its transcript's mtime (0 when the file cannot be found), the "most recently active" tie-break of pickBusiest. */
+  const lastAt = async (id: string): Promise<number> => {
+    try { const f = await files.fileOf(id); return f ? (await fs.promises.stat(f)).mtimeMs : 0; } catch { return 0; }
+  };
+  /**
+   * A click on the "N other chats working" hint: open the busiest other working chat, picked here (the page only knows the text).
+   * Every outcome is shown in the caption: none working, opening <title>, or could not open <title>. No silent path.
+   */
+  const focusOther = async (): Promise<void> => {
+    // No focus wiring (a caller that never passed it): say nothing can be opened rather than ignore the click.
+    if (!focus) { note(tr(IDLE_STRINGS.noneWorking)); return; }
+    const cur = currentId(), dots = focus.dots() ?? {};
+    const ids = Object.keys(dots).filter((id) => id !== cur && isWorking(dots[id]));
+    // The hint can be a poll behind: the other chats may have gone idle since it was drawn.
+    if (!ids.length) { note(tr(IDLE_STRINGS.noneWorking)); return; }
+    const recency = Object.fromEntries(await Promise.all(ids.map(async (id) => [id, await lastAt(id)] as const)));
+    const id = pickBusiest(dots, cur, recency);
+    const title = cutTitle(focus.titleOf(id)) || tr(IDLE_STRINGS.untitled);
+    note(tr(IDLE_STRINGS.opening, title));
+    // resume() reports false when neither the panel command nor the URI fallback took the chat (it also shows its own toast); a throw
+    // is unexpected and is logged. Both end in the caption's error text, so the click never ends on a stale "Opening …".
+    let ok = false;
+    try { ok = await focus.open(id); } catch (e) { log('activity: could not open chat ' + id + ': ' + String(e)); }
+    if (!ok) { note(tr(IDLE_STRINGS.openFailed, title), true); }
+  };
   const poke = (): void => {
     if (!timer) { return; } // not visible or collapsed: no work
     if (busy) { again = true; return; } // run once more when the current check ends
     busy = true;
     const id = currentId();
-    // A switch of chat clears the held states and the caption; in the all-chats mode the pills belong to every chat, so they stay.
-    if (id !== shownId) {
-      shownId = id; idleSig = ''; // the page drops its idle text on reset, so the dedupe must forget it too
-      send({ type: 'reset', keepPills: all });
-    }
-    sendIdle(); // also covers a title or state change that arrived with the tab move
+    // A switch of chat clears the held states and the caption (reset first, then the new chat's idle caption); in the all-chats mode the
+    // pills belong to every chat, so they stay. The idle send also covers a title or state change that arrived with the tab move.
+    gate.poke(id, idleOf(id), all).forEach(send);
     const run = all ? checkAll(id) : feed.check(id).then((events) => { if (events.length && id === currentId()) { send({ type: 'events', events }); } });
     void run.catch(() => { /* a failed check shows nothing this round; the next interval tries again */ }).finally(() => {
       busy = false;
@@ -106,7 +141,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     timer = setInterval(poke, refreshMsOf(vscode.workspace.getConfiguration('saropaChats').get('activity.refreshMs')));
   };
   const fade = (): number => fadeMsOf(vscode.workspace.getConfiguration('saropaChats').get('activity.fadeMs'));
-  const show = (): void => { feed.mark(); tracker.clear(); shownId = ''; start(); poke(); }; // mark the end first: messages that arrived while hidden do not flash
+  const show = (): void => { feed.mark(); tracker.clear(); gate.forget(); start(); poke(); }; // mark the end first: messages that arrived while hidden do not flash
   // Both inputs (page visibility, section open state) end here: only a change to "can be seen" starts a fresh look, so repeated identical reports do nothing.
   const sync = (wasSeen: boolean): void => {
     const seen = visible && open;
@@ -116,7 +151,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
   const applyAll = (): void => {
     all = allOn();
     void vscode.commands.executeCommand('setContext', ALL_CTX, all);
-    tracker.clear(); feed.mark(); shownId = ''; colorSig = ''; idleSig = '';
+    tracker.clear(); feed.mark(); gate.forget(); colorSig = '';
     send({ type: 'reset' }); // full reset, pills included
     if (!all) { sendColors(new Map()); }
     poke();
@@ -125,6 +160,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
   host.activity = {
     setVisible(v) { const was = visible && open; visible = v; sync(was); },
     setOpen(o) { const was = visible && open; open = o; sync(was); },
+    focusOther, // the page's 'actFocusOther' message (a click on the idle caption's other-chats hint) lands here
   };
   ctx.subscriptions.push(
     { dispose: stop },

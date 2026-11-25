@@ -100,6 +100,10 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .pill .tm:empty{display:none;}
 @keyframes pill{0%,100%{box-shadow:0 0 0 0 transparent;opacity:.75;}50%{box-shadow:0 0 6px 1px var(--hl);opacity:1;}}
 #cap{max-width:300px;height:1.4em;line-height:1.4em;margin:6px auto 0;font-size:11px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.8;}
+#cap.go{cursor:pointer;color:var(--vscode-textLink-foreground);opacity:1;}
+#cap.go:hover{text-decoration:underline;}
+#cap.go:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:1px;}
+#cap.bad{color:var(--vscode-errorForeground);opacity:1;}
 .hold{filter:drop-shadow(0 0 4px ${HOT});}
 .hold .core{stroke:${HOT};stroke-opacity:1;stroke-width:1.75;fill:${HOT};fill-opacity:.4;}
 .hold .ic{color:${HOT};opacity:1;}
@@ -141,6 +145,11 @@ const grp = (g) => document.querySelector('.grp[data-g="' + g + '"]');
 const lastOf = new Map(); // chat key -> group of its last flash, so the connector joins one chat's own consecutive groups (all-chats mode interleaves several)
 let capText = '', capAt = 0, capTimer = 0;
 let idleText = '', liveText = ''; // idleText: host-sent description of the followed chat; liveText: the last caption from real events
+// idleGo: the click label of the idle caption, sent only while other chats work ('' keeps the caption plain text); idleLooking: what a click shows at once.
+let idleGo = '', idleLooking = '', capErr = false, noteTimer = 0;
+// How the caption reaches the host. null here (the standalone and browser pages have no host to ask, and never get 'idle' anyway);
+// activitySection swaps in the list page's VS Code API, so the caption can only become clickable inside the sidebar section.
+const toHost = null;
 // Background tasks: a glowing pill per running kind (shell, agent), with a count when there are several. They are separate from the flashes, which only mark calls as they happen.
 // In the all-chats mode each chat has its own pills in its own colour; otherwise everything is under the one key ''.
 const bgBy = new Map(); // chat key -> { shell, agent, shellAt, agentAt, col }
@@ -198,7 +207,38 @@ function caption(text) {
   // An empty live caption falls back to the idle text (which chat is followed and its state); a live caption always wins over it.
   capText = text || idleText;
   liveText = text;
-  if (!capTimer) { capTimer = setTimeout(() => { capTimer = 0; capAt = Date.now(); cap.textContent = capText; }, Math.max(0, 500 - (Date.now() - capAt))); }
+  capErr = false; // any new caption ends a shown error outcome
+  if (!capTimer) { capTimer = setTimeout(paint, Math.max(0, 500 - (Date.now() - capAt))); }
+}
+// Draws the pending caption. The caption is a button only while it shows the idle text with the other-chats hint (idleGo set) and a host
+// can be asked; over a live caption or a click outcome it is plain text again, so a click never lands on a label it did not show.
+function paint() {
+  capTimer = 0; capAt = Date.now(); cap.textContent = capText;
+  const go = !!(toHost && idleGo && !liveText && capText);
+  cap.classList.toggle('go', go);
+  cap.classList.toggle('bad', capErr);
+  if (go) { cap.setAttribute('role', 'button'); cap.setAttribute('tabindex', '0'); cap.setAttribute('aria-label', idleGo); cap.title = idleGo; }
+  else { cap.removeAttribute('role'); cap.removeAttribute('tabindex'); cap.removeAttribute('aria-label'); cap.title = ''; }
+}
+// A one-off outcome of a click (finding, opening <title>, could not open <title>): held like a live caption, then the idle text returns
+// after 4 s unless something newer replaced it. The chat switch that a successful open causes resets the page earlier.
+function capNote(text, err) { // not "note": the browser page shell already has a const note (its status line) in the same scope
+  caption(String(text || ''));
+  capErr = !!err;
+  clearTimeout(noteTimer);
+  const shown = liveText;
+  noteTimer = setTimeout(() => { if (liveText === shown) { caption(''); } }, 4000);
+}
+// A click (or Enter / Space) on the clickable idle caption: show at once that it was heard, then let the host pick and open the busiest other chat.
+function goOther() {
+  if (!cap.classList.contains('go') || !toHost) { return; } // plain-text caption: nothing to do
+  capNote(idleLooking);
+  toHost({ type: 'actFocusOther' });
+}
+// Listeners, not inline handlers: the page's CSP forbids inline script. Wired only where a host exists (the cap element always does in the markup).
+if (cap && toHost) {
+  cap.addEventListener('click', goOther);
+  cap.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goOther(); } });
 }
 function endCall(id) {
   const p = pend.get(id);
@@ -218,6 +258,9 @@ function reset(keepPills) {
   // Pills are cleared with the chat in the single-chat mode (the feed re-reports the new chat's tasks); the all-chats mode keeps them, since they belong to every chat.
   if (!keepPills) { bgBy.clear(); drawPills(); }
   clearTimeout(capTimer); capTimer = 0; capAt = 0; cap.textContent = ''; idleText = ''; liveText = ''; capText = ''; lastOf.clear(); // the idle text belonged to the old chat; the host sends the new one
+  // The click state belonged to the old chat's caption too: back to plain text until the host sends the new chat's idle message.
+  clearTimeout(noteTimer); noteTimer = 0; idleGo = ''; idleLooking = ''; capErr = false;
+  cap.classList.remove('go', 'bad'); cap.removeAttribute('role'); cap.removeAttribute('tabindex'); cap.removeAttribute('aria-label'); cap.title = '';
 }
 // Waiting for you: one ripple from the core (none with reduced motion), then a quiet outline until the next message.
 function wait(g) {
@@ -261,7 +304,10 @@ addEventListener('message', (e) => {
   const m = e.data;
   if (m && m.type === 'reset') { reset(m.keepPills === true); return; }
   // idle: the host's description of the followed chat. Shown only while no live caption is up; an absent message (browser view) leaves the caption as before.
-  if (m && m.type === 'idle') { idleText = String(m.text || ''); if (!liveText) { caption(''); } return; }
+  // go / looking: the click label and click-time text, present only while other chats work (the host leaves them '' otherwise).
+  if (m && m.type === 'idle') { idleText = String(m.text || ''); idleGo = String(m.go || ''); idleLooking = String(m.looking || ''); if (!liveText) { caption(''); } return; }
+  // note: the host's outcome of a click on the caption (opening <title>, nothing working, could not open).
+  if (m && m.type === 'note') { capNote(m.text, m.err === true); return; }
   if (m && m.type === 'fade' && Number.isFinite(m.ms)) { fade = m.ms; document.documentElement.style.setProperty('--fade', m.ms + 'ms'); return; }
   if (!m || m.type !== 'events' || !Array.isArray(m.events)) { return; }
   for (const v of m.events) {
@@ -270,7 +316,11 @@ addEventListener('message', (e) => {
     else if (v.t === 'caption') { caption(String(v.text)); }
     else if (v.t === 'busy' && grp(v.g)) { startCall(v.id, v.g); }
     else if (v.t === 'end') { endCall(v.id); if (v.g === 'chat') { grp('chat').classList.remove('wait'); } if (!pend.size) { caption(''); } }
-    else if (v.t === 'wait' && grp(v.g)) { wait(v.g); }
+    else if (v.t === 'wait' && grp(v.g)) {
+      wait(v.g);
+      // The chat now waits for the user: the last live caption (e.g. "Running: tests") is stale and would hide the idle text "waiting for you", so drop it.
+      caption('');
+    }
     else if (v.t === 'wake') { lastOf.delete(v.ch || ''); document.querySelectorAll('.wait').forEach((el) => el.classList.remove('wait', 'rip')); caption(''); }
     // bg: the core breathes only for background tasks (no tool call is ever attributed to it)
     else if (v.t === 'bg') { pills(v); }
@@ -293,7 +343,9 @@ export function activitySection(fadeMs: number): { css: string; script: string; 
   const script = SCRIPT.replace('__FADE__', String(fadeMs))
     .replace(/document\.(querySelector|querySelectorAll|getElementById)\(/g, 'root.$1(')
     .replace('document.documentElement.style', 'host.style')
-    .replace('const m = e.data;', 'const m = e.data && e.data.type === "act" ? e.data.m : null;');
+    .replace('const m = e.data;', 'const m = e.data && e.data.type === "act" ? e.data.m : null;')
+    // The list page's script defines `vs` (its VS Code API) in the shared global scope; the guard keeps the section working without it.
+    .replace('const toHost = null;', 'const toHost = typeof vs !== "undefined" ? (x) => vs.postMessage(x) : null;');
   return { css, script, hostId: 'actd' };
 }
 

@@ -25,7 +25,7 @@ import { registerClaudeConfig } from './claudeConfigPanel';
 import { registerOptions } from './optionsPanel';
 import { registerKeepWarm } from './keepWarm';
 import { registerActivity } from './activity';
-import { IdleInfo, othersWorking } from './activityIdle';
+import { IdleInfo, othersWorking, TitleCache } from './activityIdle';
 import { registerActivityBrowser } from './activityBrowser';
 import { fadeMsOf } from './activityFeed';
 import { registerUsage } from './usageUi';
@@ -86,7 +86,7 @@ class Provider implements vscode.WebviewViewProvider {
   private readonly queue = new QueryQueue((m) => this.post(m), () => vscode.commands.executeCommand(REVEAL_CMD), logErr);
   watcher?: LiveWatcher; // live state of Claude sessions
   /** The Activity diagram section of this page: told when the page is shown or hidden and when its section is opened or collapsed, so it only polls while it can be seen. */
-  activity?: { setVisible(v: boolean): void; setOpen(o: boolean): void };
+  activity?: { setVisible(v: boolean): void; setOpen(o: boolean): void; focusOther?(): Promise<void> };
   actions?: ArchiveActions;
   web?: WebSessions;
   digests?: DigestService; // digest commands and the card's digest buttons and links
@@ -151,9 +151,10 @@ class Provider implements vscode.WebviewViewProvider {
   /** Dot state names of chats that are not idle, for the worker. */
   get dotNames(): { [id: string]: string } { return stateMap(this.watcher?.dots ?? {}); }
 
-  /** Push the dot map to the panel. */
   /** Set by the Activity section: called when the dots change so its idle caption follows. */
   idleHook?: () => void;
+
+  /** Push the dot map to the panel. */
   postDots(): void { this.post({ type: 'dots', map: this.watcher?.dots ?? {}, anim: dotsAnimated(), cur: this.currentId() }); this.updateBadge(); }
 
   /** Blue count badge on the activity-bar icon: sessions waiting for the user; cleared at 0. */
@@ -185,10 +186,13 @@ class Provider implements vscode.WebviewViewProvider {
   postCtxLines(): void { this.post({ type: 'ctxlines', n: searchContextLines() }); }
   postRing(): void { this.post({ type: 'ring', max: contextRingTokens() }); }
 
-  /** Resume a chat and clear its unread flag. */
-  async resume(id: string): Promise<void> {
+  /** Resume a chat and clear its unread flag. Kept Promise<void>: every existing caller (list, warner, usage, editor view, Open Work, browser view) ignores the outcome. */
+  async resume(id: string): Promise<void> { await this.tryResume(id); }
+
+  /** Same as resume, but resolves whether the chat was opened, for callers that show the outcome themselves (the Activity caption). */
+  async tryResume(id: string): Promise<boolean> {
     void this.actions?.markRead(id);
-    await openChat(id, log);
+    return openChat(id, log);
   }
 
   async postMeta(): Promise<void> {
@@ -243,6 +247,8 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'sessions') { await this.sessions(m); }
       else if (m.type === 'histAdd') { this.histAdd(m); }
       else if (m.type === 'actOpen') { this.activity?.setOpen(!!m.open); this.store.setSecOpen('act', !!m.open); } // the Activity section was opened or collapsed: stop/start polling and remember it
+      // A click on the Activity idle caption's "N other chats working" hint: the section picks and opens the busiest other chat and shows the outcome.
+      else if (m.type === 'actFocusOther') { await this.activity?.focusOther?.(); }
       else if (m.type === 'secSize' && m.name === 'act') { this.store.setSecSize('act', Number(m.px)); } // Activity splitter released: remember the height (0 = reset)
       else if (m.type === 'secOpen' && ['acct', 'sm'].includes(String(m.name))) { this.store.setSecOpen(String(m.name), !!m.open); } // Account & Usage or Session Manager header toggled
       else if (m.type === 'advOpen') { this.store.setAdvOpen(!!m.open); }
@@ -453,19 +459,35 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   provider.actions = new ArchiveActions(store, ctx.globalStorageUri.fsPath, { changed, rebuild: () => provider.watcher?.rebuild() });
   provider.web = new WebSessions(ctx, (m) => provider.post(m), logErr);
   const warner = createWarner(ctx, { request: (m, bg) => client!.request(m as Parameters<WorkerClient['request']>[0], bg), open: (id) => provider.resume(id), log, copyNote: (id) => provider.copyNote(id, () => undefined) });
-  const titler = new AutoTitler(ctx.globalState, logErr, (id, title) => { log(`auto-title: ${id} -> ${title}`); provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); });
+  // Session titles of chats with no open tab, from the worker index (the existing 'apiChat' request carries the title): one soft request
+  // per id, cached for 5 min (TitleCache's default TTL); a miss is retried at most every 30 s. A new or changed title re-sends the idle
+  // caption. Created before the auto-titler so its rename callback can update it; `activity` is only called later, once it is bound.
+  const titles = new TitleCache(async (id) => {
+    const b = await client!.request({ t: 'apiChat', id }, true, true);
+    // A reply without a string title (chat not indexed yet, or a timeout's undefined) is a miss, retried later.
+    return b && typeof b.title === 'string' ? b.title : undefined;
+  }, () => activity.idle());
+  // titles.set: a rename by the auto-titler shows in the Activity caption at once instead of after the 5 min title refresh.
+  const titler = new AutoTitler(ctx.globalState, logErr, (id, title) => { log(`auto-title: ${id} -> ${title}`); titles.set(id, title); provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); activity.idle(); });
   provider.watcher = new LiveWatcher({ dir: sessionsDir(), tabs: async () => { const r = await readTabs(workspaceStorageOf(ctx.globalStorageUri.fsPath), folderPaths()); return r.ok ? r : undefined; },
     viewing: () => provider.viewingId(), unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
     onChange: () => { provider.postDots(); provider.idleHook?.(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); titler.onLive(ids); } });
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.search.contextLines')) { provider.postCtxLines(); } }));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.contextRingTokens')) { provider.postRing(); } }));
-  // What the Activity idle caption says about the followed chat: its tab title, its dot state, and how many other chats are working.
+  /** A chat's title: the open tab's title when there is one (synchronous, and what the user sees), else the cached index title ('' until it arrives). */
+  const titleOfChat = (id: string): string => (id ? provider.watcher?.tabInfo.find((t) => t.id === id)?.title || titles.get(id) : '');
+  // What the Activity idle caption says about the followed chat: its title, its whole dot (primary state plus `also`, so background
+  // tasks hidden behind waiting/unread still show), and how many other chats are working.
   const idleInfoOf = (id: string): IdleInfo => {
     const dots = provider.watcher?.dots ?? {};
-    return { title: id ? provider.watcher?.tabInfo.find((t) => t.id === id)?.title ?? '' : '', state: id ? dots[id]?.s : undefined, others: othersWorking(dots, id) };
+    return { title: titleOfChat(id), dot: id ? dots[id] : undefined, others: othersWorking(dots, id) };
   };
-  const activity = registerActivity(ctx, () => provider.currentId(), (m) => provider.post(m), provider, () => provider.watcher?.liveIds ?? [], log, idleInfoOf);
-  provider.idleHook = activity.idle; // dot changes re-send the Activity idle caption
+  // The click-to-focus wiring of the idle caption: the same dots and titles as the caption, and the same resume as a click in the session list.
+  const activity = registerActivity(ctx, () => provider.currentId(), (m) => provider.post(m), provider, () => provider.watcher?.liveIds ?? [], log, idleInfoOf,
+    { dots: () => provider.watcher?.dots ?? {}, titleOf: titleOfChat, open: (id) => provider.tryResume(id) });
+  // Dot changes re-send the Activity idle caption, and first trim the title cache to the live chats plus the followed one, so it never
+  // grows with every chat seen in the session (the followed chat is kept even when not live: its caption still shows its title).
+  provider.idleHook = () => { titles.prune([...(provider.watcher?.liveIds ?? []), provider.currentId()]); activity.idle(); };
   // The browser view shows every live chat with the pane's colours; titles come from the open tabs' (truncated) titles.
   registerActivityBrowser(ctx, { book: activity.book, files: activity.files, currentId: () => provider.currentId(), liveIds: () => provider.watcher?.liveIds ?? [], titleOf: (id) => provider.watcher?.tabInfo.find((t) => t.id === id)?.title ?? '', focusChat: (id) => provider.resume(id), log });
   const tabMoved = () => { provider.clearViewed(); provider.postDots(); provider.watcher?.poke(); activity.poke(); };

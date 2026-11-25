@@ -150,12 +150,82 @@ check('refreshMs clamps and defaults', refreshMsOf(undefined) === 250 && refresh
 
 // Idle caption: followed chat, its state and the other busy chats (activityIdle.js), and the page script's handling of it.
 const { idleText, othersWorking } = require(path.join(OUT, 'activityIdle.js'));
-check('idle: waiting chat reads "waiting for you"', idleText({ title: 'your look scroll fade', state: 'waiting', others: 0 }) === 'your look scroll fade — waiting for you');
-check('idle: other busy chats are counted, singular and plural', idleText({ title: 'a', state: 'waiting', others: 1 }) === 'a — waiting for you · 1 other chat working' && idleText({ title: 'a', state: 'running', others: 2 }) === 'a — working · 2 other chats working');
-check('idle: no dot or unknown state reads idle; no title gives only the hint or nothing', idleText({ title: 'a', state: undefined, others: 0 }) === 'a — idle' && idleText({ title: '', state: undefined, others: 3 }) === '3 other chats working' && idleText({ title: '', state: undefined, others: 0 }) === '');
-check('idle: long titles are cut', idleText({ title: 'x'.repeat(100), state: 'idle', others: 0 }).startsWith('x'.repeat(59) + '… —'));
-check('idle: only running and background chats other than the followed one count', othersWorking({ a: { s: 'running' }, b: { s: 'background' }, c: { s: 'waiting' }, d: { s: 'idle' }, me: { s: 'running' } }, 'me') === 2);
+const D = (s, also) => (also ? { s, also } : { s }); // a dot as liveState.dotState builds it
+check('idle: waiting chat reads "waiting for you"', idleText({ title: 'your look scroll fade', dot: D('waiting'), others: 0 }) === 'your look scroll fade — waiting for you');
+check('idle: other busy chats are counted, singular and plural', idleText({ title: 'a', dot: D('waiting'), others: 1 }) === 'a — waiting for you · 1 other chat working' && idleText({ title: 'a', dot: D('running'), others: 2 }) === 'a — working · 2 other chats working' && idleText({ title: '', dot: undefined, others: 1 }) === '1 other chat working' && idleText({ title: '', dot: undefined, others: 5 }) === '5 other chats working');
+check('idle: no dot or unknown state reads idle; no title gives only the hint or nothing', idleText({ title: 'a', dot: undefined, others: 0 }) === 'a — idle' && idleText({ title: 'a', dot: D('zzz'), others: 0 }) === 'a — idle' && idleText({ title: '', dot: undefined, others: 3 }) === '3 other chats working' && idleText({ title: '', dot: undefined, others: 0 }) === '');
+check('idle: background hidden in also is named behind waiting and idle, not doubled behind running or background', idleText({ title: 'a', dot: D('waiting', ['background']), others: 0 }) === 'a — waiting for you · background tasks running' && idleText({ title: 'a', dot: D('unread', ['background']), others: 0 }) === 'a — idle · background tasks running' && idleText({ title: 'a', dot: D('running', ['background']), others: 0 }) === 'a — working' && idleText({ title: 'a', dot: D('background'), others: 0 }) === 'a — background tasks running');
+check('idle: long titles are cut', idleText({ title: 'x'.repeat(100), dot: D('idle'), others: 0 }).startsWith('x'.repeat(59) + '… —'));
+const smile = '\u{1F600}';
+check('idle: titles are cut by code points, never inside an emoji', idleText({ title: smile.repeat(100), dot: D('idle'), others: 0 }) === smile.repeat(59) + '… — idle' && idleText({ title: smile.repeat(60), dot: D('idle'), others: 0 }) === smile.repeat(60) + ' — idle');
+const wrapped = idleText({ title: 'a', dot: D('waiting', ['background']), others: 2 }, (m, ...args) => '~' + m.replace(/\{(\d+)\}/g, (x, k) => args[k]) + '~');
+check('idle: every string goes through the translator', wrapped.includes('~waiting for you~') && wrapped.includes('~2 other chats working~') && wrapped.includes('background tasks running~'));
+check('idle: only running and background chats other than the followed one count, in s or also', othersWorking({ a: D('running'), b: D('background'), c: D('waiting'), d: D('idle'), me: D('running'), e: D('waiting', ['background']), f: D('unread', ['background']), g: D('unread') }, 'me') === 4);
 check('page script handles the idle message and keeps live captions first', activityHtml(4000).includes("m.type === 'idle'") && activityHtml(4000).includes('capText = text || idleText'));
+
+// Malformed dots (the map crosses the watcher / IPC boundary): a missing dot, a missing or non-array `also`, non-string entries and unknown
+// or non-string states read as idle / not working and never throw.
+const { isWorking, pickBusiest, idleMsg, IdleGate, TitleCache, IDLE_STRINGS } = require(path.join(OUT, 'activityIdle.js'));
+const noThrow = (f) => { try { return f(); } catch (e) { return 'threw: ' + e.message; } };
+check('guard: isWorking tolerates missing, null and odd dots', [undefined, null, 0, 'running', {}, { s: 5 }, { s: 'zzz' }, { s: 'idle', also: 'background' }, { s: 'idle', also: [null, 3] }].every((d) => noThrow(() => isWorking(d)) === false));
+check('guard: isWorking still reads background in also when s is unreadable', isWorking({ s: undefined, also: ['background'] }) === true && isWorking({ also: ['running'] }) === true);
+check('guard: idleText reads malformed dots as idle', [undefined, null, {}, { s: 7 }, { s: 'zzz' }, { s: 'waiting', also: 'background' }].map((d) => noThrow(() => idleText({ title: 'a', dot: d, others: 0 }))).join('|') === 'a — idle|a — idle|a — idle|a — idle|a — idle|a — waiting for you');
+check('guard: othersWorking tolerates a missing map and null dots', othersWorking(undefined, 'x') === 0 && othersWorking(null, 'x') === 0 && noThrow(() => othersWorking({ a: null, b: undefined, c: { s: 'running' } }, 'x')) === 1);
+
+// Click-to-focus pick: running beats background (in s or also), then the most recent activity, then the id; never the followed chat.
+check('pick: a running chat beats a background one even when older', pickBusiest({ a: D('background'), b: D('running') }, 'me', { a: 9, b: 1 }) === 'b');
+check('pick: background hidden in also counts as background', pickBusiest({ a: D('waiting', ['background']), b: D('idle') }, 'me') === 'a');
+check('pick: within a rank the most recently active wins', pickBusiest({ a: D('running'), b: D('running'), c: D('running') }, 'me', { a: 5, b: 50, c: 20 }) === 'b');
+check('pick: ties fall back to the id; missing or odd recency counts as oldest', pickBusiest({ b: D('running'), a: D('running') }, 'me') === 'a' && pickBusiest({ a: D('running'), b: D('running') }, 'me', { a: 'x', b: 3 }) === 'b');
+check('pick: the followed chat and non-working chats are never picked', pickBusiest({ me: D('running'), w: D('waiting'), u: D('unread') }, 'me') === '' && pickBusiest(undefined, 'me') === '' && pickBusiest({ me: D('running'), x: null }, 'me') === '');
+
+// The idle message: the click label exists only while other chats work.
+check('idle message: click label and click text only with the other-chats hint', eq(idleMsg({ title: 'a', dot: D('idle'), others: 0 }), { type: 'idle', text: 'a — idle', go: '', looking: '' })
+  && eq(idleMsg({ title: 'a', dot: D('idle'), others: 2 }), { type: 'idle', text: 'a — idle · 2 other chats working', go: IDLE_STRINGS.focusOther, looking: IDLE_STRINGS.looking }));
+check('idle message: labels go through the translator', idleMsg({ title: '', dot: undefined, others: 1 }, (m) => '~' + m).go === '~' + IDLE_STRINGS.focusOther);
+check('click-to-focus strings have no first-person voice', !Object.values(IDLE_STRINGS).some((v) => /\b(I|I'm|we|my|our|me)\b/.test(v)));
+
+// Host ordering (IdleGate, used by registerActivity): idle() sends nothing while a chat switch is pending; poke() sends reset, then idle.
+{
+  const g = new IdleGate(), M = (text) => () => ({ type: 'idle', text, go: '', looking: '' });
+  check('gate: first poke resets, then sends the idle caption', eq(g.poke('a', M('A'), true), [{ type: 'reset', keepPills: true }, { type: 'idle', text: 'A', go: '', looking: '' }]));
+  check('gate: an unchanged caption is not re-sent', eq(g.poke('a', M('A'), true), []) && eq(g.idle('a', M('A')), []));
+  check('gate: a changed caption for the shown chat is sent by idle()', eq(g.idle('a', M('A2')), [{ type: 'idle', text: 'A2', go: '', looking: '' }]));
+  let built = 0;
+  check('gate: idle() sends nothing (and builds nothing) while currentId differs from the shown chat', eq(g.idle('b', () => { built++; return M('B')(); }), []) && built === 0);
+  check('gate: the next poke for the new chat sends reset first, then its caption', eq(g.poke('b', M('B'), false), [{ type: 'reset', keepPills: false }, { type: 'idle', text: 'B', go: '', looking: '' }]));
+  check('gate: after reset the same text as before the switch is sent again', eq(g.poke('a', M('A2'), false).map((m) => m.type), ['reset', 'idle']));
+  g.forget();
+  check('gate: forget() makes the next poke reset and re-send', eq(g.poke('a', M('A2'), true).map((m) => m.type), ['reset', 'idle']));
+}
+
+// Title fallback (TitleCache): one lookup per id, cached; a miss retried only after retryMs; the arrival hook fires once per title.
+// Async, so the promise is awaited by the final report below (its failures would otherwise land after the OK line).
+const titleChecks = (async () => {
+  let now = 1000, calls = 0; const arrived = [], answers = { a: 'Title A', b: undefined, c: 'boom' };
+  const tc = new TitleCache(async (id) => { calls++; if (answers[id] === 'boom') { throw new Error('worker down'); } return answers[id]; }, (id) => arrived.push(id), 30000, () => now);
+  const flush = () => new Promise((r) => setImmediate(r));
+  check('titles: unknown id gives "" and starts a lookup', tc.get('a') === '' && calls === 1);
+  check('titles: a lookup in flight is not repeated', tc.get('a') === '' && calls === 1);
+  await flush();
+  check('titles: the arrived title is cached and announced once', tc.get('a') === 'Title A' && eq(arrived, ['a']) && calls === 1);
+  for (let i = 0; i < 20; i++) { tc.get('a'); }
+  check('titles: repeated gets (one per poke) make no further lookups', calls === 1);
+  tc.get('b'); tc.get('c'); await flush();
+  check('titles: a miss or a failed lookup is not cached as a title and not announced', calls === 3 && eq(arrived, ['a']) && tc.get('b') === '' && tc.get('c') === '' && calls === 3);
+  now += 30001; answers.b = 'Title B'; tc.get('b'); await flush();
+  check('titles: a miss is retried after retryMs and then cached', calls === 4 && tc.get('b') === 'Title B' && eq(arrived, ['a', 'b']));
+  check('titles: an empty id never looks anything up', tc.get('') === '' && calls === 4);
+})();
+
+// Click-to-focus page wiring: listeners in the script (no inline handlers), the section posts actFocusOther, the standalone page cannot.
+{
+  const { activitySection } = require(path.join(OUT, 'activityHtml.js'));
+  const sec = activitySection(4000), standalone = activityHtml(4000);
+  check('page: the caption click handler exists and posts actFocusOther in the section', sec.script.includes("cap.addEventListener('click', goOther)") && sec.script.includes("toHost({ type: 'actFocusOther' })") && sec.script.includes('vs.postMessage'));
+  check('page: the standalone and browser script has no host to post to', standalone.includes('const toHost = null;') && !/\son(click|keydown)=/.test(standalone));
+  check('page: the clickable caption uses theme tokens only', sec.css.includes('#cap.go{cursor:pointer;color:var(--vscode-textLink-foreground)') && !/#cap\.(go|bad)[^}]*#[0-9a-fA-F]{3,6}/.test(sec.css));
+}
 
 (async () => {
   // 5. Feed: opening a chat does not replay it; later lines flash once; a switch does not replay either.
@@ -245,6 +315,7 @@ check('page script handles the idle message and keeps live captions first', acti
     fs.appendFileSync(sf2, asst(tool('Bash')) + '\n');
     check('a woken idle log resumes from its offset, not from its start', eq((await sfeed2.check('aaa')).filter((e) => e.t === 'sub').map((e) => e.g), ['terminal']));
   } finally { os.homedir = realHome; fs.rmSync(home, { recursive: true, force: true }); }
+  await titleChecks; // the TitleCache checks above run async; their results must be in before the verdict
   if (failures.length) { console.error('check_activity FAILED (' + failures.length + ')'); failures.forEach((e) => console.error('  - ' + e)); process.exit(1); }
   console.log('check_activity OK: tool and log mapping, memory reads, page nodes, no replay');
 })();
