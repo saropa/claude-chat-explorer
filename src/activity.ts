@@ -1,6 +1,7 @@
 /** The Activity section of the session list page: a diagram under the session list that flashes a group when the current chat gets a message of that kind. */
 import * as vscode from 'vscode';
-import { ActivityFeed, fadeMsOf, refreshMsOf, tagEvents, tailIds } from './activityFeed';
+import { ActivityFeed, fadeMsOf, refreshMsOf } from './activityFeed';
+import { AllChatsTracker } from './activityAll';
 import { BgTracker } from './bgAgents';
 import { CHAT_PALETTE, ColorBook } from './chatColors';
 import { projectsRoot } from './files';
@@ -36,12 +37,12 @@ export interface ActivityHost { activity?: { setVisible(v: boolean): void; setOp
  * While the page is visible AND the section is open, one interval (setting `activity.refreshMs`) checks the log for appended bytes; the tab moving also triggers a check.
  * Hidden or collapsed: no interval, no work.
  */
-export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => string, post: (m: unknown) => void, host: ActivityHost, liveIds: () => string[]): { poke(): void } {
+export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => string, post: (m: unknown) => void, host: ActivityHost, liveIds: () => string[]): { poke(): void; book: ColorBook; files: BgTracker } {
   const feed = new ActivityFeed();
-  // All-chats mode: one feed per tailed chat, sharing one transcript locator, plus the stable chat-to-colour book.
+  // All-chats mode: a tracker over one feed per tailed chat, sharing one transcript locator, plus the stable chat-to-colour book.
   const files = new BgTracker(projectsRoot());
-  const feeds = new Map<string, ActivityFeed>();
   const book = new ColorBook(ctx.globalState.get(COLORS_KEY), (m) => { void ctx.globalState.update(COLORS_KEY, m); });
+  const tracker = new AllChatsTracker(files, book); // the pane's own read positions; the browser view has its own tracker over the same files and book
   const allOn = (): boolean => vscode.workspace.getConfiguration('saropaChats').get(ALL_KEY) === true;
   let all = allOn(), colorSig = '';
   let visible = false, open = true; // the section starts open, matching the page's markup
@@ -58,21 +59,10 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
   };
   /** One all-chats refresh: every tailed chat is checked, its events tagged with its colour and sent in one batch. */
   const checkAll = async (cur: string): Promise<void> => {
-    const live = liveIds(), colors = book.resolve(cur && !live.includes(cur) ? [cur, ...live] : live);
-    sendColors(colors);
-    const ids = tailIds(cur, live);
-    // A chat that left the tailed set no longer reports; its background pills are cleared explicitly.
-    for (const id of [...feeds.keys()]) {
-      if (!ids.includes(id)) { feeds.delete(id); send({ type: 'events', events: [{ t: 'bg', shell: 0, agent: 0, ch: id, col: '', cur: false }] }); }
-    }
-    const batches = await Promise.all(ids.map(async (id) => {
-      let f = feeds.get(id);
-      if (!f) { f = new ActivityFeed(undefined, undefined, files); feeds.set(id, f); }
-      return tagEvents(await f.check(id), id, colors.get(id) ?? '', id === cur);
-    }));
-    const events = batches.flat();
+    const r = await tracker.check(cur, liveIds());
+    sendColors(r.colors);
     // Dropped when the focus moved meanwhile or the mode was switched off: the events belong to a view that is gone.
-    if (events.length && all && cur === currentId()) { send({ type: 'events', events }); }
+    if (r.events.length && all && cur === currentId()) { send({ type: 'events', events: r.events }); }
   };
   const poke = (): void => {
     if (!timer) { return; } // not visible or collapsed: no work
@@ -94,7 +84,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     timer = setInterval(poke, refreshMsOf(vscode.workspace.getConfiguration('saropaChats').get('activity.refreshMs')));
   };
   const fade = (): number => fadeMsOf(vscode.workspace.getConfiguration('saropaChats').get('activity.fadeMs'));
-  const show = (): void => { feed.mark(); feeds.clear(); shownId = ''; start(); poke(); }; // mark the end first: messages that arrived while hidden do not flash
+  const show = (): void => { feed.mark(); tracker.clear(); shownId = ''; start(); poke(); }; // mark the end first: messages that arrived while hidden do not flash
   // Both inputs (page visibility, section open state) end here: only a change to "can be seen" starts a fresh look, so repeated identical reports do nothing.
   const sync = (wasSeen: boolean): void => {
     const seen = visible && open;
@@ -104,7 +94,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
   const applyAll = (): void => {
     all = allOn();
     void vscode.commands.executeCommand('setContext', ALL_CTX, all);
-    feeds.clear(); feed.mark(); shownId = ''; colorSig = '';
+    tracker.clear(); feed.mark(); shownId = ''; colorSig = '';
     send({ type: 'reset' }); // full reset, pills included
     if (!all) { sendColors(new Map()); }
     poke();
@@ -125,5 +115,6 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
       if (e.affectsConfiguration('saropaChats.activity.refreshMs')) { start(); }
       if (e.affectsConfiguration('saropaChats.' + ALL_KEY)) { applyAll(); }
     }));
-  return { poke };
+  // The book and locator are handed out so the browser view shows each chat in the same colour as the pane.
+  return { poke, book, files };
 }

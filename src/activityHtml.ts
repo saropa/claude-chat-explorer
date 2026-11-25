@@ -280,3 +280,61 @@ export function activityHtml(fadeMs = 4000): string {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
 <style nonce="${nonce}">:root{--fade:${fadeMs}ms;}${CSS}</style></head><body>${diagramSvg()}${pillsHtml()}<div id="cap" aria-live="polite"></div><script nonce="${nonce}">${SCRIPT.replace('__FADE__', String(fadeMs))}</script></body></html>`;
 }
+
+/**
+ * Stand-ins for the VS Code theme variables the diagram CSS reads, which do not exist in a browser. Defined once here (dark by default, light
+ * through prefers-color-scheme) so the diagram CSS stays the single source and needs no browser-specific copy.
+ */
+const BROWSER_THEME = `
+:root{--vscode-textLink-foreground:#3794ff;--vscode-sideBar-background:#181818;--vscode-editor-background:#1e1e1e;--vscode-foreground:#cccccc;--vscode-descriptionForeground:#9d9d9d;--vscode-editorError-foreground:#f14c4c;--vscode-errorForeground:#f14c4c;--vscode-font-family:"Segoe UI",system-ui,-apple-system,sans-serif;color-scheme:dark;}
+@media (prefers-color-scheme:light){:root{--vscode-textLink-foreground:#006ab1;--vscode-sideBar-background:#f3f3f3;--vscode-editor-background:#ffffff;--vscode-foreground:#3b3b3b;--vscode-descriptionForeground:#717171;--vscode-editorError-foreground:#e51400;--vscode-errorForeground:#e51400;color-scheme:light;}}
+body{min-height:100vh;box-sizing:border-box;padding:24px 16px;}
+svg{max-width:min(92vw,520px);}
+#cap,#bg{max-width:min(92vw,520px);}
+#cap{font-size:13px;}
+header{max-width:min(92vw,520px);margin:0 auto 12px;text-align:center;}
+h1{margin:0;font-size:20px;font-weight:600;overflow-wrap:anywhere;}
+header p{margin:2px 0 0;font-size:12px;color:var(--vscode-descriptionForeground);}
+#legend{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px;max-width:min(92vw,520px);margin:14px auto 0;font-size:12px;}
+.lg{display:inline-flex;align-items:center;gap:6px;max-width:220px;}
+.lg i{flex:none;width:10px;height:10px;border-radius:50%;}
+.lg span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#conn{min-height:1.4em;margin-top:8px;text-align:center;font-size:12px;color:var(--vscode-errorForeground);}`;
+
+/** Escapes text for HTML element content and attribute values: the project title comes from the user's folder name. */
+const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
+
+/**
+ * The browser view: the standalone diagram under a project title, with a legend of live chats (filled by the live stream) and a connection line.
+ * `connect-src 'self'` is the one addition to the CSP, needed for the EventSource; nothing else is loaded from anywhere.
+ * `subtitle` and `lost` are the user-facing strings, passed in so they live with the other extension strings rather than in this file.
+ */
+export function browserPage(o: { title: string; fadeMs: number; subtitle: string; lost: string }): string {
+  const nonce = randomBytes(18).toString('base64url');
+  // The stream carries the same messages the webview gets; they are re-dispatched as window messages so the diagram script runs unchanged.
+  // A 'legend' message is the page's own: the live chats with their colours and titles.
+  const shell = `
+const mq = matchMedia('(prefers-color-scheme: light)');
+const theme = () => document.body.classList.toggle('vscode-light', mq.matches);
+theme(); mq.addEventListener('change', theme);
+const legend = document.getElementById('legend'), conn = document.getElementById('conn');
+function drawLegend(chats) {
+  legend.textContent = '';
+  for (const c of chats) {
+    const item = document.createElement('span'), dot = document.createElement('i'), name = document.createElement('span');
+    item.className = 'lg'; dot.style.background = String(c.col); name.textContent = String(c.title); item.title = String(c.title);
+    item.append(dot, name); legend.append(item);
+  }
+}
+const es = new EventSource('events');
+es.onmessage = (e) => {
+  let m; try { m = JSON.parse(e.data); } catch { return; }
+  if (m && m.type === 'legend') { drawLegend(Array.isArray(m.chats) ? m.chats : []); return; }
+  window.dispatchEvent(new MessageEvent('message', { data: m }));
+};
+es.onopen = () => { conn.textContent = ''; };
+es.onerror = () => { conn.textContent = ${JSON.stringify(o.lost)}; };`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(o.title)} - Activity</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; connect-src 'self';">
+<style nonce="${nonce}">:root{--fade:${o.fadeMs}ms;}${CSS}${BROWSER_THEME}</style></head><body><header><h1>${esc(o.title)}</h1><p>${esc(o.subtitle)}</p></header>${diagramSvg()}${pillsHtml()}<div id="cap" aria-live="polite"></div><div id="legend"></div><div id="conn" role="status"></div><script nonce="${nonce}">${SCRIPT.replace('__FADE__', String(o.fadeMs))}${shell}</script></body></html>`;
+}
