@@ -81,7 +81,7 @@ const CHART_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke=
 function hugeIcon(r){return statusesOf(r,pins.has(r.id),Date.now(),(dots[r.id]||{}).s).includes('huge')?'<span class="hg" role="img" aria-label="Huge session" data-tip="Huge session">'+CHART_SVG+'</span>':'';}
 function rcHtml(r,op,now){if(op)return '';const q=r.hits>0,dc=decorated(r);
 return '<span class="rc">'+(all.checked&&r.project?'<span class="pj" data-tip="Project folder">'+esc(r.project)+'</span>':'')+pinStar(r)
-+ringHtml(r)+(dc?ctxPill(r)+gitIcon(r)+hugeIcon(r):'')+timeText(stamp(r),now,q&&!!r.snipAt)+'</span>';}
++ringHtml(r)+(dc?ctxPill(r)+gitIcon(r)+hugeIcon(r):'')+dgMark(r)+timeText(stamp(r),now,q&&!!r.snipAt)+'</span>';} /* dgMark: the digest marker shows on every row that has a digest, decorated or not */
 function pinStar(r){return pins.has(r.id)?'<span class="pst" role="img" aria-label="Pinned" data-tip="Pinned">★</span>':'';}
 function metaHtml(r,now){const q=r.hits>0,t=touchPill(r),sp=q&&r.snipSub!==undefined?saPill(r.snipSub,'k:snipsub'):'';
 if(!t&&!sp)return '';

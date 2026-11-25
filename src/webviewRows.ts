@@ -75,7 +75,8 @@ return '<ul class="ml"'+a+'>'+(gs.length?gs.map(miHtml).join(''):'<li class="ld"
 function mxBtn(r,n,op){const w=n+' more matching message'+(n===1?'':'s'),oc=r.hits>0?' ('+hitN(r)+(r.hits===1?' occurrence':' occurrences')+' total)':'';
 return '<button class="mx'+(op?' on':'')+'" data-a="mx" aria-expanded="'+op+'" aria-controls="ml-'+esc(r.id)+'" aria-label="'+(op?'Hide ':'Show ')+w+oc+'" data-tip="'+(op?'Hide ':'Show ')+w+oc+'">'+CHEV+'<span class="ls">+'+n+' more</span><span class="lt">Show less</span></button>';}
 function sxHtml(r){const op=mOpen.has(r.id),more=(r.mc||0)-1;
-return '<div class="sx">'+(r.snippet?'<div class="s" data-tip="k:snip">'+snip(r)+'</div>':'')+(more>0?mxBtn(r,more,op):'')+(op&&more>0?mlHtml(r):'')+'</div>';}
+/* a digest-only hit gets the labeled digest snippet (dgSnip), which opens the Digest section instead of resuming */
+return '<div class="sx">'+(r.snippet?(r.snipDig?dgSnip(r):'<div class="s" data-tip="k:snip">'+snip(r)+'</div>'):'')+(more>0?mxBtn(r,more,op):'')+(op&&more>0?mlHtml(r):'')+'</div>';}
 function mxToggle(id){if(mOpen.has(id))mOpen.delete(id);else{mOpen.add(id);if(!ex[id])askExpand(id,0,true);}rerender();rowFocus(id,'.mx');}
 function mxKey(e,t){const id=t.dataset.id,m=t.querySelector('.mx');if(!m)return false;
 const op=mOpen.has(id);if((e.key==='ArrowRight'&&!op)||(e.key==='ArrowLeft'&&op)){e.preventDefault();mxToggle(id);return true;}return false;}

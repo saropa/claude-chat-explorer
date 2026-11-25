@@ -16,6 +16,7 @@ import { TOUCH_JS } from './webviewTouch';
 import { SUM_JS } from './webviewSum';
 import { WEB_JS } from './webviewWeb';
 import { ACCT_JS } from './webviewAcct';
+import { DIGEST_JS } from './webviewDigest';
 
 const CORE = String.raw`
 const vs=acquireVsCodeApi();const $=id=>document.getElementById(id);
@@ -68,7 +69,7 @@ function exMerge(d){const n=ex[d.id]||{};
 if(d.offset>0)return Object.assign({},n,{items:(n.items||[]).concat(d.items),total:d.total});
 const items=n.items&&n.items.length>d.items.length?n.items:d.items;
 if(d.lite)return Object.assign({files:[],commands:[],git:null,full:false},n,{items:items,total:d.total});
-return{items:items,total:d.total,files:d.files,commands:d.commands,git:d.git,full:true};}
+return{items:items,total:d.total,files:d.files,commands:d.commands,git:d.git,digest:d.digest,full:true};} /* digest: the card's Digest section (null when the chat has none) */
 function toggleTag(t){const re=new RegExp('(^|\\s)tag:'+reEsc(t)+'(?=\\s|$)','ig');
 q.value=re.test(q.value)?q.value.replace(re,' ').replace(/\s+/g,' ').trim():(q.value.trim()+' tag:'+t).trim();go();}
 function openId(id){recordHist(true);vs.postMessage({type:'open',id:id});}
@@ -77,6 +78,7 @@ if(e.target.closest('[data-a=import]')){vs.postMessage({type:'importArchived'});
 const rr=e.target.closest('.rr');if(rr){openId(rr.dataset.id);return;}
 const row=e.target.closest('.r');if(!row)return;const id=row.dataset.id;const a=e.target.closest('[data-a]');
 if(a){const k=a.dataset.a;e.stopPropagation();
+if(digClick(k,id,a))return; /* digest marker, snippet, Build button, message and reference links */
 if(k==='exp'){if(open.has(id)){open.delete(id);delete cnt[id];vs.postMessage({type:'cardClosed',id:id});}else openCard(id);rerender();}
 	else if(k==='mx')mxToggle(id);
 else if(k==='pin')vs.postMessage({type:'pin',id:id});
@@ -141,6 +143,8 @@ else if(d.type==='ring'){ringMax=d.max>0?d.max:300000;rerender();}
 else if(d.type==='setQuery'){q.value=d.query||'';histIdx=-1;go();}
 else if(d.type==='setSort'){sortSet(d.sort);draft();if(sessOn&&!hasResults)askSess();rerender();}
 else if(d.type==='setStatuses'){stLoad(d.checked);rerender();}
+else if(d.type==='digestChanged')digChanged(d); /* a digest was built: row markers and an open card update in place */
+else if(d.type==='digestState')digState(d);
 else if(!live)return;
 else if(d.type==='start'){acc=[];prog=null;tot=null;}
 else if(d.type==='batch'){if(!busy)return;acc=acc.concat(d.results).sort((a,b)=>b.score-a.score).slice(0,capN);if(d.totals){tot=d.totals;capN=d.totals.max;}prog={done:d.done,total:d.total};
@@ -153,4 +157,4 @@ else if(d.type==='results'){tot=null;busy=false;bar.classList.remove('on');sessO
 vs.postMessage({type:'ready'});
 `;
 
-export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + GIT_JS + HIST_JS + CORE + STATUS + SORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS + TOUCH_JS + SUM_JS + WEB_JS + ACCT_JS;
+export const SCRIPT = SHARED_SRC + CAP_JS + RENDER + ROWS_JS + EXPAND_JS + DIGEST_JS + GIT_JS + HIST_JS + CORE + STATUS + SORT_JS + LAYOUT_JS + ARCH_JS + ADV_JS + TIP_JS + CTX_JS + TOUCH_JS + SUM_JS + WEB_JS + ACCT_JS;

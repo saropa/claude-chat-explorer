@@ -17,6 +17,7 @@ import { SUM_CSS, SUM_HTML } from './webviewSum';
 import { ACCT_CSS, ACCT_HTML } from './webviewAcct';
 import { WEB_BODY, WEB_CSS, WEB_HTML } from './webviewWeb';
 import { ACT_CSS, ACT_HTML, actScript } from './webviewActivity';
+import { DIGEST_CSS } from './webviewDigest';
 
 export const NAME = 'Saropa Chats';
 
@@ -26,7 +27,7 @@ export function html(fadeMs = 4000): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${NAME}</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${SORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}${ROWS_CSS}${TIP_CSS}${CTX_CSS}${TOUCH_CSS}${SUM_CSS}${WEB_CSS}${ACCT_CSS}${ACT_CSS}</style></head><body>
+<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${SORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}${ROWS_CSS}${TIP_CSS}${CTX_CSS}${TOUCH_CSS}${SUM_CSS}${WEB_CSS}${ACCT_CSS}${ACT_CSS}${DIGEST_CSS}</style></head><body>
 <div id="hdr"><div class="top">
 ${ACCT_HTML}
 ${WEB_HTML}
