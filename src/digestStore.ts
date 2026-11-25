@@ -50,6 +50,7 @@ export function listDigestIds(dir: string): string[] {
   try { return fs.readdirSync(dir).filter((n) => n.endsWith('.json')).map((n) => n.slice(0, -5)).filter(isSessionId); } catch { return []; }
 }
 
+/** One cache slot: the parsed entry and the file mtime it was read at, so a rebuild by another window (new mtime) is noticed and the entry re-read. */
 interface Cached { mtime: number; e: DigestEntry; }
 
 /** The worker's digest cache: a lookup by chat id that reads each digest file at most once per change. */

@@ -1,6 +1,6 @@
 import { startOf } from './blob';
 import { ctxInfo } from './contextWindow';
-import { matchedBy } from './match';
+import { digestLineHits, matchedBy } from './match';
 import { matches } from './snippet';
 import { candidates, findIn, Found, gitView, pacer, rank, scanOf, Scan, Source, toResult } from './search';
 import { STATUS_KEYS, statusesOf } from './status';
@@ -96,6 +96,18 @@ function tokenLines(s: Src, rec: Rec, c: Compiled, ctx: Ctx, tagId: string, L: L
   return true;
 }
 
+/**
+ * Emit the matching digest lines of a chat the search matched. A digest-only chat has no message lines, so without this
+ * it would pass the filter and then export nothing. The matching is the same as the results editor's (digestLineHits).
+ */
+function digestLines(sc: Scan, f: Found, L: Lines): boolean {
+  const dg = f.own ? sc.ix.digests?.get(f.p.id)?.lines : undefined;
+  if (!dg) { return true; }
+  const prefix = `${sc.ix.fileOf(f.p)}:0: ${f.p.title} | ${localStamp(f.p.last)} | Digest | `;
+  for (const h of digestLineHits(dg, sc.c)) { if (!L.add(prefix, h.t)) { return false; } }
+  return true;
+}
+
 /** Every line of one found parent (its own chat, then its subagents); false when the cap stopped it. */
 function emitFound(sc: Scan, f: Found, L: Lines): boolean {
   const { ix, c, ctx } = sc;
@@ -106,7 +118,8 @@ function emitFound(sc: Scan, f: Found, L: Lines): boolean {
     const rec = ix.rec(j.chat);
     if (!messageLines(j, rec, c, L) || !tokenLines(j, rec, c, ctx, f.p.id, L)) { return false; }
   }
-  return true;
+  // The digest belongs to the parent: its lines follow the chat's own and its subagents' lines.
+  return digestLines(sc, f, L);
 }
 
 /** True when the parent passes the status filter (all statuses checked passes everything). */

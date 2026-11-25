@@ -1,6 +1,6 @@
 import { startOf } from './blob';
 import { ExportOpts, statusOk } from './export';
-import { matchedBy } from './match';
+import { digestLineHits, matchedBy } from './match';
 import { Abort, Chat, Compiled, Ctx, Options, Rec, Result } from './types';
 import { candidates, findIn, Found, gitView, pacer, rank, scanOf, Scan, Source, toResult } from './search';
 import { mergeRanges, matches, Range } from './snippet';
@@ -83,24 +83,12 @@ function fileHits(s: Src, rec: Rec, c: Compiled, ctx: Ctx, tagId: string, room: 
 
 const DIGEST_LABEL = 'Digest: ';
 
-/** Matching lines of a chat's digest (plain terms and digest: tokens), labeled, for a chat the digest matched. They carry no file line number. */
+/** Matching lines of a chat's digest, labeled, for a chat the digest matched. They carry no file line number. The matching itself is shared with the export (digestLineHits). */
 function digestHitsOf(lines: DigestLine[], c: Compiled, room: number): EdHit[] {
-  const out: EdHit[] = [];
-  for (const l of lines) {
-    if (out.length >= room) { break; }
-    const r: Range[] = [];
-    for (const re of c.terms) { r.push(...matches(re, l.t)); }
-    for (const t of c.tokens) {
-      // digest: values are lowercased substrings, the same rule matchedBy uses.
-      if (t.kind !== 'digest') { continue; }
-      const at = l.t.toLowerCase().indexOf(t.value);
-      if (at >= 0) { r.push([at, at + t.value.length]); }
-    }
-    if (!r.length) { continue; }
-    const shifted = mergeRanges(r).map(([a, b]): Range => [a + DIGEST_LABEL.length, b + DIGEST_LABEL.length]);
-    out.push({ n: 0, rows: [clip(DIGEST_LABEL + l.t, shifted)] });
-  }
-  return out;
+  return digestLineHits(lines, c).slice(0, Math.max(0, room)).map((h): EdHit => {
+    const shifted = h.r.map(([a, b]): Range => [a + DIGEST_LABEL.length, b + DIGEST_LABEL.length]);
+    return { n: 0, rows: [clip(DIGEST_LABEL + h.t, shifted)] };
+  });
 }
 
 function chatOf(sc: Scan, f: Found, room: number): { chat: EdChat; count: number } {
@@ -114,9 +102,10 @@ function chatOf(sc: Scan, f: Found, room: number): { chat: EdChat; count: number
     const r = fileHits(j, ix.rec(j.chat), c, ctx, f.p.id, room - count);
     chat.hits.push(...r.hits); count += r.count;
   }
-  // A chat matched by its digest has no message line for that match: list the digest lines, or it would show up empty.
+  // Digest lines are listed for every matched chat that has a digest, not only digest-only hits: a query like "refactor digest:pricing"
+  // matches a message AND the digest, and digestHitsOf lists only lines the matcher counted (digest: tokens, or plain terms when digestTermsApply).
   const dg = f.own ? ix.digests?.get(f.p.id)?.lines : undefined;
-  if (dg && f.own?.dig) {
+  if (dg) {
     const d = digestHitsOf(dg, c, room - count);
     chat.hits.push(...d); count += d.length;
   }

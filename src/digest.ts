@@ -83,6 +83,10 @@ const SHA_RE = /(?<![\w#-])[0-9a-f]{7,40}(?![\w-])/g;
 const PR_RE = /(?<![\w&#])#\d{1,6}\b/g;
 // A Markdown path, with or without folders and a drive letter, either slash direction; the optional leading slash covers absolute paths (/a/b.md, D:\a\b.md).
 const MD_RE = /(?<![\w\\/.-])(?:[A-Za-z]:)?[\\/]?(?:[\w.-]+[\\/])*[\w-][\w.-]*\.md\b/g;
+// What comes right before a '#digits' that makes it a CSS color and not a PR number: a colon (color: #333) or a color property with its colon earlier in the same declaration (border: 1px solid #123).
+const CSS_COLOR_CTX = /(?::\s*|\b(?:color|background|border|fill|stroke|outline|shadow)[\w-]*\s*[:=][^;{}#]*)$/i;
+/** True when a PR-looking match at offset is really a CSS hex color: a leading zero (PR numbers have none: #000, #000000) or a color context before it. */
+const cssColor = (text: string, at: number, ref: string): boolean => ref[1] === '0' || CSS_COLOR_CTX.test(text.slice(Math.max(0, at - 24), at));
 const TRAIL_PUNCT = /[.,;:!?]+$/;
 
 /** A hex run counts as a commit hash only when it mixes letters and digits; plain words (deadbeef) and plain numbers stay out. */
@@ -108,7 +112,8 @@ export function extractRefs(texts: Iterable<string>, max = MAX_REFS): string[] {
       return ' '.repeat(u.length); // same length: the offsets of later matches stay true
     });
     for (const m of rest.matchAll(SHA_RE)) { if (shaLike(m[0])) { found.push([m.index ?? 0, m[0]]); } }
-    for (const m of rest.matchAll(PR_RE)) { found.push([m.index ?? 0, m[0]]); }
+    // A CSS color like #333 or #000000 has the same shape as a PR number; cssColor tells them apart so colors are not listed as PRs.
+    for (const m of rest.matchAll(PR_RE)) { if (!cssColor(rest, m.index ?? 0, m[0])) { found.push([m.index ?? 0, m[0]]); } }
     for (const m of rest.matchAll(MD_RE)) { found.push([m.index ?? 0, m[0]]); }
     found.sort((a, b) => a[0] - b[0]);
     for (const [, s] of found) { add(s); }

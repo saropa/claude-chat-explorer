@@ -44,6 +44,19 @@ export function inProject(d: Pick<Digest, 'start' | 'dir'>, folder: string): boo
 
 /** One line of a multi-line quote as a Markdown blockquote. */
 const quote = (s: string): string[] => s.split(/\r?\n/).map((l) => '> ' + l);
+/**
+ * Existing export files that an export of `names` replaces under a new name: the same session (the _<id8>.md tail) but
+ * another file name, which happens when the title (and so the slug) changed. Without this a re-export leaves the old file
+ * beside the new one. INDEX.md and files of other shapes never match.
+ */
+export function supersededExports(existing: string[], names: string[]): string[] {
+  const tails = new Set<string>();
+  for (const n of names) { const m = /_[0-9a-f]{8}\.md$/.exec(n); if (m) { tails.add(m[0]); } }
+  const keep = new Set(names);
+  return existing.filter((n) => { const m = /_[0-9a-f]{8}\.md$/.exec(n); return !!m && tails.has(m[0]) && !keep.has(n); });
+}
+
+/** Collapse any whitespace run (newlines included) to one space, so a title or goal stays on one Markdown line and cannot break a list item or heading. */
 const oneLine = (s: string): string => s.replace(/\s+/g, ' ').trim();
 
 /** Notes of a digest (ended without close, trimmed input, AI state, cap) as plain sentences. */

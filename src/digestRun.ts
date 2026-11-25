@@ -8,8 +8,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import { AiState, autoDue } from './digest';
-import { AiCall, AiPart, runAi } from './digestAi';
-import { EXPORT_DIR, INDEX_NAME } from './digestMd';
+import { AI_SLOTS, AI_TIMEOUT_MS, AiCall, AiPart, runAi } from './digestAi';
+import { EXPORT_DIR, INDEX_NAME, supersededExports } from './digestMd';
 import { DigestInputReply } from './digestBuild';
 import { readDigest, digestDir } from './digestStore';
 import { Limiter } from './execLimit';
@@ -26,8 +26,6 @@ export const AI_SETTING = 'digest.useAi';
 const BUILD_TITLE = 'Saropa: Build Session Digests';
 /** Gathering scans the whole chat file, which can take a while for a very large chat: a long, soft worker request. */
 const GATHER_MS = 120000;
-const AI_TIMEOUT_MS = 120000; // per claude call, as the title runner
-const AI_SLOTS = 2; // claude processes at a time across every digest build
 const AUTO_EVERY_MS = 2 * 60 * 1000; // how often the automatic rebuild looks for idle stale digests
 const OPEN_MAX_BYTES = 50 * 1024 * 1024; // larger session files are not opened in the editor (VS Code struggles with them)
 
@@ -115,20 +113,20 @@ export class DigestService {
     let todo: Array<{ id: string; state: string }>;
     try { todo = ((await this.d.request({ t: 'digestTodo' })) ?? []).filter((x: { state: string }) => x.state !== 'fresh'); } catch (e) {
       this.d.log('digest list', e);
-      void vscode.window.showErrorMessage('Could not list the sessions to build digests for: ' + (e as Error).message);
+      void vscode.window.showErrorMessage(vscode.l10n.t('Could not list the sessions to build digests for: {0}', (e as Error).message));
       return;
     }
-    if (!todo.length) { void vscode.window.showInformationMessage('Every session already has an up-to-date digest.'); return; }
+    if (!todo.length) { void vscode.window.showInformationMessage(vscode.l10n.t('Every session already has an up-to-date digest.')); return; }
     const fresh = todo.filter((x) => x.state === 'none').length, stale = todo.length - fresh;
     const ai = this.useAi();
-    const go = 'Build';
-    const pick = await vscode.window.showInformationMessage(`Build digests for ${todo.length} session${todo.length === 1 ? '' : 's'}?`, {
+    const go = vscode.l10n.t('Build');
+    const pick = await vscode.window.showInformationMessage(todo.length === 1 ? vscode.l10n.t('Build a digest for 1 session?') : vscode.l10n.t('Build digests for {0} sessions?', todo.length), {
       modal: true,
-      detail: `${fresh} without a digest, ${stale} out of date. ` + (ai ? `Each digest asks the claude command (Haiku) for the goal, the decisions and the work left open; at most ${AI_SLOTS} run at a time.` : 'AI parts are turned off: only the exact parts are built.'),
+      detail: vscode.l10n.t('{0} without a digest, {1} out of date.', fresh, stale) + ' ' + (ai ? vscode.l10n.t('Each digest asks the claude command (Haiku) for the goal, the decisions and the work left open; at most {0} run at a time.', AI_SLOTS) : vscode.l10n.t('AI parts are turned off: only the exact parts are built.')),
     }, go);
     if (pick !== go) { return; }
     this.noCli = false; // a new run checks for claude again
-    await this.runMany(todo.map((x) => x.id), 'Building session digests', true);
+    await this.runMany(todo.map((x) => x.id), vscode.l10n.t('Building session digests'), true);
   }
 
   /** Build a list of chats with a cancelable progress notification, then report the counts. */
@@ -146,71 +144,75 @@ export class DigestService {
           if (!ac.signal.aborted) { n.err++; this.d.log(`digest ${id}`, e); }
         }
         n.done++;
-        prog.report({ message: `${n.done} of ${ids.length}`, increment: 100 / Math.max(ids.length, 1) });
+        prog.report({ message: vscode.l10n.t('{0} of {1}', n.done, ids.length), increment: 100 / Math.max(ids.length, 1) });
       }, () => ac.signal.aborted);
     });
     if (!report) { return; }
-    const parts = [`Built ${n.ok + n.plain + n.failed} digest${n.ok + n.plain + n.failed === 1 ? '' : 's'}`];
-    if (n.plain) { parts.push(`${n.plain} without AI parts (turned off)`); }
-    if (n.failed) { parts.push(`${n.failed} without AI parts (${this.noCli ? 'the claude command was not found' : 'the AI call failed; retried on the next build'})`); }
-    if (n.err) { parts.push(`${n.err} failed (see the Saropa Chats output)`); }
-    if (n.done < ids.length) { parts.push(`stopped after ${n.done} of ${ids.length}`); }
+    const built = n.ok + n.plain + n.failed;
+    const parts = [built === 1 ? vscode.l10n.t('Built 1 digest') : vscode.l10n.t('Built {0} digests', built)];
+    if (n.plain) { parts.push(vscode.l10n.t('{0} without AI parts (turned off)', n.plain)); }
+    if (n.failed) { parts.push(vscode.l10n.t('{0} without AI parts ({1})', n.failed, this.noCli ? vscode.l10n.t('the claude command was not found') : vscode.l10n.t('the AI call failed; retried on the next build'))); }
+    if (n.err) { parts.push(vscode.l10n.t('{0} failed (see the Saropa Chats output)', n.err)); }
+    if (n.done < ids.length) { parts.push(vscode.l10n.t('stopped after {0} of {1}', n.done, ids.length)); }
     void vscode.window.showInformationMessage(parts.join(', ') + '.');
   }
 
   /** "Rebuild Session Digest" (row menu and the card's button): one chat at once, with the card's button showing busy and done. */
   async rebuild(id: string): Promise<void> {
     if (!isSessionId(id)) { return; }
-    if (this.active.has(id)) { void vscode.window.showInformationMessage('A digest for this session is already being built.'); return; }
+    if (this.active.has(id)) { void vscode.window.showInformationMessage(vscode.l10n.t('A digest for this session is already being built.')); return; }
     this.noCli = false;
     this.d.post({ type: 'digestState', id, state: 'busy' });
     try {
-      const o = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Building the session digest', cancellable: true }, (_p, token) => {
+      const o = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Building the session digest'), cancellable: true }, (_p, token) => {
         const ac = new AbortController();
         token.onCancellationRequested(() => ac.abort());
         return this.buildOne(id, ac.signal).catch((e) => { if (ac.signal.aborted) { return 'cancelled' as const; } throw e; });
       });
       this.d.post({ type: 'digestState', id, state: o === 'gone' || o === 'lost' || o === 'cancelled' ? '' : 'done' });
-      const msg = o === 'gone' ? 'This session is not indexed yet. Try again in a moment.'
-        : o === 'lost' ? 'The digest build was interrupted. Try again.'
-          : o === 'cancelled' ? 'Digest build canceled.'
-            : o === 'off' ? 'Digest built with the exact parts only (AI parts are turned off).'
-              : o === 'failed' ? `Digest built without AI parts: ${this.noCli ? 'the claude command was not found' : 'the AI call failed'}.`
-                : 'Digest built.';
+      const msg = o === 'gone' ? vscode.l10n.t('This session is not indexed yet. Try again in a moment.')
+        : o === 'lost' ? vscode.l10n.t('The digest build was interrupted. Try again.')
+          : o === 'cancelled' ? vscode.l10n.t('Digest build canceled.')
+            : o === 'off' ? vscode.l10n.t('Digest built with the exact parts only (AI parts are turned off).')
+              : o === 'failed' ? vscode.l10n.t('Digest built without AI parts: {0}.', this.noCli ? vscode.l10n.t('the claude command was not found') : vscode.l10n.t('the AI call failed'))
+                : vscode.l10n.t('Digest built.');
       void vscode.window.showInformationMessage(msg);
     } catch (e) {
       this.d.post({ type: 'digestState', id, state: '' });
       this.d.log('rebuild digest', e);
-      void vscode.window.showErrorMessage('Could not build the digest: ' + (e as Error).message);
+      void vscode.window.showErrorMessage(vscode.l10n.t('Could not build the digest: {0}', (e as Error).message));
     }
   }
 
   /** "Export Session Digests to Project": one Markdown file per digest of the open project, plus INDEX.md, into docs/history/chats. */
   async export(): Promise<void> {
     const folders = vscode.workspace.workspaceFolders ?? [];
-    if (!folders.length) { void vscode.window.showInformationMessage('Open a project folder first: digests are written into its docs/history/chats folder.'); return; }
+    if (!folders.length) { void vscode.window.showInformationMessage(vscode.l10n.t('Open a project folder first: digests are written into its docs/history/chats folder.')); return; }
     // With several folders open the owner picks the project; one folder needs no question.
-    const f = folders.length === 1 ? folders[0] : (await vscode.window.showQuickPick(folders.map((x) => ({ label: x.name, description: x.uri.fsPath, x })), { title: 'Export session digests: project' }))?.x;
+    const f = folders.length === 1 ? folders[0] : (await vscode.window.showQuickPick(folders.map((x) => ({ label: x.name, description: x.uri.fsPath, x })), { title: vscode.l10n.t('Export session digests: project') }))?.x;
     if (!f) { return; }
     try {
       const r: { files: Array<{ name: string; text: string }>; index: string; missing: number; stale: number } | undefined = await this.d.request({ t: 'digestExport', folder: f.uri.fsPath }, GATHER_MS);
       if (!r || !r.files.length) {
-        void vscode.window.showInformationMessage(`No digests for ${f.name} yet${r?.missing ? ` (${r.missing} session${r.missing === 1 ? '' : 's'} without one)` : ''}. Run "${BUILD_TITLE}" first.`);
+        void vscode.window.showInformationMessage(r?.missing ? vscode.l10n.t('No digests for {0} yet ({1} without one). Run "{2}" first.', f.name, r.missing, BUILD_TITLE) : vscode.l10n.t('No digests for {0} yet. Run "{1}" first.', f.name, BUILD_TITLE));
         return;
       }
       const dir = vscode.Uri.joinPath(f.uri, ...EXPORT_DIR);
       await vscode.workspace.fs.createDirectory(dir);
+      // A title change gives a new file name for the same session: remove the old file (same _<id8>.md tail) first, or both stay.
+      const old = (await vscode.workspace.fs.readDirectory(dir)).filter(([, t]) => t === vscode.FileType.File).map(([n]) => n);
+      for (const n of supersededExports(old, r.files.map((x) => x.name))) { await vscode.workspace.fs.delete(vscode.Uri.joinPath(dir, n)); }
       // Each file is replaced in place; other files in the folder are left alone. INDEX.md is rewritten every time.
       for (const x of r.files) { await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, x.name), Buffer.from(x.text, 'utf8')); }
       const index = vscode.Uri.joinPath(dir, INDEX_NAME);
       await vscode.workspace.fs.writeFile(index, Buffer.from(r.index, 'utf8'));
-      const extra = [r.missing ? `${r.missing} session${r.missing === 1 ? ' has' : 's have'} no digest yet` : '', r.stale ? `${r.stale} ${r.stale === 1 ? 'is' : 'are'} out of date` : ''].filter(Boolean).join('; ');
-      const open = 'Open Index';
-      const pick = await vscode.window.showInformationMessage(`Exported ${r.files.length} digest${r.files.length === 1 ? '' : 's'} to ${EXPORT_DIR.join('/')}${extra ? ` (${extra})` : ''}.`, open);
+      const extra = [r.missing ? (r.missing === 1 ? vscode.l10n.t('1 session has no digest yet') : vscode.l10n.t('{0} sessions have no digest yet', r.missing)) : '', r.stale ? (r.stale === 1 ? vscode.l10n.t('1 is out of date') : vscode.l10n.t('{0} are out of date', r.stale)) : ''].filter(Boolean).join('; ');
+      const open = vscode.l10n.t('Open Index');
+      const pick = await vscode.window.showInformationMessage((r.files.length === 1 ? vscode.l10n.t('Exported 1 digest to {0}', EXPORT_DIR.join('/')) : vscode.l10n.t('Exported {0} digests to {1}', r.files.length, EXPORT_DIR.join('/'))) + (extra ? ` (${extra})` : '') + '.', open);
       if (pick === open) { await vscode.window.showTextDocument(index); }
     } catch (e) {
       this.d.log('export digests', e);
-      void vscode.window.showErrorMessage('Could not export the digests: ' + (e as Error).message);
+      void vscode.window.showErrorMessage(vscode.l10n.t('Could not export the digests: {0}', (e as Error).message));
     }
   }
 
@@ -218,31 +220,31 @@ export class DigestService {
   async openMessage(id: string, i: number): Promise<void> {
     const dg = readDigest(digestDir(this.d.storage), id);
     const line = dg?.decisions.find((x) => x.src === 'message' && x.i === i)?.line;
-    if (!dg || !line) { void vscode.window.showInformationMessage('That message is not in the stored digest any more. Rebuild the digest.'); return; }
+    if (!dg || !line) { void vscode.window.showInformationMessage(vscode.l10n.t('That message is not in the stored digest any more. Rebuild the digest.')); return; }
     try {
       const w: { file: string; size: number } | undefined = await this.d.request({ t: 'digestWhere', chat: id });
-      if (!w) { void vscode.window.showInformationMessage('This session is not indexed yet. Try again in a moment.'); return; }
+      if (!w) { void vscode.window.showInformationMessage(vscode.l10n.t('This session is not indexed yet. Try again in a moment.')); return; }
       // VS Code handles very large single-line files badly; name the line instead of opening such a file.
-      if (w.size > OPEN_MAX_BYTES) { void vscode.window.showInformationMessage(`The session file is too large to open in the editor (${Math.round(w.size / 1048576)} MB). The message is on line ${line}.`); return; }
+      if (w.size > OPEN_MAX_BYTES) { void vscode.window.showInformationMessage(vscode.l10n.t('The session file is too large to open in the editor ({0} MB). The message is on line {1}.', Math.round(w.size / 1048576), line)); return; }
       const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(w.file));
       const pos = new vscode.Position(Math.max(0, line - 1), 0);
       await vscode.window.showTextDocument(doc, { selection: new vscode.Range(pos, pos), preview: true });
     } catch (e) {
       this.d.log('open digest message', e);
-      void vscode.window.showErrorMessage('Could not open the session file: ' + (e as Error).message);
+      void vscode.window.showErrorMessage(vscode.l10n.t('Could not open the session file: {0}', (e as Error).message));
     }
   }
 
   /** The card's link of a reference: a URL opens in the browser, a commit or PR runs its search, a Markdown path opens when the file exists. Only references stored in the digest are acted on. */
   async openRef(id: string, ref: string): Promise<void> {
     const dg = readDigest(digestDir(this.d.storage), id);
-    if (!dg || !dg.refs.includes(ref)) { void vscode.window.showInformationMessage('That reference is not in the stored digest any more. Rebuild the digest.'); return; }
+    if (!dg || !dg.refs.includes(ref)) { void vscode.window.showInformationMessage(vscode.l10n.t('That reference is not in the stored digest any more. Rebuild the digest.')); return; }
     if (/^https?:\/\//i.test(ref)) { await vscode.env.openExternal(vscode.Uri.parse(ref)); return; }
     if (/^#\d+$/.test(ref)) { this.d.setQuery('pr:' + ref.slice(1)); return; }
     if (/^[0-9a-f]{7,40}$/.test(ref)) { this.d.setQuery('sha:' + ref.slice(0, 12)); return; }
     // A relative path is read against the folder the chat started in, where it was written.
     const p = path.isAbsolute(ref) ? ref : path.join(dg.start ?? dg.folder, ref);
-    try { await vscode.window.showTextDocument(vscode.Uri.file(p), { preview: true }); } catch { void vscode.window.showInformationMessage(`That file is not available: ${ref}`); }
+    try { await vscode.window.showTextDocument(vscode.Uri.file(p), { preview: true }); } catch { void vscode.window.showInformationMessage(vscode.l10n.t('That file is not available: {0}', ref)); }
   }
 
   /** Turn the automatic rebuild on or off from the setting; called at start and when the setting changes. */
@@ -267,5 +269,6 @@ export class DigestService {
     finally { this.autoRunning = false; }
   }
 
+  /** Stop the automatic-rebuild timer when the extension unloads, so no interval keeps running (and rebuilding) after deactivation. */
   dispose(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
 }

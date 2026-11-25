@@ -36,6 +36,8 @@ async function recOf(file) {
 }
 
 function refsTests() {
+  const css = dg.extractRefs(['p { color: #333; background:#000000; border: 1px solid #123 } .a{fill: #000} PR #42 and #7, see https://github.com/o/r/pull/9']);
+  check('refs: CSS hex colors are not PR numbers (' + JSON.stringify(css) + ')', !css.includes('#333') && !css.includes('#000000') && !css.includes('#123') && !css.includes('#000') && css.includes('#42') && css.includes('#7') && css.includes('https://github.com/o/r/pull/9'));
   const r = dg.extractRefs([
     'See https://github.com/o/r/pull/7, then fix. Commit a1b2c3d and 3028413a61aa; not deadbeef or 1234567.',
     'Session 07edf7b3-0b92-4f5e-921e-4d3781769fae and color #ff00aa are not refs. PR #42 and &#39; entity.',
@@ -225,6 +227,41 @@ async function buildTests(tmp) {
   check('results editor: a digest-only hit lists its labeled digest line', ed.chats.length === 1 && ed.chats[0].hits.some((h) => h.n === 0 && h.rows[0].t.startsWith('Digest: ') && h.rows[0].r.length > 0));
   const sub2 = await searchIndex(ix, compile('example.com/sub', OPTS), OPTS, [], { pins: new Set(), tags: {} }, { aborted: false });
   check('search: a subagent fact in the digest lands on the parent row', sub2.results.length === 1 && sub2.results[0].id === ID);
+
+  // Results editor with a message hit AND a digest: token: the digest line is listed too (it was only listed for digest-only hits).
+  const ctx0 = { pins: new Set(), tags: {} }, xo = { statuses: require(path.join(OUT, 'status.js')).STATUS_KEYS, sort: 'score', max: 50 };
+  const edMix = await require(path.join(OUT, 'editorSearch.js')).editorIndex(ix, compile('pricing digest:friday', OPTS), OPTS, [], ctx0, { aborted: false }, xo, () => undefined);
+  check('results editor: a message hit plus digest: lists the digest line', edMix.chats.length === 1 && edMix.chats[0].hits.some((h) => h.rows[0].t.startsWith('Digest: ') && h.rows[0].t.toLowerCase().includes('friday')) && edMix.chats[0].hits.some((h) => h.n > 0));
+  // A from: filter selects messages, so plain terms are not counted against the digest and its lines must not be listed.
+  const fromOpts = compile('friday from:you', OPTS);
+  const edFrom = await require(path.join(OUT, 'editorSearch.js')).editorIndex(ix, fromOpts, OPTS, [], ctx0, { aborted: false }, xo, () => undefined);
+  check('results editor: from:you lists no plain-term digest lines (' + JSON.stringify(edFrom.chats.map((c) => c.hits.length)) + ')', edFrom.chats.length === 1 && !edFrom.chats[0].hits.some((h) => h.rows[0].t.startsWith('Digest: ')));
+  check('digestTermsApply: only without a message filter', require(path.join(OUT, 'match.js')).digestTermsApply(compile('friday', OPTS)) && !require(path.join(OUT, 'match.js')).digestTermsApply(fromOpts));
+  // Export: a digest-only chat passes the filter, so its digest lines must be exported (it exported nothing before).
+  const xp = await require(path.join(OUT, 'export.js')).exportIndex(ix, compile('friday release', OPTS), OPTS, [], ctx0, { aborted: false }, { context: true, unique: false, statuses: xo.statuses }, () => undefined);
+  check('export: a digest-only chat exports its digest lines (' + JSON.stringify(xp.text.slice(0, 120)) + ')', xp.chats === 1 && xp.text.includes(' | Digest | ') && xp.text.includes('Friday release'));
+  const xt = await require(path.join(OUT, 'export.js')).exportIndex(ix, compile('digest:friday', OPTS), OPTS, [], ctx0, { aborted: false }, { context: false, unique: false, statuses: xo.statuses }, () => undefined);
+  check('export: a digest: token exports the matching digest line', xt.lines >= 1 && xt.text.toLowerCase().includes('friday'));
+
+  // Pending builds: a gathered build outlives another chat's input() (the sweep), until PENDING_MS has passed.
+  const ID2 = '33333333-2222-4333-8444-555555555555';
+  const chat2 = Object.assign({}, chat, { id: ID2 });
+  const ixp = Object.assign({}, ix, { find: (id) => (id === ID ? chat : id === ID2 ? chat2 : undefined), tops: () => [chat, chat2], fileOf: () => FIX, subsOf: () => [], rec: (c) => (c === chat2 ? rec : ix.rec(c)) });
+  let clock = 1e9;
+  const bp = new DigestBuilder(ixp, new store.DigestCache(path.join(tmp, 'pend')), () => clock);
+  await bp.input(ID);
+  clock += 16 * 60 * 1000; // longer than the old fixed 15 minutes
+  await bp.input(ID2); // runs the sweep
+  check('pending: a build in flight survives the sweep of another chat', (await bp.save(ID, 'off')) !== undefined);
+  await bp.input(ID);
+  clock += require(path.join(OUT, 'digestBuild.js')).PENDING_MS + 1;
+  await bp.input(ID2);
+  check('pending: a build older than PENDING_MS is swept', (await bp.save(ID, 'off')) === undefined);
+  const ai2 = require(path.join(OUT, 'digestAi.js'));
+  check('pending: lifetime covers every piece, retry and queue slot', require(path.join(OUT, 'digestBuild.js')).PENDING_MS >= (ai2.MAX_PIECES + 1) * ai2.AI_TRIES * ai2.AI_TIMEOUT_MS);
+
+  // Re-export after a title change: the old file of the same session is superseded; INDEX.md and other sessions stay.
+  check('export: an old-slug file of the same session is removed', eq(md.supersededExports(['2026-10-05_old-title_11111111.md', '2026-10-05_new-title_11111111.md', 'INDEX.md', 'notes.md', '2026-10-05_other_22222222.md'], ['2026-10-05_new-title_11111111.md']), ['2026-10-05_old-title_11111111.md']));
 
   // Export: one file per digest of the project, plus INDEX.md.
   const ex = b.exportFor('/w/shop');

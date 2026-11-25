@@ -36,11 +36,17 @@ function dgMark(r){if(!r.dg)return '';const t='Digest'+(r.dgStale?' (out of date
 return '<span class="dgm'+(r.dgStale?' st':'')+'" data-a="dig" role="button" tabindex="0" aria-label="'+esc(t+'. Show the digest')+'" data-tip="'+esc(t)+'">'+DG_SVG+'</span>';}
 /* the snippet of a digest-only hit: labeled Digest, and a click opens the Digest section instead of resuming the chat */
 function dgSnip(r){return '<div class="s dgsn" data-a="dig" role="button" tabindex="0" aria-label="'+esc('Digest match: '+r.snippet+'. Show the digest')+'" data-tip="Matched the digest of this session: click to show it"><b class="dgl">Digest</b> '+snip(r)+'</div>';}
-/* open the card (if closed) and its Digest section, then bring the section into view */
-function digOpen(id){if(!open.has(id)){openCard(id);rerender();}col.delete('dig:'+id);rerender();
-const n=Array.from(document.querySelectorAll('[data-sec]')).find(x=>x.dataset.sec==='dig:'+id);if(n){n.scrollIntoView({block:'nearest'});n.focus();}}
+/* chat whose Digest section must be scrolled to as soon as it exists: a closed card renders it only when the expand reply arrives, so a lookup right after openCard finds nothing */
+let dgPend='';
+/* bring the pending Digest section into view; stays pending (returns) while the section is not rendered yet */
+function dgScroll(){if(!dgPend)return;const id=dgPend;
+const n=Array.from(document.querySelectorAll('[data-sec]')).find(x=>x.dataset.sec==='dig:'+id);if(n){dgPend='';n.scrollIntoView({block:'nearest'});n.focus();}}
+/* open the card (if closed) and its Digest section, then bring the section into view; for a closed card the scroll waits for the expand reply (digestHtml schedules it) */
+function digOpen(id){if(!open.has(id)){openCard(id);}col.delete('dig:'+id);dgPend=id;rerender();dgScroll();}
+/* the Build or Rebuild button of the card: label is the idle text; busy and done come from dgs so a click shows an outcome at once */
 function dgBtn(id,label){const st=dgs[id];
 return '<button class="xb'+(st==='busy'?' busy':'')+'" data-a="dgbuild"'+(st==='busy'?' aria-busy="true"':'')+' aria-label="'+esc(label)+'" data-tip="'+esc(label+' (asks the AI model when AI parts are on)')+'">'+XI.note+'<span>'+(st==='busy'?'Building...':st==='done'?'Built':esc(label))+'</span></button>';}
+/* the warnings of a digest (no close, trimmed input, AI failed or off, size cap), one line each, from the same texts as the exported Markdown */
 function dgNotes(d){const n=[];if(d.noClose)n.push(DG_NOTES.noClose);if(d.inputTrimmed)n.push(DG_NOTES.inputTrimmed);
 if(d.ai==='failed')n.push(DG_NOTES.failed);else if(d.ai==='off')n.push(DG_NOTES.off);
 if(d.capTrimmed&&d.capTrimmed.length)n.push(DG_NOTES.cap+' ('+d.capTrimmed.join(', ')+')');
@@ -48,7 +54,9 @@ return n.map(x=>'<div class="dgn">'+esc(x)+'</div>').join('');}
 /* one decision: Dialog shows its question beside the answer; Message links to its message (opens the session file at that line) */
 function dgDec(x){if(x.src==='dialog')return '<div class="dgd"><span class="dgs" data-tip="An answer given in the question dialog">Dialog</span><div class="dgq"'+(x.opts&&x.opts.length?' data-tip="'+esc('Options: '+x.opts.join(' | '))+'"':'')+'>'+esc(x.q||'')+'</div><div class="dga">'+esc(x.a)+'</div></div>';
 return '<div class="dgd"><span class="dgs" data-tip="An owner message the AI marked as a decision">Message</span><span class="gp" data-a="dgmsg" data-i="'+x.i+'" role="button" tabindex="0" aria-label="'+esc('Open message '+x.i+' in the session file')+'" data-tip="'+esc('Open the session file at this message'+(x.line?' (line '+x.line+')':''))+'">Message '+x.i+'</span><div class="dga">'+esc(x.a)+'</div></div>';}
+/* one reference chip: the host decides what a click does (URL, PR or commit search, file) and only for references stored in the digest */
 function dgRef(r){return '<span class="gp" data-a="dgref" data-r="'+esc(r)+'" role="button" tabindex="0" aria-label="'+esc('Open '+r)+'" data-tip="'+esc(r)+'">'+esc(r)+'</span>';}
+/* the card section body: notes, then Goal, Decisions, Files changed, References and Left open, each with an explicit empty state so a missing part is never silent */
 function dgBody(id,g){const d=g.d,now=Date.now();let h=dgNotes(d);
 if(g.stale)h+='<div class="dgn">This session changed after the digest was built.</div>';
 h+='<div class="dgk">Goal</div>'+(d.goal?'<div>'+esc(d.goal)+'</div>':'<div class="none">Not generated</div>');
@@ -59,6 +67,8 @@ h+='<div class="dgk">Left open</div>'+(d.open&&d.open.length?'<ul class="dgo">'+
 return h+'<div class="dgf">Built '+esc(agoLong(d.built,now))+' '+dgBtn(id,g.stale?'Rebuild digest':'Rebuild')+'</div>';}
 /* the card section: absent while the full reply is loading, a Build button when the chat has no digest */
 function digestHtml(r,e){if(!e||!e.full||e.digest===undefined)return '';const id=r.id,g=e.digest;
+/* the section is built from the full expand reply: if a click on the marker is waiting for it, scroll once this render is in the DOM */
+if(dgPend===id)setTimeout(dgScroll,0);
 if(!g)return xsec('dig:'+id,'Digest','','<div class="none">No digest yet. '+dgBtn(id,'Build digest')+'</div>','xd');
 return xsec('dig:'+id,'Digest',g.stale?'out of date':'',dgBody(id,g),'xd');}
 /* clicks inside a row that belong to digests; true when handled */
@@ -71,6 +81,7 @@ return false;}
 function digChanged(d){const fix=r=>{if(r&&r.id===d.id){r.dg=true;if(d.goal)r.dgGoal=d.goal;else delete r.dgGoal;delete r.dgStale;}};
 lastRs.forEach(fix);pinned.forEach(fix);acc.forEach(fix);if(sess){sess.rows.forEach(fix);(sess.arch||[]).forEach(fix);}
 if(open.has(d.id))askExpand(d.id,0,false);rerender();}
+/* build state of the card's button from the host: busy and done show on the button, anything else clears it; done also clears itself after 2 s */
 function digState(d){if(d.state)dgs[d.id]=d.state;else delete dgs[d.id];rerender();
 if(d.state==='done')setTimeout(()=>{if(dgs[d.id]==='done'){delete dgs[d.id];rerender();}},2000);}
 `;

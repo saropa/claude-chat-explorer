@@ -5,7 +5,7 @@
  */
 import { scanLines } from './scan';
 import { capDigest, Decision, Digest, DIGEST_VERSION, extractRefs, finishFile, mergedFiles, newFileAcc, orderDecisions, takeFileLine, AiState, digestStale } from './digest';
-import { aiInput, AiInput, AiPart, messageDecisions, msgText } from './digestAi';
+import { AI_SLOTS, AI_TIMEOUT_MS, AI_TRIES, aiInput, AiInput, AiPart, MAX_PIECES, messageDecisions, msgText } from './digestAi';
 import { DigestCache, readDigest, writeDigest } from './digestStore';
 import { digestFileName, digestMarkdown, inProject, indexMarkdown } from './digestMd';
 import { handoverData } from './handover';
@@ -20,8 +20,14 @@ export interface DigestSource {
 const TAIL_ROWS = 6;
 const HEAD = 1024;
 const USER = Buffer.from('"type":"user"'), ASST = Buffer.from('"type":"assistant"');
-/** How long a gathered build waits for its AI result before it is dropped (a canceled or crashed host build). */
-const PENDING_MS = 15 * 60 * 1000;
+/**
+ * How long a gathered build waits for its AI result before it is dropped (a canceled or crashed host build).
+ * Derived from the AI constants so it is never shorter than a real build: every piece plus the merge call, each
+ * retried AI_TRIES times at the full timeout, times AI_SLOTS because the calls of concurrent builds queue on the
+ * AI_SLOTS shared processes. A fixed 15 minutes was shorter than that, so another chat's input() swept a live build
+ * and its save came back as lost.
+ */
+export const PENDING_MS = (MAX_PIECES + 1) * AI_TRIES * AI_TIMEOUT_MS * AI_SLOTS;
 
 /** True when the head or tail of a raw line names a user or assistant row (the same cheap probe the parser uses). */
 function msgRow(b: Buffer, s: number, e: number): boolean {
@@ -83,7 +89,7 @@ export class DigestBuilder {
     return { id: c.id, title: c.title, input };
   }
 
-  /** Drop gathered builds whose host never came back. */
+  /** Drop gathered builds whose host never came back: only those older than PENDING_MS, which is longer than any real build, so a build still in flight is never swept. */
   private sweep(): void {
     const old = this.now() - PENDING_MS;
     for (const [id, p] of this.pend) { if (p.at < old) { this.pend.delete(id); } }

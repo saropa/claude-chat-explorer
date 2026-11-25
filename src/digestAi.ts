@@ -15,6 +15,12 @@ export const MAX_PIECES = 8;
 const OWNER_CHARS = 4000, AGENT_CHARS = 1500;
 /** Tries per AI call, like the title runner: a malformed reply is retried as well as a failed process. */
 export const AI_TRIES = 3;
+/**
+ * Timeout of one claude call and the claude processes allowed at once. They live here, not in the host file, so the
+ * worker's pending-build lifetime (digestBuild.ts) is derived from the same numbers: one source of truth.
+ */
+export const AI_TIMEOUT_MS = 120000;
+export const AI_SLOTS = 2;
 const GOAL_MAX = 400, OPEN_MAX = 5, OPEN_ITEM_MAX = 300, DECISIONS_MAX = 30;
 
 /** Owner messages that are harness text, not the owner's words: never offered as a decision. */

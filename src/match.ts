@@ -3,7 +3,7 @@ import { startOf } from './blob';
 import { gitMatched } from './gitMatch';
 import { Chat, Compiled, Ctx, Rec, Token } from './types';
 import { DigestLine, digestHits } from './digest';
-import { matches, Range, snippetOf } from './snippet';
+import { mergeRanges, matches, Range, snippetOf } from './snippet';
 import { inWin, Win, WinOf } from './window';
 
 const DAY = 86400000;
@@ -121,6 +121,33 @@ function scanDigest(lines: DigestLine[], terms: RegExp[]): DigestBody {
 }
 
 /**
+ * True when plain terms are counted against digest text: only with no message filter, because last: and from: select
+ * messages and a digest is not a message. The one predicate for the matcher (matchChat) and for every listing of digest
+ * lines (results editor, export), so a listing never shows a line the matcher did not count.
+ */
+export const digestTermsApply = (cmp: Compiled): boolean => cmp.last === 0 && cmp.from === 'both' && cmp.terms.length > 0;
+
+/**
+ * The digest lines a search matched, each with its match ranges: plain terms (when digestTermsApply) and digest: tokens
+ * (lowercased substrings, the rule matchedBy uses). Shared by the results editor and the export so both list the same lines.
+ */
+export function digestLineHits(lines: DigestLine[], cmp: Compiled): Array<{ t: string; r: Range[] }> {
+  const out: Array<{ t: string; r: Range[] }> = [];
+  const plain = digestTermsApply(cmp);
+  for (const l of lines) {
+    const r: Range[] = [];
+    if (plain) { for (const re of cmp.terms) { r.push(...matches(re, l.t)); } }
+    for (const t of cmp.tokens) {
+      if (t.kind !== 'digest') { continue; }
+      const at = l.t.toLowerCase().indexOf(t.value);
+      if (at >= 0) { r.push([at, at + t.value.length]); }
+    }
+    if (r.length) { out.push({ t: l.t, r: mergeRanges(r) }); }
+  }
+  return out;
+}
+
+/**
  * Match one chat: tokens on files, tags and digest text first, then the digest's plain-term hits, then the bloom
  * prefilter, and only then the store record. tagId is whose tags apply (a subagent uses its parent's). winOf limits
  * matching messages. dg is the chat's digest text: a plain term counts when it hits a message or the digest, so the
@@ -131,8 +158,8 @@ export function matchChat(c: Chat, cmp: Compiled, ctx: Ctx, tagId: string, load:
   // A file: token with no file-field hit falls back to the text, if the bloom says the path could be there.
   const textFile = cmp.tokens.map((t, i) => t.kind === 'file' && !cheap[i].length);
   if (cmp.tokens.some((t, i) => t.kind !== 'cmd' && !cheap[i].length && !(textFile[i] && mayHave(c.bloom, gramsOf(t.value))))) { return null; }
-  // Plain terms reach the digest only with no message filter: last: and from: select messages, and a digest is not a message.
-  const dgTerms = dg && cmp.last === 0 && cmp.from === 'both' && cmp.terms.length ? scanDigest(dg, cmp.terms) : undefined;
+  // Plain terms reach the digest only when digestTermsApply says so (no message filter).
+  const dgTerms = dg && digestTermsApply(cmp) ? scanDigest(dg, cmp.terms) : undefined;
   const dgAny = !!dgTerms && dgTerms.counts.some((n) => n > 0);
   const dgAll = !!dgTerms && dgTerms.counts.every((n) => n > 0);
   const bodyNeed = cmp.tokens.some((t, i) => t.kind === 'cmd' || textFile[i]);
