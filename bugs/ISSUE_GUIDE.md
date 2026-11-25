@@ -331,11 +331,11 @@ A bug closes only when all of these hold.
 
 ### Moving to history
 
-On close or decline, move the file to `plans/done/`, named with the close date:
+On close or decline, move the file to `plans/history/`, named with the close date:
 
 ```
 bugs/scan_skips_renamed_folder.md
-  → plans/done/YYYYMMDD_scan_skips_renamed_folder_done.md
+  → plans/history/YYYYMMDD_scan_skips_renamed_folder_done.md
 ```
 
 Grep and repoint any `bugs/<file>.md` reference (CHANGELOG, plans, other issues) in the same commit.
@@ -357,4 +357,4 @@ Grep and repoint any `bugs/<file>.md` reference (CHANGELOG, plans, other issues)
 
 - Commits: `fix: description (area_description)` or `feat: description (proposal_description)`.
 - Plans and changelog: `[issue](bugs/scan_skips_renamed_folder.md)`.
-- Related history: `Related: plans/done/YYYYMMDD_filename_done.md`.
+- Related history: `Related: plans/history/YYYYMMDD_filename_done.md`.

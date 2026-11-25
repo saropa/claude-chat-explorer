@@ -6,7 +6,7 @@
 
 **Owner request 2026-11-12: a "..." menu on the Activity panel** with "Refresh time" (Slow, Medium, Fast) and "Fade-out time" (Slow, Medium, Fast). Values chosen as defaults (Medium = today's behavior): refresh Slow 1000 ms, Medium 250 ms, Fast 100 ms; fade Slow 8 s, Medium 4 s, Fast 2 s. The choice is saved in settings. Queued after the Agents-node work, since both change the same files.
 
-Context: the Activity panel (`src/activityHtml.ts`, `src/activityMap.ts`, `src/activityFeed.ts`, `src/activity.ts`, plan `plans/done/20261125_activity_diagram_done.md`) flashes one of eight nodes, or the core, for each new assistant block in the current chat log. Treated as already done: connector arcs between nodes, a longer core glow in thinking pauses, smaller text, a top-left sheen on circles.
+Context: the Activity panel (`src/activityHtml.ts`, `src/activityMap.ts`, `src/activityFeed.ts`, `src/activity.ts`, plan `plans/history/20261125_activity_diagram_done.md`) flashes one of eight nodes, or the core, for each new assistant block in the current chat log. Treated as already done: connector arcs between nodes, a longer core glow in thinking pauses, smaller text, a top-left sheen on circles.
 
 ## What the log carries (checked on the 40 most recent logs in `~/.claude/projects`, 2026-11-12)
 

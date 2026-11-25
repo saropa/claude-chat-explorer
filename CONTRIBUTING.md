@@ -24,7 +24,7 @@
 - US English in code, comments, docs and commit messages.
 - Never commit tokens, screenshots, Chrome profiles or chat files.
 - Keep the extension local-only: no network code of its own.
-- Design docs live in `plans/` (`plans/design` open, `plans/done` finished).
+- Design docs live in `plans/` (`plans/design` open, `plans/history` finished).
 
 ## Pull requests
 
