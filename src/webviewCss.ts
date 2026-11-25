@@ -66,7 +66,7 @@ html:not(.nf) .r.cur>.rh{background:var(--vscode-list-activeSelectionBackground)
 .dot.idle{opacity:.4}
 .dot.none{visibility:hidden}
 .rh:hover .hd .rc,.r:focus-within .hd .rc{visibility:hidden}
-.dot{--k-running:#89d185;--k-waiting:#3b82f6;--k-unread:#d97757;--k-background:#b180d7;--k-idle:#9d9d9d}
+.dot,.rs{--k-running:#89d185;--k-waiting:#3b82f6;--k-unread:#d97757;--k-background:#b180d7;--k-idle:#9d9d9d}
 .dot.running{--dc:var(--k-running)}
 .dot.waiting{--dc:var(--k-waiting)}
 .dot.unread{--dc:var(--k-unread)}

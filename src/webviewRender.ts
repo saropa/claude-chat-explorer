@@ -34,7 +34,8 @@ const EMOJI_RE=/\p{Extended_Pictographic}(?:\uFE0F|\u20E3|[\u{1F3FB}-\u{1F3FF}]|
 function emojiWrap(h){return h.split(/(<[^>]*>)/).map(x=>x.charAt(0)==='<'?x:x.replace(EMOJI_RE,m=>'<span class="em">'+m+'</span>')).join('');}
 function hdHtml(r,op){const p=pins.has(r.id),ia=arch.has(r.id),tg=tagIn&&tagIn.id===r.id;
 const ti0=r.titleShown&&(!op||r.titleShown===r.title)?marked(r.titleShown,r.titleRanges):esc(r.title),ti=ia?emojiWrap(ti0):ti0;
-return '<div class="hd">'+(decorated(r)?dotHtml(r.id):'<span class="dot none" aria-hidden="true"></span>')+'<span class="t" data-tip="k:title">'+ti+'</span>'+rcHtml(r,op,Date.now())+'<span class="ia">'
+/* the status dot no longer sits at the left: it lives inside the context ring slot at the far right of .rc (see slotHtml) */
+return '<div class="hd"><span class="t" data-tip="k:title">'+ti+'</span>'+rcHtml(r,op,Date.now())+'<span class="ia">'
 +'<button class="ic tg'+(tg?' on':'')+'" data-a="addtag" data-tip="Add tag" aria-label="Add tag">'+TAG_SVG+'</button>'
 +'<button class="ic ar'+(ia?' on':'')+'" data-a="arch" data-tip="'+(ia?'Unarchive':'Archive')+'" aria-label="'+(ia?'Unarchive':'Archive')+'">'+(ia?UNARCH_SVG:ARCH_SVG)+'</button>'
 +'<button class="ic pn'+(p?' on':'')+'" data-a="pin" data-tip="'+(p?'Unpin':'Pin')+'" aria-label="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button></span>'

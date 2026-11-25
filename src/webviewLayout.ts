@@ -40,14 +40,14 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 .sl>span:not(.pill),.gh>span:not(.pill){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pill{white-space:nowrap}
 .r,.rh,.hd,.ex,.s,.mt{min-width:0}
-.mt{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;padding:1px 8px 4px 24px;overflow:hidden}
+.mt{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;padding:1px 8px 4px 10px;overflow:hidden} /* 10px = the title's left edge now that the dot no longer takes the first 14px */
 .pst{flex:none;line-height:16px;font-size:14px;color:var(--vscode-charts-yellow,var(--vscode-foreground))}
 .mp{flex:none;min-width:18px;box-sizing:border-box;padding:0 6px;border-radius:9px;line-height:16px;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
 .rc{display:flex;align-items:center;flex:none;gap:6px;max-width:60%}
 .hg{display:inline-flex;flex:none;color:var(--vscode-descriptionForeground)}
 .hg svg{width:12px;height:12px}
 .mt .pj{flex:0 1 auto;min-width:0;max-width:40%;line-height:16px}
-.rh>.chips{display:flex;flex-wrap:wrap;max-width:none;overflow:visible;padding:0 8px 3px 24px}
+.rh>.chips{display:flex;flex-wrap:wrap;max-width:none;overflow:visible;padding:0 8px 3px 10px}
 .rh>.chips:empty{display:none}
 .chip{max-width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere}
 .fi{overflow-wrap:anywhere}
@@ -79,9 +79,10 @@ function timeText(ms,now,latest){const a=agoLong(ms,now);
 return '<span class="tm" role="img" aria-label="'+(latest?'latest match ':'active ')+a+'" data-tip="'+(latest?'k:time':esc(a+'\n'+full(ms)))+'">'+agoCompact(ms,now)+'</span>';}
 const CHART_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M3 13V8M8 13V3M13 13V6"/></svg>';
 function hugeIcon(r){return statusesOf(r,pins.has(r.id),Date.now(),(dots[r.id]||{}).s).includes('huge')?'<span class="hg" role="img" aria-label="Huge session" data-tip="Huge session">'+CHART_SVG+'</span>':'';}
-function rcHtml(r,op,now){if(op)return '';const q=r.hits>0,dc=decorated(r);
+/* An open row hides the details (project, time, git) because the expanded panel shows them, but keeps the ring slot so the status dot stays visible now that it no longer sits at the row's left. */
+function rcHtml(r,op,now){if(op)return '<span class="rc">'+slotHtml(r)+'</span>';const q=r.hits>0,dc=decorated(r);
 return '<span class="rc">'+(all.checked&&r.project?'<span class="pj" data-tip="Project folder">'+esc(r.project)+'</span>':'')+pinStar(r)
-+ringHtml(r)+(dc?ctxPill(r)+gitIcon(r)+hugeIcon(r):'')+timeText(stamp(r),now,q&&!!r.snipAt)+'</span>';}
++(dc?ctxPill(r)+gitIcon(r)+hugeIcon(r):'')+timeText(stamp(r),now,q&&!!r.snipAt)+slotHtml(r)+'</span>';} /* slot last: a fixed-width column at the far right so rings and dots line up across rows */
 function pinStar(r){return pins.has(r.id)?'<span class="pst" role="img" aria-label="Pinned" data-tip="Pinned">★</span>':'';}
 function metaHtml(r,now){const q=r.hits>0,t=touchPill(r),sp=q&&r.snipSub!==undefined?saPill(r.snipSub,'k:snipsub'):'';
 if(!t&&!sp)return '';
