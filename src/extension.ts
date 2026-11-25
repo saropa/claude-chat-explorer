@@ -23,6 +23,7 @@ import { AutoTitler, autoTitleNow } from './autoTitleRun';
 import { AUTO_FALLBACK_KEY, AUTO_KEY, setAutoTitle } from './autoTitleFlag';
 import { registerClaudeConfig } from './claudeConfigPanel';
 import { registerOptions } from './optionsPanel';
+import { registerKeepWarm } from './keepWarm';
 import { registerActivity } from './activity';
 import { fadeMsOf } from './activityFeed';
 import { registerUsage } from './usageUi';
@@ -453,6 +454,7 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   registerOptions(ctx, logErr);
   registerClaudeConfig(ctx, logErr);
   const autoCfg = () => vscode.workspace.getConfiguration();
+  registerKeepWarm(ctx, logErr); // installs or removes the keep-warm Stop hook to match saropaChats.keepWarm.enabled
   const syncAuto = () => { void vscode.commands.executeCommand('setContext', 'saropaChats.autoTitleEnabled', autoTitleNow(ctx.globalState)); };
   const extPkg = vscode.extensions.getExtension('saropa.claude-chat-explorer')?.packageJSON as { version?: string; contributes?: { configuration?: { properties?: Record<string, unknown> } } } | undefined;
   log(`activate: version ${extPkg?.version ?? 'unknown'}, ${AUTO_KEY} in manifest: ${extPkg?.contributes?.configuration?.properties?.[AUTO_KEY] !== undefined}, path ${ctx.extensionPath}`);
