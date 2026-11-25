@@ -63,7 +63,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     const ids = tailIds(cur, live);
     // A chat that left the tailed set no longer reports; its background pills are cleared explicitly.
     for (const id of [...feeds.keys()]) {
-      if (!ids.includes(id)) { feeds.delete(id); send({ type: 'events', events: [{ t: 'bg', shell: 0, agent: 0, ch: id, col: colors.get(id) ?? '' }] }); }
+      if (!ids.includes(id)) { feeds.delete(id); send({ type: 'events', events: [{ t: 'bg', shell: 0, agent: 0, ch: id, col: '', cur: false }] }); }
     }
     const batches = await Promise.all(ids.map(async (id) => {
       let f = feeds.get(id);

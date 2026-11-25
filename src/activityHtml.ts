@@ -91,7 +91,7 @@ text{paint-order:stroke;stroke:var(--vscode-sideBar-background,var(--vscode-edit
 .wait .nd,.wait .core{stroke:var(--hl);stroke-opacity:.7;}
 .rip .rp{animation:rip 1.8s ease-out;transform-box:fill-box;transform-origin:center;}
 .vscode-high-contrast .wait .nd,.vscode-high-contrast .wait .core,.vscode-high-contrast-light .wait .nd,.vscode-high-contrast-light .wait .core{stroke:var(--hl);stroke-opacity:1;stroke-width:2;}
-#bg{display:flex;justify-content:center;gap:6px;margin:6px auto 0;min-height:20px;}
+#bg{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:6px auto 0;min-height:20px;}
 .pill{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:10px;font-size:11px;border:1px solid var(--hl);color:var(--hl);background:color-mix(in srgb,var(--hl) 12%,transparent);animation:pill 2s ease-in-out infinite;}
 .pill[hidden]{display:none;}
 .pill .ic{position:static;width:12px;height:12px;opacity:1;}
@@ -136,17 +136,36 @@ const pend = new Map(); // tool calls in flight: id -> { g, t }, t being the 10 
 const core = document.querySelector('.grp[data-g="think"]');
 const cap = document.getElementById('cap');
 const grp = (g) => document.querySelector('.grp[data-g="' + g + '"]');
-let last = '', capText = '', capAt = 0, capTimer = 0;
+const lastOf = new Map(); // chat key -> group of its last flash, so the connector joins one chat's own consecutive groups (all-chats mode interleaves several)
+let capText = '', capAt = 0, capTimer = 0;
 // Background tasks: a glowing pill per running kind (shell, agent), with a count when there are several. They are separate from the flashes, which only mark calls as they happen.
+// In the all-chats mode each chat has its own pills in its own colour; otherwise everything is under the one key ''.
+const bgBy = new Map(); // chat key -> { shell, agent, col }
 function pills(m) {
-  document.querySelectorAll('.pill').forEach((p) => {
-    const n = Number(m[p.dataset.k]) || 0;
-    p.hidden = !n;
-    p.querySelector('b').textContent = n > 1 ? String(n) : '';
-    p.title = p.dataset.l + (n > 1 ? 's: ' + n : '');
-  });
+  const key = m.ch || '', shell = Number(m.shell) || 0, agent = Number(m.agent) || 0;
+  if (shell || agent) { bgBy.set(key, { shell, agent, col: m.col || '' }); } else { bgBy.delete(key); }
+  drawPills();
 }
-function pulse(el, key, err) {
+// The pills in the markup are hidden templates; the visible ones are clones, rebuilt from bgBy on every change (a handful at most).
+function drawPills() {
+  const bar = document.getElementById('bg');
+  bar.querySelectorAll('.pill.live').forEach((p) => p.remove());
+  for (const b of bgBy.values()) {
+    for (const k of ['shell', 'agent']) {
+      const n = b[k], t = bar.querySelector('.pill[data-k="' + k + '"]:not(.live)');
+      if (!n || !t) { continue; }
+      const p = t.cloneNode(true);
+      p.classList.add('live'); p.hidden = false;
+      p.querySelector('b').textContent = n > 1 ? String(n) : '';
+      p.title = t.dataset.l + (n > 1 ? 's: ' + n : '');
+      if (b.col) { p.style.setProperty('--hl', b.col); }
+      bar.appendChild(p);
+    }
+  }
+}
+// col: the chat's colour in the all-chats mode. It is set per element (CSSOM, which the page's CSP allows) and dropped for an error, so the error color still wins.
+function pulse(el, key, err, col) {
+  if (col && !err) { el.style.setProperty('--hl', col); } else { el.style.removeProperty('--hl'); }
   el.classList.remove('hot', 'hold', 'err', 'sb');
   void el.getBoundingClientRect();
   el.classList.add('hot');
@@ -170,12 +189,13 @@ function startCall(id, g) {
   grp(g).classList.add('busy');
 }
 // A chat switch clears every held state, the pending calls and the caption.
-function reset() {
+function reset(keepPills) {
   for (const p of pend.values()) { clearTimeout(p.t); }
   pend.clear();
   document.querySelectorAll('.busy, .wait, .rip, .err').forEach((el) => el.classList.remove('busy', 'wait', 'rip', 'err'));
-  pills({}); // the feed re-reports the new chat's background tasks on its next check
-  clearTimeout(capTimer); capTimer = 0; capAt = 0; cap.textContent = ''; last = '';
+  // Pills are cleared with the chat in the single-chat mode (the feed re-reports the new chat's tasks); the all-chats mode keeps them, since they belong to every chat.
+  if (!keepPills) { bgBy.clear(); drawPills(); }
+  clearTimeout(capTimer); capTimer = 0; capAt = 0; cap.textContent = ''; lastOf.clear();
 }
 // Waiting for you: one ripple from the core (none with reduced motion), then a quiet outline until the next message.
 function wait(g) {
@@ -183,49 +203,51 @@ function wait(g) {
   el.classList.add('wait');
   if (g === 'think') { el.classList.remove('rip'); void el.getBoundingClientRect(); el.classList.add('rip'); setTimeout(() => el.classList.remove('rip'), 2000); }
 }
-function flash(g, err) {
-  const el = grp(g);
+function flash(g, err, ch, col, cur) {
+  const el = grp(g), key = ch || '', last = lastOf.get(key) || '';
   if (!el) { return; }
-  core.classList.remove('wait', 'rip');
+  // Only the current chat's work ends its own waiting state: another chat flashing says nothing about whether this one is still waiting for you.
+  if (cur !== false) { core.classList.remove('wait', 'rip'); }
   if (g === 'think' && !err) {
-    if (document.querySelector('.grp.hot:not([data-g="think"]), .cn.hot')) { pulse(el, g); return; }
+    if (document.querySelector('.grp.hot:not([data-g="think"]), .cn.hot')) { pulse(el, g, false, col); return; }
     el.classList.remove('hot', 'err');
+    if (col) { el.style.setProperty('--hl', col); } else { el.style.removeProperty('--hl'); }
     el.classList.add('hold');
     clearTimeout(timers.get(g));
-    timers.set(g, setTimeout(() => pulse(el, g), 10000));
+    timers.set(g, setTimeout(() => pulse(el, g, false, col), 10000));
     return;
   }
-  if (core.classList.contains('hold')) { pulse(core, 'think'); }
+  if (core.classList.contains('hold')) { pulse(core, 'think', false, col); }
   if (g !== 'think' && last && last !== g) {
     const cn = document.querySelector('.cn[data-c="' + [last, g].sort().join('-') + '"]');
-    if (cn) { pulse(cn, 'c:' + cn.dataset.c); }
+    if (cn) { pulse(cn, 'c:' + cn.dataset.c, false, col); }
   }
-  if (g !== 'think') { last = g; }
-  pulse(el, g, err);
+  if (g !== 'think') { lastOf.set(key, g); }
+  pulse(el, g, err, col);
 }
 // A sub-agent's work: the Agents node lights, then a connector to the node it used and that node. The main chain (last) and the waiting state are left alone.
-function sub(g) {
+function sub(g, col) {
   const ag = grp('agents'), el = grp(g);
   if (!ag || !el) { return; }
-  pulse(ag, 'agents'); ag.classList.add('sb'); // sb: the spoke to the center stays at rest, so this does not read as Claude's own work
+  pulse(ag, 'agents', false, col); ag.classList.add('sb'); // sb: the spoke to the center stays at rest, so this does not read as Claude's own work
   if (g === 'agents') { return; }
   const cn = document.querySelector('.cn[data-c="' + ['agents', g].sort().join('-') + '"]');
-  if (cn) { pulse(cn, 'c:' + cn.dataset.c); }
-  pulse(el, g); el.classList.add('sb');
+  if (cn) { pulse(cn, 'c:' + cn.dataset.c, false, col); }
+  pulse(el, g, false, col); el.classList.add('sb');
 }
 addEventListener('message', (e) => {
   const m = e.data;
-  if (m && m.type === 'reset') { reset(); return; }
+  if (m && m.type === 'reset') { reset(m.keepPills === true); return; }
   if (m && m.type === 'fade' && Number.isFinite(m.ms)) { fade = m.ms; document.documentElement.style.setProperty('--fade', m.ms + 'ms'); return; }
   if (!m || m.type !== 'events' || !Array.isArray(m.events)) { return; }
   for (const v of m.events) {
-    if (v.t === 'flash') { flash(v.g, v.err); }
-    else if (v.t === 'sub') { sub(v.g); }
+    if (v.t === 'flash') { flash(v.g, v.err, v.ch, v.col, v.cur); }
+    else if (v.t === 'sub') { sub(v.g, v.col); }
     else if (v.t === 'caption') { caption(String(v.text)); }
     else if (v.t === 'busy' && grp(v.g)) { startCall(v.id, v.g); }
     else if (v.t === 'end') { endCall(v.id); if (v.g === 'chat') { grp('chat').classList.remove('wait'); } if (!pend.size) { caption(''); } }
     else if (v.t === 'wait' && grp(v.g)) { wait(v.g); }
-    else if (v.t === 'wake') { last = ''; document.querySelectorAll('.wait').forEach((el) => el.classList.remove('wait', 'rip')); caption(''); }
+    else if (v.t === 'wake') { lastOf.delete(v.ch || ''); document.querySelectorAll('.wait').forEach((el) => el.classList.remove('wait', 'rip')); caption(''); }
     // bg: the core breathes only for background tasks (no tool call is ever attributed to it)
     else if (v.t === 'bg') { pills(v); }
   }

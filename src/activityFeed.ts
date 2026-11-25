@@ -152,7 +152,7 @@ export function tailIds(current: string, live: readonly string[], max = ALL_CHAT
 }
 
 /** An event with the chat it came from and that chat's colour, so the page can glow it in that colour and keep each chat's own state apart. */
-export type TaggedEvent = ActivityEvent & { ch: string; col: string };
+export type TaggedEvent = ActivityEvent & { ch: string; col: string; cur: boolean }; // cur: from the current chat, whose waiting state the page shows
 
 /**
  * Tags the events of one chat for the all-chats page. Only the current chat keeps its captions, busy rings and waiting states: the page holds
@@ -160,5 +160,5 @@ export type TaggedEvent = ActivityEvent & { ch: string; col: string };
  * background-task counts, which is the overview this mode is for.
  */
 export function tagEvents(events: ActivityEvent[], ch: string, col: string, isCurrent: boolean): TaggedEvent[] {
-  return events.filter((e) => isCurrent || e.t === 'flash' || e.t === 'sub' || e.t === 'bg').map((e) => ({ ...e, ch, col }));
+  return events.filter((e) => isCurrent || e.t === 'flash' || e.t === 'sub' || e.t === 'bg').map((e) => ({ ...e, ch, col, cur: isCurrent }));
 }

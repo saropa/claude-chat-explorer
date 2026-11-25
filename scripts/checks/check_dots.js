@@ -37,14 +37,14 @@ check('stateMap keeps the primary state only', eq(stateMap(dots), { a: 'unread',
   const launchAgent = (id) => JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_' + id }] }, toolUseResult: { isAsync: true, status: 'async_launched', agentId: id, prompt: 'x "agentId":"fake" y' } });
   const launchBash = (id) => JSON.stringify({ type: 'user', toolUseResult: { stdout: '', stderr: '', interrupted: false, backgroundTaskId: id } });
   const note = (id, st) => JSON.stringify({ type: 'queue-operation', operation: 'enqueue', content: '<task-notification>\n<task-id>' + id + '</task-id>\n<status>' + st + '</status>\n</task-notification>' });
-  const open = new Set();
+  const open = new Map(); // task id -> kind (shell or agent)
   [launchAgent('a1'), launchBash('b1'), JSON.stringify({ type: 'assistant', message: 'ordinary line' })].forEach((l) => feed(open, l));
-  check('launches are open', eq([...open].sort(), ['a1', 'b1']));
+  check('launches are open', eq([...open].sort(), [['a1', 'agent'], ['b1', 'shell']]));
   feed(open, note('a1', 'completed'));
-  check('a finish notice closes its task only', eq([...open], ['b1']));
+  check('a finish notice closes its task only', eq([...open.keys()], ['b1']));
   feed(open, note('b1', 'killed'));
   check('killed closes too', open.size === 0);
-  const q = new Set();
+  const q = new Map();
   feed(q, JSON.stringify({ type: 'user', message: { content: 'text mentioning "agentId":"zz" and async_launched' } }));
   check('quoted text is not a launch', q.size === 0);
 

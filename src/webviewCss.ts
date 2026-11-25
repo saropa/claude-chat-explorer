@@ -1,3 +1,4 @@
+import { CHAT_PALETTE } from './chatColors';
 import { DOT_ANIM_CSS } from './dotCss';
 export const CSS = String.raw`
 button,input,select{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);font-weight:normal;line-height:normal}
@@ -98,4 +99,4 @@ html:not(.nf) .r.cur>.rh{background:var(--vscode-list-activeSelectionBackground)
 .fi{font-family:var(--vscode-editor-font-family);word-break:break-all;color:var(--vscode-descriptionForeground)}
 mark{background:var(--vscode-editor-findMatchHighlightBackground);color:inherit}
 a{color:var(--vscode-textLink-foreground);cursor:pointer}
-` + DOT_ANIM_CSS;
+` + DOT_ANIM_CSS + CHAT_PALETTE.map((c, i) => `.cc${i}{--cc:${c}}`).join('');

@@ -3,6 +3,9 @@
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
 ## 1.0.0
+- Added: "Show All Chats" in the Activity ... menu (setting `saropaChats.activity.allChats`, off by default; applies without a reload). The diagram then shows the flashes and background-task pills of every live chat (up to 8 at once, the focused chat first), not only the focused one. The focused chat still keeps its caption and waiting state.
+- Added: in that mode each chat gets its own colour from a fixed 20-colour palette (src/chatColors.ts), kept the same across reloads and never shared between live chats while 20 or fewer are live. It shows as a bar on the left edge of the chat's row in the session list and as the glow of its flashes and pills on the diagram.
+- Added: the palette follows the programmer-standard categorical hues (Trubetskoy's 20 colours, Kelly's maximum-contrast set, Tableau), ordered so neighbours differ strongly, with every colour at least 3.5:1 against a dark (#1e1e1e) and 4.0:1 against a white sidebar. Pale members of those sets cannot meet 3:1 on both backgrounds, so each hue was shifted to a shared luminance band.
 - Fixed: the Activity diagram showed nothing while Claude waited on a background shell or agent. A glowing pill (terminal icon for shells, agent icon for agents, with a count when several) now shows under the diagram until the task finishes.
 - Fixed: PowerShell tool calls lit Control instead of Terminal; they now light Terminal and show the same caption as Bash.
 
