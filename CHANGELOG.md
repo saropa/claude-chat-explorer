@@ -5,6 +5,7 @@ Release notes for Saropa Chats, newest first. Dates are the git dates of each re
 ## [Unreleased]
 - Added: when nothing is in flight, the Activity diagram's caption names the chat it follows and its state, for example "your look scroll fade — waiting for you", plus "· 2 other chats working" when other live chats are running or have background tasks. A live caption from real events still wins; the idle text returns when it clears. It updates when the chat's dot or the focused chat changes.
 - Changed: "Show All Chats" (`saropaChats.activity.allChats`) is now on by default, so the diagram follows every live chat instead of only the focused one. Turn it off in the Activity ... menu or in Settings.
+- Changed: README sidebar screenshot retaken after the rename. It now shows "Saropa Chats", the separate Session Manager pane with New session and Clean up, and the Activity pane below.
 - Changed: `scripts/publish.py` retries a failed step by itself when its Retry / Abort prompt gets no answer for 20 s (any keystroke cancels the timer). After 3 automatic retries in a row the prompt waits indefinitely.
 
 ## 1.1.0
