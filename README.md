@@ -6,6 +6,8 @@ Keywords: Claude Code, AI agent, session history, session search, transcript sea
 
 ![Saropa Chats sidebar: the Session Manager with search and active sessions, and the Activity diagram lighting up as Claude works](https://github.com/saropa/claude-chat-explorer/raw/main/images/sidebar_session_manager_and_activity_panel.png)
 
+![Saropa Chats Activity diagram animating: nodes for Chat, Files, Terminal, Agents and Web light up as Claude works, with a Running caption below](https://github.com/saropa/claude-chat-explorer/raw/main/images/activity_panel.gif)
+
 ## What it does
 
 - Full-text search of agent sessions, including subagent transcripts.

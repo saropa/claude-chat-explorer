@@ -74,7 +74,8 @@ The rename (display name to "Saropa Chats") changed text only. Binary images are
 
 ## Changes Made
 
-Not started.
+- Step 2 done: `images/activity_panel.gif` (887 KB) embedded in `README.md` below the still; CHANGELOG line added.
+- Steps 1 and 3 (retaken sidebar screenshot) not done.
 
 ---
 
