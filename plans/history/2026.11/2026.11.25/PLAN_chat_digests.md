@@ -165,3 +165,28 @@ Changes from the text above, decided while building:
 - `PR: #42` is rejected by the colon rule.
 - Webview digest strings are literal; this repo has no webview l10n setup.
 - `check_guards.js` fails because `package.json` (0.49.0) and the top CHANGELOG heading (1.0.0) differ. The cause is outside this feature.
+
+### Follow-up (2026-11-25): hardening and Decisions Timeline
+
+- `09ccd57` hardening:
+  - AI replies are validated strictly and malformed ones are logged.
+  - Unreadable dialog answers are flagged.
+  - "Ended without a close" is unknown when the chat file has no `stop_reason`.
+  - A `#N` reference needs PR context (keyword, `(#N)` at line end, no leading zero).
+  - A missing `claude` CLI gives one error with no retry.
+  - The Build confirmation shows an estimate of AI calls.
+  - Export asks for a folder when several are open.
+  - A digest with an unknown store version counts as stale.
+- `ed6c899` adds "Saropa: Show Decisions Timeline": every Dialog and Message decision, newest first, grouped by date, filterable by project, opened as a read-only document with links to the session file.
+- `4f37abf` second review round:
+  - Chats that end before the first reply keep the "ended without a close" flag.
+  - Damaged decisions are skipped.
+  - `(#333)` colors are rejected.
+  - Timeline line numbering handles a lone CR.
+  - Timeline strings are localized.
+  - The call estimate is a true upper bound.
+  - Timeline tabs get their own fallback message.
+  - Digests without decision times are refreshed.
+- `dc290f9`: every decision of a built digest gets a numeric `at` (own time, then the nearest earlier message time, then the chat's last activity). Before this, the stale rule could rebuild such a digest on every pass.
+
+Verification: `npx tsc -p .` is clean. `check_digest.js`, `check_api.js`, `check_webview.js`, `check_scan.js`, `check_manifest.js` and `check_options.js` pass. The real `claude` CLI and the running VS Code UI (quick picks, timeline tab, link clicks, error messages) are unverified.
