@@ -1,6 +1,6 @@
 # BUG: README screenshot shows the old name and old layout
 
-**Status: Open**
+**Status: Closed**
 
 <!-- Open → Investigating → Fix Ready → Closed -->
 
@@ -75,15 +75,15 @@ The rename (display name to "Saropa Chats") changed text only. Binary images are
 ## Changes Made
 
 - Step 2 done: `images/activity_panel.gif` (887 KB) embedded in `README.md` below the still; CHANGELOG line added.
-- Steps 1 and 3 (retaken sidebar screenshot) not done.
+- Steps 1 and 3 done: `images/sidebar_session_manager_and_activity_panel.png` replaced with a new capture (Saropa Chats header, Session Manager pane with New session / Clean up, Activity pane). Same filename, so `README.md:7` is unchanged. CHANGELOG line added.
 
 ---
 
 ## Verification
 
-- [ ] Screenshot shows "Saropa Chats" in every header
-- [ ] GIF shows the Activity panel animating
-- [ ] README renders both images on GitHub
+- [x] Screenshot shows "Saropa Chats" in every header
+- [x] GIF shows the Activity panel animating
+- [x] README renders both images on GitHub (both raw URLs return 200; PNG is the new 112,705-byte capture)
 
 ---
 
