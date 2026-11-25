@@ -170,7 +170,7 @@ function drive() {
   step('reset dots', () => deliver({ type: 'dots', map: {} }));
 
   // Sort, status filter and search tips live in the view title bar; the host posts setSort, setStatuses and setQuery.
-  const KNOWN = ['file:', 'edited:', 'cmd:', 'tag:', 'sha:', 'pr:', 'branch:', 'last:', 'from:'];
+  const KNOWN = ['file:', 'edited:', 'cmd:', 'tag:', 'sha:', 'pr:', 'branch:', 'last:', 'from:', 'digest:'];
   const { TIPS, SORT_LIST } = require('../../out/headerData');
   const tipEx = TIPS.flatMap((g) => g[1].map((t) => t[1]));
   check('the three header icon buttons and popovers are gone from the page', !/id="(srb|sfb|tpb|srm|sfm|tpm)"/.test(page) && !/class="hbs"/.test(page));

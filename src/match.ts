@@ -2,6 +2,7 @@ import { gramsOf, mayHave } from './bloom';
 import { startOf } from './blob';
 import { gitMatched } from './gitMatch';
 import { Chat, Compiled, Ctx, Rec, Token } from './types';
+import { DigestLine, digestHits } from './digest';
 import { matches, Range, snippetOf } from './snippet';
 import { inWin, Win, WinOf } from './window';
 
@@ -28,9 +29,11 @@ function textMentions(rec: Rec, v: string): boolean {
   return lower.includes(v) || lower.includes(alt) || rec.cmds.some((x) => { const l = x.toLowerCase(); return l.includes(v) || l.includes(alt); });
 }
 
-/** Files, commands, tags or git facts matched by one token (case-insensitive substring; tags exact, of tagId); commands only inside win. */
-export function matchedBy(c: Chat, rec: Rec | undefined, t: Token, ctx: Ctx, tagId: string, win?: Win): string[] {
+/** Files, commands, tags, git facts or digest lines matched by one token (case-insensitive substring; tags exact, of tagId); commands only inside win. dg is the chat's digest text, if it has one. */
+export function matchedBy(c: Chat, rec: Rec | undefined, t: Token, ctx: Ctx, tagId: string, win?: Win, dg?: DigestLine[]): string[] {
   const has = (s: string) => s.toLowerCase().includes(t.value);
+  // digest: reads the stored digest only; a chat without one (or a subagent, whose facts live in the parent's digest) never matches it.
+  if (t.kind === 'digest') { return dg ? digestHits(dg, t.value) : []; }
   if (t.kind === 'file') {
     const hit = c.files.filter((f) => has(f.path)).map((f) => f.path);
     if (hit.length || !rec) { return hit; }
@@ -64,8 +67,8 @@ export function eachHit(rec: Rec, re: RegExp, fn: (i: number, at: number) => voi
   }
 }
 
-/** at: time of the newest matching message (0 when only tokens matched); role: its role (0 user, 1 assistant, -1 none); mc: distinct matching messages. */
-export interface Hit { hits: number; weightSum: number; snippet: string; ranges: Range[]; at: number; role: number; mc: number; }
+/** at: time of the newest matching message (0 when only tokens matched); role: its role (0 user, 1 assistant, -1 none); mc: distinct matching messages; dig: the snippet is a digest line (a digest-only hit, no message). */
+export interface Hit { hits: number; weightSum: number; snippet: string; ranges: Range[]; at: number; role: number; mc: number; dig?: boolean; }
 
 interface Body { counts: number[]; weightSum: number; msg: number; idx: number; mc: number; }
 
@@ -88,38 +91,81 @@ function scanBody(rec: Rec, terms: RegExp[], now: number, win?: Win): Body {
   return b;
 }
 
-/** Snippet from the first non-tag token match when no plain term matched a message. */
-function tokenSnippet(c: Compiled, found: string[][]): { snippet: string; ranges: Range[] } {
+/** Snippet from the first non-tag token match when no plain term matched a message; dig marks a digest: token's line. */
+function tokenSnippet(c: Compiled, found: string[][]): { snippet: string; ranges: Range[]; dig?: boolean } {
   const i = c.tokens.findIndex((t) => t.kind !== 'tag');
   if (i < 0) { return { snippet: '', ranges: [] }; }
   const s = found[i][0], at = s.toLowerCase().indexOf(c.tokens[i].value);
-  return { snippet: s, ranges: at >= 0 ? [[at, at + c.tokens[i].value.length]] : [] };
+  const out: { snippet: string; ranges: Range[]; dig?: boolean } = { snippet: s, ranges: at >= 0 ? [[at, at + c.tokens[i].value.length]] : [] };
+  // The row labels a digest line "Digest" and opens the card at the Digest section, so the source must travel with the snippet.
+  if (c.tokens[i].kind === 'digest') { out.dig = true; }
+  return out;
+}
+
+/** Plain-term hits in digest text: per-term counts and the first matching line and offset (for the snippet). */
+interface DigestBody { counts: number[]; line: number; idx: number; }
+
+/** Count each term's matches over the digest lines; the snippet line is the first line any term hits. */
+function scanDigest(lines: DigestLine[], terms: RegExp[]): DigestBody {
+  const b: DigestBody = { counts: terms.map(() => 0), line: -1, idx: -1 };
+  terms.forEach((re, k) => {
+    lines.forEach((l, j) => {
+      for (const [s] of matches(re, l.t)) {
+        b.counts[k]++;
+        // Keep the earliest line, and the earliest offset on it, so the snippet is stable across terms.
+        if (b.line < 0 || j < b.line || (j === b.line && s < b.idx)) { b.line = j; b.idx = s; }
+      }
+    });
+  });
+  return b;
 }
 
 /**
- * Match one chat: tokens on files and tags first, then the bloom prefilter, and only then the
- * store record. tagId is whose tags apply (a subagent uses its parent's). winOf limits matching messages.
+ * Match one chat: tokens on files, tags and digest text first, then the digest's plain-term hits, then the bloom
+ * prefilter, and only then the store record. tagId is whose tags apply (a subagent uses its parent's). winOf limits
+ * matching messages. dg is the chat's digest text: a plain term counts when it hits a message or the digest, so the
+ * digest check runs before the bloom gate (the bloom holds chat text only and would reject a digest-only hit).
  */
-export function matchChat(c: Chat, cmp: Compiled, ctx: Ctx, tagId: string, load: (c: Chat) => Rec, now: number, winOf?: WinOf): Hit | null {
-  const cheap = cmp.tokens.map((t) => (t.kind === 'cmd' ? [] : matchedBy(c, undefined, t, ctx, tagId)));
+export function matchChat(c: Chat, cmp: Compiled, ctx: Ctx, tagId: string, load: (c: Chat) => Rec, now: number, winOf?: WinOf, dg?: DigestLine[]): Hit | null {
+  const cheap = cmp.tokens.map((t) => (t.kind === 'cmd' ? [] : matchedBy(c, undefined, t, ctx, tagId, undefined, dg)));
   // A file: token with no file-field hit falls back to the text, if the bloom says the path could be there.
   const textFile = cmp.tokens.map((t, i) => t.kind === 'file' && !cheap[i].length);
   if (cmp.tokens.some((t, i) => t.kind !== 'cmd' && !cheap[i].length && !(textFile[i] && mayHave(c.bloom, gramsOf(t.value))))) { return null; }
-  if (cmp.grams.length && !mayHave(c.bloom, cmp.grams)) { return null; }
-  const need = cmp.terms.length > 0 || cmp.tokens.some((t, i) => t.kind === 'cmd' || textFile[i]);
-  const rec = need ? load(c) : undefined; // file:, edited: and tag: alone never touch the store
+  // Plain terms reach the digest only with no message filter: last: and from: select messages, and a digest is not a message.
+  const dgTerms = dg && cmp.last === 0 && cmp.from === 'both' && cmp.terms.length ? scanDigest(dg, cmp.terms) : undefined;
+  const dgAny = !!dgTerms && dgTerms.counts.some((n) => n > 0);
+  const dgAll = !!dgTerms && dgTerms.counts.every((n) => n > 0);
+  const bodyNeed = cmp.tokens.some((t, i) => t.kind === 'cmd' || textFile[i]);
+  if (cmp.grams.length && !mayHave(c.bloom, cmp.grams)) {
+    // The body cannot hold every term. With no digest hit the chat is out, as before digests existed.
+    if (!dgAny) { return null; }
+    // Every term is in the digest and nothing needs the body: a digest-only hit, without reading the record.
+    if (dgAll && !bodyNeed) { return digestOnly(c, cmp, dg!, dgTerms!, cheap, now); }
+    // Otherwise some terms may still be in the body: read it and decide per term below.
+  }
+  const need = cmp.terms.length > 0 || bodyNeed;
+  const rec = need ? load(c) : undefined; // file:, edited:, tag: and digest: alone never touch the store
   const win = rec ? winOf?.(rec) : undefined;
   const found = cmp.tokens.map((t, i) => (t.kind === 'cmd' || textFile[i] ? matchedBy(c, rec, t, ctx, tagId, win) : cheap[i]));
   if (found.some((f) => !f.length)) { return null; }
   const body = rec ? scanBody(rec, cmp.terms, now, win) : { counts: [], weightSum: 0, msg: -1, idx: -1, mc: 0 };
-  if (body.counts.some((n) => n === 0)) { return null; }
+  // A term must hit a message or the digest; one that hits neither drops the chat.
+  if (body.counts.some((n, k) => n === 0 && !(dgTerms && dgTerms.counts[k] > 0))) { return null; }
   const tokenHits = found.reduce((a, f) => a + f.length, 0);
+  const dgHits = dgTerms ? dgTerms.counts.reduce((a, b) => a + b, 0) : 0;
+  // The snippet prefers a message hit; a digest line is used only when no message matched.
   const snip = rec && body.msg >= 0
     ? snippetOf(rec.text.slice(startOf(rec, body.msg), rec.ends[body.msg]), body.idx, cmp.terms)
-    : tokenSnippet(cmp, found);
+    : dgTerms && dgTerms.line >= 0 ? { ...snippetOf(dg![dgTerms.line].t, dgTerms.idx, cmp.terms), dig: true } : tokenSnippet(cmp, found);
   return {
-    hits: body.counts.reduce((a, b) => a + b, 0) + tokenHits,
-    weightSum: body.weightSum + tokenHits * weightAt(c.last, now), ...snip,
+    hits: body.counts.reduce((a, b) => a + b, 0) + tokenHits + dgHits,
+    weightSum: body.weightSum + (tokenHits + dgHits) * weightAt(c.last, now), ...snip,
     at: rec && body.msg >= 0 ? rec.ts[body.msg] : 0, role: rec && body.msg >= 0 ? rec.roles[body.msg] : -1, mc: body.mc,
   };
+}
+
+/** A hit carried by the digest alone: no message, its snippet is the first matching digest line (labeled "Digest" by the row). */
+function digestOnly(c: Chat, cmp: Compiled, dg: DigestLine[], d: DigestBody, found: string[][], now: number): Hit {
+  const hits = d.counts.reduce((a, b) => a + b, 0) + found.reduce((a, f) => a + f.length, 0);
+  return { hits, weightSum: hits * weightAt(c.last, now), ...snippetOf(dg[d.line].t, d.idx, cmp.terms), dig: true, at: 0, role: -1, mc: 0 };
 }

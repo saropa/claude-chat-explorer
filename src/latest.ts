@@ -17,5 +17,7 @@ export function latestFields(l: Latest, own: Hit | null, subs: Array<[Chat, Hit]
   if (l.hit.at > 0) { out.snipAt = l.hit.at; }
   if (l.sub) { out.snipSub = l.sub.agentType ?? ''; out.snipDesc = l.sub.desc ?? l.sub.title; }
   else if (l.hit.role >= 0) { out.snipRole = l.hit.role === 0 ? 'user' : 'assistant'; }
+  // A digest-only snippet has no message: the row labels it "Digest" and a click opens the Digest section.
+  if (l.hit.dig) { out.snipDig = true; }
   return out;
 }

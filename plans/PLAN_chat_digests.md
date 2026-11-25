@@ -1,6 +1,6 @@
 # PROPOSAL: Chat Digests — a short, searchable record of every chat
 
-**Status: Accepted**
+**Status: Closed**
 
 <!-- Open → Accepted → In Progress → Closed (or Declined, with rationale in Decision) -->
 
@@ -63,8 +63,8 @@ Why it matters: chats hold decisions and context that are needed later. A full c
 ### Settings
 | Key | Type | Default | Scope |
 |-----|------|---------|-------|
-| `saropaChatExplorer.digest.auto` | boolean | `false` | machine |
-| `saropaChatExplorer.digest.useAi` | boolean | `true` | machine |
+| `saropaChats.digest.auto` | boolean | `false` | machine |
+| `saropaChats.digest.useAi` | boolean | `true` | machine |
 
 When `digest.auto` is `false`, digests are built only by the commands. When `digest.useAi` is `false`, a digest holds only the exact parts.
 
@@ -113,6 +113,22 @@ Accepted 2026-10-30 by the owner. Decisions:
 
 ---
 
+## Built as
+
+Changes from the text above, decided while building:
+- Ids are `saropaChats.*`. Command titles follow the neighbors and say "session": "Saropa: Build Session Digests", "Saropa: Rebuild Session Digest" (row menu, hidden from the palette), "Saropa: Export Session Digests to Project".
+- The worker writes the digest file in the save step and drops its own cache entry there, so the host posts no invalidation message. Other windows see a new digest when their listing (30 s) is read again.
+- `from:` and `last:` select messages, so plain words skip digest text when either is set. `digest:` tokens still match.
+- The automatic rebuild treats running and waiting sessions as busy, and rebuilds stale digests only; a session with no digest is built by the commands.
+- A Message decision links to the session file at its line (opened in the editor; files over 50 MB show the line number instead).
+- `INDEX.md` sits in `docs/history/chats/` beside the exported files.
+- "Chat ended without a close" means the last main-thread message row is not an agent reply that finished its turn (`stop_reason` end_turn).
+- "Open Results in Editor" lists the matching digest lines of a session found only by its digest.
+
 ## Commits
 
-- (none yet)
+- 7b0cbf2 feat: chat digest builder, store and search integration
+- 85a4f5b feat: digest marker, Digest card section and digest snippets in the panel
+- a66566f feat: Build, Rebuild and Export digest commands, settings and digest check
+- 47b92e3 refactor: drop unused digest invalidation message and card helper
+- docs: Chat Digests in README and CHANGELOG, plan closed (this commit)

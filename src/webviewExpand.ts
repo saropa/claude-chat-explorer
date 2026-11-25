@@ -50,7 +50,8 @@ function safeSec(name,fn){try{return fn();}catch(err){console.error('section '+n
 function loadHtml(e){return e&&e.failed?'<div class="none">'+esc(e.reason||'Could not load details')+'. <span class="gp" data-a="xretry" role="button" tabindex="0" aria-label="Retry loading details" data-tip="Load the details again">Retry</span></div>':'<div class="m">Loading...</div>';}
 function exHtml(r){const e=ex[r.id],f=e&&e.full,t=r.title;
 const left=safeSec('stats',()=>statsHtml(r))+safeSec('tags',()=>tagsHtml(r));
-const mid=f?safeSec('files',()=>filesHtml(r,e)):loadHtml(e);
+/* the Digest section sits above the matched files and messages, as the first part of the card's main column */
+const mid=f?safeSec('digest',()=>digestHtml(r,e))+safeSec('files',()=>filesHtml(r,e)):loadHtml(e);
 return '<div class="ex" role="region" aria-label="Details: '+esc(t)+'">'+safeSec('actions',()=>actHtml(r))+'<div class="xca">'+mid+'</div><div class="xcl">'+left+'</div>'+'<div class="xcb">'+lazyHtml(r,e)+'</div></div>';}
 function rowFocus(id,sel){const n=Array.from(document.querySelectorAll('.r')).find(x=>x.dataset.id===id);if(!n)return;n.focus();const f=n.querySelector(sel);if(f)f.focus();}
 function tagOpen(id){tagIn={id:id,v:''};rerender();rowFocus(id,'.tin');}

@@ -5,6 +5,7 @@ import { Abort, Chat, Compiled, Ctx, Options, Rec, Result } from './types';
 import { candidates, findIn, Found, gitView, pacer, rank, scanOf, Scan, Source, toResult } from './search';
 import { mergeRanges, matches, Range } from './snippet';
 import { inWin, subWinOf, topWinOf, WinOf } from './window';
+import type { DigestLine } from './digest';
 
 export const EDITOR_MAX_RESULTS = 20000; // match occurrences listed in the editor
 const MAX_LINE = 300; // characters of one listed line
@@ -80,6 +81,28 @@ function fileHits(s: Src, rec: Rec, c: Compiled, ctx: Ctx, tagId: string, room: 
   return { hits: out, count };
 }
 
+const DIGEST_LABEL = 'Digest: ';
+
+/** Matching lines of a chat's digest (plain terms and digest: tokens), labeled, for a chat the digest matched. They carry no file line number. */
+function digestHitsOf(lines: DigestLine[], c: Compiled, room: number): EdHit[] {
+  const out: EdHit[] = [];
+  for (const l of lines) {
+    if (out.length >= room) { break; }
+    const r: Range[] = [];
+    for (const re of c.terms) { r.push(...matches(re, l.t)); }
+    for (const t of c.tokens) {
+      // digest: values are lowercased substrings, the same rule matchedBy uses.
+      if (t.kind !== 'digest') { continue; }
+      const at = l.t.toLowerCase().indexOf(t.value);
+      if (at >= 0) { r.push([at, at + t.value.length]); }
+    }
+    if (!r.length) { continue; }
+    const shifted = mergeRanges(r).map(([a, b]): Range => [a + DIGEST_LABEL.length, b + DIGEST_LABEL.length]);
+    out.push({ n: 0, rows: [clip(DIGEST_LABEL + l.t, shifted)] });
+  }
+  return out;
+}
+
 function chatOf(sc: Scan, f: Found, room: number): { chat: EdChat; count: number } {
   const { ix, c, ctx } = sc;
   const pw = subWinOf(c.last, () => ix.rec(f.p));
@@ -90,6 +113,12 @@ function chatOf(sc: Scan, f: Found, room: number): { chat: EdChat; count: number
   for (const j of jobs) {
     const r = fileHits(j, ix.rec(j.chat), c, ctx, f.p.id, room - count);
     chat.hits.push(...r.hits); count += r.count;
+  }
+  // A chat matched by its digest has no message line for that match: list the digest lines, or it would show up empty.
+  const dg = f.own ? ix.digests?.get(f.p.id)?.lines : undefined;
+  if (dg && f.own?.dig) {
+    const d = digestHitsOf(dg, c, room - count);
+    chat.hits.push(...d); count += d.length;
   }
   return { chat, count };
 }

@@ -82,7 +82,7 @@ function hugeIcon(r){return statusesOf(r,pins.has(r.id),Date.now(),(dots[r.id]||
 /* An open row hides the details (project, time, git) because the expanded panel shows them, but keeps the ring slot so the status dot stays visible now that it no longer sits at the row's left. */
 function rcHtml(r,op,now){if(op)return '<span class="rc">'+slotHtml(r)+'</span>';const q=r.hits>0,dc=decorated(r);
 return '<span class="rc">'+(all.checked&&r.project?'<span class="pj" data-tip="Project folder">'+esc(r.project)+'</span>':'')+pinStar(r)
-+(dc?ctxPill(r)+gitIcon(r)+hugeIcon(r):'')+timeText(stamp(r),now,q&&!!r.snipAt)+slotHtml(r)+'</span>';} /* slot last: a fixed-width column at the far right so rings and dots line up across rows */
++(dc?ctxPill(r)+gitIcon(r)+hugeIcon(r):'')+dgMark(r)+timeText(stamp(r),now,q&&!!r.snipAt)+slotHtml(r)+'</span>';} /* slot last: a fixed-width column at the far right so rings and dots line up across rows; dgMark: the digest marker shows on every row that has a digest, decorated or not */
 function pinStar(r){return pins.has(r.id)?'<span class="pst" role="img" aria-label="Pinned" data-tip="Pinned">★</span>':'';}
 function metaHtml(r,now){const q=r.hits>0,t=touchPill(r),sp=q&&r.snipSub!==undefined?saPill(r.snipSub,'k:snipsub'):'';
 if(!t&&!sp)return '';

@@ -1,14 +1,14 @@
 import { ctxInfo } from './contextWindow';
 import { cutoffOf } from './query';
 import { clampMax, DEFAULT_MAX_RESULTS } from './limits';
-import { candidates, Source } from './search';
+import { candidates, digestMark, Source } from './search';
 import { projectOf, statFields } from './stats';
 import { Chat, Options, Result } from './types';
 
-/** Row for a chat from index metadata only (no text read): no hits and no snippet. */
+/** Row for a chat from index metadata only (no text read): no hits and no snippet; the digest marker comes from the digest cache. */
 export const rowOf = (ix: Source, c: Chat, subs: boolean): Result => ({
   file: ix.fileOf(c), id: c.id, title: c.title, hits: 0, last: c.last, snippet: '', ranges: [], score: 0,
-  project: projectOf(c), ...statFields(c, subs ? ix.subsOf(c) : []),
+  project: projectOf(c), ...statFields(c, subs ? ix.subsOf(c) : []), ...digestMark(ix, c),
 });
 
 type Cmp = (a: Chat, b: Chat) => number;
