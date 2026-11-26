@@ -46,6 +46,8 @@ check('junk does not flash or throw', eq(flashesOf('{not json'), []) && eq(flash
 const ev = (line, pending) => eventsOf(line, pending || new Map());
 const endTurn = JSON.stringify({ type: 'assistant', message: { stop_reason: 'end_turn', content: [{ type: 'text', text: 'done' }] } });
 check('end_turn flashes chat, then waits on the core', eq(ev(endTurn).filter((e) => e.t !== 'caption'), [{ t: 'flash', g: 'chat' }, { t: 'wait', g: 'think' }]));
+// Regression: end_turn ends every normal turn, so it must not set a live 'Waiting for you' caption (that wording belongs to the idle caption, which reads the dot).
+check('end_turn emits no live caption, so "waiting for you" comes only from the dot-based idle caption', !ev(endTurn).some((e) => e.t === 'caption') && !JSON.stringify(ev(endTurn)).includes('Waiting for you'));
 check('other stop reasons do not wait', !ev(asst({ type: 'text' })).some((e) => e.t === 'wait'));
 check('AskUserQuestion waits on the Chat node, not busy', eq(ev(asst({ type: 'tool_use', id: 'q1', name: 'AskUserQuestion', input: {} })).filter((e) => e.t !== 'caption'), [{ t: 'flash', g: 'chat' }, { t: 'wait', g: 'chat' }]));
 const bashDesc = { type: 'tool_use', id: 't1', name: 'Bash', input: { description: 'Run the unit tests', command: 'SECRET=hunter2 npm test --all' } };

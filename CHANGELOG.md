@@ -3,6 +3,7 @@
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
 ## [Unreleased]
+- Fixed: the Activity caption no longer says "Waiting for you" when no chat is waiting. The live caption was set at the end of every normal turn (`end_turn`) and stayed up after the session dot moved to idle or unread; it was also untranslated and could not be clicked. The live caption is gone; "waiting for you" now comes only from the idle caption, which reads the session dot, goes through `vscode.l10n.t` and names the chat. Covered by `scripts/checks/check_activity.js`.
 - Changed: the Activity settings moved from the whole panel's "..." menu to a gear button at the right end of the Activity section header, so they read as settings of that section. Its popover holds Refresh speed and Fade speed (Slow / Medium / Fast radios, with the value in effect shown in ms, so a custom value from settings.json is visible), an "All chats" checkbox (was the "Show All Chats" menu item) and an "Open in browser" button. Escape closes it and returns focus to the gear. Choices are written through the same guarded settings write as before; the popover follows changes made in Settings or settings.json, and a write that fails or does not take effect snaps the control back and shows an error. The Slow / Medium / Fast values now live only in `src/activityFeed.ts` (`SPEED_CHOICES`). The `saropaChats.activityAllChats` command is now titled "All Chats". Covered by `scripts/checks/check_activity.js` and `scripts/checks/check_activity_page.js`.
 
 ## 1.2.0

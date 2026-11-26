@@ -102,7 +102,12 @@ export function eventsOf(line: string, pending: Map<string, Group>): ActivityEve
     }
   }
   const lastType = content[content.length - 1]?.type; // end_turn is copied onto every block line of a message: only its final text line waits
-  if (e.message.stop_reason === 'end_turn' && lastType !== 'thinking' && lastType !== 'tool_use') { out.push({ t: 'wait', g: 'think' }); caption = 'Waiting for you'; }
+  // Bug fixed: this branch also set the live caption 'Waiting for you'. end_turn closes EVERY normal turn, so the text claimed the chat
+  // waited when nothing needed the user; it outlived the session dot (the page's settle on `wait` ran first, then this caption landed
+  // and stuck as a live caption until the next tool call); it was untranslated; and a live caption is never clickable. Now only the
+  // outline event is emitted: the words come from the idle caption (activityIdle.ts), which reads the session dot, is translated and
+  // names the chat so it can focus it.
+  if (e.message.stop_reason === 'end_turn' && lastType !== 'thinking' && lastType !== 'tool_use') { out.push({ t: 'wait', g: 'think' }); }
   if (caption !== undefined) { out.push({ t: 'caption', text: caption }); }
   return out;
 }
