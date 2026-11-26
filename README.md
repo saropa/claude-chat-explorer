@@ -182,7 +182,7 @@ A digest is a short stored record of one session: the goal, your decisions, the 
 
 ## Account & Usage
 
-A section at the top of the sidebar, closed until opened, laid out like the native Claude Code panel. ACCOUNT shows your email and plan from `~/.claude.json` (or "Not signed in"). USAGE shows tokens used in the last 5 hours, today and the last 7 days (input plus output). Hide the email under the gear button on the section header (setting `saropaChats.account.hideEmail`, off by default; display only). "View details" adds name, organization, yesterday, 3 and 5 days, the input, output and cache split per window, and tokens per model. No percent of limit or reset time: that needs the network and keychain. Offline and read-only.
+A section at the top of the sidebar, closed until opened, laid out like the native Claude Code panel. ACCOUNT shows your email and plan from `~/.claude.json` (or "Not signed in"). USAGE shows tokens used in the last 5 hours, today and the last 7 days (input plus output). The gear button on the section header opens two display-only settings: Hide account email (`saropaChats.account.hideEmail`) and Screen-share mode (`saropaChats.account.screenShare`), both off by default. Screen-share mode hides the email, name and organization; plan and usage stay. Hidden values are removed before the panel receives them. "View details" adds name, organization, yesterday, 3 and 5 days, the input, output and cache split per window, and tokens per model. No percent of limit or reset time: that needs the network and keychain. Offline and read-only.
 
 ## Activity
 

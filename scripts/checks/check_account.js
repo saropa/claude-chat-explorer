@@ -2,6 +2,7 @@
 const path = require('path');
 const OUT = process.env.CCS_OUT || path.join(__dirname, '..', '..', 'out');
 const { accountOf, dedupe, eventOf, shortModel, totals } = require(path.join(OUT, 'accountUsage.js'));
+const { redactAccount } = require(path.join(OUT, 'acctRedact.js'));
 const failures = [];
 const check = (what, cond) => { if (!cond) { failures.push(what); } };
 
@@ -67,6 +68,17 @@ check('yesterday boundary (bounded range)', t3.yest.io === 1100);
 check('rolling 3, 5 and 7 days end now', t3.h5.io === 111 && t3.d3.io === 11111 && t3.d5.io === 11111 && t3.d7.io === 11111);
 check('fresh totals have all windows', ['h5', 'today', 'yest', 'd3', 'd5', 'd7'].every((k) => t3[k] && t3[k].io >= 0));
 check('model sums never exceed 7d total', t2.models.reduce((a, m) => a + m.io, 0) <= t2.d7.io);
+
+// Host-side redaction: hidden fields are removed from the copy posted to the webview, never from the original (the public API keeps them).
+const raw = { account: { email: 'a@b.c', name: 'A', org: 'Org', plan: 'max' }, usage: { d7: { io: 1 } } };
+const none = redactAccount(raw, { hideEmail: false, screenShare: false });
+check('redact: nothing hidden keeps every field', none.account.email === 'a@b.c' && none.account.name === 'A' && none.account.org === 'Org');
+const he = redactAccount(raw, { hideEmail: true, screenShare: false });
+check('redact: hide-email drops only the email', !('email' in he.account) && he.account.name === 'A' && he.account.org === 'Org' && he.account.plan === 'max' && he.usage.d7.io === 1);
+const ss = redactAccount(raw, { hideEmail: false, screenShare: true });
+check('redact: screen-share implies hide-email and drops name and organization, keeps plan and usage', !('email' in ss.account) && !('name' in ss.account) && !('org' in ss.account) && ss.account.plan === 'max' && ss.usage.d7.io === 1);
+check('redact: the input is never mutated', raw.account.email === 'a@b.c' && raw.account.name === 'A' && raw.account.org === 'Org');
+check('redact: signed out and failed payloads pass through', redactAccount({ account: null }, { hideEmail: true, screenShare: true }).account === null && redactAccount({ failed: true }, { hideEmail: true, screenShare: true }).failed === true);
 
 if (failures.length) { console.error('check_account failed:\n' + failures.map((f) => ' - ' + f).join('\n')); process.exit(1); }
 console.log('check_account ok');

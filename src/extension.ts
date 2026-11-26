@@ -24,7 +24,8 @@ import { AUTO_FALLBACK_KEY, AUTO_KEY, setAutoTitle } from './autoTitleFlag';
 import { registerClaudeConfig } from './claudeConfigPanel';
 import { registerOptions } from './optionsPanel';
 import { registerKeepWarm } from './keepWarm';
-import { HIDE_EMAIL_KEY, hideEmailOn, setAcctPref } from './acctPrefs';
+import { acctPrefsNow, affectsAcctPrefs, setAcctPref } from './acctPrefs';
+import { redactAccount } from './acctRedact';
 import { ActivityHost, registerActivity } from './activity';
 import { IdleInfo, othersWorking, TitleCache } from './activityIdle';
 import { registerActivityBrowser } from './activityBrowser';
@@ -252,10 +253,10 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'actFocusOther') { await this.activity?.focusOther?.(m.kind); } // kind: the target the caption promised, which the host honors
       // A choice in the Activity section's settings popover: the section validates and writes it, then sends the value in effect back.
       else if (m.type === 'actSet') { await this.activity?.setPref?.(m.key, m.value); }
-      // The popover's Open in browser item: the same command as before, which shows its own outcome (the browser opening or a copy-address message).
       else if (m.type === 'smRegen') { await vscode.commands.executeCommand('saropaChats.regenTitles'); } // Session Manager menu: Generate session titles (bulk command shows its own pickers and outcome)
       // A choice in the Account & Usage settings popover: validated and written, then the value in effect is sent back.
       else if (m.type === 'acctSet') { await setAcctPref(m.key, m.value, () => this.postAcctPrefs()); }
+      // The popover's Open in browser item: the same command as before, which shows its own outcome (the browser opening or a copy-address message).
       else if (m.type === 'actBrowser') { await vscode.commands.executeCommand('saropaChats.activityBrowser'); }
       else if (m.type === 'secSize' && m.name === 'act') { this.store.setSecSize('act', Number(m.px)); } // Activity splitter released: remember the height (0 = reset)
       else if (m.type === 'secOpen' && ['acct', 'sm'].includes(String(m.name))) { this.store.setSecOpen(String(m.name), !!m.open); } // Account & Usage or Session Manager header toggled
@@ -272,13 +273,28 @@ class Provider implements vscode.WebviewViewProvider {
     } catch (e) { logErr('message ' + String(m?.type), e); }
   }
 
-  /** Sends the Account & Usage display settings (hide email) to the page: on load, after a write and on any settings change. Display only; the worker's account data is unchanged. */
-  postAcctPrefs(): void { this.post({ type: 'acctPrefs', hideEmail: hideEmailOn() }); }
+  /** Last account payload from the worker, unredacted. Kept so a setting flip re-posts without a rescan (turning hide off must bring the email back). Never sent as is. */
+  private acctRaw: Record<string, any> | undefined;
+
+  /**
+   * Sends the Account & Usage display settings (hide email, screen-share) to the page: on load, after a write and on any settings change.
+   * The page never receives hidden fields (see redactAccount), so when a setting flips the data already loaded is re-posted under the new
+   * rule: prefs first, so the page's flags are set before the data redraws. The worker's data and the public API are unchanged.
+   */
+  postAcctPrefs(): void {
+    const prefs = acctPrefsNow();
+    this.post({ type: 'acctPrefs', ...prefs });
+    if (this.acctRaw) { this.post({ type: 'acct', ...redactAccount(this.acctRaw, prefs) }); }
+  }
 
   /** Account & Usage section: ask the worker (soft, so a slow scan never restarts it) and tell the panel. */
   private async account(): Promise<void> {
-    try { this.post({ type: 'acct', ...(await this.client.request({ t: 'acct' }, true, true, ACCT_TIMEOUT_MS)) }); }
-    catch (e) { logErr('account usage', e); this.post({ type: 'acct', failed: true }); }
+    try {
+      this.acctRaw = await this.client.request({ t: 'acct' }, true, true, ACCT_TIMEOUT_MS);
+      // Redact before posting: a hidden email (or name / organization in screen-share mode) must not reach the webview at all.
+      this.post({ type: 'acct', ...redactAccount(this.acctRaw ?? {}, acctPrefsNow()) });
+    }
+    catch (e) { logErr('account usage', e); this.acctRaw = undefined; this.post({ type: 'acct', failed: true }); }
   }
 
   /** Empty the search history (Clear Search History command) and tell the panel. */
@@ -484,8 +500,8 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
     viewing: () => provider.viewingId(), unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
     onChange: () => { provider.postDots(); provider.idleHook?.(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); titler.onLive(ids); } });
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.search.contextLines')) { provider.postCtxLines(); } }));
-  // Settings UI or settings.json edits of the hide-email setting reach the open page too.
-  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.' + HIDE_EMAIL_KEY)) { provider.postAcctPrefs(); } }));
+  // Settings UI or settings.json edits of the hide-email or screen-share setting reach the open page too (and re-post the account data redacted to match).
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (affectsAcctPrefs(e)) { provider.postAcctPrefs(); } }));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.contextRingTokens')) { provider.postRing(); } }));
   /** A chat's title: the open tab's title when there is one (synchronous, and what the user sees), else the cached index title ('' until it arrives). */
   // No id (no followed chat): no title and no lookup. An empty tab title falls through (||) to the index title as well.

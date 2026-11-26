@@ -509,6 +509,11 @@
           "default": false,
           "description": "Hide the email address in the Account block of the Account & Usage section (display only; the account data itself is unchanged). Also set by the Hide account email checkbox under the settings (gear) button on the Account & Usage header."
         },
+        "saropaChats.account.screenShare": {
+          "type": "boolean",
+          "default": false,
+          "description": "Screen-share mode for the Account & Usage section: hides the email, name and organization (plan and usage stay). Implies Hide account email. Display only; the account data itself is unchanged. Also set by the Screen-share mode checkbox under the settings (gear) button on the Account & Usage header."
+        },
         "saropaChats.contextRingTokens": {
           "type": "number",
           "default": 300000,

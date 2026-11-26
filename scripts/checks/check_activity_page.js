@@ -110,11 +110,11 @@ function withGroups(h) {
 // ---- 1c. Account & Usage settings popover: the gear posts hideEmail, 'acctPrefs' sets the box and removes (or restores) the Email row. ----
 {
   const sidebar = require(path.join(OUT, 'webview.js')).html();
-  const h = createHarness({ page: sidebar, name: 'account_settings', popIds: ['accts', 'acctm', 'acthide'] });
+  const h = createHarness({ page: sidebar, name: 'account_settings', popIds: ['accts', 'acctm', 'acthide', 'actss'] });
   h.start();
   const el = (i) => h.els.get(i), last = () => h.posted[h.posted.length - 1];
   const win = { io: 3, i: 1, o: 2, cw: 0, cr: 0 };
-  h.deliver({ type: 'acct', account: { email: 'someone@example.test', plan: 'max' }, usage: { h5: win, today: win, yest: win, d3: win, d5: win, d7: win, models: [] } }, 'acct data');
+  h.deliver({ type: 'acct', account: { email: 'someone@example.test', name: 'Some One', org: 'Example Org', plan: 'max' }, usage: { h5: win, today: win, yest: win, d3: win, d5: win, d7: win, models: [] } }, 'acct data');
   h.check('the email shows while the setting is off (the default)', el('acb').innerHTML.includes('someone@example.test'));
   h.fire('accts', 'click');
   h.check('the account gear opens its popover', el('acctm').hidden === false && el('accts').getAttribute('aria-expanded') === 'true');
@@ -124,12 +124,31 @@ function withGroups(h) {
   h.check('hiding removes the email but keeps the plan', !el('acb').innerHTML.includes('someone@example.test') && !el('acb').innerHTML.includes('>Email<') && el('acb').innerHTML.includes('max'));
   h.deliver({ type: 'acctPrefs', hideEmail: false }, 'acct prefs off');
   h.check('turning it off restores the email and clears the box', el('acb').innerHTML.includes('someone@example.test') && el('acthide').checked === false);
+  // Screen-share mode: turn View details on first so name and organization would render if they were not hidden.
+  h.fire('acb', 'click', { target: { classList: { contains: () => false }, closest: (q) => (q === '.vd' ? {} : null) } });
+  h.check('with details on (screen-share off) email, name and organization render', ['someone@example.test', 'Some One', 'Example Org'].every((t) => el('acb').innerHTML.includes(t)));
+  el('actss').checked = true; h.fire('actss', 'change');
+  h.check('the screen-share checkbox posts its new state', JSON.stringify(last()) === JSON.stringify({ type: 'acctSet', key: 'screenShare', value: true }));
+  h.deliver({ type: 'acctPrefs', hideEmail: false, screenShare: true }, 'acct prefs screen-share');
+  h.check('screen-share hides email, name and organization but keeps the plan', ['someone@example.test', 'Some One', 'Example Org', '>Email<', '>Name<', '>Organization<'].every((t) => !el('acb').innerHTML.includes(t)) && el('acb').innerHTML.includes('max') && el('actss').checked === true);
+  h.deliver({ type: 'acctPrefs', hideEmail: false, screenShare: false }, 'acct prefs screen-share off');
+  h.check('turning screen-share off restores them and clears the box', el('acb').innerHTML.includes('Some One') && el('acb').innerHTML.includes('someone@example.test') && el('actss').checked === false);
   h.fire('acthide', 'keydown', { key: 'Escape' });
   h.check('Escape closes the account popover', el('acctm').hidden === true);
   if (h.errors.length) { console.error('check activity_page FAILED (account settings)'); [...new Set(h.errors)].forEach((e) => console.error('  - ' + e)); process.exit(1); }
 }
 
-// ---- 1c. Session Manager menu on the real sidebar page: the button opens the popover without collapsing, the item posts smRegen. ----
+// ---- 1c2. The two header gears must stay the same size (they sit on sibling section headers); parse both CSS strings. ----
+{
+  const { ACCT_CSS } = require(path.join(OUT, 'webviewAcct.js'));
+  const { ACT_CSS } = require(path.join(OUT, 'webviewActivity.js'));
+  // Width and height declared in the rule that starts with the given selector at line start.
+  const size = (css, sel) => { const m = css.match(new RegExp('^' + sel + '\\{[^}]*\\}', 'm')); const w = m && m[0].match(/[{;]width:([^;}]+)/), hh = m && m[0].match(/[{;]height:([^;}]+)/); return w && hh ? w[1] + 'x' + hh[1] : null; };
+  const a = size(ACCT_CSS, '#accts'), b = size(ACT_CSS, '#acts');
+  if (!a || !b || a !== b) { console.error('check activity_page FAILED (gear size): #accts=' + a + ' #acts=' + b); process.exit(1); }
+}
+
+// ---- 1c3. Session Manager menu on the real sidebar page: the button opens the popover without collapsing, the item posts smRegen. ----
 {
   const sidebar = require(path.join(OUT, 'webview.js')).html();
   const h = createHarness({ page: sidebar, name: 'sm_menu', popIds: ['smm', 'smmm', 'smgen'] });
