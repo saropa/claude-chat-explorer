@@ -25,7 +25,7 @@ const q=$('q'),all=$('all'),subs=$('subs'),arc=$('arc'),when=$('when'),sort={val
 const flags={cs:$('cs'),ww:$('ww'),any:$('any'),re:$('re')};
 let timer,history=[],hasResults=false,busy=false,acc=[],prog=null,lastRs=[],lastMsg='',ix=null,dirty=false,sn=0,stale=false,lastQ='',sessOn=false,sess=null,sessTimer;
 const ixb=$('ixb'),ixt=$('ixt');
-let pins=new Set(),tags={},pinned=[],open=new Set(),ex={},col=new Set(),arch=new Set(),dots={},archOpen=false,curId='',ccol={};
+let pins=new Set(),tags={},pinned=[],open=new Set(),ex={},col=new Set(),arch=new Set(),dots={},archOpen=false,curId='',ccol={},ccMs=0;
 function cur(){return{query:q.value.trim(),all:all.checked,subs:subs.checked,arc:arc.checked,cs:flags.cs.classList.contains('on'),ww:flags.ww.classList.contains('on'),any:flags.any.classList.contains('on'),re:flags.re.classList.contains('on'),when:when.value,last:+msgSel.value,from:frm.value,sort:sort.value};}
 function setFlag(k,v){flags[k].classList.toggle('on',!!v);flags[k].setAttribute('aria-pressed',v?'true':'false');const rx=flags.re.classList.contains('on');flags.any.disabled=rx;flags.any.title=rx?'Match any order is off while regular expressions are on':'Match words in any order (Alt+O)';}
 function showErr(m){err.style.display=m?'block':'none';err.textContent=m||'';q.classList.toggle('bad',!!m);}
@@ -141,6 +141,7 @@ else if(d.type==='sessions'){if(d.sn!==sn)return;sess={rows:d.rows||[],total:d.t
 else if(d.type==='dots'){dots=d.map||{};curId=d.cur||'';document.documentElement.classList.toggle('noanim',d.anim===false);rerender();}
 else if(d.type==='chatColors'){ccol=d.map||{};rerender();}
 else if(d.type==='ctxlines'){document.documentElement.style.setProperty('--ctxl',String(d.n>=1&&d.n<=4?Math.round(d.n):1));rerender();}
+else if(d.type==='ccdorm'){ccMs=d.ms>0?d.ms:0;/* clamp: a missing, negative or non-numeric value from the host means 'never hide' (0) rather than hiding every row */rerender();/* render() refreshes ccSig, so no reset here (it caused a second render on the next tick) */}
 else if(d.type==='ring'){ringMax=d.max>0?d.max:300000;rerender();}
 else if(d.type==='setQuery'){q.value=d.query||'';histIdx=-1;go();}
 else if(d.type==='setSort'){sortSet(d.sort);draft();if(sessOn&&!hasResults)askSess();rerender();}
@@ -158,6 +159,8 @@ render(d.results,d.searched||'');if(n)histAfter();else askSess();}
 else if(d.type==='error'){setBusy(false);sessOn=false;sess=null;lastMsg='';hasResults=false;lastRs=[];showErr(d.message);rerender();}
 else if(d.type==='short'){setBusy(false);hint.textContent=d.message||'Type at least 2 characters';hint.hidden=false;sessOn=true;hasResults=false;lastRs=[];lastMsg='';askSess();rerender();}
 else if(d.type==='results'){tot=null;busy=false;bar.classList.remove('on');sessOn=!d.results.length;render(d.results,d.searched);if(sessOn&&lastQ)askSess();}});
+/* the list has no other clock, so this tick makes a marker vanish once its chat crosses the dormancy threshold with nothing else re-rendering; it re-renders only when some marker's state flipped */
+setInterval(ccTick,10000);
 vs.postMessage({type:'ready'});
 `;
 

@@ -182,7 +182,7 @@ function withGroups(h) {
 // ---- 1c3. Session Manager menu on the real sidebar page: the button opens the popover without collapsing, the item posts smRegen. ----
 {
   const sidebar = require(path.join(OUT, 'webview.js')).html();
-  const h = createHarness({ page: sidebar, name: 'sm_menu', popIds: ['smm', 'smmm', 'smgen'] });
+  const h = createHarness({ page: sidebar, name: 'sm_menu', popIds: ['smm', 'smmm', 'smgen', 'smkw', 'smc-build', 'smc-export', 'smc-timeline', 'smc-tiny', 'smc-usage', 'smc-editor'] });
   h.start();
   const el = (i) => h.els.get(i), last = () => h.posted[h.posted.length - 1];
   const before = h.posted.length;
@@ -194,6 +194,20 @@ function withGroups(h) {
   h.check('Escape closes the menu and returns focus to the button', el('smmm').hidden === true && el('smm').getAttribute('aria-expanded') === 'false' && (el('smm').focused || 0) > focused);
   h.fire('smm', 'click'); h.fire('smgen', 'click');
   h.check('Generate session titles posts smRegen and closes the menu', last() && last().type === 'smRegen' && el('smmm').hidden === true);
+  // Command items: every item closes the menu and posts only its key (never a command id).
+  for (const it of require(path.join(OUT, 'webviewSm.js')).SM_CMD_ITEMS.filter(Boolean)) {
+    h.fire('smm', 'click'); h.fire('smc-' + it.key, 'click');
+    h.check('item ' + it.key + ' posts smCmd with only its key and closes the menu', JSON.stringify(last()) === JSON.stringify({ type: 'smCmd', key: it.key }) && el('smmm').hidden === true);
+  }
+  // Keep warm toggle: click posts the message and closes; the check only changes when the host replies with the state.
+  h.fire('smm', 'click');
+  h.check('Keep warm item starts unchecked', el('smkw').getAttribute('aria-checked') !== 'true');
+  h.fire('smkw', 'click');
+  h.check('Keep warm click posts smKeepWarm, closes the menu, and does not flip the check itself', last() && last().type === 'smKeepWarm' && el('smmm').hidden === true && el('smkw').getAttribute('aria-checked') !== 'true');
+  h.deliver({ type: 'smPrefs', keepWarm: true }, 'sm prefs on');
+  h.check('host reply checks the item', el('smkw').getAttribute('aria-checked') === 'true');
+  h.deliver({ type: 'smPrefs', keepWarm: false }, 'sm prefs off');
+  h.check('a later host reply (setting changed elsewhere) unchecks it', el('smkw').getAttribute('aria-checked') === 'false');
   h.fire('smh', 'click');
   h.check('the collapse button still toggles the section (posts secOpen)', h.posted.some((p) => p && p.type === 'secOpen' && p.name === 'sm'));
   if (h.errors.length) { console.error('check activity_page FAILED (session manager menu)'); [...new Set(h.errors)].forEach((e) => console.error('  - ' + e)); process.exit(1); }

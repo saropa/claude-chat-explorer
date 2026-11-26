@@ -1,5 +1,6 @@
 /** The Activity diagram's idle caption: which chat the diagram follows and what that chat is doing, shown while no live event caption is up. No vscode import, so the node check script can drive it; the host passes vscode.l10n.t in as the translator. */
 import { DriftTr, fillPlain } from './digestMd';
+import { BUSY_DOT_STATES } from './liveState'; // the one list of working dot states (shared with the session list's marker logic)
 
 /** The dot as far as the caption cares: `s` is the winning state, `also` the lower-priority states that were outranked (liveState.ts dotState). */
 export interface IdleDot { s: string; also?: string[] }
@@ -54,7 +55,8 @@ function statesOf(dot: unknown): string[] {
  * A chat waiting for the user (with nothing else going on) is not working. A malformed dot is not working.
  */
 export function isWorking(dot: IdleDot | undefined): boolean {
-  return statesOf(dot).some((k) => k === 'running' || k === 'background');
+  // BUSY_DOT_STATES, not literals: the session list's dormant-marker test reads the same list, so the two can never disagree about "working".
+  return statesOf(dot).some((k) => BUSY_DOT_STATES.includes(k));
 }
 
 /** Counts the chats other than `cur` that are working, from the dots map (id to dot). A missing map counts nothing. */

@@ -520,6 +520,12 @@
           "minimum": 10000,
           "description": "Each session row shows a small ring that fills as the session's context grows. This is the token count that fills it. The ring turns to the warning color at 80 percent of this number and to the error color at 100 percent or more."
         },
+        "saropaChats.colorDormantMinutes": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "description": "Minutes a session can sit without activity before the colored marker beside its name is hidden in the session list, to reduce visual noise. The color returns as soon as the session is active again. 0 never hides the marker."
+        },
         "saropaChats.search.contextLines": {
           "type": "integer",
           "default": 1,

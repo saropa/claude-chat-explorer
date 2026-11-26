@@ -6,6 +6,9 @@ const f = require(path.join(OUT, 'optionsForm.js'));
 const h = require(path.join(OUT, 'optionsHtml.js'));
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
 const props = pkg.contributes.configuration.properties;
+// colorDormant.ts imports vscode so it cannot be required under node; read the exported default from its source so the literal lives in one place.
+const dormantSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'colorDormant.ts'), 'utf8');
+const COLOR_DORMANT_DEFAULT_MIN = Number((/export const COLOR_DORMANT_DEFAULT_MIN = (\d+)/.exec(dormantSrc) || [])[1]);
 const fails = [];
 const check = (n, c) => { if (!c) { fails.push(n); } };
 
@@ -56,6 +59,8 @@ const real = Object.fromEntries(entries.map((e) => [e.key, e]));
 // The digest call cap: 0 (AI off for the run) is valid, a negative cap is refused by the Options screen.
 check('real digest call cap bounds', v(real['saropaChats.digest.maxAiCallsPerRun'], 0) && v(real['saropaChats.digest.maxAiCallsPerRun'], 200) && !v(real['saropaChats.digest.maxAiCallsPerRun'], -1));
 check('real maxResults bounds', !v(real['saropaChats.maxResults'], 10) && v(real['saropaChats.maxResults'], 500) && !v(real['saropaChats.search.contextLines'], 2.5));
+
+check('real colorDormantMinutes bounds (0 = never hide)', v(real['saropaChats.colorDormantMinutes'], 0) && v(real['saropaChats.colorDormantMinutes'], 3) && !v(real['saropaChats.colorDormantMinutes'], -1) && real['saropaChats.colorDormantMinutes'].def === COLOR_DORMANT_DEFAULT_MIN);
 
 if (fails.length) { console.error('Options check FAILED:\n - ' + fails.join('\n - ')); process.exit(1); }
 console.log('Options check passed.');

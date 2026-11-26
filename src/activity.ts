@@ -49,7 +49,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
   const files = new BgTracker(projectsRoot(), () => log('activity: a background-task launch line has no readable task id; the log format may have changed, so background pills can be missing'));
   const feed = new ActivityFeed(undefined, undefined, files);
   // All-chats mode: a tracker over one feed per tailed chat, sharing the transcript locator, plus the stable chat-to-colour book.
-  const book = new ColorBook(ctx.globalState.get(COLORS_KEY), (m) => { void ctx.globalState.update(COLORS_KEY, m); });
+  const book = new ColorBook(ctx.globalState.get(COLORS_KEY), (m) => { void ctx.globalState.update(COLORS_KEY, m); }, Date.now, () => ctx.globalState.get(COLORS_KEY)); // load: re-read at write time so a second window's assignments are merged, not overwritten
   const tracker = new AllChatsTracker(files, book); // the pane's own read positions; the browser view has its own tracker over the same files and book
   // The resolved value (default, user, workspace or folder): an explicit `false` from any scope keeps the mode off despite the true default.
   const allOn = (): boolean => vscode.workspace.getConfiguration('saropaChats').get(ALL_KEY) === true;

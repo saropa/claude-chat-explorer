@@ -177,6 +177,8 @@ A digest is a short stored record of one session: the goal, your decisions, the 
 
 - Setting `saropaChats.autoTitle.enabled` (off by default), or the "Auto-title sessions" toggle in the "..." menu of the view. A live session is named after its first prompt (topic emoji plus the first sentence, up to 50 characters) and renamed once after the third prompt, by appending a title line to the session file. Sessions you named yourself are left alone.
 - `autoTitle.useHaiku` lets `claude -p --model haiku` write the title instead of the rules. `emojiRules` and `emojiRulesReplaceDefaults` customize the emoji.
+- The Session Manager three-dot menu also lists Build session digests, Export session digests to project, Show decisions timeline, Archive empty and tiny sessions, Usage summary and Open results in editor (the same commands as in the Command Palette).
+- "Keep Claude sessions warm" (the three-dot menu on the Session Manager header): a checkable item that turns the `saropaChats.keepWarm.enabled` setting on or off without opening Settings. The check shows the current state and follows changes made in Settings.
 - "Generate Session Titles" (the three-dot menu on the Session Manager header): pick This project or All projects, preview old and new titles, then write. Each transcript is backed up under `~/.claude/backups/session_titles` first. Live sessions are skipped.
 - "Generate Title" (right-click a session row): writes a title for that one session only, with the same backup. Sessions open or changed in the last 5 minutes are skipped, with a message.
 

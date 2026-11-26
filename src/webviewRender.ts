@@ -1,4 +1,6 @@
 /** Webview script part: row, group and section rendering. Shares top-level scope with webviewJs. */
+import { BUSY_DOT_STATES } from './liveState';
+
 export const RENDER = String.raw`
 const CHEV='<svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const TAG_SVG='<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.500 2.500h5l6 6-5 5-6-6z"/><circle cx="5.500" cy="5.500" r="1"/></svg>';
@@ -6,6 +8,21 @@ function dotHtml(id){const d=dots[id]||{s:'idle'},t=dotText(d);
 return '<span '+dotAttrs(d)+' role="img" aria-label="'+esc(t)+'" data-tip="'+esc(dotTip(d))+'"></span>';}
 function decorated(r){const d=dots[r.id];return pins.has(r.id)||!!d;}
 function stamp(r){return r.hits>0&&r.snipAt?r.snipAt:r.last;}
+/* true while the live dots say the chat is working (running, or background tasks still going, which dotState puts in 'also' when another state wins). The dots map is the only live signal the host already posts and it carries no timestamp, so busy is a boolean override rather than a newer time. */
+const CC_BUSY=${JSON.stringify(BUSY_DOT_STATES)}; /* injected from the host (liveState.ts BUSY_DOT_STATES): the working dot states are named once, so a host rename cannot silently strip markers from busy chats */
+function ccBusy(id){const d=dots[id];if(!d)return false;return [d.s].concat(Array.isArray(d.also)?d.also:[]).some(k=>CC_BUSY.indexOf(k)>=0);}
+/* true when the chat's last activity is older than the dormancy threshold (ccMs, 0 = never). Uses r.last (newest transcript message time), not stamp(): stamp() is the search-hit time while a search is active, which is not activity. r.last can be stale (search/pinned rows are not refetched; a long tool call writes no message), so a busy chat is never dormant. */
+/* newest last per chat id across every row list the page holds. Pinned rows (meta message) and search rows (lastRs) are snapshots that sessions refreshes never touch, so the same chat can carry an older last there than in the freshly fetched session rows; the newest value wins so a stale snapshot cannot hide an active chat. Rebuilt only when a list is replaced (compared by reference), not per row. */
+let ccLastKey=null,ccLastIdx={};
+function ccLast(r){const lists=[lastRs,pinned,sess?sess.rows:null,sess?sess.arch:null];
+if(!ccLastKey||lists.some((l,i)=>l!==ccLastKey[i])){ccLastKey=lists;ccLastIdx={};lists.forEach(l=>(l||[]).forEach(x=>{if(!(ccLastIdx[x.id]>=x.last))ccLastIdx[x.id]=x.last;}));}
+return Math.max(r.last,ccLastIdx[r.id]||0);}
+function ccDormant(r){return ccMs>0&&Date.now()-ccLast(r)>ccMs&&!ccBusy(r.id);}
+/* ids of colored rows that are currently dormant, as one comparable string; the tick re-renders only when this changes */
+let ccSig='';
+function ccSigNow(){const seen={};lastRs.concat(pinned,sess?sess.rows.concat(sess.arch||[]):[]).forEach(r=>{if(ccol[r.id]!==undefined&&ccDormant(r))seen[r.id]=1;});return Object.keys(seen).sort().join(',');}
+/* tick every 10s: re-render only when the dormant set changed; the early return skips all work when the feature is off and nothing is left hidden (ccSig empty), so a disabled setting costs nothing */
+function ccTick(){if(ccMs<=0&&!ccSig)return;const s=ccMs>0?ccSigNow():'';if(s!==ccSig){ccSig=s;rerender();}}
 function resOf(id){return lastRs.concat(pinned,sess?sess.rows.concat(sess.arch||[]):[]).find(r=>r.id===id);}
 function reEsc(t){return t.replace(/[.*+?^$\x7b\x7d()|[\]\\]/g,'\\$&');}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -41,7 +58,7 @@ return '<div class="hd"><span class="t" data-tip="k:title">'+ti+'</span>'+rcHtml
 +'<button class="ic pn'+(p?' on':'')+'" data-a="pin" data-tip="'+(p?'Unpin':'Pin')+'" aria-label="'+(p?'Unpin':'Pin')+'" aria-pressed="'+p+'">'+(p?'★':'☆')+'</button></span>'
 +'<button class="ic'+(op?' on':'')+'" data-a="exp" data-tip="'+(op?'Hide details':'Details')+'" aria-label="'+(op?'Hide details':'Details')+'" aria-expanded="'+op+'">'+CHEV+'</button></div>';}
 function rowHtml(r){
-const now=Date.now(),op=open.has(r.id),ia=arch.has(r.id),cc=/^\d{1,2}$/.test(String(ccol[r.id]))?ccol[r.id]:'';
+const now=Date.now(),op=open.has(r.id),ia=arch.has(r.id),cc=/^\d{1,2}$/.test(String(ccol[r.id]))&&!ccDormant(r)?ccol[r.id]:''; /* a dormant chat keeps its saved color (ccol is untouched) but shows no marker, so reactivation brings the same color back */
 return '<div class="r'+(op?' open':'')+(ia?' arc':'')+(r.id===curId?' cur':'')+(cc!==''?' cc cc'+cc:'')+'" data-id="'+esc(r.id)+'" data-vscode-context="'+esc(JSON.stringify({webviewSection:'chat',id:r.id,ccsArchived:ia,ccsPinned:pins.has(r.id),ccsUnread:(dots[r.id]||{}).s==='unread'}))+'" tabindex="0"><div class="rh">'
 +hdHtml(r,op)+metaHtml(r,now)+'<span class="chips">'+(op?'':(decorated(r)?chips(r.id):'')+tagInput(r.id))+'</span>'+sxHtml(r)+'</div>'+(op?exHtml(r):'')+'</div>';}
 function groupsHtml(a){const now=Date.now(),g={};
@@ -86,6 +103,8 @@ const ref=prev?prev.nextSibling:el.firstChild;if(node!==ref)el.insertBefore(node
 old.forEach(o=>o.remove());
 if(ak&&!act.isConnected){const s3={},f=Array.from(el.children).find(c=>nkey(c,s3)===ak);if(f)refocus(f,fd);}}
 function render(rs,msg){lastRs=rs;lastMsg=msg;hasResults=rs.length>0;
+/* every render recomputes the dormant signature so the next tick re-renders only on a real change, not because a normal render left ccSig stale */
+ccSig=ccMs>0?ccSigNow():'';
 const base=hasResults?rs.filter(r=>!arch.has(r.id)):sessBase(),keep=stKeep(base);
 const capOn=capShown(),t=capOn?'':noteText(),hid=base.length-keep.length;
 noteIn=t||hid?esc(t)+stNote(hid,!!t):'';

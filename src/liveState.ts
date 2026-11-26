@@ -9,6 +9,14 @@ export type LiveStatus = 'busy' | 'waiting' | 'idle';
 /** Dot of one chat (present only for open chats): s is the main state (waiting, running, unread, background or idle); also lists the other states true at once, in priority order (absent when none); win says in which window (tooltip only, absent when unknown). */
 export interface Dot { s: string; also?: string[]; win?: WinMark; }
 export type DotMap = { [id: string]: Dot };
+
+/**
+ * Every state name a dot can carry (s or an entry of also): the ONE place the names are spelled. dotState builds dots from these, and the
+ * webview's busy test is injected from BUSY_DOT_STATES, so a rename here reaches every consumer instead of silently orphaning a hardcoded copy.
+ */
+export const DOT_STATE = { waiting: 'waiting', running: 'running', unread: 'unread', background: 'background', idle: 'idle' } as const;
+/** The dot states that mean the chat is working right now (running, or background tasks still going). Injected into the session list script (webviewRender.ts) and read by isWorking; check_dots.js proves dotState can emit each one. */
+export const BUSY_DOT_STATES: readonly string[] = [DOT_STATE.running, DOT_STATE.background];
 export interface LiveRead { exists: boolean; live: Map<string, LiveStatus>; bad: number; pids: Map<string, number[]>; }
 
 const MAX_FILE_BYTES = 65536;
@@ -62,8 +70,8 @@ export function nextUnread(prev: Map<string, LiveStatus> | undefined, next: Map<
 
 /** Dot of one chat from its live status (undefined for a tab with no live process), unread flag and whether background agents or shells are still running. Priority: waiting, running, unread, background; the first is s, the rest go in also. Unread counts only while the chat is idle. */
 export function dotState(live: LiveStatus | undefined, unread: boolean, win?: WinMark, background = false): Dot {
-  const all = [live === 'waiting' && 'waiting', live === 'busy' && 'running', unread && (live === undefined || live === 'idle') && 'unread', background && 'background'].filter((x): x is string => !!x);
-  const d: Dot = { s: all[0] ?? 'idle' };
+  const all = [live === 'waiting' && DOT_STATE.waiting, live === 'busy' && DOT_STATE.running, unread && (live === undefined || live === 'idle') && DOT_STATE.unread, background && DOT_STATE.background].filter((x): x is string => !!x);
+  const d: Dot = { s: all[0] ?? DOT_STATE.idle };
   if (all.length > 1) { d.also = all.slice(1); }
   if (live && win) { d.win = win; }
   return d;

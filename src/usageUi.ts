@@ -67,6 +67,6 @@ export function registerUsage(ctx: vscode.ExtensionContext, d: UsageDeps): void 
   const bar = new UsageBar(d);
   d.onIndex(() => bar.schedule());
   ctx.subscriptions.push(bar,
-    vscode.commands.registerCommand(SUMMARY_CMD, () => showSummary(d).catch((e) => d.log('usage summary', e))),
+    vscode.commands.registerCommand(SUMMARY_CMD, () => showSummary(d).catch((e) => { d.log('usage summary', e); void vscode.window.showErrorMessage('Usage summary failed: ' + (e instanceof Error ? e.message : String(e))); })),
     vscode.commands.registerCommand(BAR_CMD, () => d.showNearly()));
 }

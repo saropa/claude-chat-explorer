@@ -130,6 +130,22 @@ const big = {}; for (let i = 0; i < 500; i++) { big['o' + i] = i % 20; }
 let capSaved; const cap = new ColorBook(big, (m) => { capSaved = m; });
 cap.resolve(['o0', 'fresh']);
 check('over the cap the oldest non-live entry goes, a live old chat stays', capSaved && Object.keys(capSaved).length === 500 && capSaved.o0 !== undefined && capSaved.o1 === undefined && capSaved.fresh !== undefined);
+// Review fixes: reserved colours, caller-order independence, dormant avoidance, recency bump.
+const rsv = new ColorBook({ A: 0, B: 0, C: 1 }, () => {}).resolve(['A', 'B', 'C']);
+check("a clash loser never takes a later established chat's own colour", rsv.get('C') === CHAT_PALETTE[1] && rsv.get('B') !== CHAT_PALETTE[0] && rsv.get('B') !== CHAT_PALETTE[1]);
+const o1 = new ColorBook({ A: 0, B: 0, C: 1 }, () => {}).resolve(['A', 'B', 'C', 'N1', 'N2']), o2 = new ColorBook({ A: 0, B: 0, C: 1 }, () => {}).resolve(['N2', 'C', 'N1', 'B', 'A']);
+check('resolve gives the same map whatever order the caller lists the chats in', eq([...o1].sort(), [...o2].sort()) && o1.size === 5 && o1.get('A') === CHAT_PALETTE[0]);
+const dorm = new ColorBook({ D1: 0, D2: 1, D3: 2 }, () => {}).resolve(['fresh']);
+check('a new chat avoids a colour a dormant saved chat owns while a free one exists', ![0, 1, 2].some((i) => dorm.get('fresh') === CHAT_PALETTE[i]));
+// Recency: a frequently-live old chat survives the cap; throttled persist uses the injected clock.
+let clock = 0; const bigR = {}; for (let i = 0; i < 500; i++) { bigR['o' + i] = i % 20; }
+let rSaved, rWrites = 0; const rec = new ColorBook(bigR, (m) => { rSaved = m; rWrites++; }, () => clock);
+rec.resolve(['o0']);
+check('a live chat refresh alone does not write inside the throttle window', rWrites === 0);
+clock = 11 * 60 * 1000; rec.resolve(['o0']);
+check('after the throttle window the recency bump is written', rWrites === 1 && Object.keys(rSaved).pop() === 'o0');
+rec.resolve(['o0', 'fresh2']);
+check('with the bump, the cap evicts the oldest non-live chat, not the old chat that is often live', rSaved.o0 !== undefined && rSaved.o1 === undefined && rSaved.fresh2 !== undefined && Object.keys(rSaved).length === 500);
 check('tailed chats: current first, capped, no blanks or repeats', eq(tailIds('b', ['a', 'b', 'c', '']), ['b', 'a', 'c']) && tailIds('', Array.from({ length: 20 }, (_, i) => 'x' + i)).length === 8);
 const tagged = tagEvents([{ t: 'flash', g: 'files' }, { t: 'caption', text: 'x' }, { t: 'busy', id: '1', g: 'files' }, { t: 'sub', g: 'web' }, { t: 'bg', shell: 1, agent: 0 }], 'c1', '#f51b50', false);
 check('another chat keeps flashes, sub flashes and pills only, tagged with its colour', eq(tagged.map((e) => e.t), ['flash', 'sub', 'bg']) && tagged.every((e) => e.ch === 'c1' && e.col === '#f51b50' && e.cur === false));
@@ -157,6 +173,22 @@ const { SM_MENU_HTML } = require(path.join(OUT, 'webviewSm.js'));
 const sidebarHtml = require(path.join(OUT, 'webview.js')).html();
 check('Session Manager has a menu button beside (not inside) the collapse button', /<div id="smhr"><button type="button" id="smh"[^]*?Session Manager<\/button><div class="pw"><button type="button" id="smm"[^>]*aria-haspopup="true"[^>]*aria-expanded="false"[^>]*aria-controls="smmm"/.test(sidebarHtml));
 check('Session Manager menu item reads "Generate session titles"', /<button type="button" class="acto" id="smgen"[^>]*>Generate session titles<\/button>/.test(SM_MENU_HTML) && !/Regenerate/.test(sidebarHtml));
+// Keep warm toggle in the Session Manager menu: checkable item, host flips the setting and mirrors its state back.
+check('Session Manager menu has a checkable Keep Claude sessions warm item (menuitemcheckbox, aria-checked, check mark)', /<button type="button" class="acto" id="smkw" role="menuitemcheckbox" aria-checked="false"[^>]*><span class="smck"[^>]*>[^<]*<\/span>Keep Claude sessions warm<\/button>/.test(SM_MENU_HTML) && require(path.join(OUT, 'webviewSm.js')).SM_CSS.includes('#smkw[aria-checked=true] .smck'));
+const smJs = require(path.join(OUT, 'webviewSm.js'));
+check('menu item posts the shared message and follows the host reply', SM_MENU_HTML !== undefined && smJs.SM_MENU_JS.includes("type: '" + smJs.SM_KEEPWARM_MSG + "'") && smJs.SM_MENU_JS.includes("d.type !== '" + smJs.SM_PREFS_MSG + "'") && smJs.SM_MENU_JS.includes("setAttribute('aria-checked'"));
+// Menu command items: one key per item, host whitelist from the same table, grouped by separators.
+const smKeys = smJs.SM_CMD_ITEMS.filter(Boolean);
+const wantCmds = { build: 'saropaChats.buildDigests', export: 'saropaChats.exportDigests', timeline: 'saropaChats.showDecisionsTimeline', tiny: 'saropaChats.archiveTiny', usage: 'saropaChats.usageSummary', editor: 'saropaChats.openResultsInEditor' };
+check('menu lists the six commands with their ids, each a registered command', Object.entries(wantCmds).every(([k, c]) => smKeys.some((i) => i.key === k && i.cmd === c) && pk.commands.some((x) => x.command === c)) && smKeys.length === 6);
+check('each command item has a button with its key, and groups are separated (3 dividers incl. before Keep warm)', smKeys.every((i) => SM_MENU_HTML.includes('data-key="' + i.key + '"')) && (SM_MENU_HTML.match(/role="separator"/g) || []).length === 3 && SM_MENU_HTML.indexOf('id="smkw"') > SM_MENU_HTML.lastIndexOf('role="separator"'));
+check('page posts only the key (no command id)', smJs.SM_MENU_JS.includes("type: '" + smJs.SM_CMD_MSG + "', key:") && !smJs.SM_MENU_JS.includes('saropaChats.'));
+const extSm = fs.readFileSync(path.join(OUT, 'extension.js'), 'utf8');
+check('host runs only the command SM_CMD_ITEMS lists for the key', /m\.type === webviewSm_1\.SM_CMD_MSG\)\s*\{[^}]*SM_CMD_ITEMS\.find\(\(i\) => i !== null && i\.key === m\.key\)[^}]*executeCommand\(it\.cmd\)/.test(extSm));
+const smPrefsSrc = fs.readFileSync(path.join(OUT, 'smPrefs.js'), 'utf8');
+check('host flips saropaChats keepWarm.enabled at Global scope, with an error on failure', /\.update\(REL_KEY, !\(0, exports\.keepWarmOn\)\(\), vscode\.ConfigurationTarget\.Global\)/.test(smPrefsSrc) && smPrefsSrc.includes('KEEP_WARM_KEY') && smPrefsSrc.includes('showErrorMessage'));
+const extJs = fs.readFileSync(path.join(OUT, 'extension.js'), 'utf8');
+check('host routes the message, sends state on ready and on any keepWarm setting change', /m\.type === webviewSm_1\.SM_KEEPWARM_MSG\)\s*\{\s*await \(0, smPrefs_1\.toggleKeepWarm\)/.test(extJs) && /m\.type === 'ready'\)\s*\{[^}]*postSmPrefs/.test(extJs) && /affectsConfiguration\(keepWarmSettings_1\.KEEP_WARM_KEY\)\)\s*\{\s*provider\.postSmPrefs/.test(extJs));
 const gt = pk.commands.find((c) => c.command === 'saropaChats.generateTitle');
 check('Generate Title is a row context item, hidden from the palette', !!gt && gt.title === 'Generate Title' && pk.menus['webview/context'].some((m) => m.command === 'saropaChats.generateTitle' && m.when === "webviewId == 'saropaChats.view' && webviewSection == 'chat'") && pk.menus.commandPalette.some((m) => m.command === 'saropaChats.generateTitle' && m.when === 'false'));
 const ext = fs.readFileSync(path.join(OUT, 'extension.js'), 'utf8');

@@ -208,6 +208,23 @@ function drive() {
   check('no "claude" in the generated page outside the from:claude alias (' + left.slice(0, 3).join(' / ') + ')', left.length === 0);
   check('messages from drop-down is Both / You / Agent', /<option value="agent">agent<\/option>/.test(page) && !/value="claude"/.test(page));
   check('stat labels have a 1px top margin', /\.xs dt\{margin-top:1px/.test(page));
+  // Dormant color markers: a colored row loses its marker past the threshold, keeps the saved color, and gets it back when active again; 0 never hides.
+  const cid = id(1), crow = (last) => JSON.stringify(row(1, { last }));
+  run("ccol={" + JSON.stringify(cid) + ":3};ccMs=180000;", 'dormant setup');
+  check('recent chat keeps its color marker', / cc cc3"/.test(run('rowHtml(' + crow(NOW - 60e3) + ')', 'rowHtml fresh')));
+  check('dormant chat has no color marker', !/ cc cc3"| cc /.test(run('rowHtml(' + crow(NOW - 600e3) + ')', 'rowHtml dormant')));
+  check('saved color survives dormancy and returns on reactivation', run('ccol[' + JSON.stringify(cid) + ']', 'ccol') === 3 && / cc cc3"/.test(run('rowHtml(' + crow(NOW - 1e3) + ')', 'rowHtml reactivated')));
+  // A time-dormant row that the live dots say is working (or has background tasks) keeps its marker; a merely waiting one does not.
+  run('dots={' + JSON.stringify(cid) + ":{s:'running'}};", 'dots running');
+  check('dormant-by-time but running chat keeps its color marker', / cc cc3"/.test(run('rowHtml(' + crow(NOW - 600e3) + ')', 'rowHtml busy')));
+  run('dots={' + JSON.stringify(cid) + ":{s:'waiting',also:['background']}};", 'dots bg');
+  check('dormant-by-time chat with background tasks keeps its color marker', / cc cc3"/.test(run('rowHtml(' + crow(NOW - 600e3) + ')', 'rowHtml bg')));
+  run('dots={' + JSON.stringify(cid) + ":{s:'waiting'}};", 'dots waiting');
+  check('dormant-by-time chat that is only waiting loses its marker', !/ cc cc3"/.test(run('rowHtml(' + crow(NOW - 600e3) + ')', 'rowHtml waiting')));
+  run('dots={};', 'dots clear');
+  run('ccMs=0;', 'dormant off');
+  check('threshold 0 never hides the marker', / cc cc3"/.test(run('rowHtml(' + crow(NOW - 86400e3) + ')', 'rowHtml never')));
+  run('ccol={};ccMs=0;ccSig="";', 'dormant reset');
   // Tag editor: wraps, no visible hint, tooltip carries it.
   step('tag editor open', () => run('tagIn={id:' + JSON.stringify(id(1)) + ",v:''};", 'tagIn'));
   const tin = run('tagInput(' + JSON.stringify(id(1)) + ')', 'tagInput');

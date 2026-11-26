@@ -26,6 +26,9 @@ import { registerOptions } from './optionsPanel';
 import { registerKeepWarm } from './keepWarm';
 import { acctPrefsNow, affectsAcctPrefs, setAcctPref } from './acctPrefs';
 import { redactAccount } from './acctRedact';
+import { keepWarmOn, toggleKeepWarm } from './smPrefs';
+import { SM_CMD_ITEMS, SM_CMD_MSG, SM_KEEPWARM_MSG, SM_PREFS_MSG } from './webviewSm';
+import { KEEP_WARM_KEY } from './keepWarmSettings';
 import { ActivityHost, registerActivity } from './activity';
 import { IdleInfo, othersWorking, TitleCache } from './activityIdle';
 import { registerActivityBrowser } from './activityBrowser';
@@ -52,6 +55,7 @@ import { dotsAnimated } from './dotAnim';
 import { searchContextLines } from './ctxLines';
 import { currentChat } from './currentChat';
 import { contextRingTokens } from './ctxRing';
+import { colorDormantMs } from './colorDormant';
 import { WorkScan } from './workScan';
 import { WorkPrs } from './workPrs';
 import { PrCache } from './wipPrs';
@@ -187,6 +191,8 @@ class Provider implements vscode.WebviewViewProvider {
   /** Push the context ring limit to the panel. */
   postCtxLines(): void { this.post({ type: 'ctxlines', n: searchContextLines() }); }
   postRing(): void { this.post({ type: 'ring', max: contextRingTokens() }); }
+  /** Push the dormancy threshold (ms, 0 = never hide) after which a row's color marker is hidden in the list. */
+  postColorDormant(): void { this.post({ type: 'ccdorm', ms: colorDormantMs() }); }
 
   /** Resume a chat and clear its unread flag. Kept Promise<void>: every existing caller (list, warner, usage, editor view, Open Work, browser view) ignores the outcome. */
   async resume(id: string): Promise<void> { await this.tryResume(id); }
@@ -211,6 +217,7 @@ class Provider implements vscode.WebviewViewProvider {
     this.web?.announce();
     this.postCtxLines();
     this.postRing();
+    this.postColorDormant();
     void this.postMeta();
     if (this.progress) { this.post({ type: 'indexing', ...this.progress }); }
     // A reloaded panel starts without the digest drift line: post the last one again.
@@ -239,7 +246,7 @@ class Provider implements vscode.WebviewViewProvider {
   private async onMessage(m: any): Promise<void> {
     try {
       if (!m || typeof m !== 'object') { return; }
-      if (m.type === 'ready') { this.restore(); this.activity?.prefs?.(); this.postAcctPrefs(); } // prefs: the Activity settings popover gets the current values
+      if (m.type === 'ready') { this.restore(); this.activity?.prefs?.(); this.postAcctPrefs(); this.postSmPrefs(); } // prefs: the Activity settings popover gets the current values
       else if (m.type === 'status') { this.store.setStatuses(m.checked); }
       else if (m.type === 'draft') {
         this.store.setDraft({ ...this.store.draft, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
@@ -256,6 +263,10 @@ class Provider implements vscode.WebviewViewProvider {
       // Session Manager menu: Generate session titles. The bulk command shows its own pickers and outcome.
       else if (m.type === 'smRegen') { await vscode.commands.executeCommand('saropaChats.regenTitles'); }
       // A choice in the Account & Usage settings popover: validated and written, then the value in effect is sent back.
+      // Session Manager menu: Keep Claude sessions warm item. keepWarm.ts shows the outcome of the change; the reply refreshes the check.
+      // Session Manager menu command items: the page sends a key only; the command id comes from the SM_CMD_ITEMS whitelist, so an unknown key does nothing. Each command shows its own outcome.
+      else if (m.type === SM_CMD_MSG) { const it = SM_CMD_ITEMS.find((i) => i !== null && i.key === m.key); if (it) { await vscode.commands.executeCommand(it.cmd); } }
+      else if (m.type === SM_KEEPWARM_MSG) { await toggleKeepWarm(() => this.postSmPrefs()); }
       else if (m.type === 'acctSet') { await setAcctPref(m.key, m.value, () => this.postAcctPrefs()); }
       // The popover's Open in browser item: the same command as before, which shows its own outcome (the browser opening or a copy-address message).
       else if (m.type === 'actBrowser') { await vscode.commands.executeCommand('saropaChats.activityBrowser'); }
@@ -273,6 +284,9 @@ class Provider implements vscode.WebviewViewProvider {
       else { await this.onChatMessage(m); }
     } catch (e) { logErr('message ' + String(m?.type), e); }
   }
+
+  /** Sends the Session Manager menu state (Keep warm on/off) to the page: on load, after a toggle and on any settings change. */
+  postSmPrefs(): void { this.post({ type: SM_PREFS_MSG, keepWarm: keepWarmOn() }); }
 
   /** Last account payload from the worker, unredacted. Kept so a setting flip re-posts without a rescan (turning hide off must bring the email back). Never sent as is. */
   private acctRaw: Record<string, any> | undefined;
@@ -503,7 +517,11 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.search.contextLines')) { provider.postCtxLines(); } }));
   // Settings UI or settings.json edits of the hide-email or screen-share setting reach the open page too (and re-post the account data redacted to match).
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (affectsAcctPrefs(e)) { provider.postAcctPrefs(); } }));
+  // Keep warm changed from Settings UI, settings.json or elsewhere: the menu check follows.
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration(KEEP_WARM_KEY)) { provider.postSmPrefs(); } }));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.contextRingTokens')) { provider.postRing(); } }));
+  // Re-post the dormancy threshold live so changing the setting updates the list without a reload.
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.colorDormantMinutes')) { provider.postColorDormant(); } }));
   /** A chat's title: the open tab's title when there is one (synchronous, and what the user sees), else the cached index title ('' until it arrives). */
   // No id (no followed chat): no title and no lookup. An empty tab title falls through (||) to the index title as well.
   const titleOfChat = (id: string): string => (id ? provider.watcher?.tabInfo.find((t) => t.id === id)?.title || titles.get(id) : '');
