@@ -68,6 +68,37 @@ function withGroups(h) {
   if (h.errors.length) { console.error('check activity_page FAILED (standalone)'); [...new Set(h.errors)].forEach((e) => console.error('  - ' + e)); process.exit(1); }
 }
 
+// ---- 1b. Section settings popover on the real sidebar page: gear opens it, inputs post to the host, 'prefs' sets them. ----
+{
+  const sidebar = require(path.join(OUT, 'webview.js')).html();
+  const pw = ['acts', 'actm', 'actr0', 'actr1', 'actr2', 'actf0', 'actf1', 'actf2', 'actall', 'actbr']; // everything inside the popover wrapper
+  const h = createHarness({ page: sidebar, name: 'activity_settings', popIds: pw });
+  h.start();
+  const el = (i) => h.els.get(i), last = () => h.posted[h.posted.length - 1];
+  const prefs = (p) => h.deliver({ type: 'act', m: Object.assign({ type: 'prefs' }, p) }, 'act prefs');
+  prefs({ refreshMs: 250, fadeMs: 8000, all: true });
+  h.check('prefs check the matching radios and the All chats box', !el('actr0').checked && el('actr1').checked && !el('actr2').checked && el('actf0').checked && el('actall').checked === true);
+  h.check('the group titles show the value in effect', el('actrv').textContent === ' · 250 ms' && el('actfv').textContent === ' · 8000 ms');
+  prefs({ refreshMs: 500, fadeMs: 8000, all: false });
+  h.check('a custom value checks no radio but is still shown, and all:false clears the box', [0, 1, 2].every((i) => !el('actr' + i).checked) && el('actrv').textContent === ' · 500 ms' && el('actall').checked === false);
+  const before = h.posted.length;
+  h.fire('acts', 'click');
+  h.check('the gear opens the popover and reports it', el('actm').hidden === false && el('acts').getAttribute('aria-expanded') === 'true');
+  h.check('the gear click does not collapse the section', !h.posted.slice(before).some((p) => p && p.type === 'actOpen'));
+  el('actall').checked = true; h.fire('actall', 'change');
+  h.check('the All chats checkbox posts its new state', JSON.stringify(last()) === JSON.stringify({ type: 'actSet', key: 'allChats', value: true }));
+  el('actr2').checked = true; h.fire('actr2', 'change');
+  h.check('a refresh radio posts its value', JSON.stringify(last()) === JSON.stringify({ type: 'actSet', key: 'refreshMs', value: 100 }));
+  el('actf1').checked = true; h.fire('actf1', 'change');
+  h.check('a fade radio posts its value', JSON.stringify(last()) === JSON.stringify({ type: 'actSet', key: 'fadeMs', value: 4000 }));
+  const focused = el('acts').focused || 0;
+  h.fire('actall', 'keydown', { key: 'Escape' });
+  h.check('Escape closes the popover and returns focus to the gear', el('actm').hidden === true && el('acts').getAttribute('aria-expanded') === 'false' && (el('acts').focused || 0) > focused);
+  h.fire('acts', 'click'); h.fire('actbr', 'click');
+  h.check('Open in browser posts actBrowser and closes the popover', last() && last().type === 'actBrowser' && el('actm').hidden === true);
+  if (h.errors.length) { console.error('check activity_page FAILED (settings popover)'); [...new Set(h.errors)].forEach((e) => console.error('  - ' + e)); process.exit(1); }
+}
+
 // ---- 2. Sidebar section (host reachable through vs): click-to-focus on the other-chats hint. ----
 {
   const s = activitySection(4000);

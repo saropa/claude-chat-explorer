@@ -24,7 +24,7 @@ import { AUTO_FALLBACK_KEY, AUTO_KEY, setAutoTitle } from './autoTitleFlag';
 import { registerClaudeConfig } from './claudeConfigPanel';
 import { registerOptions } from './optionsPanel';
 import { registerKeepWarm } from './keepWarm';
-import { registerActivity } from './activity';
+import { ActivityHost, registerActivity } from './activity';
 import { IdleInfo, othersWorking, TitleCache } from './activityIdle';
 import { registerActivityBrowser } from './activityBrowser';
 import { fadeMsOf } from './activityFeed';
@@ -86,7 +86,7 @@ class Provider implements vscode.WebviewViewProvider {
   private readonly queue = new QueryQueue((m) => this.post(m), () => vscode.commands.executeCommand(REVEAL_CMD), logErr);
   watcher?: LiveWatcher; // live state of Claude sessions
   /** The Activity diagram section of this page: told when the page is shown or hidden and when its section is opened or collapsed, so it only polls while it can be seen. */
-  activity?: { setVisible(v: boolean): void; setOpen(o: boolean): void; focusOther?(): Promise<void> };
+  activity?: ActivityHost['activity']; // one shape, declared in activity.ts (visibility, open state, the caption click and the settings popover)
   actions?: ArchiveActions;
   web?: WebSessions;
   digests?: DigestService; // digest commands and the card's digest buttons and links
@@ -237,7 +237,7 @@ class Provider implements vscode.WebviewViewProvider {
   private async onMessage(m: any): Promise<void> {
     try {
       if (!m || typeof m !== 'object') { return; }
-      if (m.type === 'ready') { this.restore(); }
+      if (m.type === 'ready') { this.restore(); this.activity?.prefs?.(); } // prefs: the Activity settings popover gets the current values
       else if (m.type === 'status') { this.store.setStatuses(m.checked); }
       else if (m.type === 'draft') {
         this.store.setDraft({ ...this.store.draft, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
@@ -249,6 +249,10 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'actOpen') { this.activity?.setOpen(!!m.open); this.store.setSecOpen('act', !!m.open); } // the Activity section was opened or collapsed: stop/start polling and remember it
       // A click on the Activity idle caption's "N other chats working" hint: the section picks and opens the busiest other chat and shows the outcome.
       else if (m.type === 'actFocusOther') { await this.activity?.focusOther?.(); }
+      // A choice in the Activity section's settings popover: the section validates and writes it, then sends the value in effect back.
+      else if (m.type === 'actSet') { await this.activity?.setPref?.(m.key, m.value); }
+      // The popover's Open in browser item: the same command as before, which shows its own outcome (the browser opening or a copy-address message).
+      else if (m.type === 'actBrowser') { await vscode.commands.executeCommand('saropaChats.activityBrowser'); }
       else if (m.type === 'secSize' && m.name === 'act') { this.store.setSecSize('act', Number(m.px)); } // Activity splitter released: remember the height (0 = reset)
       else if (m.type === 'secOpen' && ['acct', 'sm'].includes(String(m.name))) { this.store.setSecOpen(String(m.name), !!m.open); } // Account & Usage or Session Manager header toggled
       else if (m.type === 'advOpen') { this.store.setAdvOpen(!!m.open); }

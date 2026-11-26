@@ -119,7 +119,22 @@ check('another chat keeps flashes, sub flashes and pills only, tagged with its c
 check('the current chat keeps every event', tagEvents([{ t: 'caption', text: 'x' }, { t: 'wait', g: 'think' }], 'c1', '#f51b50', true).length === 2);
 check('page glows per chat colour and keeps pills and last group per chat', page.includes("style.setProperty('--hl', col)") && page.includes('const bgBy = new Map()') && page.includes('const lastOf = new Map()') && page.includes('function drawPills()'));
 const pk = require(path.join(ROOT, 'package.json')).contributes;
-check('allChats setting is a boolean on by default, with a toggled menu command', pk.configuration.properties['saropaChats.activity.allChats'].default === true && pk.commands.some((c) => c.command === 'saropaChats.activityAllChats' && c.toggled === 'saropaChats.activityAll') && pk.menus['view/title'].some((m) => m.command === 'saropaChats.activityAllChats'));
+check('allChats setting is a boolean on by default, with a toggled command titled without "Show"', pk.configuration.properties['saropaChats.activity.allChats'].default === true && pk.commands.some((c) => c.command === 'saropaChats.activityAllChats' && c.toggled === 'saropaChats.activityAll' && c.title === 'All Chats'));
+// The Activity settings live on the section's own header, not in the whole view's ... menu (where they read as settings of the entire panel).
+const ACT_CMDS = ['saropaChats.activityRefreshSpeed', 'saropaChats.activityFadeSpeed', 'saropaChats.activityAllChats', 'saropaChats.activityBrowser'];
+check('no Activity item is in the view ... menu (view/title)', !pk.menus['view/title'].some((m) => ACT_CMDS.includes(m.command)));
+// The section header: the gear is a sibling of the collapse button (a nested button would also collapse the section), and the popover
+// holds the speed radios built from SPEED_CHOICES, a real All chats checkbox (no "Show" wording) and an Open in browser button.
+const { ACT_HTML } = require(path.join(OUT, 'webviewActivity.js'));
+const { SPEED_CHOICES } = require(path.join(OUT, 'activityFeed.js'));
+check('Activity header has a settings button beside (not inside) the collapse button', /<div id="acthr"><button type="button" id="acth"[^]*?Activity<\/button><div class="pw"><button type="button" id="acts"[^>]*aria-haspopup="true"[^>]*aria-expanded="false"[^>]*aria-controls="actm"/.test(ACT_HTML));
+check('Activity settings popover has the All chats checkbox, no "Show" wording', ACT_HTML.includes('<input type="checkbox" id="actall"><span>All chats') && !/>\s*Show\b/.test(ACT_HTML));
+check('Activity settings popover has Open in browser as a button', /<button type="button" class="acto" id="actbr"[^>]*>Open in browser<\/button>/.test(ACT_HTML));
+check('speed radios carry the SPEED_CHOICES values in order', ['refreshMs', 'fadeMs'].every((k, j) => SPEED_CHOICES[k].every((ms, i) => ACT_HTML.includes(`id="${['actr', 'actf'][j]}${i}" value="${ms}"`))));
+// Single source: the speed numbers are not repeated in the host module.
+check('activity.ts keeps no copy of the speed values', !/1000,\s*250,\s*100|8000,\s*4000,\s*2000/.test(fs.readFileSync(path.join(ROOT, 'src', 'activity.ts'), 'utf8')));
+const ext = fs.readFileSync(path.join(OUT, 'extension.js'), 'utf8');
+check('host handles the popover messages (actSet, actBrowser) and sends prefs on ready', ext.includes("m.type === 'actSet'") && ext.includes("m.type === 'actBrowser'") && /m\.type === 'ready'\) \{[^}]*prefs/.test(ext));
 const css = require(path.join(OUT, 'webviewCss.js')).CSS;
 check('session list CSS has one colour class per palette entry and the row bar', CHAT_PALETTE.every((c, i) => css.includes('.cc' + i + '{--cc:' + c + '}')) && css.includes('.r.cc>.rh{box-shadow:inset 3px 0 0 var(--cc)}'));
 

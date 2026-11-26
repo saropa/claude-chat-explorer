@@ -76,7 +76,7 @@
       },
       {
         "command": "saropaChats.activityAllChats",
-        "title": "Show All Chats",
+        "title": "All Chats",
         "toggled": "saropaChats.activityAll"
       },
       {
@@ -228,26 +228,6 @@
         }
       ],
       "view/title": [
-        {
-          "command": "saropaChats.activityRefreshSpeed",
-          "when": "view == saropaChats.view",
-          "group": "1_speed@1"
-        },
-        {
-          "command": "saropaChats.activityFadeSpeed",
-          "when": "view == saropaChats.view",
-          "group": "1_speed@2"
-        },
-        {
-          "command": "saropaChats.activityAllChats",
-          "when": "view == saropaChats.view",
-          "group": "2_scope@1"
-        },
-        {
-          "command": "saropaChats.activityBrowser",
-          "when": "view == saropaChats.view",
-          "group": "2_scope@2"
-        },
         {
           "command": "saropaChats.searchTips",
           "when": "view == saropaChats.view",
@@ -502,19 +482,19 @@
           "default": 250,
           "minimum": 100,
           "maximum": 2000,
-          "description": "How often the Activity panel checks the selected chat for new messages, in milliseconds. Also set by the Refresh Speed item in the panel's ... menu (Slow 1000, Medium 250, Fast 100)."
+          "description": "How often the Activity panel checks the selected chat for new messages, in milliseconds. Also set from the settings (gear) button on the Activity section header (Slow 1000, Medium 250, Fast 100)."
         },
         "saropaChats.activity.fadeMs": {
           "type": "number",
           "default": 4000,
           "minimum": 1000,
           "maximum": 10000,
-          "description": "How long a flash on the Activity panel takes to fade out, in milliseconds. Also set by the Fade Speed item in the panel's ... menu (Slow 8000, Medium 4000, Fast 2000)."
+          "description": "How long a flash on the Activity panel takes to fade out, in milliseconds. Also set from the settings (gear) button on the Activity section header (Slow 8000, Medium 4000, Fast 2000)."
         },
         "saropaChats.activity.allChats": {
           "type": "boolean",
           "default": true,
-          "description": "Show the activity of every live chat on the Activity diagram, not only the chat in the focused tab. Each chat gets its own colour (shown as a bar beside its name in the session list and as the glow on the diagram). Also set by the Show All Chats item in the panel's ... menu."
+          "description": "Follow every live chat on the Activity diagram, not only the chat in the focused tab. Each chat gets its own color (a bar beside its name in the session list and the glow on the diagram). Also set by the All chats checkbox under the settings (gear) button on the Activity section header."
         },
         "saropaChats.contextRingTokens": {
           "type": "number",

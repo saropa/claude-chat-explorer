@@ -2,7 +2,7 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { IDLE_STRINGS, IdleDot, IdleGate, IdleInfo, cutTitle, idleMsg, isWorking, pickBusiest } from './activityIdle';
-import { ActivityFeed, fadeMsOf, refreshMsOf } from './activityFeed';
+import { ActivityFeed, SPEED_CHOICES, SPEED_LABELS, fadeMsOf, refreshMsOf } from './activityFeed';
 import { AllChatsTracker } from './activityAll';
 import { BgTracker } from './bgAgents';
 import { CHAT_PALETTE, ColorBook } from './chatColors';
@@ -12,17 +12,15 @@ import { guardedWrite } from './staleConfigUi';
 // Setting: show every live chat, each in its own colour. Its manifest default is true; the default only applies when no value is set,
 // so a user, workspace or folder value of `false` written before the default changed still wins (allOn reads the resolved value).
 const ALL_KEY = 'activity.allChats';
-const ALL_CTX = 'saropaChats.activityAll'; // context key mirroring it, so the menu entry shows a check mark
+const ALL_CTX = 'saropaChats.activityAll'; // context key mirroring it, so the command's toggled state stays right
 const COLORS_KEY = 'saropaChats.chatColors'; // globalState key of the persisted chat-to-colour map
-
-const SPEEDS = ['Slow', 'Medium', 'Fast'];
-const CHOICES: Record<'refreshMs' | 'fadeMs', number[]> = { refreshMs: [1000, 250, 100], fadeMs: [8000, 4000, 2000] };
 
 /** Opens a Slow / Medium / Fast pick for one Activity setting and stores the chosen value. */
 async function pickSpeed(key: 'refreshMs' | 'fadeMs', title: string): Promise<void> {
   const cfg = vscode.workspace.getConfiguration('saropaChats');
   const now = key === 'refreshMs' ? refreshMsOf(cfg.get('activity.refreshMs')) : fadeMsOf(cfg.get('activity.fadeMs'));
-  const items = SPEEDS.map((label, i) => ({ label, description: `${CHOICES[key][i]} ms${CHOICES[key][i] === now ? '  (current)' : ''}`, ms: CHOICES[key][i] }));
+  // Labels and values come from activityFeed.ts, the same table the Activity section's settings popover is built from.
+  const items = SPEED_LABELS.map((label, i) => ({ label, description: `${SPEED_CHOICES[key][i]} ms${SPEED_CHOICES[key][i] === now ? '  (current)' : ''}`, ms: SPEED_CHOICES[key][i] }));
   const pick = await vscode.window.showQuickPick(items, { title, placeHolder: `Current: ${now} ms (Medium is the default)` });
   if (!pick) { return; }
   // A rejected write (stale registry after an extension-host-only upgrade) shows the reload prompt instead of doing nothing.
@@ -36,7 +34,7 @@ function targetOf(key: string): vscode.ConfigurationTarget {
 }
 
 /** What the page host must offer: the Activity section registers itself here to hear about the page being shown or hidden and its section being opened or collapsed. */
-export interface ActivityHost { activity?: { setVisible(v: boolean): void; setOpen(o: boolean): void; focusOther?(): Promise<void> } }
+export interface ActivityHost { activity?: { setVisible(v: boolean): void; setOpen(o: boolean): void; focusOther?(): Promise<void>; prefs?(): void; setPref?(key: unknown, value: unknown): Promise<void> } }
 
 /** What a click on the idle caption's "N other chats working" hint needs: the live dots, a title per chat and a way to open a chat. */
 export interface FocusDeps { dots(): { [id: string]: IdleDot }; titleOf(id: string): string; open(id: string): Promise<boolean> } // open: true when the chat was opened
@@ -157,22 +155,50 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     if (!all) { sendColors(new Map()); }
     poke();
   };
+  /** The section's settings popover state: the current refresh and fade times and the all-chats mode, sent on page load and on every change. */
+  const prefs = (): void => {
+    const cfg = vscode.workspace.getConfiguration('saropaChats');
+    send({ type: 'prefs', refreshMs: refreshMsOf(cfg.get('activity.refreshMs')), fadeMs: fade(), all: allOn() });
+  };
+  /**
+   * A choice made in the section's settings popover. Only a known key with an allowed value is written (the page is not trusted to send
+   * one), through the same guarded write as the commands. Every path ends in prefs(): the page then shows the value actually in effect,
+   * so a write that failed or was overridden in a higher-priority scope snaps the control back instead of leaving a false check mark.
+   */
+  const setPref = async (key: unknown, value: unknown): Promise<void> => {
+    let at = '', v: number | boolean | undefined;
+    if (key === 'allChats' && typeof value === 'boolean') { at = ALL_KEY; v = value; }
+    else if ((key === 'refreshMs' || key === 'fadeMs') && typeof value === 'number' && SPEED_CHOICES[key].includes(value)) { at = 'activity.' + key; v = value; }
+    if (at && v !== undefined) {
+      const val = v;
+      // guardedWrite shows the reload prompt for a stale registry; any other failure is shown here, so no click ends silently.
+      try { await guardedWrite(() => vscode.workspace.getConfiguration('saropaChats').update(at, val, targetOf(at))); } catch (e) {
+        log('activity: could not save ' + at + ': ' + String(e));
+        void vscode.window.showErrorMessage(tr('Could not save the Activity setting: {0}', String(e instanceof Error ? e.message : e)));
+      }
+    }
+    prefs();
+  };
   void vscode.commands.executeCommand('setContext', ALL_CTX, all);
   host.activity = {
     setVisible(v) { const was = visible && open; visible = v; sync(was); },
     setOpen(o) { const was = visible && open; open = o; sync(was); },
     focusOther, // the page's 'actFocusOther' message (a click on the idle caption's other-chats hint) lands here
+    prefs, // the page's 'ready': the settings popover gets the current values
+    setPref, // the page's 'actSet' message (a choice in the section's settings popover)
   };
   ctx.subscriptions.push(
     { dispose: stop },
     vscode.commands.registerCommand('saropaChats.activityRefreshSpeed', () => pickSpeed('refreshMs', 'Activity refresh speed')),
     vscode.commands.registerCommand('saropaChats.activityFadeSpeed', () => pickSpeed('fadeMs', 'Activity fade-out speed')),
-    // The menu entry flips the setting; the configuration listener below applies it, so the menu, Settings and settings.json stay in step.
+    // The command flips the setting; the configuration listener below applies it, so the popover, Settings and settings.json stay in step.
     vscode.commands.registerCommand('saropaChats.activityAllChats', () => guardedWrite(() => vscode.workspace.getConfiguration('saropaChats').update(ALL_KEY, !allOn(), targetOf(ALL_KEY)))),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('saropaChats.activity.fadeMs')) { send({ type: 'fade', ms: fade() }); }
       if (e.affectsConfiguration('saropaChats.activity.refreshMs')) { start(); }
       if (e.affectsConfiguration('saropaChats.' + ALL_KEY)) { applyAll(); }
+      // Any of the three, from the popover, Settings or settings.json: the popover shows the new values.
+      if (['activity.fadeMs', 'activity.refreshMs', ALL_KEY].some((k) => e.affectsConfiguration('saropaChats.' + k))) { prefs(); }
     }));
   // The book and locator are handed out so the browser view shows each chat in the same colour as the pane.
   return { poke, idle, book, files };

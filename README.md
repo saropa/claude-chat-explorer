@@ -185,7 +185,7 @@ A section at the top of the sidebar, closed until opened, laid out like the nati
 
 ## Activity
 
-The "Activity" panel under the session list (collapsible) shows Claude as a center circle with eight groups around it: Chat, Memory, Files, Terminal, Web, Agents, Connect and Control. When the current chat gets a new message, the line of its group flashes and fades back over a few seconds; thinking flashes the center. Old messages are not replayed when you open or switch chats. With reduced motion on, the flash is a brief brightness change with no animation. The panel's "..." menu sets the refresh speed and the fade-out speed (Slow, Medium or Fast).
+The "Activity" panel under the session list (collapsible) shows Claude as a center circle with eight groups around it: Chat, Memory, Files, Terminal, Web, Agents, Connect and Control. When the current chat gets a new message, the line of its group flashes and fades back over a few seconds; thinking flashes the center. Old messages are not replayed when you open or switch chats. With reduced motion on, the flash is a brief brightness change with no animation. The gear button at the right end of the Activity header opens its settings: refresh speed and fade-out speed (Slow, Medium or Fast), an All chats checkbox (follow every live chat, each in its own color), and Open in browser.
 
 ## Claude Config
 

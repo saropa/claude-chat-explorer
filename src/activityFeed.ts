@@ -24,6 +24,11 @@ export const REFRESH_MS = { def: 250, min: 100, max: 2000 };
 /** The `activity.refreshMs` setting as a usable interval: a number clamped to 100..2000, else 250. */
 export const refreshMsOf = (raw: unknown): number => typeof raw === 'number' && Number.isFinite(raw) ? Math.min(REFRESH_MS.max, Math.max(REFRESH_MS.min, Math.round(raw))) : REFRESH_MS.def;
 
+/** The Slow / Medium / Fast choices of the Activity speed settings, in that order. The one place these values live: the host's quick picks
+ *  and the Activity section's settings popover both read them, and the host only accepts a page write that names one of them. */
+export const SPEED_LABELS = ['Slow', 'Medium', 'Fast'] as const;
+export const SPEED_CHOICES: Readonly<Record<'refreshMs' | 'fadeMs', readonly number[]>> = { refreshMs: [1000, 250, 100], fadeMs: [8000, 4000, 2000] };
+
 export const FADE_MS = { def: 4000, min: 1000, max: 10000 };
 /** The `activity.fadeMs` setting as a usable fade time: a number clamped to 1000..10000, else 4000. */
 export const fadeMsOf = (raw: unknown): number => typeof raw === 'number' && Number.isFinite(raw) ? Math.min(FADE_MS.max, Math.max(FADE_MS.min, Math.round(raw))) : FADE_MS.def;
