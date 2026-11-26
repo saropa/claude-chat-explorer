@@ -115,6 +115,21 @@ check('a chat beyond 20 still gets a colour', new ColorBook(undefined, () => {})
 check('a damaged saved map is ignored', new ColorBook({ a: 99, b: 'x', c: 2 }, () => {}).resolve(['a', 'b', 'c']).get('c') === CHAT_PALETTE[2]);
 const mix = new ColorBook({ old: 5 }, () => {}).resolve(['new', 'old']);
 check('a new chat never takes a colour a live established chat holds', mix.get('old') === CHAT_PALETTE[5] && mix.get('new') !== CHAT_PALETTE[5]);
+// A saved colour is permanent: a clash shows a temporary colour only, the saved entry is never overwritten.
+let clashSaves = 0;
+const clash = new ColorBook({ A: 0, B: 0 }, () => { clashSaves++; });
+const c1 = clash.resolve(['A', 'B']);
+check('a clashing returning chat shows another colour and nothing is saved', c1.get('A') === CHAT_PALETTE[0] && c1.get('B') !== CHAT_PALETTE[0] && clashSaves === 0);
+const c2 = clash.resolve(['B']);
+check('once the holder is gone the clash loser gets its saved colour back', c2.get('B') === CHAT_PALETTE[0] && clashSaves === 0);
+let lastSaved; const grow = new ColorBook({ A: 0, B: 0 }, (m) => { lastSaved = m; });
+grow.resolve(['A', 'B', 'N']);
+check('a clash never rewrites the saved entry, a new chat is saved', lastSaved && lastSaved.B === 0 && lastSaved.A === 0 && typeof lastSaved.N === 'number');
+// Cap: oldest non-live entries are evicted, live chats never are.
+const big = {}; for (let i = 0; i < 500; i++) { big['o' + i] = i % 20; }
+let capSaved; const cap = new ColorBook(big, (m) => { capSaved = m; });
+cap.resolve(['o0', 'fresh']);
+check('over the cap the oldest non-live entry goes, a live old chat stays', capSaved && Object.keys(capSaved).length === 500 && capSaved.o0 !== undefined && capSaved.o1 === undefined && capSaved.fresh !== undefined);
 check('tailed chats: current first, capped, no blanks or repeats', eq(tailIds('b', ['a', 'b', 'c', '']), ['b', 'a', 'c']) && tailIds('', Array.from({ length: 20 }, (_, i) => 'x' + i)).length === 8);
 const tagged = tagEvents([{ t: 'flash', g: 'files' }, { t: 'caption', text: 'x' }, { t: 'busy', id: '1', g: 'files' }, { t: 'sub', g: 'web' }, { t: 'bg', shell: 1, agent: 0 }], 'c1', '#f51b50', false);
 check('another chat keeps flashes, sub flashes and pills only, tagged with its colour', eq(tagged.map((e) => e.t), ['flash', 'sub', 'bg']) && tagged.every((e) => e.ch === 'c1' && e.col === '#f51b50' && e.cur === false));
@@ -135,7 +150,17 @@ check('Activity settings popover has Open in browser as a button', /<button type
 check('speed radios carry the SPEED_CHOICES values in order', ['refreshMs', 'fadeMs'].every((k, j) => SPEED_CHOICES[k].every((ms, i) => ACT_HTML.includes(`id="${['actr', 'actf'][j]}${i}" value="${ms}"`))));
 // Single source: the speed numbers are not repeated in the host module.
 check('activity.ts keeps no copy of the speed values', !/1000,\s*250,\s*100|8000,\s*4000,\s*2000/.test(fs.readFileSync(path.join(ROOT, 'src', 'activity.ts'), 'utf8')));
+// Title generation: the sparkle left the view title bar for the Session Manager header menu; the row context menu generates one session's title.
+check('regenTitles is not in view/title (it moved to the Session Manager menu), but stays registered and in the palette', !pk.menus['view/title'].some((m) => m.command === 'saropaChats.regenTitles') && pk.commands.some((c) => c.command === 'saropaChats.regenTitles') && !(pk.menus.commandPalette || []).some((m) => m.command === 'saropaChats.regenTitles' && m.when === 'false'));
+check('bulk command is titled Generate (no "Regenerate"), id unchanged', pk.commands.find((c) => c.command === 'saropaChats.regenTitles').title === 'Saropa Chats: Generate Session Titles' && !JSON.stringify(pk).includes('Regenerate'));
+const { SM_MENU_HTML } = require(path.join(OUT, 'webviewSm.js'));
+const sidebarHtml = require(path.join(OUT, 'webview.js')).html();
+check('Session Manager has a menu button beside (not inside) the collapse button', /<div id="smhr"><button type="button" id="smh"[^]*?Session Manager<\/button><div class="pw"><button type="button" id="smm"[^>]*aria-haspopup="true"[^>]*aria-expanded="false"[^>]*aria-controls="smmm"/.test(sidebarHtml));
+check('Session Manager menu item reads "Generate session titles"', /<button type="button" class="acto" id="smgen"[^>]*>Generate session titles<\/button>/.test(SM_MENU_HTML) && !/Regenerate/.test(sidebarHtml));
+const gt = pk.commands.find((c) => c.command === 'saropaChats.generateTitle');
+check('Generate Title is a row context item, hidden from the palette', !!gt && gt.title === 'Generate Title' && pk.menus['webview/context'].some((m) => m.command === 'saropaChats.generateTitle' && m.when === "webviewId == 'saropaChats.view' && webviewSection == 'chat'") && pk.menus.commandPalette.some((m) => m.command === 'saropaChats.generateTitle' && m.when === 'false'));
 const ext = fs.readFileSync(path.join(OUT, 'extension.js'), 'utf8');
+check('host handles smRegen by running regenTitles, and registers generateTitle with a session-id guard', ext.includes("m.type === 'smRegen'") && /smRegen[^]*?executeCommand\('saropaChats\.regenTitles'\)/.test(ext) && /registerCommand\('saropaChats\.generateTitle',[^]*?isSessionId[^]*?generateTitleFor/.test(ext));
 check('host handles the popover messages (actSet, actBrowser) and sends prefs on ready', ext.includes("m.type === 'actSet'") && ext.includes("m.type === 'actBrowser'") && /m\.type === 'ready'\) \{[^}]*prefs/.test(ext));
 const css = require(path.join(OUT, 'webviewCss.js')).CSS;
 check('session list CSS has one colour class per palette entry and the row bar', CHAT_PALETTE.every((c, i) => css.includes('.cc' + i + '{--cc:' + c + '}')) && css.includes('.r.cc>.rh{box-shadow:inset 3px 0 0 var(--cc)}'));

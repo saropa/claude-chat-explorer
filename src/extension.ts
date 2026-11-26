@@ -18,12 +18,13 @@ import { copyHandover } from './handoverRun';
 import { copyResume } from './copyResume';
 import { exportChatMd } from './exportMdRun';
 import { archiveClosed, archiveTiny } from './archiveTiny';
-import { regenTitles } from './regenTitlesRun';
+import { generateTitleFor, regenTitles } from './regenTitlesRun';
 import { AutoTitler, autoTitleNow } from './autoTitleRun';
 import { AUTO_FALLBACK_KEY, AUTO_KEY, setAutoTitle } from './autoTitleFlag';
 import { registerClaudeConfig } from './claudeConfigPanel';
 import { registerOptions } from './optionsPanel';
 import { registerKeepWarm } from './keepWarm';
+import { HIDE_EMAIL_KEY, hideEmailOn, setAcctPref } from './acctPrefs';
 import { ActivityHost, registerActivity } from './activity';
 import { IdleInfo, othersWorking, TitleCache } from './activityIdle';
 import { registerActivityBrowser } from './activityBrowser';
@@ -237,7 +238,7 @@ class Provider implements vscode.WebviewViewProvider {
   private async onMessage(m: any): Promise<void> {
     try {
       if (!m || typeof m !== 'object') { return; }
-      if (m.type === 'ready') { this.restore(); this.activity?.prefs?.(); } // prefs: the Activity settings popover gets the current values
+      if (m.type === 'ready') { this.restore(); this.activity?.prefs?.(); this.postAcctPrefs(); } // prefs: the Activity settings popover gets the current values
       else if (m.type === 'status') { this.store.setStatuses(m.checked); }
       else if (m.type === 'draft') {
         this.store.setDraft({ ...this.store.draft, ...opts(m), sort: sortOf(m), query: String(m.query ?? '') });
@@ -252,6 +253,9 @@ class Provider implements vscode.WebviewViewProvider {
       // A choice in the Activity section's settings popover: the section validates and writes it, then sends the value in effect back.
       else if (m.type === 'actSet') { await this.activity?.setPref?.(m.key, m.value); }
       // The popover's Open in browser item: the same command as before, which shows its own outcome (the browser opening or a copy-address message).
+      else if (m.type === 'smRegen') { await vscode.commands.executeCommand('saropaChats.regenTitles'); } // Session Manager menu: Generate session titles (bulk command shows its own pickers and outcome)
+      // A choice in the Account & Usage settings popover: validated and written, then the value in effect is sent back.
+      else if (m.type === 'acctSet') { await setAcctPref(m.key, m.value, () => this.postAcctPrefs()); }
       else if (m.type === 'actBrowser') { await vscode.commands.executeCommand('saropaChats.activityBrowser'); }
       else if (m.type === 'secSize' && m.name === 'act') { this.store.setSecSize('act', Number(m.px)); } // Activity splitter released: remember the height (0 = reset)
       else if (m.type === 'secOpen' && ['acct', 'sm'].includes(String(m.name))) { this.store.setSecOpen(String(m.name), !!m.open); } // Account & Usage or Session Manager header toggled
@@ -267,6 +271,9 @@ class Provider implements vscode.WebviewViewProvider {
       else { await this.onChatMessage(m); }
     } catch (e) { logErr('message ' + String(m?.type), e); }
   }
+
+  /** Sends the Account & Usage display settings (hide email) to the page: on load, after a write and on any settings change. Display only; the worker's account data is unchanged. */
+  postAcctPrefs(): void { this.post({ type: 'acctPrefs', hideEmail: hideEmailOn() }); }
 
   /** Account & Usage section: ask the worker (soft, so a slow scan never restarts it) and tell the panel. */
   private async account(): Promise<void> {
@@ -477,6 +484,8 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
     viewing: () => provider.viewingId(), unread: () => store!.unread, saveUnread: (u) => store!.setUnread(u), log,
     onChange: () => { provider.postDots(); provider.idleHook?.(); hub.emit('dots', logErr); }, onLive: (ids) => { void warner.check(ids); titler.onLive(ids); } });
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.search.contextLines')) { provider.postCtxLines(); } }));
+  // Settings UI or settings.json edits of the hide-email setting reach the open page too.
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.' + HIDE_EMAIL_KEY)) { provider.postAcctPrefs(); } }));
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('saropaChats.contextRingTokens')) { provider.postRing(); } }));
   /** A chat's title: the open tab's title when there is one (synchronous, and what the user sees), else the cached index title ('' until it arrives). */
   // No id (no followed chat): no title and no lookup. An empty tab title falls through (||) to the index title as well.
@@ -537,10 +546,15 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   // Shared dependencies of both bulk-archive commands (single source, so skip rules cannot drift).
   const tinyDeps = { rows: usageRows, archived: () => store!.archived, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
     archive: (ids: string[]) => provider.actions!.archiveMany(ids) };
+  // Shared by the bulk and the single-session title commands (one refresh path after a write).
+  const regenDeps = { currentId: () => provider.currentId(), refresh: () => { provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); }, log: logErr };
   ctx.subscriptions.push(
     ...[['saropaChats.copyResume', (id: string) => provider.copyResumeCmd(id)], ['saropaChats.exportChatMarkdown', (id: string) => provider.exportMd(id)]].map(([cmd, fn]) =>
       vscode.commands.registerCommand(cmd as string, (arg?: { id?: unknown }) => (isSessionId(arg?.id) ? (fn as (id: string) => Promise<void>)(arg.id) : undefined))),
-    vscode.commands.registerCommand('saropaChats.regenTitles', () => regenTitles({ currentId: () => provider.currentId(), refresh: () => { provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); }, log: logErr }, channel)),
+    // Command ids keep "regen" (renamed to "Generate" in titles only) so existing keybindings keep working.
+    vscode.commands.registerCommand('saropaChats.regenTitles', () => regenTitles(regenDeps, channel)),
+    // Row context menu (arg carries the row's id): generate the title of that one session.
+    vscode.commands.registerCommand('saropaChats.generateTitle', (arg?: { id?: unknown }) => (isSessionId(arg?.id) ? generateTitleFor(arg.id, regenDeps, channel) : undefined)),
     vscode.commands.registerCommand('saropaChats.archiveTiny', () => archiveTiny(tinyDeps)),
     // Clean up button: archive everything that is not open or pinned.
     vscode.commands.registerCommand('saropaChats.archiveClosed', () => archiveClosed(tinyDeps)));

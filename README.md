@@ -177,11 +177,12 @@ A digest is a short stored record of one session: the goal, your decisions, the 
 
 - Setting `saropaChats.autoTitle.enabled` (off by default), or the "Auto-title sessions" toggle in the "..." menu of the view. A live session is named after its first prompt (topic emoji plus the first sentence, up to 50 characters) and renamed once after the third prompt, by appending a title line to the session file. Sessions you named yourself are left alone.
 - `autoTitle.useHaiku` lets `claude -p --model haiku` write the title instead of the rules. `emojiRules` and `emojiRulesReplaceDefaults` customize the emoji.
-- "Regenerate Session Titles" (sparkle button in the view toolbar): pick This project or All projects, preview old and new titles, then write. Each transcript is backed up under `~/.claude/backups/session_titles` first. Live sessions are skipped.
+- "Generate Session Titles" (the three-dot menu on the Session Manager header): pick This project or All projects, preview old and new titles, then write. Each transcript is backed up under `~/.claude/backups/session_titles` first. Live sessions are skipped.
+- "Generate Title" (right-click a session row): writes a title for that one session only, with the same backup. Sessions open or changed in the last 5 minutes are skipped, with a message.
 
 ## Account & Usage
 
-A section at the top of the sidebar, closed until opened, laid out like the native Claude Code panel. ACCOUNT shows your email and plan from `~/.claude.json` (or "Not signed in"). USAGE shows tokens used in the last 5 hours, today and the last 7 days (input plus output). "View details" adds name, organization, yesterday, 3 and 5 days, the input, output and cache split per window, and tokens per model. No percent of limit or reset time: that needs the network and keychain. Offline and read-only.
+A section at the top of the sidebar, closed until opened, laid out like the native Claude Code panel. ACCOUNT shows your email and plan from `~/.claude.json` (or "Not signed in"). USAGE shows tokens used in the last 5 hours, today and the last 7 days (input plus output). Hide the email under the gear button on the section header (setting `saropaChats.account.hideEmail`, off by default; display only). "View details" adds name, organization, yesterday, 3 and 5 days, the input, output and cache split per window, and tokens per model. No percent of limit or reset time: that needs the network and keychain. Offline and read-only.
 
 ## Activity
 
@@ -261,7 +262,7 @@ One page answers: what is still open in this repository, and what do I do to clo
 | Saropa Chats: Show Diagnostics | Version, index state, agent detection, live session and window counts. |
 | Saropa Chats: Claude Config | Read-only review of your Claude Code configuration. |
 | Saropa Chats: Options | One form for every setting. |
-| Saropa Chats: Regenerate Session Titles | Previews and rewrites session titles, with a backup. |
+| Saropa Chats: Generate Session Titles | Previews and writes session titles, with a backup. |
 
 ## Settings
 
@@ -336,7 +337,7 @@ npm run package
 
 - Reads Claude Code transcripts from `~/.claude/projects` on your machine.
 - Reads `~/.claude.json` (account email, name, organization, plan) and the `~/.claude` configuration files for Account & Usage and Claude Config. Read-only; no keychain and no network.
-- Writes only when you ask: auto-titles append a title line to a session file, and Regenerate Session Titles backs up each transcript first.
+- Writes only when you ask: auto-titles append a title line to a session file, and Generate Session Titles backs up each transcript first.
 - Keep-warm (off by default): when on, it adds one Stop hook entry to `~/.claude/settings.json` and copies a script to `~/.claude/saropa-chats/`. Turning it off or uninstalling the extension removes both. Other hooks are never touched.
 - Web sessions (off by default): only when `saropaChats.webSessions.enabled` is on, it sends your Claude Code login token to Anthropic's unofficial session API to list and fetch your cloud sessions. The token is never stored, refreshed or logged.
 - Reads the agent's live session files in `~/.claude/sessions` (process id, session id and status) to color the dots. It never writes there.
@@ -347,7 +348,7 @@ npm run package
 - Import Archived Sessions works the same way and runs only when you press Import.
 - Writes a search cache to the extension's global storage folder. Message text is stored there, up to 20,000 characters per message (8,000 for subagents). The last `cwd` of each session, file paths, the first 300 characters of each command, and the worktrees and branches each session created are stored too. Tool results are skipped.
 - Pins, tags, archived sessions, unread marks, history and options are saved by VS Code in its own storage.
-- No telemetry. The only network call in the source is the opt-in Web sessions list. The programs it starts are `ps`, `sqlite3`, `git`, `gh` and `claude` (only for Haiku auto-titles and the Regenerate Session Titles command).
+- No telemetry. The only network call in the source is the opt-in Web sessions list. The programs it starts are `ps`, `sqlite3`, `git`, `gh` and `claude` (only for Haiku auto-titles and the Generate Session Titles command).
 - Resuming a session hands the session id to the agent extension through a VS Code command, or a VS Code link if the command fails.
 - Errors go to the "Saropa Chats" output channel.
 
@@ -398,7 +399,7 @@ Yes. The open window marker is not available there, and copied commands use Powe
 - The agent extension, to resume sessions.
 - `git`, for the Git section of a session card and Project Status. Optional `gh` (signed in), for pull requests and checks.
 - Optional `sqlite3` on your PATH, for Import Archived Sessions and tab detection.
-- Optional `claude` command, for Haiku auto-titles and the Regenerate Session Titles command.
+- Optional `claude` command, for Haiku auto-titles and the Generate Session Titles command.
 
 ## Contributing
 

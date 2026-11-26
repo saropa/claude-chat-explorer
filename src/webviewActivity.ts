@@ -21,12 +21,12 @@ body.dragging{cursor:ns-resize;user-select:none}
 #acts:hover,#acts[aria-expanded=true]{background:var(--vscode-toolbar-hoverBackground)}
 #acts:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 /* The settings popover: section titles, one row per option (a label around a native input, so clicking the text toggles it), a separator. */
-#actm .actt{padding:4px 10px 2px;font-size:calc(var(--vscode-font-size) - 2px);color:var(--vscode-descriptionForeground)}
-#actm .acto{display:flex;align-items:flex-start;gap:6px;width:100%;box-sizing:border-box;padding:3px 10px;margin:0;font:inherit;text-align:left;border:none;background:transparent;color:inherit;cursor:pointer}
-#actm .acto:hover,#actm .acto:focus-within,#actm button.acto:focus-visible{background:var(--vscode-menu-selectionBackground);color:var(--vscode-menu-selectionForeground);outline:none}
-#actm .acto input{margin:2px 0 0}
-#actm .actd{display:block;font-size:calc(var(--vscode-font-size) - 2px);opacity:.8}
-#actm hr{border:none;border-top:1px solid var(--vscode-menu-separatorBackground,var(--vscode-widget-border,transparent));margin:4px 0}
+.pop .actt{padding:4px 10px 2px;font-size:calc(var(--vscode-font-size) - 2px);color:var(--vscode-descriptionForeground)}
+.pop .acto{display:flex;align-items:flex-start;gap:6px;width:100%;box-sizing:border-box;padding:3px 10px;margin:0;font:inherit;text-align:left;border:none;background:transparent;color:inherit;cursor:pointer}
+.pop .acto:hover,.pop .acto:focus-within,.pop button.acto:focus-visible{background:var(--vscode-menu-selectionBackground);color:var(--vscode-menu-selectionForeground);outline:none}
+.pop .acto input{margin:2px 0 0}
+.pop .actd{display:block;font-size:calc(var(--vscode-font-size) - 2px);opacity:.8}
+#actm hr,#acctm hr{border:none;border-top:1px solid var(--vscode-menu-separatorBackground,var(--vscode-widget-border,transparent));margin:4px 0}
 #acth[aria-expanded=true]>.chev{transform:rotate(90deg)}
 #acth:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 #actb[hidden]{display:none}

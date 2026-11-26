@@ -109,8 +109,12 @@
       },
       {
         "command": "saropaChats.regenTitles",
-        "title": "Saropa Chats: Regenerate Session Titles",
+        "title": "Saropa Chats: Generate Session Titles",
         "icon": "$(sparkle)"
+      },
+      {
+        "command": "saropaChats.generateTitle",
+        "title": "Generate Title"
       },
       {
         "command": "saropaChats.autoTitleOn",
@@ -244,11 +248,6 @@
           "group": "navigation"
         },
         {
-          "command": "saropaChats.regenTitles",
-          "when": "view == saropaChats.view",
-          "group": "navigation@4"
-        },
-        {
           "command": "saropaChats.autoTitleOn",
           "when": "view == saropaChats.view && !saropaChats.autoTitleEnabled"
         },
@@ -309,6 +308,11 @@
           "command": "saropaChats.rebuildDigest",
           "when": "webviewId == 'saropaChats.view' && webviewSection == 'chat'",
           "group": "saropaChats@4"
+        },
+        {
+          "command": "saropaChats.generateTitle",
+          "when": "webviewId == 'saropaChats.view' && webviewSection == 'chat'",
+          "group": "saropaChats@5"
         }
       ],
       "commandPalette": [
@@ -366,6 +370,10 @@
         },
         {
           "command": "saropaChats.rebuildDigest",
+          "when": "false"
+        },
+        {
+          "command": "saropaChats.generateTitle",
           "when": "false"
         }
       ]
@@ -495,6 +503,11 @@
           "type": "boolean",
           "default": true,
           "description": "Follow every live chat on the Activity diagram, not only the chat in the focused tab. Each chat gets its own color (a bar beside its name in the session list and the glow on the diagram). Also set by the All chats checkbox under the settings (gear) button on the Activity section header."
+        },
+        "saropaChats.account.hideEmail": {
+          "type": "boolean",
+          "default": false,
+          "description": "Hide the email address in the Account block of the Account & Usage section (display only; the account data itself is unchanged). Also set by the Hide account email checkbox under the settings (gear) button on the Account & Usage header."
         },
         "saropaChats.contextRingTokens": {
           "type": "number",

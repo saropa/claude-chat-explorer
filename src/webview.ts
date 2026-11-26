@@ -17,6 +17,7 @@ import { TOUCH_CSS } from './webviewTouch';
 import { SUM_CSS, SUM_HTML } from './webviewSum';
 import { ACCT_CSS, ACCT_HTML } from './webviewAcct';
 import { WEB_BODY, WEB_CSS, WEB_HTML } from './webviewWeb';
+import { SM_CSS, SM_MENU_HTML, SM_MENU_JS } from './webviewSm';
 import { ACT_CSS, ACT_HTML, actScript } from './webviewActivity';
 import { DIGEST_CSS } from './webviewDigest';
 
@@ -28,13 +29,13 @@ export function html(fadeMs = 4000): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${NAME}</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${SORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}${ROWS_CSS}${TIP_CSS}${POP_CSS}${CTX_CSS}${TOUCH_CSS}${SUM_CSS}${WEB_CSS}${ACCT_CSS}${ACT_CSS}${DIGEST_CSS}</style></head><body>
+<style nonce="${nonce}">${CSS}${GIT_CSS}${STATUS_CSS}${SORT_CSS}${LAYOUT_CSS}${ARCH_CSS}${CAP_CSS}${ADV_CSS}${EXPAND_CSS}${ROWS_CSS}${TIP_CSS}${POP_CSS}${CTX_CSS}${TOUCH_CSS}${SUM_CSS}${WEB_CSS}${ACCT_CSS}${ACT_CSS}${SM_CSS}${DIGEST_CSS}</style></head><body>
 <div id="hdr"><div class="top">
 ${ACCT_HTML}
 ${WEB_HTML}
 </div></div>
 <div id="sb"><div id="ixb" hidden><div id="ixt"></div><div class="ixp"><i></i></div></div><div id="bar"><i></i></div><div id="cap"></div><div id="dgw" role="status" hidden></div><div id="status" role="status" aria-live="polite"></div></div>
-<div id="sm"><button type="button" id="smh" aria-expanded="true" aria-controls="smb" title="Collapse or expand the Session Manager"><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Session Manager</button><div id="smb">
+<div id="sm"><div id="smhr"><button type="button" id="smh" aria-expanded="true" aria-controls="smb" title="Collapse or expand the Session Manager"><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Session Manager</button>${SM_MENU_HTML}</div><div id="smb">
 <div class="top prow"><button type="button" id="ns" class="pbtn" title="Start a new Claude Code session" aria-label="New session"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>New session</button><button type="button" id="cu" class="pbtn" title="Archive all sessions except the open and pinned ones" aria-label="Clean up sessions"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 4h12M6 4V2.5h4V4M4 4l.7 9h6.6L12 4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Clean up</button></div>
 <div class="top">
 <div class="srow"><div class="box">
@@ -62,5 +63,6 @@ ${WEB_BODY}
 <div id="tip" role="tooltip" hidden></div>
 <div id="ctxp" class="pop tipc" role="dialog" aria-labelledby="ctxh" tabindex="-1" hidden></div>
 <script nonce="${nonce}">${SCRIPT}</script>
-<script nonce="${nonce}">${actScript(fadeMs)}</script></body></html>`;
+<script nonce="${nonce}">${actScript(fadeMs)}</script>
+<script nonce="${nonce}">${SM_MENU_JS}</script></body></html>`;
 }

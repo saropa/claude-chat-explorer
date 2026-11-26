@@ -99,6 +99,48 @@ function withGroups(h) {
   if (h.errors.length) { console.error('check activity_page FAILED (settings popover)'); [...new Set(h.errors)].forEach((e) => console.error('  - ' + e)); process.exit(1); }
 }
 
+// ---- 1c. Account & Usage settings popover: the gear posts hideEmail, 'acctPrefs' sets the box and removes (or restores) the Email row. ----
+{
+  const sidebar = require(path.join(OUT, 'webview.js')).html();
+  const h = createHarness({ page: sidebar, name: 'account_settings', popIds: ['accts', 'acctm', 'acthide'] });
+  h.start();
+  const el = (i) => h.els.get(i), last = () => h.posted[h.posted.length - 1];
+  const win = { io: 3, i: 1, o: 2, cw: 0, cr: 0 };
+  h.deliver({ type: 'acct', account: { email: 'someone@example.test', plan: 'max' }, usage: { h5: win, today: win, yest: win, d3: win, d5: win, d7: win, models: [] } }, 'acct data');
+  h.check('the email shows while the setting is off (the default)', el('acb').innerHTML.includes('someone@example.test'));
+  h.fire('accts', 'click');
+  h.check('the account gear opens its popover', el('acctm').hidden === false && el('accts').getAttribute('aria-expanded') === 'true');
+  el('acthide').checked = true; h.fire('acthide', 'change');
+  h.check('the checkbox posts its new state', JSON.stringify(last()) === JSON.stringify({ type: 'acctSet', key: 'hideEmail', value: true }));
+  h.deliver({ type: 'acctPrefs', hideEmail: true }, 'acct prefs');
+  h.check('hiding removes the email but keeps the plan', !el('acb').innerHTML.includes('someone@example.test') && !el('acb').innerHTML.includes('>Email<') && el('acb').innerHTML.includes('max'));
+  h.deliver({ type: 'acctPrefs', hideEmail: false }, 'acct prefs off');
+  h.check('turning it off restores the email and clears the box', el('acb').innerHTML.includes('someone@example.test') && el('acthide').checked === false);
+  h.fire('acthide', 'keydown', { key: 'Escape' });
+  h.check('Escape closes the account popover', el('acctm').hidden === true);
+  if (h.errors.length) { console.error('check activity_page FAILED (account settings)'); [...new Set(h.errors)].forEach((e) => console.error('  - ' + e)); process.exit(1); }
+}
+
+// ---- 1c. Session Manager menu on the real sidebar page: the button opens the popover without collapsing, the item posts smRegen. ----
+{
+  const sidebar = require(path.join(OUT, 'webview.js')).html();
+  const h = createHarness({ page: sidebar, name: 'sm_menu', popIds: ['smm', 'smmm', 'smgen'] });
+  h.start();
+  const el = (i) => h.els.get(i), last = () => h.posted[h.posted.length - 1];
+  const before = h.posted.length;
+  h.fire('smm', 'click');
+  h.check('the menu button opens the popover and reports it', el('smmm').hidden === false && el('smm').getAttribute('aria-expanded') === 'true');
+  h.check('the menu button does not collapse the section', !h.posted.slice(before).some((p) => p && (p.type === 'secOpen' || p.type === 'actOpen')));
+  const focused = el('smm').focused || 0;
+  h.fire('smgen', 'keydown', { key: 'Escape' });
+  h.check('Escape closes the menu and returns focus to the button', el('smmm').hidden === true && el('smm').getAttribute('aria-expanded') === 'false' && (el('smm').focused || 0) > focused);
+  h.fire('smm', 'click'); h.fire('smgen', 'click');
+  h.check('Generate session titles posts smRegen and closes the menu', last() && last().type === 'smRegen' && el('smmm').hidden === true);
+  h.fire('smh', 'click');
+  h.check('the collapse button still toggles the section (posts secOpen)', h.posted.some((p) => p && p.type === 'secOpen' && p.name === 'sm'));
+  if (h.errors.length) { console.error('check activity_page FAILED (session manager menu)'); [...new Set(h.errors)].forEach((e) => console.error('  - ' + e)); process.exit(1); }
+}
+
 // ---- 2. Sidebar section (host reachable through vs): click-to-focus on the other-chats hint. ----
 {
   const s = activitySection(4000);

@@ -1,4 +1,4 @@
-/** The "Regenerate session titles" command: scope and dry-run pickers, progress, claude calls, backup and write. */
+/** The "Generate session titles" commands: bulk (scope and dry-run pickers, progress, claude calls, backup and write) and single-session (row context menu). Internal names keep "regen" so command ids and keybindings stay stable. */
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -25,6 +25,17 @@ export async function generate(data: string, signal: AbortSignal): Promise<strin
   throw last;
 }
 
+/** Backs up a transcript under ~/.claude/backups/session_titles, then appends the new title line. Shared by the bulk and the single-session commands so both write identically. */
+async function backupAndAppend(file: string, id: string, title: string, stamp: string): Promise<void> {
+  const bdir = backupDir(os.homedir(), stamp, path.basename(path.dirname(file)));
+  await fs.promises.mkdir(bdir, { recursive: true });
+  await fs.promises.copyFile(file, path.join(bdir, path.basename(file)));
+  await fs.promises.appendFile(file, titleLines(title, id), 'utf8');
+}
+
+/** Timestamp used in the backup folder name (same format for every run). */
+const backupStamp = (): string => new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+
 async function candidates(all: boolean): Promise<Candidate[]> {
   const root = projectsRoot();
   let dirs: string[];
@@ -46,17 +57,17 @@ async function candidates(all: boolean): Promise<Candidate[]> {
 }
 
 export async function regenTitles(d: RegenDeps, out: vscode.OutputChannel): Promise<void> {
-  const scope = await vscode.window.showQuickPick([{ label: 'This project', all: false }, { label: 'All projects', all: true }], { title: 'Regenerate session titles: scope' });
+  const scope = await vscode.window.showQuickPick([{ label: 'This project', all: false }, { label: 'All projects', all: true }], { title: 'Generate session titles: scope' });
   if (!scope) { return; }
-  const mode = await vscode.window.showQuickPick([{ label: 'Preview only (dry run)', dry: true, description: 'Shows old and new titles; nothing is written' }, { label: 'Regenerate and write', dry: false, description: 'Backs up each transcript, then appends the new title' }], { title: 'Regenerate session titles: mode' });
+  const mode = await vscode.window.showQuickPick([{ label: 'Preview only (dry run)', dry: true, description: 'Shows old and new titles; nothing is written' }, { label: 'Generate and write', dry: false, description: 'Backs up each transcript, then appends the new title' }], { title: 'Generate session titles: mode' });
   if (!mode) { return; }
   const dry = mode.dry;
   out.clear(); out.show(true);
   const { run, live } = pickFiles(await candidates(scope.all), d.currentId(), Date.now());
   let changed = 0, skipped = live.length, failed = 0;
   for (const l of live) { out.appendLine(`SKIP ${l.id}: active or modified in the last 5 minutes`); }
-  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
-  await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: dry ? 'Previewing session titles' : 'Regenerating session titles', cancellable: true }, async (prog, token) => {
+  const stamp = backupStamp();
+  await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: dry ? 'Previewing session titles' : 'Generating session titles', cancellable: true }, async (prog, token) => {
     const ac = new AbortController();
     token.onCancellationRequested(() => ac.abort());
     let n = 0;
@@ -69,10 +80,7 @@ export async function regenTitles(d: RegenDeps, out: vscode.OutputChannel): Prom
         const next = await generate(promptData(prompts), ac.signal);
         out.appendLine(`${old ?? '(none)'}  ->  ${next}`);
         if (!dry) {
-          const bdir = backupDir(os.homedir(), stamp, path.basename(path.dirname(f.file)));
-          await fs.promises.mkdir(bdir, { recursive: true });
-          await fs.promises.copyFile(f.file, path.join(bdir, path.basename(f.file)));
-          await fs.promises.appendFile(f.file, titleLines(next, f.id), 'utf8');
+          await backupAndAppend(f.file, f.id, next, stamp);
         }
         changed++;
       } catch (e) {
@@ -86,4 +94,49 @@ export async function regenTitles(d: RegenDeps, out: vscode.OutputChannel): Prom
   out.appendLine(msg);
   if (!dry && changed) { d.refresh(); }
   void vscode.window.showInformationMessage(msg);
+}
+
+/** Finds the transcript file of one session id by looking for <id>.jsonl in every project folder; undefined when no project holds it. */
+async function findSessionFile(id: string): Promise<Candidate | undefined> {
+  const root = projectsRoot();
+  let dirs: string[] = [];
+  try { dirs = (await fs.promises.readdir(root, { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => d.name); } catch { return undefined; }
+  for (const d of dirs) {
+    const file = path.join(root, d, id + '.jsonl');
+    try { return { file, id, mtime: (await fs.promises.stat(file)).mtimeMs }; } catch { /* not in this project */ }
+  }
+  return undefined;
+}
+
+/**
+ * Row context menu: generates the title of ONE session with the same generator, backup and write as the bulk command.
+ * Every call ends in a visible message (success, skipped with the reason, or failure), and shows a cancellable progress notification meanwhile.
+ */
+export async function generateTitleFor(id: string, d: RegenDeps, out: vscode.OutputChannel): Promise<void> {
+  const f = await findSessionFile(id);
+  if (!f) { void vscode.window.showWarningMessage('Generate Title: the session file was not found.'); return; }
+  // Same live-session rule as the bulk run: appending to a transcript that is open or being written could interleave with Claude's own writes.
+  if (pickFiles([f], d.currentId(), Date.now()).run.length === 0) {
+    void vscode.window.showInformationMessage('Generate Title: skipped. This session is open or was changed in the last 5 minutes.');
+    return;
+  }
+  let title = '';
+  let error = '';
+  await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Generating session title', cancellable: true }, async (_prog, token) => {
+    const ac = new AbortController();
+    token.onCancellationRequested(() => ac.abort());
+    try {
+      const { prompts } = readInfo(await fs.promises.readFile(f.file, 'utf8'));
+      if (!prompts.length) { error = 'the session has no usable prompts'; return; }
+      title = await generate(promptData(prompts), ac.signal);
+      if (token.isCancellationRequested) { title = ''; error = 'cancelled'; return; }
+      await backupAndAppend(f.file, f.id, title, backupStamp());
+    } catch (e) {
+      title = '';
+      error = token.isCancellationRequested ? 'cancelled' : (e instanceof Error ? e.message : String(e));
+      if (error !== 'cancelled') { out.appendLine(`FAIL ${id}: ${error}`); d.log('generateTitleFor', e); }
+    }
+  });
+  if (title) { d.refresh(); void vscode.window.showInformationMessage(`Generate Title: ${title}`); }
+  else { void vscode.window.showWarningMessage(`Generate Title: no title written (${error}).`); }
 }

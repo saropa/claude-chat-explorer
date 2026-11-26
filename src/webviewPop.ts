@@ -8,6 +8,9 @@ export const POP_CSS = String.raw`
 .pw{position:relative;display:flex}
 .pop{position:fixed;left:8px;top:0;z-index:20;width:max-content;min-width:min(170px,calc(100vw - 16px));max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow-x:hidden;overflow-y:auto;overflow-wrap:anywhere;padding:4px 0;box-sizing:border-box;background:var(--vscode-menu-background);color:var(--vscode-menu-foreground);border:1px solid var(--vscode-menu-border,var(--vscode-widget-border,transparent));box-shadow:0 2px 8px var(--vscode-widget-shadow,rgba(0,0,0,.3))}
 .pop[hidden]{display:none}
+/* Menu item rows shared by every header popover (Session Manager menu; the Activity settings popover repeats these rules for its own ids): a full-width row that highlights on hover and keyboard focus. */
+.pop .acto{display:flex;align-items:flex-start;gap:6px;width:100%;box-sizing:border-box;padding:3px 10px;margin:0;font:inherit;text-align:left;border:none;background:transparent;color:inherit;cursor:pointer}
+.pop .acto:hover,.pop .acto:focus-within,.pop button.acto:focus-visible{background:var(--vscode-menu-selectionBackground);color:var(--vscode-menu-selectionForeground);outline:none}
 `;
 
 /** The one tooltip box. */

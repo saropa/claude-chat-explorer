@@ -32,7 +32,7 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 #frow{flex:none}
 .clr:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 #smb[hidden]{display:none}
-#smh{display:flex;align-items:center;gap:4px;width:100%;text-align:left;padding:2px 8px;margin:4px 0 6px;font:inherit;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)} /* margin and font match the Account & Usage header so all three section headers look alike */
+#smh{display:flex;align-items:center;gap:4px;flex:1;min-width:0;text-align:left;padding:2px 8px;margin:4px 0 6px;font:inherit;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)} /* margin and font match the Account & Usage header so all three section headers look alike */
 #smh[aria-expanded=true]>.chev{transform:rotate(90deg)}
 #smh:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 #res{flex:1 1 auto;min-height:80px;overflow-x:hidden;overflow-y:auto;container-type:inline-size;container-name:res;overflow-wrap:anywhere}
