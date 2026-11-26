@@ -83,7 +83,10 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     if (events.length) { send({ type: 'events', events }); }
   };
   /** The idle message for chat `id` (caption text plus the click label and target kind of whatever the click opens), built lazily so the gate skips it when nothing is sent. */
-  const idleOf = (id: string) => () => idleMsg(idleInfo(id), tr);
+  // lastShown: the title the caption last showed for the followed chat. Once that chat is gone its title can no longer be looked up (no tab,
+  // the cache dropped), and "untitled chat is no longer open" would be a useless answer to the click; this remembers what the user saw.
+  let lastShown = { id: '', title: '' };
+  const idleOf = (id: string) => () => { const i = idleInfo(id); if (i.title) { lastShown = { id, title: i.title }; } return idleMsg(i, tr); };
   /** Dots, a title or the focused chat changed: refresh the idle caption. Hidden or collapsed sections skip it (show() re-sends on reveal). */
   const idle = (): void => {
     if (!timer) { return; }
@@ -116,7 +119,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     if (!id) {
       // A self click whose chat lost its dot (closed or deleted since the caption was drawn) gets its own text: "no other chat is working"
       // would be wrong, the chat itself is the one that is gone. An 'other' click with nobody left keeps the none-working note.
-      if (kind === 'self' && cur) { note(tr(IDLE_STRINGS.notOpen, cutTitle(focus.titleOf(cur)) || tr(IDLE_STRINGS.untitled)), true); } else { note(tr(IDLE_STRINGS.noneWorking)); }
+      if (kind === 'self' && cur) { note(tr(IDLE_STRINGS.notOpen, cutTitle(focus.titleOf(cur) || (lastShown.id === cur ? lastShown.title : '')) || tr(IDLE_STRINGS.untitled)), true); } else { note(tr(IDLE_STRINGS.noneWorking)); }
       return;
     }
     const title = cutTitle(focus.titleOf(id)) || tr(IDLE_STRINGS.untitled);

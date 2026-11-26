@@ -305,21 +305,26 @@ function reset(keepPills) {
   if (capGo) { capGo.hidden = true; capGo.setAttribute('aria-disabled', 'true'); } // the old chat's button goes with its caption
 }
 // Waiting for you: one ripple from the core (none with reduced motion), then a quiet outline until the next message.
+// ripT: the timer that ends the ripple. Bug fixed: it was never cancelled, so a second ripple started within 2 s of the first (the dot going
+// waiting, not waiting, waiting again) was cut short by the first one's timer. A new ripple and setCore(false) now clear it first.
+let ripT = 0;
 function wait(g) {
   const el = grp(g);
   el.classList.add('wait');
-  if (g === 'think') { el.classList.remove('rip'); void el.getBoundingClientRect(); el.classList.add('rip'); setTimeout(() => el.classList.remove('rip'), 2000); }
+  if (g === 'think') { clearTimeout(ripT); el.classList.remove('rip'); void el.getBoundingClientRect(); el.classList.add('rip'); ripT = setTimeout(() => el.classList.remove('rip'), 2000); }
 }
 // The core's outline from the dot: turning on (false to true) gives the one ripple of wait() (the CSS skips it with reduced motion); staying
 // on changes nothing, so a repeated idle message does not ripple again; off clears the outline and any ripple still running.
 function setCore(on) {
-  if (on) { if (!core.classList.contains('wait')) { wait('think'); } } else { core.classList.remove('wait', 'rip'); }
+  if (on) { if (!core.classList.contains('wait')) { wait('think'); } } else { clearTimeout(ripT); core.classList.remove('wait', 'rip'); }
 }
 function flash(g, err, ch, col, cur) {
   const el = grp(g), key = ch || '', last = lastOf.get(key) || '';
   if (!el) { return; }
   // Only the current chat's work ends its own waiting state: another chat flashing says nothing about whether this one is still waiting for you.
-  if (cur !== false) { core.classList.remove('wait', 'rip'); }
+  // Bug fixed: once the dot drives the core outline (hostDrivesCore), only setCore may touch it. The host sends idle waiting true and then the
+  // tail events in the same poll, and the idle message is not re-sent while unchanged, so this clear wiped a real permission wait for good.
+  if (cur !== false && !hostDrivesCore) { core.classList.remove('wait', 'rip'); }
   if (g === 'think' && !err) {
     if (document.querySelector('.grp.hot:not([data-g="think"]), .cn.hot')) { pulse(el, g, false, col); return; }
     el.classList.remove('hot', 'err');
@@ -385,7 +390,11 @@ addEventListener('message', (e) => {
       // in flight (a question's sibling call keeps its caption) and no click outcome is showing.
       if (!pend.size) { settleCaption(); }
     }
-    else if (v.t === 'wake') { lastOf.delete(v.ch || ''); document.querySelectorAll('.wait').forEach((el) => el.classList.remove('wait', 'rip')); settleCaption(); }
+    else if (v.t === 'wake') { lastOf.delete(v.ch || ''); document.querySelectorAll('.wait').forEach((el) => {
+      // Same rule as flash: with the dot in charge of the core outline, a new user message does not clear it (the dot leaving waiting does).
+      // The Chat node's question outline still clears here, as before.
+      if (!(hostDrivesCore && el === core)) { el.classList.remove('wait', 'rip'); }
+    }); settleCaption(); }
     // bg: the core breathes only for background tasks (no tool call is ever attributed to it)
     else if (v.t === 'bg') { pills(v); }
   }

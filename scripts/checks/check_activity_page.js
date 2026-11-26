@@ -16,6 +16,10 @@ const { IDLE_STRINGS } = require(path.join(OUT, 'activityIdle.js')); // expected
 function withGroups(h) {
   const bySel = new Map();
   h.document.querySelector = (sel) => { if (!bySel.has(sel)) { bySel.set(sel, mkEl('')); } return bySel.get(sel); };
+  // The wake handler clears every '.wait' element through querySelectorAll. The stub returned nothing, so a check of wake could not fail;
+  // this answers that one selector (and only it) with the stub elements that currently carry the class.
+  const qsa = h.document.querySelectorAll;
+  h.document.querySelectorAll = (sel) => (sel === '.wait' ? [...bySel.values()].filter((e) => e.classList.contains('wait')) : qsa ? qsa.call(h.document, sel) : []);
   return h;
 }
 
@@ -92,6 +96,22 @@ function withGroups(h) {
   idleMsg({ text: 'chat A \u2014 waiting for you', waiting: true, kind: '' }); tick();
   h.check('the host-driven flag survives reset: the new chat dot still draws the outline', on());
   idleMsg({ waiting: false, kind: '' }); tick();
+  // The host's real order in one poll: idle waiting true, then the tail events (a flash of the current chat, a user message). Neither may clear the
+  // outline: only the dot may, and the deduped idle message is not re-sent.
+  idleMsg({ waiting: true, kind: 'self' }); tick();
+  ev({ t: 'flash', g: 'files', cur: true }); tick();
+  h.check('a current-chat flash after idle waiting true leaves the core outline', on());
+  ev({ t: 'wake' }); tick();
+  h.check('a wake (user message) leaves the core outline when the dot drives it', on());
+  idleMsg({ waiting: false, kind: 'self' }); tick();
+  h.check('and waiting false clears it', !on());
+  // Ripple timers: true, false, true within 2 s. The first ripple's timer must not cut the second one short.
+  idleMsg({ waiting: true, kind: 'self' }); h.advance(1000);
+  idleMsg({ waiting: false, kind: 'self' }); idleMsg({ waiting: true, kind: 'self' }); h.advance(1200);
+  h.check('a second ripple started within 2 s is not cut short by the first timer', on() && core.classList.contains('rip'));
+  h.advance(1000);
+  h.check('the second ripple ends on its own after 2 s', on() && !core.classList.contains('rip'));
+  idleMsg({ waiting: false, kind: 'self' }); tick();
   h.check('the standalone page keeps its open button hidden', h.els.get('capgo').hidden === true);
 
   ev({ t: 'caption', text: 'Running: lint' }); tick();
@@ -106,6 +126,21 @@ function withGroups(h) {
   h.deliver({ type: 'idle' }); tick();
   h.check('an idle message without text shows nothing, not "undefined"', cap.textContent === '');
   if (h.errors.length) { console.error('check activity_page FAILED (standalone)'); [...new Set(h.errors)].forEach((e) => console.error('  - ' + e)); process.exit(1); }
+}
+
+// ---- 1a. Older host (no dot fields): flash and wake still clear the core outline, as before the dot took it over. ----
+{
+  const h = withGroups(createHarness({ page: activityHtml(4000), name: 'activity_page_old_host' }));
+  h.start();
+  const core = h.document.querySelector('.grp[data-g="think"]');
+  const ev = (...events) => h.deliver({ type: 'events', events }, 'events');
+  ev({ t: 'wait', g: 'think' }); h.advance(600);
+  h.check('older host: the end-of-turn wait outlines the core', core.classList.contains('wait'));
+  ev({ t: 'flash', g: 'files', cur: true }); h.advance(600);
+  h.check('older host: a current-chat flash clears the core outline', !core.classList.contains('wait'));
+  ev({ t: 'wait', g: 'think' }); h.advance(600); ev({ t: 'wake' }); h.advance(600);
+  h.check('older host: a wake clears the core outline', !core.classList.contains('wait'));
+  if (h.errors.length) { console.error('check activity_page FAILED (older host)'); [...new Set(h.errors)].forEach((e) => console.error('  - ' + e)); process.exit(1); }
 }
 
 // ---- 1b. Section settings popover on the real sidebar page: gear opens it, inputs post to the host, 'prefs' sets them. ----
