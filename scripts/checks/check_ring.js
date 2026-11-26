@@ -188,7 +188,11 @@ const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const set = pkg.contributes.configuration.properties['saropaChats.contextRingTokens'];
 check('contextRingTokens is a number, default 300000, minimum 10000', !!set && set.type === 'number' && set.default === 300000 && set.minimum === 10000);
 const ext = fs.readFileSync(path.join(ROOT, 'src', 'extension.ts'), 'utf8');
-check('a change of the setting is posted to the panel, and restore sends it', /affectsConfiguration\('saropaChats\.contextRingTokens'\)\) \{ provider\.postRing\(\)/.test(ext) && /this\.postRing\(\);\s*void this\.postMeta/.test(ext));
+// Order-independent: restore() must call postRing() somewhere in its body. The old regex required
+// postRing() directly before postMeta(), which broke whenever another post (e.g. postColorDormant)
+// was added between them even though behavior stayed correct.
+const restoreBody = (ext.match(/private restore\(\): void \{([\s\S]*?)\n  \}/) || [])[1] || '';
+check('a change of the setting is posted to the panel, and restore sends it', /affectsConfiguration\('saropaChats\.contextRingTokens'\)\) \{ provider\.postRing\(\)/.test(ext) && restoreBody.includes('this.postRing();'));
 check('the webview handles the ring message', /d\.type==='ring'/.test(fs.readFileSync(path.join(ROOT, 'src', 'webviewJs.ts'), 'utf8')));
 const st = require(path.join(OUT, 'status.js'));
 check('statuses keep Tiny, Huge, Empty and Nearly full', ['tiny', 'huge', 'empty', 'nearly'].every((k) => st.STATUS_KEYS ? st.STATUS_KEYS.includes(k) : true) && !st.pillOf);

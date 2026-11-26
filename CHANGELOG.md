@@ -3,6 +3,7 @@
 Release notes for Saropa Chats, newest first. Dates are the git dates of each release.
 
 ## Unreleased
+- Fixed: check_ring no longer requires postRing() to sit directly before postMeta() in restore(); it checks that restore() calls it.
 - Fixed: the packaging check (`scripts/checks/check_webview.js`) now allows the product-name wording of the Session Manager "Keep Claude sessions warm" menu item (label and tooltip: "Claude sessions", "Claude settings"), so `npm run package` no longer fails the neutral-wording check.
 
 ## 1.3.0
