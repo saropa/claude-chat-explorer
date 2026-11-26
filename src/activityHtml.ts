@@ -343,7 +343,12 @@ addEventListener('message', (e) => {
   // idle: the host's description of the followed chat. Shown only while no live caption is up; an absent message (browser view) leaves the caption as before.
   // go / looking / kind: the click label, click-time text and target kind, present only while the caption has a target (the host leaves them '' otherwise).
   // A missing kind (an older host) reads as 'other', the only click it offered.
-  if (m && m.type === 'idle') { idleText = String(m.text || ''); idleGo = String(m.go || ''); idleLooking = String(m.looking || ''); idleKind = m.kind === 'self' ? 'self' : 'other'; if (!liveText) { caption(''); } return; }
+  if (m && m.type === 'idle') { idleText = String(m.text || ''); idleGo = String(m.go || ''); idleLooking = String(m.looking || ''); idleKind = m.kind === 'self' ? 'self' : 'other';
+    // The dot says the followed chat is not waiting (the user answered elsewhere, or it is idle/unread/running): the core's waiting outline,
+    // set at end of turn from the log, would stay until the next message. Only an explicit false clears it (an older host sends no field).
+    // The Chat node's outline (a question to the user) is deliberately left alone: it clears with its own result or the next message.
+    if (m.waiting === false) { core.classList.remove('wait', 'rip'); }
+    if (!liveText) { caption(''); } return; }
   // note: the host's outcome of a click on the caption (opening <title>, nothing working, could not open).
   if (m && m.type === 'note') { capNote(m.text, m.err === true); return; }
   if (m && m.type === 'fade' && Number.isFinite(m.ms)) { fade = m.ms; document.documentElement.style.setProperty('--fade', m.ms + 'ms'); return; }
@@ -359,6 +364,8 @@ addEventListener('message', (e) => {
       // End of the turn (g 'think'): every call of this turn is over, so a call that never got its result (a dropped tool_result, an
       // interrupted run) would keep pend non-empty and its caption ("Running: tests") on screen forever, hiding the idle caption and its
       // click button. Drop the pending calls. A question to the user (g 'chat') is mid-turn, so there the in-flight calls stay.
+      // Safe for sub-agents: pend holds only the main chat's own tool_use ids (busy events); sub-agent log lines produce 'sub' events only
+      // (subEventsOf never emits busy or wait), and in the all-chats mode another chat's wait never reaches the page (tagEvents drops it).
       if (v.g === 'think') { for (const p of pend.values()) { clearTimeout(p.t); } pend.clear(); document.querySelectorAll('.busy').forEach((el) => el.classList.remove('busy')); }
       // The chat now waits for the user: the last live caption is stale and would hide the idle text, so drop it, but only once no call is
       // in flight (a question's sibling call keeps its caption) and no click outcome is showing.

@@ -60,6 +60,20 @@ function withGroups(h) {
   h.check('end-of-turn wait drops a call that never got its result, so the idle caption returns', cap.textContent === 'chat A — waiting for you');
   ev({ t: 'end', id: 'c5', g: 'terminal' }); tick();
   h.check('a late result for the dropped call is harmless', cap.textContent === 'chat A — waiting for you');
+  // Sub-agent work never registers a pending call (subEventsOf emits 'sub' only), so the end-of-turn wait has nothing of theirs to drop and a sub event neither blocks nor survives into the caption.
+  ev({ t: 'sub', g: 'files' }, { t: 'caption', text: 'Reading x' }); tick();
+  ev({ t: 'wait', g: 'think' }); tick();
+  h.check('a sub-agent event leaves no pending call: the end-of-turn wait still settles to the idle caption', cap.textContent === 'chat A — waiting for you');
+  // The core outline (set by wait) follows the dot: an idle message whose dot is not waiting clears it; waiting keeps it; a missing field (older host) keeps it.
+  const core = h.document.querySelector('.grp[data-g="think"]'), chatNode = h.document.querySelector('.grp[data-g="chat"]');
+  ev({ t: 'wait', g: 'think' }, { t: 'wait', g: 'chat' }); tick();
+  h.check('end-of-turn wait outlines the core, and a question wait outlines the chat node', core.classList.contains('wait') && chatNode.classList.contains('wait'));
+  h.deliver({ type: 'idle', text: 'chat A — waiting for you', waiting: true }); tick();
+  h.check('an idle message with waiting true keeps the core outline', core.classList.contains('wait'));
+  h.deliver({ type: 'idle', text: 'chat A — idle' }); tick();
+  h.check('an idle message without the field (older host) keeps the core outline', core.classList.contains('wait'));
+  h.deliver({ type: 'idle', text: 'chat A — idle', waiting: false }); tick();
+  h.check('an idle message whose dot is not waiting clears the core outline, not the chat node question outline', !core.classList.contains('wait') && chatNode.classList.contains('wait'));
   h.check('the standalone page keeps its open button hidden', h.els.get('capgo').hidden === true);
 
   ev({ t: 'caption', text: 'Running: lint' }); tick();

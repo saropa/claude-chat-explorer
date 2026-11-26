@@ -511,8 +511,10 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   // tasks hidden behind waiting/unread still show), and how many other chats are working.
   const idleInfoOf = (id: string): IdleInfo => {
     const dots = provider.watcher?.dots ?? {};
-    // followed: whether a chat is followed at all, so an untitled chat is still a click target (the host click handler keys on the id too).
-    return { title: titleOfChat(id), dot: id ? dots[id] : undefined, others: othersWorking(dots, id), followed: !!id };
+    // followed: a chat is followed AND still has a dot. currentId can return a stale "last active" chat whose tab and process are gone (or
+    // a deleted one); such an id has no dot, so it is not a click target (the click would resume a chat the caption no longer describes).
+    // An untitled chat with a dot still counts: the host click handler keys on the id too (focusTarget).
+    return { title: titleOfChat(id), dot: id ? dots[id] : undefined, others: othersWorking(dots, id), followed: !!id && !!dots[id] };
   };
   // The click-to-focus wiring of the idle caption: the same dots and titles as the caption, and the same resume as a click in the session list.
   const activity = registerActivity(ctx, () => provider.currentId(), (m) => provider.post(m), provider, () => provider.watcher?.liveIds ?? [], log, idleInfoOf,

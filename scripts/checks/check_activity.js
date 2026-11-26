@@ -224,10 +224,10 @@ check('pick: ties fall back to the id; missing or odd recency counts as oldest',
 check('pick: the followed chat and non-working chats are never picked', pickBusiest({ me: D('running'), w: D('waiting'), u: D('unread') }, 'me') === '' && pickBusiest(undefined, 'me') === '' && pickBusiest({ me: D('running'), x: null }, 'me') === '');
 
 // The idle message: a caption that names the followed chat is clickable (it opens that chat); with the busiest-other rule below.
-const { clickTargetsSelf, clickKind, focusTarget } = require(path.join(OUT, 'activityIdle.js'));
+const { clickTargetsSelf, clickKind, focusTarget, isWaiting } = require(path.join(OUT, 'activityIdle.js'));
 const opening = (t) => IDLE_STRINGS.opening.replace('{0}', t); // expected click-time text, built from the string table
-check('idle message: a named chat with no other working opens itself (self label, click text names the chat)', eq(idleMsg({ title: 'a', dot: D('idle'), others: 0 }), { type: 'idle', text: 'a — idle', go: IDLE_STRINGS.focusSelf, looking: opening('a'), kind: 'self' }));
-check('idle message: others working and the followed chat not waiting keeps the busiest-other target', eq(idleMsg({ title: 'a', dot: D('idle'), others: 2 }), { type: 'idle', text: 'a — idle · 2 other chats working', go: IDLE_STRINGS.focusOther, looking: IDLE_STRINGS.looking, kind: 'other' }));
+check('idle message: a named chat with no other working opens itself (self label, click text names the chat)', eq(idleMsg({ title: 'a', dot: D('idle'), others: 0 }), { type: 'idle', text: 'a — idle', go: IDLE_STRINGS.focusSelf, looking: opening('a'), kind: 'self', waiting: false }));
+check('idle message: others working and the followed chat not waiting keeps the busiest-other target', eq(idleMsg({ title: 'a', dot: D('idle'), others: 2 }), { type: 'idle', text: 'a — idle · 2 other chats working', go: IDLE_STRINGS.focusOther, looking: IDLE_STRINGS.looking, kind: 'other', waiting: false }));
 check('idle message: a waiting followed chat wins over other working chats', idleMsg({ title: 'a', dot: D('waiting'), others: 2 }).kind === 'self' && idleMsg({ title: 'a', dot: D('waiting', ['background']), others: 2 }).go === IDLE_STRINGS.focusSelf);
 check('idle message: no followed chat and no others stays plain; no followed chat with others targets the others', idleMsg({ title: '', dot: undefined, others: 0, followed: false }).go === '' && idleMsg({ title: '', dot: D('waiting'), others: 1, followed: false }).kind === 'other');
 check('click target rule: self when waiting or nobody else works; other otherwise; malformed dots are not waiting', clickTargetsSelf(D('waiting'), 3) && clickTargetsSelf(D('idle'), 0) && !clickTargetsSelf(D('running'), 1) && !clickTargetsSelf(undefined, 1) && !clickTargetsSelf({ s: 5 }, 1));
@@ -244,6 +244,12 @@ check('idle message: an untitled followed waiting chat is labelled self, with th
     check('host click matches the label promise: ' + name, focusTarget(m.kind, 'me', dots, recency) === want);
   }
   check('host click: kind other with nobody working opens nothing (the none-working note), never switches to self', focusTarget('other', 'me', { me: D('waiting') }) === '' && focusTarget('self', '', {}) === '' && focusTarget(undefined, 'me', dots, recency) === 'a');
+  // Older page (no kind in its actFocusOther message): resolves as 'other', the only click the old caption offered.
+  check('actFocusOther without a kind resolves as other through focusTarget', focusTarget(undefined, 'me', dots, recency) === 'a' && focusTarget(null, 'me', dots, recency) === 'a' && focusTarget('zzz', 'me', dots, recency) === 'a');
+  // Stale followed id: no dot means the chat is gone (closed tab, deleted); self then opens nothing and the host shows the none-working note.
+  check('focusTarget self: an id with no dot (stale or deleted chat) opens nothing; one with a dot opens itself', focusTarget('self', 'gone', dots, recency) === '' && focusTarget('self', 'me', undefined) === '' && focusTarget('self', 'me', dots, recency) === 'me');
+  // The page outline follows the dot: waiting is true only for a primary 'waiting' state.
+  check('idle message: waiting flag follows the dot', idleMsg({ title: 'a', dot: D('waiting'), others: 0 }).waiting === true && idleMsg({ title: 'a', dot: D('idle', ['waiting']), others: 0 }).waiting === false && idleMsg({ title: '', dot: undefined, others: 0 }).waiting === false && isWaiting(D('waiting')) && !isWaiting({ s: 5 }));
   check('clickKind: no followed chat never targets self', clickKind(false, D('waiting'), 0) === '' && clickKind(true, D('running'), 0) === 'self' && clickKind(true, D('running'), 1) === 'other');
 }
 check('idle message: labels go through the translator', idleMsg({ title: '', dot: undefined, others: 1 }, (m) => '~' + m).go === '~' + IDLE_STRINGS.focusOther && idleMsg({ title: 'a', dot: D('idle'), others: 0 }, (m) => '~' + m).go === '~' + IDLE_STRINGS.focusSelf);

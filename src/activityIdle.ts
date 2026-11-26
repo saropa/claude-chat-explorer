@@ -117,7 +117,12 @@ export function idleText(i: IdleInfo, tr: DriftTr = fillPlain): string {
  * keeps the click, as before. Reads the primary state only: 'waiting' hidden behind another state cannot occur (waiting ranks first).
  */
 export function clickTargetsSelf(dot: IdleDot | undefined, others: number): boolean {
-  return statesOf(dot)[0] === 'waiting' || others <= 0;
+  return isWaiting(dot) || others <= 0;
+}
+
+/** True when the dot's primary state is 'waiting' (a chat that needs the user). One reading shared by the click rule and the page's outline, so they cannot drift apart. */
+export function isWaiting(dot: IdleDot | undefined): boolean {
+  return statesOf(dot)[0] === 'waiting';
 }
 
 /** What a click opens: the followed chat, the busiest other working chat, or nothing ('': the caption stays plain text). */
@@ -139,12 +144,16 @@ export function clickKind(followed: boolean, dot: IdleDot | undefined, others: n
  * note instead of silently switching to the other kind. An unknown kind (an older page) is treated as 'other', the only click the old caption offered.
  */
 export function focusTarget(kind: unknown, cur: string, dots: { [id: string]: IdleDot } | undefined, recency: { [id: string]: number } = {}): string {
-  if (kind === 'self') { return cur; } // '' when no chat is followed: nothing to open
+  // Self needs a chat that still has a dot: the followed id can be a stale "last active" chat whose tab and process are gone (or a deleted
+  // one), and opening it would resume a chat the caption no longer describes. '' then shows the none-working note instead.
+  if (kind === 'self') { return cur && dots && Object.prototype.hasOwnProperty.call(dots, cur) ? cur : ''; }
   return pickBusiest(dots, cur, recency);
 }
 
 /** The 'idle' message the page gets: the caption text, the click label, the click-time text and the kind of target (label, text and kind are '' when the caption has no target, which keeps it plain). */
-export interface IdleMsg { type: 'idle'; text: string; go: string; looking: string; kind: ClickKind }
+export interface IdleMsg { type: 'idle'; text: string; go: string; looking: string; kind: ClickKind; waiting: boolean }
+// waiting: the followed chat's dot is 'waiting'. The page uses it to drop the core's waiting outline once the dot has left that state; the
+// outline comes from the log (end of turn) and nothing else would ever clear it before the next message.
 
 /**
  * Builds the idle message from what the host knows. Before: the caption was clickable only while other chats worked, so a caption naming
@@ -152,12 +161,12 @@ export interface IdleMsg { type: 'idle'; text: string; go: string; looking: stri
  */
 export function idleMsg(i: IdleInfo, tr: DriftTr = fillPlain): IdleMsg {
   const title = cutTitle(i.title);
-  const kind = clickKind(i.followed ?? !!title, i.dot, i.others);
+  const kind = clickKind(i.followed ?? !!title, i.dot, i.others), waiting = isWaiting(i.dot);
   // Nothing to open (no followed chat, no working others): plain text, no button.
-  if (!kind) { return { type: 'idle', text: idleText(i, tr), go: '', looking: '', kind }; }
+  if (!kind) { return { type: 'idle', text: idleText(i, tr), go: '', looking: '', kind, waiting }; }
   // Self opens at once, so the click-time text names the chat (untitled fallback when its title is not known yet); the other-chat pick needs a lookup first.
   const looking = kind === 'self' ? tr(IDLE_STRINGS.opening, title || tr(IDLE_STRINGS.untitled)) : tr(IDLE_STRINGS.looking);
-  return { type: 'idle', text: idleText(i, tr), go: tr(kind === 'self' ? IDLE_STRINGS.focusSelf : IDLE_STRINGS.focusOther), looking, kind };
+  return { type: 'idle', text: idleText(i, tr), go: tr(kind === 'self' ? IDLE_STRINGS.focusSelf : IDLE_STRINGS.focusOther), looking, kind, waiting };
 }
 
 /**
