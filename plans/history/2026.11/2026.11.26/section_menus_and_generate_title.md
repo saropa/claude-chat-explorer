@@ -28,5 +28,17 @@ The Activity settings (refresh speed, fade speed, all chats, open in browser) sa
 - On a clean checkout of `ae69b6d`, 24 of the 25 `vscode:prepublish` checks pass. `check_activity.js` fails 4 chat-color clash assertions; none of them come from this change.
 - None of this has been tried in a running VS Code window.
 
+### Hardening (`c712c9d`)
+- **Busy sessions:** `busySessions()` in `src/regenTitlesRun.ts` joins the watcher's `liveIds` with a fresh read of `~/.claude/sessions/<pid>.json`. That read covers chats open in other windows, in terminals and in SDK processes, with no 30-second polling delay. Both the single and the bulk title commands skip those sessions through `pickFiles`.
+- **Subagent and archived rows:** the command never receives a subagent id, because subagent hits carry their parent's context. Archived sessions keep their file in place. Both points are documented on `findSessionFile`.
+- **Narrow sidebars:** the Activity, Session Manager and Account & Usage header labels now truncate with an ellipsis, and the header buttons no longer shrink. The Account summary's 28px gear padding is no longer reset to 0 by a later rule.
+- **Popover registry:** `makePop` replaces an existing `window.__pops` entry for the same button ids instead of adding another.
+- **Line endings:** `package.json` is LF again, and `.gitattributes` sets `* text=auto eol=lf`.
+- **Localization:** the repo has no l10n bundle, so no catalog entries were added.
+- **Checks:** the new `check_header.js` covers the header CSS and the registry dedupe; `check_regen.js` covers the busy set.
+
 ### Known gaps
-- In `6667011`, `package.json` was rewritten from LF to CRLF line endings, so the diff for that file covers every line.
+- After `c712c9d`, 25 of 26 checks pass. `check_webview.js` fails on "Keep Claude sessions warm" text from `1c14671`. `check_ring.js` fails on a regex over `src/extension.ts`. Neither file was touched by this work.
+- Files still stored with CRLF line endings may show as modified after a fresh checkout until the repo is renormalized.
+- The header ellipsis has not been checked in a running VS Code window.
+- Multi-select title generation is designed only: `plans/PLAN_generate_titles_multiselect.md`.
