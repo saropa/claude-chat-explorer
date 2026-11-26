@@ -249,7 +249,7 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'histAdd') { this.histAdd(m); }
       else if (m.type === 'actOpen') { this.activity?.setOpen(!!m.open); this.store.setSecOpen('act', !!m.open); } // the Activity section was opened or collapsed: stop/start polling and remember it
       // A click on the Activity idle caption's "N other chats working" hint: the section picks and opens the busiest other chat and shows the outcome.
-      else if (m.type === 'actFocusOther') { await this.activity?.focusOther?.(); }
+      else if (m.type === 'actFocusOther') { await this.activity?.focusOther?.(m.kind); } // kind: the target the caption promised, which the host honors
       // A choice in the Activity section's settings popover: the section validates and writes it, then sends the value in effect back.
       else if (m.type === 'actSet') { await this.activity?.setPref?.(m.key, m.value); }
       // The popover's Open in browser item: the same command as before, which shows its own outcome (the browser opening or a copy-address message).
@@ -494,7 +494,8 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   // tasks hidden behind waiting/unread still show), and how many other chats are working.
   const idleInfoOf = (id: string): IdleInfo => {
     const dots = provider.watcher?.dots ?? {};
-    return { title: titleOfChat(id), dot: id ? dots[id] : undefined, others: othersWorking(dots, id) };
+    // followed: whether a chat is followed at all, so an untitled chat is still a click target (the host click handler keys on the id too).
+    return { title: titleOfChat(id), dot: id ? dots[id] : undefined, others: othersWorking(dots, id), followed: !!id };
   };
   // The click-to-focus wiring of the idle caption: the same dots and titles as the caption, and the same resume as a click in the session list.
   const activity = registerActivity(ctx, () => provider.currentId(), (m) => provider.post(m), provider, () => provider.watcher?.liveIds ?? [], log, idleInfoOf,

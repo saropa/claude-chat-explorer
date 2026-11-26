@@ -159,8 +159,9 @@ const grp = (g) => document.querySelector('.grp[data-g="' + g + '"]');
 const lastOf = new Map(); // chat key -> group of its last flash, so the connector joins one chat's own consecutive groups (all-chats mode interleaves several)
 let capText = '', capAt = 0, capTimer = 0;
 let idleText = '', liveText = ''; // idleText: host-sent description of the followed chat; liveText: the last caption from real events
-// idleGo: the click label of the idle caption, sent only while other chats work ('' keeps the caption plain text); idleLooking: what a click shows at once.
-let idleGo = '', idleLooking = '', capErr = false, noteTimer = 0;
+// idleGo: the click label of the idle caption, sent only while the caption has a target ('' keeps it plain text); idleLooking: what a click shows at once;
+// idleKind: which chat the click opens ('self' or 'other'), sent back to the host so it opens what the label promised.
+let idleGo = '', idleLooking = '', idleKind = '', capErr = false, noteTimer = 0;
 let capPending = false; // a click was sent and its outcome is still on screen: further clicks are ignored, so one click posts once
 // How the caption reaches the host. null here (the standalone and browser pages have no host to ask, and never get 'idle' anyway);
 // activitySection swaps in the list page's VS Code API, so the caption can only become clickable inside the sidebar section.
@@ -238,7 +239,7 @@ function paint() {
   drawGo();
 }
 // The open button lives outside the aria-live caption (a live region that is also a button is announced badly) and is a real <button>,
-// so Enter and Space work natively. It shows while the idle text names other working chats, and stays shown but aria-disabled while its
+// so Enter and Space work natively. It shows while the idle text has a click target (the followed chat or other working chats), and stays shown but aria-disabled while its
 // click is in flight, so keyboard focus is not dropped to the page body. The caption text is also clickable with the mouse while enabled.
 function drawGo() {
   // Pages without the button (none today) or without a host (standalone, browser view) never offer it.
@@ -268,7 +269,7 @@ function goOther() {
   // Disabled synchronously, before the throttled paint: a second click inside the 500 ms window must already see it.
   capPending = true; cap.classList.remove('go'); if (capGo) { capGo.setAttribute('aria-disabled', 'true'); }
   capNote(idleLooking);
-  toHost({ type: 'actFocusOther' });
+  toHost({ type: 'actFocusOther', kind: idleKind }); // the host opens this kind, not whatever the dots say by now
 }
 // Listeners, not inline handlers: the page's CSP forbids inline script. Wired only where a host exists.
 if (cap && toHost) {
@@ -294,7 +295,7 @@ function reset(keepPills) {
   if (!keepPills) { bgBy.clear(); drawPills(); }
   clearTimeout(capTimer); capTimer = 0; capAt = 0; cap.textContent = ''; idleText = ''; liveText = ''; capText = ''; lastOf.clear(); // the idle text belonged to the old chat; the host sends the new one
   // The click state belonged to the old chat's caption too: back to plain text until the host sends the new chat's idle message.
-  clearTimeout(noteTimer); noteTimer = 0; idleGo = ''; idleLooking = ''; capErr = false; capPending = false;
+  clearTimeout(noteTimer); noteTimer = 0; idleGo = ''; idleLooking = ''; idleKind = ''; capErr = false; capPending = false;
   cap.classList.remove('go', 'bad');
   if (capGo) { capGo.hidden = true; capGo.setAttribute('aria-disabled', 'true'); } // the old chat's button goes with its caption
 }
@@ -340,8 +341,9 @@ addEventListener('message', (e) => {
   const m = e.data;
   if (m && m.type === 'reset') { reset(m.keepPills === true); return; }
   // idle: the host's description of the followed chat. Shown only while no live caption is up; an absent message (browser view) leaves the caption as before.
-  // go / looking: the click label and click-time text, present only while other chats work (the host leaves them '' otherwise).
-  if (m && m.type === 'idle') { idleText = String(m.text || ''); idleGo = String(m.go || ''); idleLooking = String(m.looking || ''); if (!liveText) { caption(''); } return; }
+  // go / looking / kind: the click label, click-time text and target kind, present only while the caption has a target (the host leaves them '' otherwise).
+  // A missing kind (an older host) reads as 'other', the only click it offered.
+  if (m && m.type === 'idle') { idleText = String(m.text || ''); idleGo = String(m.go || ''); idleLooking = String(m.looking || ''); idleKind = m.kind === 'self' ? 'self' : 'other'; if (!liveText) { caption(''); } return; }
   // note: the host's outcome of a click on the caption (opening <title>, nothing working, could not open).
   if (m && m.type === 'note') { capNote(m.text, m.err === true); return; }
   if (m && m.type === 'fade' && Number.isFinite(m.ms)) { fade = m.ms; document.documentElement.style.setProperty('--fade', m.ms + 'ms'); return; }
@@ -354,8 +356,12 @@ addEventListener('message', (e) => {
     else if (v.t === 'end') { endCall(v.id); if (v.g === 'chat') { grp('chat').classList.remove('wait'); } if (!pend.size) { settleCaption(); } }
     else if (v.t === 'wait' && grp(v.g)) {
       wait(v.g);
-      // The chat now waits for the user: the last live caption (e.g. "Running: tests") is stale and would hide the idle text "waiting for you",
-      // so drop it, but only once no call is in flight (a sub-call still running keeps its caption) and no click outcome is showing.
+      // End of the turn (g 'think'): every call of this turn is over, so a call that never got its result (a dropped tool_result, an
+      // interrupted run) would keep pend non-empty and its caption ("Running: tests") on screen forever, hiding the idle caption and its
+      // click button. Drop the pending calls. A question to the user (g 'chat') is mid-turn, so there the in-flight calls stay.
+      if (v.g === 'think') { for (const p of pend.values()) { clearTimeout(p.t); } pend.clear(); document.querySelectorAll('.busy').forEach((el) => el.classList.remove('busy')); }
+      // The chat now waits for the user: the last live caption is stale and would hide the idle text, so drop it, but only once no call is
+      // in flight (a question's sibling call keeps its caption) and no click outcome is showing.
       if (!pend.size) { settleCaption(); }
     }
     else if (v.t === 'wake') { lastOf.delete(v.ch || ''); document.querySelectorAll('.wait').forEach((el) => el.classList.remove('wait', 'rip')); settleCaption(); }

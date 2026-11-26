@@ -5,7 +5,9 @@ import { DriftTr, fillPlain } from './digestMd';
 export interface IdleDot { s: string; also?: string[] }
 
 /** What the host knows when it builds the text: the followed chat's title ('' when none), its dot (undefined when it has no dot) and how many OTHER chats are working. */
-export interface IdleInfo { title: string; dot: IdleDot | undefined; others: number }
+export interface IdleInfo { title: string; dot: IdleDot | undefined; others: number; followed?: boolean }
+// followed: a chat is followed at all (even with no known title yet). The click target must depend on this, not on the title: the host
+// click handler only knows the chat id, so a title-based label would promise one chat and open another. Absent = the title decides (old callers).
 
 /**
  * The English source of every caption string, with {0}-style placeholders: the ONE table the host (through vscode.l10n.t) and
@@ -118,21 +120,44 @@ export function clickTargetsSelf(dot: IdleDot | undefined, others: number): bool
   return statesOf(dot)[0] === 'waiting' || others <= 0;
 }
 
-/** The 'idle' message the page gets: the caption text and the click label and click-time text (both '' when the caption has no target, which keeps it plain). */
-export interface IdleMsg { type: 'idle'; text: string; go: string; looking: string }
+/** What a click opens: the followed chat, the busiest other working chat, or nothing ('': the caption stays plain text). */
+export type ClickKind = 'self' | 'other' | '';
+
+/**
+ * The click target the caption promises. Bug fixed: the label used to test the TITLE while the host tested the chat ID, so an untitled
+ * waiting chat was labelled "busiest other" but opened itself. Both now ask here with the same input: whether a chat is followed.
+ */
+export function clickKind(followed: boolean, dot: IdleDot | undefined, others: number): ClickKind {
+  if (followed && clickTargetsSelf(dot, others)) { return 'self'; }
+  return others > 0 ? 'other' : ''; // a followed chat that does not take the click has others working by the rule; no followed chat needs them
+}
+
+/**
+ * The chat id a click opens, from FRESH dots at click time but honoring the kind the caption promised (`kind`, sent back by the page).
+ * Bug fixed: re-deciding self/other here could open a different chat than the label said when the dots changed between draw and click.
+ * 'self' opens `cur`, 'other' picks the busiest other chat; '' means nothing is left to open, so the caller shows the "none working"
+ * note instead of silently switching to the other kind. An unknown kind (an older page) is treated as 'other', the only click the old caption offered.
+ */
+export function focusTarget(kind: unknown, cur: string, dots: { [id: string]: IdleDot } | undefined, recency: { [id: string]: number } = {}): string {
+  if (kind === 'self') { return cur; } // '' when no chat is followed: nothing to open
+  return pickBusiest(dots, cur, recency);
+}
+
+/** The 'idle' message the page gets: the caption text, the click label, the click-time text and the kind of target (label, text and kind are '' when the caption has no target, which keeps it plain). */
+export interface IdleMsg { type: 'idle'; text: string; go: string; looking: string; kind: ClickKind }
 
 /**
  * Builds the idle message from what the host knows. Before: the caption was clickable only while other chats worked, so a caption naming
- * the followed chat ("title - waiting for you") did nothing. Now a named chat is always a target; the hint alone (no title) still needs others.
+ * the followed chat ("title - waiting for you") did nothing. Now a followed chat is always a target; the hint alone still needs others.
  */
 export function idleMsg(i: IdleInfo, tr: DriftTr = fillPlain): IdleMsg {
   const title = cutTitle(i.title);
-  const self = !!title && clickTargetsSelf(i.dot, i.others); // the followed chat is the target
-  const other = i.others > 0 && !self; // the busiest other chat is the target
+  const kind = clickKind(i.followed ?? !!title, i.dot, i.others);
   // Nothing to open (no followed chat, no working others): plain text, no button.
-  if (!self && !other) { return { type: 'idle', text: idleText(i, tr), go: '', looking: '' }; }
-  // Self opens at once, so the click-time text names the chat; the other-chat pick needs a lookup first.
-  return { type: 'idle', text: idleText(i, tr), go: tr(self ? IDLE_STRINGS.focusSelf : IDLE_STRINGS.focusOther), looking: self ? tr(IDLE_STRINGS.opening, title) : tr(IDLE_STRINGS.looking) };
+  if (!kind) { return { type: 'idle', text: idleText(i, tr), go: '', looking: '', kind }; }
+  // Self opens at once, so the click-time text names the chat (untitled fallback when its title is not known yet); the other-chat pick needs a lookup first.
+  const looking = kind === 'self' ? tr(IDLE_STRINGS.opening, title || tr(IDLE_STRINGS.untitled)) : tr(IDLE_STRINGS.looking);
+  return { type: 'idle', text: idleText(i, tr), go: tr(kind === 'self' ? IDLE_STRINGS.focusSelf : IDLE_STRINGS.focusOther), looking, kind };
 }
 
 /**

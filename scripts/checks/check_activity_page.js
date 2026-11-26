@@ -7,6 +7,7 @@ const { createHarness, mkEl } = require('./webview_harness');
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = process.env.CCS_OUT || path.join(ROOT, 'out');
 const { activityHtml, activitySection, captionHtml } = require(path.join(OUT, 'activityHtml.js'));
+const { IDLE_STRINGS } = require(path.join(OUT, 'activityIdle.js')); // expected wording is read from the one string table, never retyped
 
 /**
  * The harness's document.querySelector returns null; the Activity script looks up its groups by selector (and the stand-in core),
@@ -47,11 +48,18 @@ function withGroups(h) {
   ev({ t: 'wait', g: 'think' }); tick();
   h.check('a wait event drops the stale live caption so the idle text shows', cap.textContent === 'chat A — waiting for you');
 
+  // A question to the user (wait on the chat node) is mid-turn: a call still in flight keeps its live caption until it ends.
   ev({ t: 'busy', id: 'c4', g: 'agents' }, { t: 'caption', text: 'Agent: review' }); tick();
-  ev({ t: 'wait', g: 'think' }); tick();
-  h.check('a wait while a call is still pending keeps the live caption', cap.textContent === 'Agent: review');
+  ev({ t: 'wait', g: 'chat' }); tick();
+  h.check('a question wait while a call is still pending keeps the live caption', cap.textContent === 'Agent: review');
   ev({ t: 'end', id: 'c4', g: 'agents' }); tick();
   h.check('and the idle text returns when that call ends', cap.textContent === 'chat A — waiting for you');
+  // Regression: a tool_use whose tool_result never arrived left `pend` non-empty, so the end-of-turn wait kept "Running: tests" up forever.
+  ev({ t: 'busy', id: 'c5', g: 'terminal' }, { t: 'caption', text: 'Running: tests' }); tick();
+  ev({ t: 'wait', g: 'think' }); tick();
+  h.check('end-of-turn wait drops a call that never got its result, so the idle caption returns', cap.textContent === 'chat A — waiting for you');
+  ev({ t: 'end', id: 'c5', g: 'terminal' }); tick();
+  h.check('a late result for the dropped call is harmless', cap.textContent === 'chat A — waiting for you');
   h.check('the standalone page keeps its open button hidden', h.els.get('capgo').hidden === true);
 
   ev({ t: 'caption', text: 'Running: lint' }); tick();
@@ -124,7 +132,7 @@ function withGroups(h) {
 // ---- 1c. Session Manager menu on the real sidebar page: the button opens the popover without collapsing, the item posts smRegen. ----
 {
   const sidebar = require(path.join(OUT, 'webview.js')).html();
-  const h = createHarness({ page: sidebar, name: 'sm_menu', popIds: ['smm', 'smmm', 'smgen'] });
+  const h = createHarness({ page: sidebar, name: 'sm_menu', popIds: ['smm', 'smmm', 'smgen', 'smkw'] });
   h.start();
   const el = (i) => h.els.get(i), last = () => h.posted[h.posted.length - 1];
   const before = h.posted.length;
@@ -136,6 +144,15 @@ function withGroups(h) {
   h.check('Escape closes the menu and returns focus to the button', el('smmm').hidden === true && el('smm').getAttribute('aria-expanded') === 'false' && (el('smm').focused || 0) > focused);
   h.fire('smm', 'click'); h.fire('smgen', 'click');
   h.check('Generate session titles posts smRegen and closes the menu', last() && last().type === 'smRegen' && el('smmm').hidden === true);
+  // Keep warm toggle: click posts the message and closes; the check only changes when the host replies with the state.
+  h.fire('smm', 'click');
+  h.check('Keep warm item starts unchecked', el('smkw').getAttribute('aria-checked') === 'false');
+  h.fire('smkw', 'click');
+  h.check('Keep warm click posts smKeepWarm, closes the menu, and does not flip the check itself', last() && last().type === 'smKeepWarm' && el('smmm').hidden === true && el('smkw').getAttribute('aria-checked') === 'false');
+  h.deliver({ type: 'smPrefs', keepWarm: true }, 'sm prefs on');
+  h.check('host reply checks the item', el('smkw').getAttribute('aria-checked') === 'true');
+  h.deliver({ type: 'smPrefs', keepWarm: false }, 'sm prefs off');
+  h.check('a later host reply (setting changed elsewhere) unchecks it', el('smkw').getAttribute('aria-checked') === 'false');
   h.fire('smh', 'click');
   h.check('the collapse button still toggles the section (posts secOpen)', h.posted.some((p) => p && p.type === 'secOpen' && p.name === 'sm'));
   if (h.errors.length) { console.error('check activity_page FAILED (session manager menu)'); [...new Set(h.errors)].forEach((e) => console.error('  - ' + e)); process.exit(1); }
@@ -154,12 +171,12 @@ function withGroups(h) {
   const act = (m) => h.deliver({ type: 'act', m }, 'act ' + m.type);
   const events = (...evs) => h.deliver({ type: 'act', m: { type: 'events', events: evs } }, 'act events');
   const asks = () => h.posted.filter((p) => p && p.type === 'actFocusOther').length;
-  const GO = 'Open the busiest other working chat', IDLE = 'chat A — waiting for you · 2 other chats working';
+  const GO = IDLE_STRINGS.focusOther, IDLE = 'chat A — waiting for you · 2 other chats working';
   // Enabled = shown, not aria-disabled, and the caption text styled as clickable.
   const enabled = () => !btn.hidden && btn.getAttribute('aria-disabled') === 'false' && cap.classList.contains('go');
 
   h.check('the button starts hidden (the harness stub does not parse other markup attributes)', btn.hidden === true && captionHtml().includes('hidden aria-disabled="true"'));
-  act({ type: 'idle', text: IDLE, go: GO, looking: 'Finding the busiest other chat…' }); tick();
+  act({ type: 'idle', text: IDLE, go: GO, looking: IDLE_STRINGS.looking, kind: 'other' }); tick();
   h.check('with the other-chats hint the open button shows, enabled', enabled());
   h.check('the button carries the translated label as title and aria-label', btn.title === GO && btn.getAttribute('aria-label') === GO);
   h.check('the live region is not itself a button', cap.getAttribute('role') === null && cap.getAttribute('tabindex') === null);
@@ -171,7 +188,7 @@ function withGroups(h) {
   h.check('a double click within the paint throttle posts once', asks() === 1);
   h.check('the click disables the button at once, before the paint', btn.getAttribute('aria-disabled') === 'true' && !cap.classList.contains('go'));
   tick();
-  h.check('a click shows its outcome', cap.textContent === 'Finding the busiest other chat…');
+  h.check('a click shows its outcome', cap.textContent === IDLE_STRINGS.looking);
   h.check('the button stays shown (disabled) while the click is in flight, so focus is kept', btn.hidden === false && btn.getAttribute('aria-disabled') === 'true');
   h.fire(cap, 'click'); tick();
   h.check('a click on the outcome text sends nothing', asks() === 1);
@@ -207,12 +224,15 @@ function withGroups(h) {
   h.deliver({ type: 'events', events: [] }, 'unwrapped'); // a list-page message that is not 'act' must be ignored by the section
 
   // The caption naming the followed chat itself (self label, no other chats working): same button, same message to the host as the other-chats click.
-  const SELF = 'Open this chat';
-  act({ type: 'reset' }); act({ type: 'idle', text: 'chat S — waiting for you', go: SELF, looking: 'Opening chat S…' }); tick();
+  const SELF = IDLE_STRINGS.focusSelf, OPENING = IDLE_STRINGS.opening.replace('{0}', 'chat S');
+  const lastKind = () => h.posted.filter((p) => p && p.type === 'actFocusOther').pop().kind;
+  // The kind of the first click ('other') went to the host with it: the host opens what the label promised, not what the dots say by then.
+  h.check('the other-chats click carries kind other', lastKind() === 'other');
+  act({ type: 'reset' }); act({ type: 'idle', text: 'chat S — waiting for you', go: SELF, looking: OPENING, kind: 'self' }); tick();
   const before = asks();
   h.check('a caption naming the followed chat shows an enabled button with the self label', enabled() && btn.title === SELF && btn.getAttribute('aria-label') === SELF);
   h.fire(cap, 'click'); tick();
-  h.check('clicking it posts the shared actFocusOther message once and shows "Opening <title>"', asks() === before + 1 && cap.textContent === 'Opening chat S…');
+  h.check('clicking it posts the shared actFocusOther message once and shows "Opening <title>"', asks() === before + 1 && cap.textContent === OPENING && lastKind() === 'self');
   act({ type: 'reset' }); act({ type: 'idle', text: 'chat C — idle', go: '', looking: '' }); tick();
   h.check('without the hint (go empty) the idle caption is plain text and the button hidden', cap.textContent === 'chat C — idle' && !cap.classList.contains('go') && btn.hidden === true);
   act({ type: 'idle', text: 'chat C — idle · 1 other chat working', go: GO, looking: 'x' }); tick();

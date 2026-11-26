@@ -157,6 +157,13 @@ const { SM_MENU_HTML } = require(path.join(OUT, 'webviewSm.js'));
 const sidebarHtml = require(path.join(OUT, 'webview.js')).html();
 check('Session Manager has a menu button beside (not inside) the collapse button', /<div id="smhr"><button type="button" id="smh"[^]*?Session Manager<\/button><div class="pw"><button type="button" id="smm"[^>]*aria-haspopup="true"[^>]*aria-expanded="false"[^>]*aria-controls="smmm"/.test(sidebarHtml));
 check('Session Manager menu item reads "Generate session titles"', /<button type="button" class="acto" id="smgen"[^>]*>Generate session titles<\/button>/.test(SM_MENU_HTML) && !/Regenerate/.test(sidebarHtml));
+// Keep warm toggle in the Session Manager menu: checkable item, host flips the setting and mirrors its state back.
+check('Session Manager menu has a checkable Keep Claude sessions warm item (menuitemcheckbox, aria-checked, check mark)', /<button type="button" class="acto" id="smkw" role="menuitemcheckbox" aria-checked="false"[^>]*><span class="smck"[^>]*>[^<]*<\/span>Keep Claude sessions warm<\/button>/.test(SM_MENU_HTML) && require(path.join(OUT, 'webviewSm.js')).SM_CSS.includes('#smkw[aria-checked=true] .smck'));
+const smJs = require(path.join(OUT, 'webviewSm.js'));
+check('menu item posts the shared message and follows the host reply', SM_MENU_HTML !== undefined && smJs.SM_MENU_JS.includes("type: '" + smJs.SM_KEEPWARM_MSG + "'") && smJs.SM_MENU_JS.includes("d.type !== '" + smJs.SM_PREFS_MSG + "'") && smJs.SM_MENU_JS.includes("setAttribute('aria-checked'"));
+const smPrefsSrc = fs.readFileSync(path.join(OUT, 'smPrefs.js'), 'utf8');
+check('host flips saropaChats keepWarm.enabled at Global scope, with an error on failure', /update\(REL_KEY, !keepWarmOn\(\), vscode\.ConfigurationTarget\.Global\)/.test(smPrefsSrc) && smPrefsSrc.includes('KEEP_WARM_KEY') && smPrefsSrc.includes('showErrorMessage'));
+check('host routes the message, sends state on ready and on any keepWarm setting change', /m\.type === webviewSm_1\.SM_KEEPWARM_MSG\) \{ await \(0, smPrefs_1\.toggleKeepWarm\)/.test(fs.readFileSync(path.join(OUT, 'extension.js'), 'utf8')) && /m\.type === 'ready'\) \{[^}]*postSmPrefs/.test(fs.readFileSync(path.join(OUT, 'extension.js'), 'utf8')) && /affectsConfiguration\(keepWarmSettings_1\.KEEP_WARM_KEY\)\) \{ provider\.postSmPrefs/.test(fs.readFileSync(path.join(OUT, 'extension.js'), 'utf8')));
 const gt = pk.commands.find((c) => c.command === 'saropaChats.generateTitle');
 check('Generate Title is a row context item, hidden from the palette', !!gt && gt.title === 'Generate Title' && pk.menus['webview/context'].some((m) => m.command === 'saropaChats.generateTitle' && m.when === "webviewId == 'saropaChats.view' && webviewSection == 'chat'") && pk.menus.commandPalette.some((m) => m.command === 'saropaChats.generateTitle' && m.when === 'false'));
 const ext = fs.readFileSync(path.join(OUT, 'extension.js'), 'utf8');
@@ -222,12 +229,28 @@ check('pick: ties fall back to the id; missing or odd recency counts as oldest',
 check('pick: the followed chat and non-working chats are never picked', pickBusiest({ me: D('running'), w: D('waiting'), u: D('unread') }, 'me') === '' && pickBusiest(undefined, 'me') === '' && pickBusiest({ me: D('running'), x: null }, 'me') === '');
 
 // The idle message: a caption that names the followed chat is clickable (it opens that chat); with the busiest-other rule below.
-const { clickTargetsSelf } = require(path.join(OUT, 'activityIdle.js'));
-check('idle message: a named chat with no other working opens itself (self label, click text names the chat)', eq(idleMsg({ title: 'a', dot: D('idle'), others: 0 }), { type: 'idle', text: 'a — idle', go: IDLE_STRINGS.focusSelf, looking: 'Opening a…' }));
-check('idle message: others working and the followed chat not waiting keeps the busiest-other target', eq(idleMsg({ title: 'a', dot: D('idle'), others: 2 }), { type: 'idle', text: 'a — idle · 2 other chats working', go: IDLE_STRINGS.focusOther, looking: IDLE_STRINGS.looking }));
-check('idle message: a waiting followed chat wins over other working chats', idleMsg({ title: 'a', dot: D('waiting'), others: 2 }).go === IDLE_STRINGS.focusSelf && idleMsg({ title: 'a', dot: D('waiting', ['background']), others: 2 }).go === IDLE_STRINGS.focusSelf);
-check('idle message: no title and no others stays plain; no title with others targets the others', idleMsg({ title: '', dot: undefined, others: 0 }).go === '' && idleMsg({ title: '', dot: D('waiting'), others: 1 }).go === IDLE_STRINGS.focusOther);
+const { clickTargetsSelf, clickKind, focusTarget } = require(path.join(OUT, 'activityIdle.js'));
+const opening = (t) => IDLE_STRINGS.opening.replace('{0}', t); // expected click-time text, built from the string table
+check('idle message: a named chat with no other working opens itself (self label, click text names the chat)', eq(idleMsg({ title: 'a', dot: D('idle'), others: 0 }), { type: 'idle', text: 'a — idle', go: IDLE_STRINGS.focusSelf, looking: opening('a'), kind: 'self' }));
+check('idle message: others working and the followed chat not waiting keeps the busiest-other target', eq(idleMsg({ title: 'a', dot: D('idle'), others: 2 }), { type: 'idle', text: 'a — idle · 2 other chats working', go: IDLE_STRINGS.focusOther, looking: IDLE_STRINGS.looking, kind: 'other' }));
+check('idle message: a waiting followed chat wins over other working chats', idleMsg({ title: 'a', dot: D('waiting'), others: 2 }).kind === 'self' && idleMsg({ title: 'a', dot: D('waiting', ['background']), others: 2 }).go === IDLE_STRINGS.focusSelf);
+check('idle message: no followed chat and no others stays plain; no followed chat with others targets the others', idleMsg({ title: '', dot: undefined, others: 0, followed: false }).go === '' && idleMsg({ title: '', dot: D('waiting'), others: 1, followed: false }).kind === 'other');
 check('click target rule: self when waiting or nobody else works; other otherwise; malformed dots are not waiting', clickTargetsSelf(D('waiting'), 3) && clickTargetsSelf(D('idle'), 0) && !clickTargetsSelf(D('running'), 1) && !clickTargetsSelf(undefined, 1) && !clickTargetsSelf({ s: 5 }, 1));
+// Regression (label vs host): an UNTITLED followed chat that waits, with others working, used to be labelled "busiest other" while the host opened itself.
+const untitledWaiting = idleMsg({ title: '', dot: D('waiting'), others: 2, followed: true });
+check('idle message: an untitled followed waiting chat is labelled self, with the untitled fallback in the click text', untitledWaiting.kind === 'self' && untitledWaiting.go === IDLE_STRINGS.focusSelf && untitledWaiting.looking === opening(IDLE_STRINGS.untitled));
+// Host-level: the chat the host click opens (focusTarget, the pure decision activity.ts runs) must be the one the label promised, titled and untitled, self and other.
+{
+  const dots = { me: D('waiting'), a: D('running'), b: D('background') }, recency = { a: 1, b: 9 };
+  for (const [name, info] of [['titled waiting', { title: 'T', dot: dots.me, others: 2, followed: true }], ['untitled waiting', { title: '', dot: dots.me, others: 2, followed: true }],
+    ['titled idle, others', { title: 'T', dot: D('idle'), others: 2, followed: true }], ['untitled idle, others', { title: '', dot: D('idle'), others: 2, followed: true }],
+    ['titled idle, no others', { title: 'T', dot: D('idle'), others: 0, followed: true }], ['untitled idle, no others', { title: '', dot: D('idle'), others: 0, followed: true }]]) {
+    const m = idleMsg(info), want = m.kind === 'self' ? 'me' : 'a'; // 'a' is the running chat: running outranks b's background tasks
+    check('host click matches the label promise: ' + name, focusTarget(m.kind, 'me', dots, recency) === want);
+  }
+  check('host click: kind other with nobody working opens nothing (the none-working note), never switches to self', focusTarget('other', 'me', { me: D('waiting') }) === '' && focusTarget('self', '', {}) === '' && focusTarget(undefined, 'me', dots, recency) === 'a');
+  check('clickKind: no followed chat never targets self', clickKind(false, D('waiting'), 0) === '' && clickKind(true, D('running'), 0) === 'self' && clickKind(true, D('running'), 1) === 'other');
+}
 check('idle message: labels go through the translator', idleMsg({ title: '', dot: undefined, others: 1 }, (m) => '~' + m).go === '~' + IDLE_STRINGS.focusOther && idleMsg({ title: 'a', dot: D('idle'), others: 0 }, (m) => '~' + m).go === '~' + IDLE_STRINGS.focusSelf);
 check('click-to-focus strings have no first-person voice', !Object.values(IDLE_STRINGS).some((v) => /\b(I|I'm|we|my|our|me)\b/.test(v)));
 
@@ -309,7 +332,7 @@ const titleChecks = (async () => {
 {
   const { activitySection } = require(path.join(OUT, 'activityHtml.js'));
   const sec = activitySection(4000), standalone = activityHtml(4000);
-  check('page: the caption click handler exists and posts actFocusOther in the section', sec.script.includes("cap.addEventListener('click', goOther)") && sec.script.includes("toHost({ type: 'actFocusOther' })") && sec.script.includes('vs.postMessage'));
+  check('page: the caption click handler exists and posts actFocusOther in the section', sec.script.includes("cap.addEventListener('click', goOther)") && sec.script.includes("toHost({ type: 'actFocusOther', kind: idleKind })") && sec.script.includes('vs.postMessage'));
   check('page: the standalone and browser script has no host to post to', standalone.includes('const toHost = null;') && !/\son(click|keydown)=/.test(standalone));
   check('page: the clickable caption uses theme tokens only', sec.css.includes('#cap.go{cursor:pointer;color:var(--vscode-textLink-foreground)') && !/#cap\.(go|bad)[^}]*#[0-9a-fA-F]{3,6}/.test(sec.css));
 }

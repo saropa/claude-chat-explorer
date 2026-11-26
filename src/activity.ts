@@ -1,7 +1,7 @@
 /** The Activity section of the session list page: a diagram under the session list that flashes a group when the current chat gets a message of that kind. */
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { IDLE_STRINGS, IdleDot, clickTargetsSelf, IdleGate, IdleInfo, cutTitle, idleMsg, isWorking, pickBusiest } from './activityIdle';
+import { IDLE_STRINGS, IdleDot, focusTarget, IdleGate, IdleInfo, cutTitle, idleMsg, isWorking, pickBusiest } from './activityIdle';
 import { ActivityFeed, SPEED_CHOICES, SPEED_LABELS, fadeMsOf, refreshMsOf } from './activityFeed';
 import { AllChatsTracker } from './activityAll';
 import { BgTracker } from './bgAgents';
@@ -34,7 +34,7 @@ export function targetOf(key: string): vscode.ConfigurationTarget {
 }
 
 /** What the page host must offer: the Activity section registers itself here to hear about the page being shown or hidden and its section being opened or collapsed. */
-export interface ActivityHost { activity?: { setVisible(v: boolean): void; setOpen(o: boolean): void; focusOther?(): Promise<void>; prefs?(): void; setPref?(key: unknown, value: unknown): Promise<void> } }
+export interface ActivityHost { activity?: { setVisible(v: boolean): void; setOpen(o: boolean): void; focusOther?(kind?: unknown): Promise<void>; prefs?(): void; setPref?(key: unknown, value: unknown): Promise<void> } }
 
 /** What a click on the idle caption's "N other chats working" hint needs: the live dots, a title per chat and a way to open a chat. */
 export interface FocusDeps { dots(): { [id: string]: IdleDot }; titleOf(id: string): string; open(id: string): Promise<boolean> } // open: true when the chat was opened
@@ -82,7 +82,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     const moved = cur !== currentId(), events = moved ? r.events.filter((e) => e.t === 'flash' || e.t === 'sub' || e.t === 'bg') : r.events;
     if (events.length) { send({ type: 'events', events }); }
   };
-  /** The idle message for chat `id` (caption text plus, while other chats work, the click label), built lazily so the gate skips it when nothing is sent. */
+  /** The idle message for chat `id` (caption text plus the click label and target kind of whatever the click opens), built lazily so the gate skips it when nothing is sent. */
   const idleOf = (id: string) => () => idleMsg(idleInfo(id), tr);
   /** Dots, a title or the focused chat changed: refresh the idle caption. Hidden or collapsed sections skip it (show() re-sends on reveal). */
   const idle = (): void => {
@@ -99,25 +99,25 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     try { const f = await files.fileOf(id); return f ? (await fs.promises.stat(f)).mtimeMs : 0; } catch { return 0; }
   };
   /**
-   * A click on the "N other chats working" hint: open the busiest other working chat, picked here (the page only knows the text).
-   * Every outcome is shown in the caption: none working, opening <title>, or could not open <title>. No silent path.
+   * A click on the idle caption: open the chat it promised (`kind`, sent back by the page: 'self' = the followed chat, 'other' = the
+   * busiest other working chat). The kind is honored, not re-decided from fresh dots: re-deciding could open a different chat than the
+   * label said. When nothing is left to open (no other chat works any more, no followed chat) the "none working" note shows.
+   * Every outcome is shown in the caption: opening <title>, none working, or could not open <title>. No silent path.
    */
-  const focusOther = async (): Promise<void> => {
+  const focusOther = async (kind?: unknown): Promise<void> => {
     // No focus wiring (a caller that never passed it): say nothing can be opened rather than ignore the click.
     if (!focus) { note(tr(IDLE_STRINGS.noneWorking)); return; }
     const cur = currentId(), dots = focus.dots() ?? {};
     const ids = Object.keys(dots).filter((id) => id !== cur && isWorking(dots[id]));
-    // The caption now also names the followed chat: it is the target when it waits for the user or no other chat works (same rule as the
-    // label, clickTargetsSelf). Before, such a click could only answer "No other chat is working now".
-    const self = !!cur && clickTargetsSelf(dots[cur], ids.length);
-    // The hint can be a poll behind: the other chats may have gone idle since it was drawn.
-    if (!self && !ids.length) { note(tr(IDLE_STRINGS.noneWorking)); return; }
-    const recency = self ? {} : Object.fromEntries(await Promise.all(ids.map(async (id) => [id, await lastAt(id)] as const)));
-    const id = self ? cur : pickBusiest(dots, cur, recency);
+    // Recency only matters for the 'other' pick; the self path skips the stat calls.
+    const recency = kind === 'self' ? {} : Object.fromEntries(await Promise.all(ids.map(async (id) => [id, await lastAt(id)] as const)));
+    const id = focusTarget(kind, cur, dots, recency);
+    // The hint can be a poll behind (the other chats went idle) or no chat is followed: say so instead of switching to the other kind.
+    if (!id) { note(tr(IDLE_STRINGS.noneWorking)); return; }
     const title = cutTitle(focus.titleOf(id)) || tr(IDLE_STRINGS.untitled);
     note(tr(IDLE_STRINGS.opening, title));
     // resume() reports false when neither the panel command nor the URI fallback took the chat (it also shows its own toast); a throw
-    // is unexpected and is logged. Both end in the caption's error text, so the click never ends on a stale "Opening …".
+    // is unexpected and is logged. Both end in the caption's error text, so the click never ends on a stale "Opening ...".
     let ok = false;
     try { ok = await focus.open(id); } catch (e) { log('activity: could not open chat ' + id + ': ' + String(e)); }
     if (!ok) { note(tr(IDLE_STRINGS.openFailed, title), true); }
@@ -186,7 +186,7 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
   host.activity = {
     setVisible(v) { const was = visible && open; visible = v; sync(was); },
     setOpen(o) { const was = visible && open; open = o; sync(was); },
-    focusOther, // the page's 'actFocusOther' message (a click on the idle caption's other-chats hint) lands here
+    focusOther, // the page's 'actFocusOther' message (a click on the idle caption's other-chats hint) lands here with the kind the caption promised
     prefs, // the page's 'ready': the settings popover gets the current values
     setPref, // the page's 'actSet' message (a choice in the section's settings popover)
   };
