@@ -27,4 +27,35 @@ The Activity panel showed "Waiting for you" when no session was waiting, and the
 - Not run in a live VS Code window.
 
 ### Known limits
-- The diagram's `wait` outline on the core still stays until the next user text line, whatever the dot says.
+- Superseded by the follow-up below: the core outline is now driven by the dot.
+
+## Follow-up: hardening and dot-driven core outline (2026-11-26)
+
+### Hardening (f629e31, a92e15c)
+- `currentId` can return a last-active chat whose tab or process is gone. `idleInfoOf` sets `followed` only when the id has a dot, using the shared `hasDot(dots, id)` in `src/activityIdle.ts`. `focusTarget` uses the same helper, so the label and the click cannot disagree.
+- A self click whose dot has gone shows `IDLE_STRINGS.notOpen` ("{0} is no longer open"). It uses the last title the caption showed (`lastShown` in `src/activity.ts`, 841ac4f).
+- `actFocusOther` with a missing, null or unknown `kind` resolves as `other`.
+- Clearing pending calls at end of turn is safe. Sub-agent lines yield only `sub` events, never `busy`, and another chat's `wait` is dropped by `tagEvents`.
+
+### Core outline meaning (a92e15c, 841ac4f)
+- The dot is `waiting` only for a permission prompt or a question. A normal `end_turn` moves it to idle or unread. f629e31 first cleared the outline whenever `waiting:false` arrived. The outline then dropped at every normal turn end, or stuck when the end-of-turn `wait` event arrived after the idle message in the same poll or after a chat switch.
+- Ruling: the core outline means a real wait only, and only the dot drives it.
+- Each idle message carries `waiting` (true or false; undefined for a chat with no dot) and `kind`. Once the page sees either field it sets `hostDrivesCore`. From then on, `setCore(on)` alone owns the core's `wait`/`rip` classes, with one ripple on false→true.
+- With `hostDrivesCore` set:
+  - A `wait` event with `g:'think'` no longer draws the core outline. It still settles the caption and drops pending calls.
+  - `flash()` and `wake` no longer clear the core (841ac4f). Before that fix, a tool flash in the same poll as `waiting:true` erased the outline for the whole permission wait, because the deduplicated idle message never re-sent it.
+- `ripT` cancels the ripple timer, so a quick true/false/true toggle cannot cut the second ripple short.
+- An older host that sends neither field keeps the event-driven outline.
+- The AskUserQuestion Chat-node outline is unchanged.
+- The page-check harness stub `querySelectorAll` returned nothing, so `.wait` checks could not fail. `withGroups` now returns the stub elements that carry the class.
+
+### Verification
+- At 841ac4f a clean worktree does not compile. The parent commit 1c14671 left stray text in `src/chatColors.ts` and type errors in `src/liveState.ts`, outside this work.
+- With `src/chatColors.ts` overlaid from 5cc4c69:
+  - `check_activity_page.js` exits 0, including every new page check.
+  - `check_activity.js` fails only chat-colour checks.
+- New page checks were not mutation-tested. Whether each one fails without its fix is unverified, except the `.wait` stub fix, which was observed failing first.
+- Not run in a live VS Code window.
+
+### Not built
+- Badge pulse when a chat enters waiting. `updateBadge` sets only a count, so a pulse needs new animation code.
