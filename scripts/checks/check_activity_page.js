@@ -138,6 +138,23 @@ function withGroups(h) {
   if (h.errors.length) { console.error('check activity_page FAILED (account settings)'); [...new Set(h.errors)].forEach((e) => console.error('  - ' + e)); process.exit(1); }
 }
 
+// ---- 1c2b. Header popovers are mutually exclusive: opening one closes the others, and Escape acts only on the open one. ----
+{
+  // Each header popover calls makePop separately; before the page-wide registry in webviewPop.ts, opening the gear left the Session Manager menu open and Escape fired both.
+  const sidebar = require(path.join(OUT, 'webview.js')).html();
+  const h = createHarness({ page: sidebar, name: 'pop_exclusive', popIds: ['smm', 'smmm', 'acts', 'actm'] });
+  h.start();
+  const el = (i) => h.els.get(i);
+  h.fire('smm', 'click');
+  h.check('the Session Manager menu opens', el('smmm').hidden === false);
+  h.fire('acts', 'click');
+  h.check('opening the Activity gear closes the Session Manager menu and leaves only the gear popover open', el('smmm').hidden === true && el('smm').getAttribute('aria-expanded') === 'false' && el('actm').hidden === false && el('acts').getAttribute('aria-expanded') === 'true');
+  const gearFocus = el('acts').focused || 0, smFocus = el('smm').focused || 0;
+  h.fire('actm', 'keydown', { key: 'Escape' });
+  h.check('Escape closes the open popover and focuses its own gear, not the other button', el('actm').hidden === true && (el('acts').focused || 0) > gearFocus && (el('smm').focused || 0) === smFocus);
+  if (h.errors.length) { console.error('check activity_page FAILED (exclusive popovers)'); [...new Set(h.errors)].forEach((e) => console.error('  - ' + e)); process.exit(1); }
+}
+
 // ---- 1c2. The two header gears must stay the same size (they sit on sibling section headers); parse both CSS strings. ----
 {
   const { ACCT_CSS } = require(path.join(OUT, 'webviewAcct.js'));

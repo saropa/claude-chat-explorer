@@ -253,7 +253,8 @@ class Provider implements vscode.WebviewViewProvider {
       else if (m.type === 'actFocusOther') { await this.activity?.focusOther?.(m.kind); } // kind: the target the caption promised, which the host honors
       // A choice in the Activity section's settings popover: the section validates and writes it, then sends the value in effect back.
       else if (m.type === 'actSet') { await this.activity?.setPref?.(m.key, m.value); }
-      else if (m.type === 'smRegen') { await vscode.commands.executeCommand('saropaChats.regenTitles'); } // Session Manager menu: Generate session titles (bulk command shows its own pickers and outcome)
+      // Session Manager menu: Generate session titles. The bulk command shows its own pickers and outcome.
+      else if (m.type === 'smRegen') { await vscode.commands.executeCommand('saropaChats.regenTitles'); }
       // A choice in the Account & Usage settings popover: validated and written, then the value in effect is sent back.
       else if (m.type === 'acctSet') { await setAcctPref(m.key, m.value, () => this.postAcctPrefs()); }
       // The popover's Open in browser item: the same command as before, which shows its own outcome (the browser opening or a copy-address message).
@@ -564,7 +565,7 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
   const tinyDeps = { rows: usageRows, archived: () => store!.archived, pins: () => Object.keys(store!.pins), dots: () => provider.dotNames,
     archive: (ids: string[]) => provider.actions!.archiveMany(ids) };
   // Shared by the bulk and the single-session title commands (one refresh path after a write).
-  const regenDeps = { currentId: () => provider.currentId(), refresh: () => { provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); }, log: logErr };
+  const regenDeps = { currentId: () => provider.currentId(), liveIds: () => provider.watcher?.liveIds ?? [], refresh: () => { provider.watcher?.poke(); void provider.postMeta(); hub.emit('changed', logErr); }, log: logErr };
   ctx.subscriptions.push(
     ...[['saropaChats.copyResume', (id: string) => provider.copyResumeCmd(id)], ['saropaChats.exportChatMarkdown', (id: string) => provider.exportMd(id)]].map(([cmd, fn]) =>
       vscode.commands.registerCommand(cmd as string, (arg?: { id?: unknown }) => (isSessionId(arg?.id) ? (fn as (id: string) => Promise<void>)(arg.id) : undefined))),

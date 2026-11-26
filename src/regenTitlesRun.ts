@@ -7,7 +7,7 @@ import { execFile } from 'child_process';
 import { projectsRoot } from './files';
 import { Candidate, backupDir, buildPrompt, parseResult, pickFiles, projectDirName, promptData, readInfo, titleLines } from './regenTitles';
 
-export interface RegenDeps { currentId: () => string; refresh: () => void; log: (where: string, e: unknown) => void }
+export interface RegenDeps { currentId: () => string; /** Ids of every session the live watcher reports as live (open in any tab or window, not just this one); optional so older callers keep compiling. */ liveIds?: () => string[]; refresh: () => void; log: (where: string, e: unknown) => void }
 
 const callClaude = (data: string, signal: AbortSignal): Promise<string> => new Promise((resolve, reject) => {
   const p = execFile('claude', ['-p', '--model', 'haiku', '--no-session-persistence'],
@@ -114,10 +114,12 @@ async function findSessionFile(id: string): Promise<Candidate | undefined> {
  */
 export async function generateTitleFor(id: string, d: RegenDeps, out: vscode.OutputChannel): Promise<void> {
   const f = await findSessionFile(id);
-  if (!f) { void vscode.window.showWarningMessage('Generate Title: the session file was not found.'); return; }
+  if (!f) { void vscode.window.showWarningMessage(vscode.l10n.t('Generate Title: the session file was not found.')); return; }
   // Same live-session rule as the bulk run: appending to a transcript that is open or being written could interleave with Claude's own writes.
-  if (pickFiles([f], d.currentId(), Date.now()).run.length === 0) {
-    void vscode.window.showInformationMessage('Generate Title: skipped. This session is open or was changed in the last 5 minutes.');
+  // pickFiles only knows this window's current chat and files changed in the last 5 minutes, so a chat open in another tab or window and idle longer than that slipped through and got a title line appended while live. The live watcher's ids close that gap.
+  const liveElsewhere = (d.liveIds?.() ?? []).includes(id);
+  if (liveElsewhere || pickFiles([f], d.currentId(), Date.now()).run.length === 0) {
+    void vscode.window.showInformationMessage(vscode.l10n.t('Generate Title: skipped. This session is open in a chat tab or was changed in the last 5 minutes.'));
     return;
   }
   let title = '';
@@ -137,6 +139,6 @@ export async function generateTitleFor(id: string, d: RegenDeps, out: vscode.Out
       if (error !== 'cancelled') { out.appendLine(`FAIL ${id}: ${error}`); d.log('generateTitleFor', e); }
     }
   });
-  if (title) { d.refresh(); void vscode.window.showInformationMessage(`Generate Title: ${title}`); }
-  else { void vscode.window.showWarningMessage(`Generate Title: no title written (${error}).`); }
+  if (title) { d.refresh(); void vscode.window.showInformationMessage(vscode.l10n.t('Generate Title: {0}', title)); }
+  else { void vscode.window.showWarningMessage(vscode.l10n.t('Generate Title: no title written ({0}).', error)); }
 }

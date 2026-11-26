@@ -8,7 +8,7 @@ export const POP_CSS = String.raw`
 .pw{position:relative;display:flex}
 .pop{position:fixed;left:8px;top:0;z-index:20;width:max-content;min-width:min(170px,calc(100vw - 16px));max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow-x:hidden;overflow-y:auto;overflow-wrap:anywhere;padding:4px 0;box-sizing:border-box;background:var(--vscode-menu-background);color:var(--vscode-menu-foreground);border:1px solid var(--vscode-menu-border,var(--vscode-widget-border,transparent));box-shadow:0 2px 8px var(--vscode-widget-shadow,rgba(0,0,0,.3))}
 .pop[hidden]{display:none}
-/* Menu item rows shared by every header popover (Session Manager menu; the Activity settings popover repeats these rules for its own ids): a full-width row that highlights on hover and keyboard focus. */
+/* Menu item rows shared by every header popover (the Session Manager menu, the Activity settings popover and the Account settings popover): a full-width row that highlights on hover and keyboard focus. */
 .pop .acto{display:flex;align-items:flex-start;gap:6px;width:100%;box-sizing:border-box;padding:3px 10px;margin:0;font:inherit;text-align:left;border:none;background:transparent;color:inherit;cursor:pointer}
 .pop .acto:hover,.pop .acto:focus-within,.pop button.acto:focus-visible{background:var(--vscode-menu-selectionBackground);color:var(--vscode-menu-selectionForeground);outline:none}
 `;
@@ -31,7 +31,7 @@ export const TIP_CSS = String.raw`
 export const POP_JS = String.raw`
 function makePop(pairs){
 const el=id=>document.getElementById(id);
-const openPair=()=>pairs.find(p=>{const m=el(p[1]);return m&&!m.hidden;});
+const openPair=()=>pairs.find(p=>{const m=el(p[1]);return m&&!m.hidden;});const pops=window.__pops||(window.__pops=[]);/* Page-wide registry of every makePop instance. Each instance only knew its own pairs, so opening a second header popover left the first open (the outside-click handler ignores clicks inside any .pw). toggle() now closes every other instance when it opens a menu. */
 function close(except){pairs.forEach(p=>{if(p[1]===except)return;const m=el(p[1]),b=el(p[0]);if(m)m.hidden=true;if(b)b.setAttribute('aria-expanded','false');});}
 /* place(b,m,flip): opens m under b. flip=true (the context popover, which hangs from rows that can sit at the bottom edge) instead opens it above b when it does not fit below and there is more room above; header menus never pass it, so they keep opening downward. */
 function place(b,m,flip){const r=b.getBoundingClientRect(),vw=document.documentElement.clientWidth||window.innerWidth||300,vh=window.innerHeight||600,M=8;let top=r.bottom+2,mh=Math.max(80,vh-top-M);
@@ -43,13 +43,13 @@ if(h>below&&above>below){top=Math.max(M,r.top-2-Math.min(h,above));mh=r.top-2-to
 m.style.top=top+'px';m.style.maxHeight=mh+'px';
 /* Horizontal clamp: right-align with the anchor, then keep both edges inside the margins (left wins when even the capped box cannot fit). */
 const w=Math.min(m.offsetWidth||0,vw-2*M);m.style.left=Math.max(M,Math.min(r.right-w,vw-M-w))+'px';}
-function toggle(bid,mid){const m=el(mid),open=m.hidden;close(open?mid:'');m.hidden=!open;el(bid).setAttribute('aria-expanded',open?'true':'false');if(open)place(el(bid),m);}
+function toggle(bid,mid){const m=el(mid),open=m.hidden;close(open?mid:'');m.hidden=!open;el(bid).setAttribute('aria-expanded',open?'true':'false');if(open){pops.forEach(o=>{if(o!==api)o.close('');});place(el(bid),m);}}
 window.addEventListener('resize',()=>{const o=openPair();if(o)place(el(o[0]),el(o[1]));});
 document.addEventListener('scroll',e=>{if(!(e.target&&e.target.closest&&e.target.closest('.pop')))close('');},true);
 document.addEventListener('click',e=>{if(!e.target.closest('.pw'))close('');});
-document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const o=openPair();if(o){e.stopPropagation();e.popClosed=true;close('');el(o[0]).focus();}});
+document.addEventListener('keydown',e=>{if(e.key!=='Escape'||e.popClosed)return;/* popClosed: an instance already handled this Escape; only the one open popover acts and returns focus to its own button. */const o=openPair();if(o){e.stopPropagation();e.popClosed=true;close('');el(o[0]).focus();}});
 document.addEventListener('focusin',e=>{if(e.target.closest&&!e.target.closest('.pw'))close('');});
-return{close:close,place:place,toggle:toggle,isOpen:()=>!!openPair()};}
+const api={close:close,place:place,toggle:toggle,isOpen:()=>!!openPair()};pops.push(api);return api;}
 `;
 
 /**
