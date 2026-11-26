@@ -5,9 +5,22 @@ import * as os from 'os';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import { projectsRoot } from './files';
+import { readLive, sessionsDir } from './liveState';
 import { Candidate, backupDir, buildPrompt, parseResult, pickFiles, projectDirName, promptData, readInfo, titleLines } from './regenTitles';
 
 export interface RegenDeps { currentId: () => string; /** Ids of every session the live watcher reports as live (open in any tab or window, not just this one); optional so older callers keep compiling. */ liveIds?: () => string[]; refresh: () => void; log: (where: string, e: unknown) => void }
+
+/**
+ * Sessions that must not get a title line appended right now: every session with a running Claude process, read fresh from
+ * ~/.claude/sessions (one <pid>.json per process, machine-wide, so it covers chat tabs of EVERY VS Code window and terminal or SDK runs),
+ * plus the watcher's ids. The watcher alone was not enough: its list is up to 30 s old (a chat resumed in another window seconds ago was
+ * missed) and it drops non-VS Code entrypoints, whose processes write the same transcript. A failed read falls back to the watcher's ids.
+ */
+async function busySessions(d: RegenDeps): Promise<Set<string>> {
+  const busy = new Set(d.liveIds?.() ?? []);
+  try { for (const id of (await readLive(sessionsDir())).pids.keys()) { busy.add(id); } } catch { /* keep the watcher's ids */ }
+  return busy;
+}
 
 const callClaude = (data: string, signal: AbortSignal): Promise<string> => new Promise((resolve, reject) => {
   const p = execFile('claude', ['-p', '--model', 'haiku', '--no-session-persistence'],
@@ -63,9 +76,10 @@ export async function regenTitles(d: RegenDeps, out: vscode.OutputChannel): Prom
   if (!mode) { return; }
   const dry = mode.dry;
   out.clear(); out.show(true);
-  const { run, live } = pickFiles(await candidates(scope.all), d.currentId(), Date.now());
+  // The bulk run skips the same live sessions as the single-session command: before, it only skipped this window's chat and files changed in the last 5 minutes, so it could append to a chat open in another window.
+  const { run, live } = pickFiles(await candidates(scope.all), d.currentId(), Date.now(), await busySessions(d));
   let changed = 0, skipped = live.length, failed = 0;
-  for (const l of live) { out.appendLine(`SKIP ${l.id}: active or modified in the last 5 minutes`); }
+  for (const l of live) { out.appendLine(`SKIP ${l.id}: open in a chat tab or terminal, or modified in the last 5 minutes`); }
   const stamp = backupStamp();
   await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: dry ? 'Previewing session titles' : 'Generating session titles', cancellable: true }, async (prog, token) => {
     const ac = new AbortController();
@@ -96,7 +110,12 @@ export async function regenTitles(d: RegenDeps, out: vscode.OutputChannel): Prom
   void vscode.window.showInformationMessage(msg);
 }
 
-/** Finds the transcript file of one session id by looking for <id>.jsonl in every project folder; undefined when no project holds it. */
+/**
+ * Finds the transcript file of one session id by looking for <id>.jsonl in every project folder; undefined when no project holds it.
+ * Archived sessions are found too: archiving is a flag in this extension's store and never moves the file. Subagent transcripts
+ * (<parent>/subagents/agent-<id>.jsonl) are deliberately not searched: the session list renders only parent rows (subagent hits sit inside
+ * their parent's row, under the parent's data-vscode-context), so the command only ever receives a parent id, and a subagent has no title of its own.
+ */
 async function findSessionFile(id: string): Promise<Candidate | undefined> {
   const root = projectsRoot();
   let dirs: string[] = [];
@@ -116,10 +135,9 @@ export async function generateTitleFor(id: string, d: RegenDeps, out: vscode.Out
   const f = await findSessionFile(id);
   if (!f) { void vscode.window.showWarningMessage(vscode.l10n.t('Generate Title: the session file was not found.')); return; }
   // Same live-session rule as the bulk run: appending to a transcript that is open or being written could interleave with Claude's own writes.
-  // pickFiles only knows this window's current chat and files changed in the last 5 minutes, so a chat open in another tab or window and idle longer than that slipped through and got a title line appended while live. The live watcher's ids close that gap.
-  const liveElsewhere = (d.liveIds?.() ?? []).includes(id);
-  if (liveElsewhere || pickFiles([f], d.currentId(), Date.now()).run.length === 0) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('Generate Title: skipped. This session is open in a chat tab or was changed in the last 5 minutes.'));
+  // busySessions adds every session with a running Claude process in any window (read fresh, see its comment) to pickFiles' own rules.
+  if (pickFiles([f], d.currentId(), Date.now(), await busySessions(d)).run.length === 0) {
+    void vscode.window.showInformationMessage(vscode.l10n.t('Generate Title: skipped. This session is open in a chat tab or terminal, or was changed in the last 5 minutes.'));
     return;
   }
   let title = '';

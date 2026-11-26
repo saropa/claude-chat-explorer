@@ -22,6 +22,9 @@ check('project dir', r.projectDirName('/Users/a/my.proj') === '-Users-a-my-proj'
 const now = 10 * 60 * 1000;
 const p = r.pickFiles([{ id: 'cur', mtime: 0 }, { id: 'new', mtime: now - 1000 }, { id: 'old', mtime: 0 }], 'cur', now);
 check('live filter', p.run.length === 1 && p.run[0].id === 'old' && p.live.length === 2);
+// A session with a running Claude process in another window or a terminal (the busy set) is skipped even when its file is older than 5 minutes.
+const pb = r.pickFiles([{ id: 'old', mtime: 0 }, { id: 'other', mtime: 0 }], 'cur', now, new Set(['other']));
+check('busy filter', pb.run.length === 1 && pb.run[0].id === 'old' && pb.live.length === 1 && pb.live[0].id === 'other');
 const l = r.titleLines('🐛 Fix bug', 's1').trim().split('\n').map((x) => JSON.parse(x));
 check('title lines', l[0].type === 'custom-title' && l[0].customTitle === '🐛 Fix bug' && l[1].type === 'agent-name' && l[1].agentName === '🐛 Fix bug' && l[1].sessionId === 's1');
 if (fails.length) { console.error('Regen check FAILED:\n - ' + fails.join('\n - ')); process.exit(1); }

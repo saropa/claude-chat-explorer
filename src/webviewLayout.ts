@@ -32,9 +32,13 @@ body{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overfl
 #frow{flex:none}
 .clr:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 #smb[hidden]{display:none}
-#smh{display:flex;align-items:center;gap:4px;flex:1;min-width:0;text-align:left;padding:2px 8px;margin:4px 0 6px;font:inherit;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)} /* margin and font match the Account & Usage header so all three section headers look alike */
+/* Block, not flex (same reason as #acth): a bare text node in a flex box never shrinks, so the label ran under the three-dot button in a narrow sidebar; as a block it ends in an ellipsis. */
+#smh{display:block;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;padding:2px 8px;margin:4px 0 6px;font:inherit;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)} /* margin and font match the Account & Usage header so all three section headers look alike */
+#smh>.chev{display:inline-block;vertical-align:middle;margin-right:4px} /* replaces the flex gap of the old layout */
 #smh[aria-expanded=true]>.chev{transform:rotate(90deg)}
 #smh:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
+/* The header buttons' wrappers never shrink, so in a narrow sidebar the label gives way (ellipsis) first and the gear and three-dot buttons keep their full hit area. */
+#acthr>.pw,#smhr>.pw{flex:none}
 #res{flex:1 1 auto;min-height:80px;overflow-x:hidden;overflow-y:auto;container-type:inline-size;container-name:res;overflow-wrap:anywhere}
 .sl,.gh{min-width:0}
 .sl>span:not(.pill),.gh>span:not(.pill){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

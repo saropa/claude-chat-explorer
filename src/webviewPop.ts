@@ -49,7 +49,9 @@ document.addEventListener('scroll',e=>{if(!(e.target&&e.target.closest&&e.target
 document.addEventListener('click',e=>{if(!e.target.closest('.pw'))close('');});
 document.addEventListener('keydown',e=>{if(e.key!=='Escape'||e.popClosed)return;/* popClosed: an instance already handled this Escape; only the one open popover acts and returns focus to its own button. */const o=openPair();if(o){e.stopPropagation();e.popClosed=true;close('');el(o[0]).focus();}});
 document.addEventListener('focusin',e=>{if(e.target.closest&&!e.target.closest('.pw'))close('');});
-const api={close:close,place:place,toggle:toggle,isOpen:()=>!!openPair()};pops.push(api);return api;}
+/* Registry dedupe by button ids: a re-run of a section script (a re-render calling makePop again for the same buttons) used to push a second entry, leaving the old instance in the list forever. The new instance replaces any entry for the same buttons, so there is one live entry per header button. A full webview reload starts a new window, so the registry starts empty. */
+const key=pairs.map(p=>p[0]).join('|');for(let i=pops.length-1;i>=0;i--){if(pops[i].key===key)pops.splice(i,1);}
+const api={key:key,close:close,place:place,toggle:toggle,isOpen:()=>!!openPair()};pops.push(api);return api;}
 `;
 
 /**

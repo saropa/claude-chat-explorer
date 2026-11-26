@@ -16,7 +16,8 @@ export const ACT_CSS = `
 body.dragging{cursor:ns-resize;user-select:none}
 /* Header row: the collapse button takes the width, the settings button sits at its right end as a sibling (a button inside a button is invalid and its click would also collapse). */
 #acthr{display:flex;align-items:center;margin:4px 0 6px}
-#acth{display:flex;align-items:center;gap:4px;flex:1;min-width:0;text-align:left;padding:2px 8px;margin:0;font:inherit;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)}
+/* Block, not flex: the label is a bare text node, and in a flex box it becomes an item that never shrinks below its text, so in a ~180px sidebar it ran under the gear. As a block the text truncates with an ellipsis; the chevron is an inline box beside it. */
+#acth{display:block;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;padding:2px 8px;margin:0;font:inherit;border:none;background:transparent;cursor:pointer;color:var(--vscode-descriptionForeground)}
 #acts{flex:none;display:flex;align-items:center;justify-content:center;width:22px;height:22px;margin-right:6px;padding:0;border:none;border-radius:4px;background:transparent;cursor:pointer;color:var(--vscode-icon-foreground,var(--vscode-descriptionForeground))}
 #acts:hover,#acts[aria-expanded=true]{background:var(--vscode-toolbar-hoverBackground)}
 #acts:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
@@ -26,6 +27,7 @@ body.dragging{cursor:ns-resize;user-select:none}
 .pop .acto input{margin:2px 0 0}
 .pop .actd{display:block;font-size:calc(var(--vscode-font-size) - 2px);opacity:.8}
 #actm hr,#acctm hr{border:none;border-top:1px solid var(--vscode-menu-separatorBackground,var(--vscode-widget-border,transparent));margin:4px 0}
+#acth>.chev{display:inline-block;vertical-align:middle;margin-right:4px} /* replaces the flex gap of the old layout */
 #acth[aria-expanded=true]>.chev{transform:rotate(90deg)}
 #acth:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 #actb[hidden]{display:none}

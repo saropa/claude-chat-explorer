@@ -228,7 +228,12 @@ check('Generate Title is a row context item, hidden from the palette', !!gt && g
 const ext = fs.readFileSync(path.join(OUT, 'extension.js'), 'utf8');
 check('host handles smRegen by running regenTitles, and registers generateTitle with a session-id guard', ext.includes("m.type === 'smRegen'") && /smRegen[^]*?executeCommand\('saropaChats\.regenTitles'\)/.test(ext) && /registerCommand\('saropaChats\.generateTitle',[^]*?isSessionId[^]*?generateTitleFor/.test(ext));
 // Generate Title must skip a chat the live watcher reports open anywhere (another tab or window), not only this window's current chat: pickFiles alone misses an idle chat open elsewhere.
-check('Generate Title consults the live watcher (RegenDeps.liveIds wired from the watcher, and generateTitleFor skips on it)', /liveIds: \(\) => provider\.watcher\?\.liveIds \?\? \[\], refresh:/.test(ext) && /\(d\.liveIds\?\.\(\) \?\? \[\]\)\.includes\(id\)/.test(fs.readFileSync(path.join(OUT, 'regenTitlesRun.js'), 'utf8')));
+// The live-session guard of both title commands: the watcher's ids plus a fresh machine-wide read of ~/.claude/sessions (every window, terminal runs too), passed to pickFiles as its busy set.
+{
+  const run = fs.readFileSync(path.join(OUT, 'regenTitlesRun.js'), 'utf8');
+  check('Generate Title consults the live watcher and a fresh process read (RegenDeps.liveIds wired from the watcher; busySessions adds readLive pids)', /liveIds: \(\) => provider\.watcher\?\.liveIds \?\? \[\], refresh:/.test(ext) && /d\.liveIds\?\.\(\)/.test(run) && /readLive\)\(\(0, liveState_1\.sessionsDir\)\(\)\)\)\.pids\.keys\(\)/.test(run));
+  check('the single and the bulk title commands both pass the busy set to pickFiles', (run.match(/pickFiles\)\([^;]*await busySessions\(d\)\)/g) || []).length === 2);
+}
 check('host handles the popover messages (actSet, actBrowser) and sends prefs on ready', ext.includes("m.type === 'actSet'") && ext.includes("m.type === 'actBrowser'") && /m\.type === 'ready'\) \{[^}]*prefs/.test(ext));
 const css = require(path.join(OUT, 'webviewCss.js')).CSS;
 check('session list CSS has one colour class per palette entry and the row bar', CHAT_PALETTE.every((c, i) => css.includes('.cc' + i + '{--cc:' + c + '}')) && css.includes('.r.cc>.rh{box-shadow:inset 3px 0 0 var(--cc)}'));

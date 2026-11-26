@@ -1,0 +1,2 @@
+# Every text file is stored and checked out with LF endings, so an editor saving CRLF cannot flip a whole file (package.json was converted to CRLF once).
+* text=auto eol=lf

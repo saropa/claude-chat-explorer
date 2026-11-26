@@ -11,15 +11,17 @@ const ACCT_SETTINGS = `<div class="pw"><button type="button" id="accts" title="A
 export const ACCT_HTML = `<div id="acctw"><details id="acct"><summary title="Your account and the tokens you used, read from local files only"><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Account &amp; Usage</summary><div id="acb" role="status" aria-live="polite"></div></details>${ACCT_SETTINGS}</div>`;
 
 export const ACCT_CSS = String.raw`
-/* The wrapper anchors the gear over the right end of the summary row; padding-right on the summary keeps its text clear of the gear. */
+/* The wrapper anchors the gear over the right end of the summary row; padding-right on the summary keeps its text clear of the gear (set in the summary rule below). */
 #acctw{position:relative}
 #acctw>.pw{position:absolute;right:0;top:0}
-#acct>summary{padding-right:28px}
 #accts{flex:none;display:flex;align-items:center;justify-content:center;width:22px;height:22px;margin:1px 6px 0 0;padding:0;border:none;border-radius:4px;background:transparent;cursor:pointer;color:var(--vscode-icon-foreground,var(--vscode-descriptionForeground))}
 #accts:hover,#accts[aria-expanded=true]{background:var(--vscode-toolbar-hoverBackground)}
 #accts:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 #acct{margin:4px 0 1px} /* 1px, not 6: the idle status strip (#sb: progress bar + status line, about 5px) sits between this header and Session Manager, so the three headers end up evenly spaced */
-#acct>summary{cursor:pointer;color:var(--vscode-descriptionForeground);list-style:none;display:flex;align-items:center;gap:4px;padding:2px 0}
+/* Bug fixed: a separate padding-right:28px rule came before this one, whose padding:2px 0 reset it to 0, so the label could run under the gear. The 28px reserve now lives here.
+   Block, not flex, so the bare text label truncates with an ellipsis in a narrow sidebar (a flex text item never shrinks below its text). */
+#acct>summary{cursor:pointer;color:var(--vscode-descriptionForeground);list-style:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 28px 2px 0}
+#acct>summary>.chev{display:inline-block;vertical-align:middle;margin-right:4px} /* replaces the flex gap of the old layout */
 #acct>summary::-webkit-details-marker{display:none}
 #acct[open]>summary>.chev{transform:rotate(90deg)}
 #acct summary:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:1px}

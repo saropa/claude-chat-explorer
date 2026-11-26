@@ -75,10 +75,14 @@ export const LIVE_MS = 5 * 60 * 1000;
 
 export interface Candidate { file: string; id: string; mtime: number }
 
-/** Split candidates into those to process and those skipped as the active session or modified within 5 minutes. */
-export function pickFiles(c: Candidate[], skipId: string, now: number): { run: Candidate[]; live: Candidate[] } {
+/**
+ * Splits candidates into the ones safe to write (run) and the ones to skip (live): this window's current chat, files changed in the last 5 minutes,
+ * and every id in `busy` (sessions with a running Claude process in any VS Code window or terminal). `busy` is optional so the 5-minute rule
+ * alone still works for callers that cannot read the process list; without it a chat idle longer than 5 minutes in another window passed as safe.
+ */
+export function pickFiles(c: Candidate[], skipId: string, now: number, busy?: ReadonlySet<string>): { run: Candidate[]; live: Candidate[] } {
   const run: Candidate[] = [], live: Candidate[] = [];
-  for (const f of c) { (f.id === skipId || now - f.mtime < LIVE_MS ? live : run).push(f); }
+  for (const f of c) { (f.id === skipId || busy?.has(f.id) || now - f.mtime < LIVE_MS ? live : run).push(f); }
   return { run, live };
 }
 
