@@ -222,6 +222,16 @@ function drive() {
   run('dots={' + JSON.stringify(cid) + ":{s:'waiting'}};", 'dots waiting');
   check('dormant-by-time chat that is only waiting loses its marker', !/ cc cc3"/.test(run('rowHtml(' + crow(NOW - 600e3) + ')', 'rowHtml waiting')));
   run('dots={};', 'dots clear');
+  // Stale snapshots: pinned rows (meta) and search rows (lastRs) are not refetched, so their last can be old while the fresh session row of the same chat is recent. The newest last across every list wins, so the marker stays; with no fresh copy anywhere it hides.
+  run('dots={};pinned=[' + crow(NOW - 600e3) + '];lastRs=[' + crow(NOW - 600e3) + '];sess={rows:[' + crow(NOW - 5e3) + '],total:1,arch:[],archTotal:0};', 'stale snapshots');
+  check('stale pinned row keeps its marker when a fresh session row of the same chat exists', / cc cc3"/.test(run('rowHtml(pinned[0])', 'rowHtml stale pinned')));
+  check('stale search row keeps its marker when a fresh session row of the same chat exists', / cc cc3"/.test(run('rowHtml(lastRs[0])', 'rowHtml stale search')));
+  run('sess=null;', 'stale snapshots no fresh');
+  check('a stale pinned row with no fresher copy anywhere is dormant', !/ cc cc3"/.test(run('rowHtml(pinned[0])', 'rowHtml truly dormant')));
+  run('pinned=[];lastRs=[];sess=null;', 'stale snapshots reset');
+  // The busy states are injected from the host list (liveState.js BUSY_DOT_STATES), not hardcoded in the page.
+  const { BUSY_DOT_STATES } = require(path.join(OUT, 'liveState.js'));
+  check('page busy list is the host BUSY_DOT_STATES', JSON.stringify(run('CC_BUSY', 'CC_BUSY')) === JSON.stringify(BUSY_DOT_STATES));
   run('ccMs=0;', 'dormant off');
   check('threshold 0 never hides the marker', / cc cc3"/.test(run('rowHtml(' + crow(NOW - 86400e3) + ')', 'rowHtml never')));
   run('ccol={};ccMs=0;ccSig="";', 'dormant reset');

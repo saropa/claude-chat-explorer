@@ -49,3 +49,20 @@ A chat's color could change for good. When it clashed with another live chat, th
 ### Limits
 - Without a busy dot, dormancy is judged from `r.last`, the time of the last message. A long tool call that writes no message, on a chat with no busy dot, can hide the marker until the next message arrives.
 - If more than `STORE_MAX` chats are live at once, the map can grow past the cap.
+
+## Hardening (2026-11-26)
+- Busy states:
+  - `BUSY_DOT_STATES` and `DOT_STATE` in `src/liveState.ts` are the single definition of which dot states count as busy.
+  - They are injected into the session-list page as `CC_BUSY`.
+  - `check_dots.js` fails when a busy state is no longer a state the host can emit.
+- Multi-window merge:
+  - `ColorBook` takes an optional `load` and merges the stored map in `adopt()`. Entries only this window knows go in as the oldest, and stored entries keep their stored order.
+  - For an id already in the store, the stored index wins.
+  - A write happens only when the final map differs from the stored one, so two windows at the 500 cap settle without writing on every refresh.
+  - When two windows assign the same new chat at the same moment, the last persisted write wins, so that chat can change color once.
+- Out-of-date snapshots: `ccLast()` uses the newest `last` for a chat across session rows, archived rows, pinned rows and search results, so an out-of-date pinned or search row no longer hides an active chat's marker.
+- Incident: during this work a scripted edit truncated `CHANGELOG.md` to 0 bytes. The file was restored from HEAD and the hardening entry was added again.
+- Results:
+  - compile: clean.
+  - `check_bg`, `check_dots`: pass.
+  - `check_activity`: every color check passes. It also fails 3 checks on the Session Manager menu and Generate Title wiring, which this work does not touch.

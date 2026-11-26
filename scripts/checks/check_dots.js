@@ -7,7 +7,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = process.env.CCS_OUT || path.join(ROOT, 'out');
-const { dotState, buildDots, stateMap, nextUnread } = require(path.join(OUT, 'liveState.js'));
+const { dotState, buildDots, stateMap, nextUnread, DOT_STATE, BUSY_DOT_STATES } = require(path.join(OUT, 'liveState.js'));
 const { BgTracker, feed } = require(path.join(OUT, 'bgAgents.js'));
 const { dotText, dotAttrs } = require(path.join(OUT, 'group.js'));
 const { statusesOf } = require(path.join(OUT, 'status.js'));
@@ -16,6 +16,22 @@ const { DOT_ANIM_CSS } = require(path.join(OUT, 'dotCss.js'));
 const failures = [];
 const check = (what, cond) => { if (!cond) { failures.push(what); } };
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+// 0. Busy states: the session list hides the color marker of a dormant chat unless the dot is in BUSY_DOT_STATES (injected into the page),
+// so every busy state must be a state dotState really emits, as s or in also. A rename that orphans one fails here instead of silently
+// stripping markers from working chats.
+{
+  const emitted = new Set();
+  for (const live of [undefined, 'idle', 'busy', 'waiting']) for (const unread of [false, true]) for (const bg of [false, true]) {
+    const d = dotState(live, unread, undefined, bg); emitted.add(d.s); (d.also || []).forEach((k) => emitted.add(k));
+  }
+  check('BUSY_DOT_STATES is not empty', Array.isArray(BUSY_DOT_STATES) && BUSY_DOT_STATES.length > 0);
+  for (const k of BUSY_DOT_STATES) {
+    check('busy state "' + k + '" is a known dot state', Object.values(DOT_STATE).includes(k));
+    check('busy state "' + k + '" is emitted by dotState (as s or in also)', emitted.has(k));
+  }
+  check('every state dotState emits is a known DOT_STATE', [...emitted].every((k) => Object.values(DOT_STATE).includes(k)));
+}
 
 // 1. State priority: waiting, running, unread, background; s is the first, also the rest; old shapes are unchanged.
 check('idle dot has no also', eq(dotState('idle', false), { s: 'idle' }) && eq(dotState(undefined, false), { s: 'idle' }));

@@ -107,6 +107,40 @@ check('every palette colour has contrast >= 3:1 on a dark and a white sidebar', 
 let saved; const book = new ColorBook(undefined, (m) => { saved = m; });
 const ids = Array.from({ length: 20 }, (_, i) => 'chat' + i), first = book.resolve(ids);
 check('20 live chats get 20 different colours', new Set(first.values()).size === 20 && saved && Object.keys(saved).length === 20);
+// Two windows, one shared store: each book's write is merged with what is stored, so neither overwrites the other's new assignments.
+{
+  let store; const sav = (m) => { store = { ...m }; }, ld = () => store;
+  const w1 = new ColorBook(undefined, sav, Date.now, ld), w2 = new ColorBook(undefined, sav, Date.now, ld); // both opened on an empty store
+  const c1 = w1.resolve(['a1']); // window 1 saves a1
+  const c2 = w2.resolve(['b1']); // window 2 (stale memory) saves b1: a1 must survive in the store
+  check('two windows: the second write keeps the other window entry', store && store.a1 !== undefined && store.b1 !== undefined);
+  check('two windows: a newcomer avoids the color the other window already handed out', c1.get('a1') !== c2.get('b1'));
+  // Same id, different index on each side: the stored index wins and the in-memory map adopts it.
+  let st2 = { x: 7 }; const w3 = new ColorBook({ x: 2 }, (m) => { st2 = { ...m }; }, Date.now, () => st2);
+  // A newcomer forces a real write, so the assertion on st2 checks the PERSISTED value (without a write it would pass vacuously).
+  check('stored index wins for an id already saved (last persisted write wins)', w3.resolve(['x', 'newcomer']).get('x') === CHAT_PALETTE[7] && st2.x === 7 && st2.newcomer !== undefined);
+  // Without load nothing changes: the book writes only its own map (backward compatible).
+  let st3; const w4 = new ColorBook(undefined, (m) => { st3 = m; }); w4.resolve(['solo']);
+  check('without load the book persists exactly its own map', Object.keys(st3).join() === 'solo');
+  // A damaged stored value is ignored rather than thrown on.
+  check('a damaged stored value is ignored', new ColorBook(undefined, () => {}, Date.now, () => 'junk').resolve(['z']).size === 1);
+  // The cap still holds after a merge: a store full of other-window entries is trimmed to 500 on write, live chats kept.
+  const bigStore = {}; for (let i = 0; i < 600; i++) { bigStore['o' + i] = i % 20; }
+  let st4; const w5 = new ColorBook(undefined, (m) => { st4 = m; }, Date.now, () => bigStore); w5.resolve(['live1']);
+  check('the 500 cap holds after a merge and keeps the live chat', Object.keys(st4).length === 500 && st4.live1 !== undefined);
+  // Two windows at the cap with stable live sets must settle: no write on every refresh, and each window's newest entry survives.
+  {
+    const cap0 = {}; for (let i = 0; i < 500; i++) { cap0['f' + i] = i % 20; }
+    let store = { ...cap0 }, writes = 0; const sav = (m) => { store = { ...m }; writes++; }, ld = () => store;
+    const wa = new ColorBook(store, sav, Date.now, ld), wb = new ColorBook(store, sav, Date.now, ld);
+    wa.resolve(['A1']); wb.resolve(['B1']); // each window adds its own newcomer at the cap
+    for (let i = 0; i < 3; i++) { wa.resolve(['A1']); wb.resolve(['B1']); } // let the merge settle
+    const settled = writes;
+    for (let i = 0; i < 10; i++) { wa.resolve(['A1']); wb.resolve(['B1']); }
+    check('two windows at the cap: no persist thrash with stable live sets', writes === settled);
+    check('two windows at the cap: both newest entries remain and the cap holds', store.A1 !== undefined && store.B1 !== undefined && Object.keys(store).length === 500);
+  }
+}
 const reloaded = new ColorBook(saved, () => { throw new Error('nothing changed, nothing to save'); });
 check('colours are stable across a reload and a smaller live set', [...reloaded.resolve(['chat7', 'chat3']).entries()].every(([id, c]) => first.get(id) === c));
 const again = new ColorBook(saved, () => {}), mixed = again.resolve(['chat1', 'chat5', ...Array.from({ length: 10 }, (_, i) => 'new' + i)]);

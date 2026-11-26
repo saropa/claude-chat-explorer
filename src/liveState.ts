@@ -70,7 +70,7 @@ export function nextUnread(prev: Map<string, LiveStatus> | undefined, next: Map<
 
 /** Dot of one chat from its live status (undefined for a tab with no live process), unread flag and whether background agents or shells are still running. Priority: waiting, running, unread, background; the first is s, the rest go in also. Unread counts only while the chat is idle. */
 export function dotState(live: LiveStatus | undefined, unread: boolean, win?: WinMark, background = false): Dot {
-  const all = [live === 'waiting' && DOT_STATE.waiting, live === 'busy' && DOT_STATE.running, unread && (live === undefined || live === 'idle') && DOT_STATE.unread, background && DOT_STATE.background].filter((x): x is string => !!x);
+  const all = ([live === 'waiting' && DOT_STATE.waiting, live === 'busy' && DOT_STATE.running, unread && (live === undefined || live === 'idle') && DOT_STATE.unread, background && DOT_STATE.background] as Array<string | boolean>).filter((x): x is string => !!x); // typed loosely: the && chain yields false for a state that does not apply
   const d: Dot = { s: all[0] ?? DOT_STATE.idle };
   if (all.length > 1) { d.also = all.slice(1); }
   if (live && win) { d.win = win; }
