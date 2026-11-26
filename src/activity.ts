@@ -1,7 +1,7 @@
 /** The Activity section of the session list page: a diagram under the session list that flashes a group when the current chat gets a message of that kind. */
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { IDLE_STRINGS, IdleDot, IdleGate, IdleInfo, cutTitle, idleMsg, isWorking, pickBusiest } from './activityIdle';
+import { IDLE_STRINGS, IdleDot, clickTargetsSelf, IdleGate, IdleInfo, cutTitle, idleMsg, isWorking, pickBusiest } from './activityIdle';
 import { ActivityFeed, SPEED_CHOICES, SPEED_LABELS, fadeMsOf, refreshMsOf } from './activityFeed';
 import { AllChatsTracker } from './activityAll';
 import { BgTracker } from './bgAgents';
@@ -28,7 +28,7 @@ async function pickSpeed(key: 'refreshMs' | 'fadeMs', title: string): Promise<vo
 }
 
 /** Where to write an Activity setting: where it is already overridden, so the new value takes effect; else the user settings. */
-function targetOf(key: string): vscode.ConfigurationTarget {
+export function targetOf(key: string): vscode.ConfigurationTarget {
   const at = vscode.workspace.getConfiguration('saropaChats').inspect(key);
   return at?.workspaceFolderValue !== undefined ? vscode.ConfigurationTarget.WorkspaceFolder : at?.workspaceValue !== undefined ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
 }
@@ -107,10 +107,13 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     if (!focus) { note(tr(IDLE_STRINGS.noneWorking)); return; }
     const cur = currentId(), dots = focus.dots() ?? {};
     const ids = Object.keys(dots).filter((id) => id !== cur && isWorking(dots[id]));
+    // The caption now also names the followed chat: it is the target when it waits for the user or no other chat works (same rule as the
+    // label, clickTargetsSelf). Before, such a click could only answer "No other chat is working now".
+    const self = !!cur && clickTargetsSelf(dots[cur], ids.length);
     // The hint can be a poll behind: the other chats may have gone idle since it was drawn.
-    if (!ids.length) { note(tr(IDLE_STRINGS.noneWorking)); return; }
-    const recency = Object.fromEntries(await Promise.all(ids.map(async (id) => [id, await lastAt(id)] as const)));
-    const id = pickBusiest(dots, cur, recency);
+    if (!self && !ids.length) { note(tr(IDLE_STRINGS.noneWorking)); return; }
+    const recency = self ? {} : Object.fromEntries(await Promise.all(ids.map(async (id) => [id, await lastAt(id)] as const)));
+    const id = self ? cur : pickBusiest(dots, cur, recency);
     const title = cutTitle(focus.titleOf(id)) || tr(IDLE_STRINGS.untitled);
     note(tr(IDLE_STRINGS.opening, title));
     // resume() reports false when neither the panel command nor the URI fallback took the chat (it also shows its own toast); a throw

@@ -23,6 +23,7 @@ export const IDLE_STRINGS = {
   otherMany: '{0} other chats working',
   // Click-to-focus on the other-chats hint: the tooltip / accessible name, and the outcomes a click can have (every click shows one).
   focusOther: 'Open the busiest other working chat',
+  focusSelf: 'Open this chat', // tooltip / accessible name when the click targets the followed chat itself
   looking: 'Finding the busiest other chat…', // shown by the page the moment the caption is clicked, before the host answers
   opening: 'Opening {0}…',
   openFailed: 'Could not open {0}',
@@ -107,13 +108,31 @@ export function idleText(i: IdleInfo, tr: DriftTr = fillPlain): string {
   return others ? tr(IDLE_STRINGS.withOthers, line, others) : line;
 }
 
-/** The 'idle' message the page gets: the caption text and, only while other chats work, the click label and the click-time text (both '' otherwise, which keeps the caption plain). */
+/**
+ * Whom a click on the idle caption opens: the followed chat itself or the busiest OTHER working chat. Shared by the label here and the
+ * host's click handler (activity.ts) so the two can never disagree. The followed chat wins when its dot is 'waiting' (it needs the user
+ * now, which outranks other chats' work) and when no other chat is working (the hint has no target). Otherwise the busiest other chat
+ * keeps the click, as before. Reads the primary state only: 'waiting' hidden behind another state cannot occur (waiting ranks first).
+ */
+export function clickTargetsSelf(dot: IdleDot | undefined, others: number): boolean {
+  return statesOf(dot)[0] === 'waiting' || others <= 0;
+}
+
+/** The 'idle' message the page gets: the caption text and the click label and click-time text (both '' when the caption has no target, which keeps it plain). */
 export interface IdleMsg { type: 'idle'; text: string; go: string; looking: string }
 
-/** Builds the idle message from what the host knows. The hint (and so the click target) exists only when `others` > 0. */
+/**
+ * Builds the idle message from what the host knows. Before: the caption was clickable only while other chats worked, so a caption naming
+ * the followed chat ("title - waiting for you") did nothing. Now a named chat is always a target; the hint alone (no title) still needs others.
+ */
 export function idleMsg(i: IdleInfo, tr: DriftTr = fillPlain): IdleMsg {
-  const click = i.others > 0; // the caption is a button only when it names other working chats
-  return { type: 'idle', text: idleText(i, tr), go: click ? tr(IDLE_STRINGS.focusOther) : '', looking: click ? tr(IDLE_STRINGS.looking) : '' };
+  const title = cutTitle(i.title);
+  const self = !!title && clickTargetsSelf(i.dot, i.others); // the followed chat is the target
+  const other = i.others > 0 && !self; // the busiest other chat is the target
+  // Nothing to open (no followed chat, no working others): plain text, no button.
+  if (!self && !other) { return { type: 'idle', text: idleText(i, tr), go: '', looking: '' }; }
+  // Self opens at once, so the click-time text names the chat; the other-chat pick needs a lookup first.
+  return { type: 'idle', text: idleText(i, tr), go: tr(self ? IDLE_STRINGS.focusSelf : IDLE_STRINGS.focusOther), looking: self ? tr(IDLE_STRINGS.opening, title) : tr(IDLE_STRINGS.looking) };
 }
 
 /**

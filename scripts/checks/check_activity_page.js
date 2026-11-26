@@ -164,6 +164,13 @@ function withGroups(h) {
 
   h.deliver({ type: 'events', events: [] }, 'unwrapped'); // a list-page message that is not 'act' must be ignored by the section
 
+  // The caption naming the followed chat itself (self label, no other chats working): same button, same message to the host as the other-chats click.
+  const SELF = 'Open this chat';
+  act({ type: 'reset' }); act({ type: 'idle', text: 'chat S — waiting for you', go: SELF, looking: 'Opening chat S…' }); tick();
+  const before = asks();
+  h.check('a caption naming the followed chat shows an enabled button with the self label', enabled() && btn.title === SELF && btn.getAttribute('aria-label') === SELF);
+  h.fire(cap, 'click'); tick();
+  h.check('clicking it posts the shared actFocusOther message once and shows "Opening <title>"', asks() === before + 1 && cap.textContent === 'Opening chat S…');
   act({ type: 'reset' }); act({ type: 'idle', text: 'chat C — idle', go: '', looking: '' }); tick();
   h.check('without the hint (go empty) the idle caption is plain text and the button hidden', cap.textContent === 'chat C — idle' && !cap.classList.contains('go') && btn.hidden === true);
   act({ type: 'idle', text: 'chat C — idle · 1 other chat working', go: GO, looking: 'x' }); tick();

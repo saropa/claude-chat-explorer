@@ -196,10 +196,14 @@ check('pick: within a rank the most recently active wins', pickBusiest({ a: D('r
 check('pick: ties fall back to the id; missing or odd recency counts as oldest', pickBusiest({ b: D('running'), a: D('running') }, 'me') === 'a' && pickBusiest({ a: D('running'), b: D('running') }, 'me', { a: 'x', b: 3 }) === 'b');
 check('pick: the followed chat and non-working chats are never picked', pickBusiest({ me: D('running'), w: D('waiting'), u: D('unread') }, 'me') === '' && pickBusiest(undefined, 'me') === '' && pickBusiest({ me: D('running'), x: null }, 'me') === '');
 
-// The idle message: the click label exists only while other chats work.
-check('idle message: click label and click text only with the other-chats hint', eq(idleMsg({ title: 'a', dot: D('idle'), others: 0 }), { type: 'idle', text: 'a — idle', go: '', looking: '' })
-  && eq(idleMsg({ title: 'a', dot: D('idle'), others: 2 }), { type: 'idle', text: 'a — idle · 2 other chats working', go: IDLE_STRINGS.focusOther, looking: IDLE_STRINGS.looking }));
-check('idle message: labels go through the translator', idleMsg({ title: '', dot: undefined, others: 1 }, (m) => '~' + m).go === '~' + IDLE_STRINGS.focusOther);
+// The idle message: a caption that names the followed chat is clickable (it opens that chat); with the busiest-other rule below.
+const { clickTargetsSelf } = require(path.join(OUT, 'activityIdle.js'));
+check('idle message: a named chat with no other working opens itself (self label, click text names the chat)', eq(idleMsg({ title: 'a', dot: D('idle'), others: 0 }), { type: 'idle', text: 'a — idle', go: IDLE_STRINGS.focusSelf, looking: 'Opening a…' }));
+check('idle message: others working and the followed chat not waiting keeps the busiest-other target', eq(idleMsg({ title: 'a', dot: D('idle'), others: 2 }), { type: 'idle', text: 'a — idle · 2 other chats working', go: IDLE_STRINGS.focusOther, looking: IDLE_STRINGS.looking }));
+check('idle message: a waiting followed chat wins over other working chats', idleMsg({ title: 'a', dot: D('waiting'), others: 2 }).go === IDLE_STRINGS.focusSelf && idleMsg({ title: 'a', dot: D('waiting', ['background']), others: 2 }).go === IDLE_STRINGS.focusSelf);
+check('idle message: no title and no others stays plain; no title with others targets the others', idleMsg({ title: '', dot: undefined, others: 0 }).go === '' && idleMsg({ title: '', dot: D('waiting'), others: 1 }).go === IDLE_STRINGS.focusOther);
+check('click target rule: self when waiting or nobody else works; other otherwise; malformed dots are not waiting', clickTargetsSelf(D('waiting'), 3) && clickTargetsSelf(D('idle'), 0) && !clickTargetsSelf(D('running'), 1) && !clickTargetsSelf(undefined, 1) && !clickTargetsSelf({ s: 5 }, 1));
+check('idle message: labels go through the translator', idleMsg({ title: '', dot: undefined, others: 1 }, (m) => '~' + m).go === '~' + IDLE_STRINGS.focusOther && idleMsg({ title: 'a', dot: D('idle'), others: 0 }, (m) => '~' + m).go === '~' + IDLE_STRINGS.focusSelf);
 check('click-to-focus strings have no first-person voice', !Object.values(IDLE_STRINGS).some((v) => /\b(I|I'm|we|my|our|me)\b/.test(v)));
 
 // Host ordering (IdleGate, used by registerActivity): idle() sends nothing while a chat switch is pending; poke() sends reset, then idle.
