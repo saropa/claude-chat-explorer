@@ -22,8 +22,7 @@ body.dragging{cursor:ns-resize;user-select:none}
 #acts:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:-1px}
 /* The settings popover: section titles, one row per option (a label around a native input, so clicking the text toggles it), a separator. */
 .pop .actt{padding:4px 10px 2px;font-size:calc(var(--vscode-font-size) - 2px);color:var(--vscode-descriptionForeground)}
-.pop .acto{display:flex;align-items:flex-start;gap:6px;width:100%;box-sizing:border-box;padding:3px 10px;margin:0;font:inherit;text-align:left;border:none;background:transparent;color:inherit;cursor:pointer}
-.pop .acto:hover,.pop .acto:focus-within,.pop button.acto:focus-visible{background:var(--vscode-menu-selectionBackground);color:var(--vscode-menu-selectionForeground);outline:none}
+/* The .pop .acto row and hover rules live in POP_CSS (webviewPop.ts), shared with the Session Manager menu; only the input offset is Activity-specific. */
 .pop .acto input{margin:2px 0 0}
 .pop .actd{display:block;font-size:calc(var(--vscode-font-size) - 2px);opacity:.8}
 #actm hr,#acctm hr{border:none;border-top:1px solid var(--vscode-menu-separatorBackground,var(--vscode-widget-border,transparent));margin:4px 0}
