@@ -64,16 +64,34 @@ function withGroups(h) {
   ev({ t: 'sub', g: 'files' }, { t: 'caption', text: 'Reading x' }); tick();
   ev({ t: 'wait', g: 'think' }); tick();
   h.check('a sub-agent event leaves no pending call: the end-of-turn wait still settles to the idle caption', cap.textContent === 'chat A — waiting for you');
-  // The core outline (set by wait) follows the dot: an idle message whose dot is not waiting clears it; waiting keeps it; a missing field (older host) keeps it.
+  // The core outline. Older host (no dot fields yet): the end-of-turn wait outlines the core, as before.
   const core = h.document.querySelector('.grp[data-g="think"]'), chatNode = h.document.querySelector('.grp[data-g="chat"]');
+  const on = () => core.classList.contains('wait'), idleMsg = (x) => h.deliver({ type: 'idle', text: 'chat A \u2014 waiting for you', ...x }, 'idle');
   ev({ t: 'wait', g: 'think' }, { t: 'wait', g: 'chat' }); tick();
-  h.check('end-of-turn wait outlines the core, and a question wait outlines the chat node', core.classList.contains('wait') && chatNode.classList.contains('wait'));
-  h.deliver({ type: 'idle', text: 'chat A — waiting for you', waiting: true }); tick();
-  h.check('an idle message with waiting true keeps the core outline', core.classList.contains('wait'));
-  h.deliver({ type: 'idle', text: 'chat A — idle' }); tick();
-  h.check('an idle message without the field (older host) keeps the core outline', core.classList.contains('wait'));
-  h.deliver({ type: 'idle', text: 'chat A — idle', waiting: false }); tick();
-  h.check('an idle message whose dot is not waiting clears the core outline, not the chat node question outline', !core.classList.contains('wait') && chatNode.classList.contains('wait'));
+  h.check('older host: end-of-turn wait outlines the core and a question wait the chat node', on() && chatNode.classList.contains('wait'));
+  idleMsg({}); tick();
+  h.check('older host: an idle message without the dot fields leaves the outline alone', on());
+  // The dot drives it from the first message that carries the fields, in the host real order: idle first, then the tail events.
+  idleMsg({ waiting: false, kind: '' }); tick();
+  h.check('idle waiting false clears the core outline and keeps the chat-node question outline', !on() && chatNode.classList.contains('wait'));
+  ev({ t: 'wait', g: 'think' }); tick();
+  h.check('after idle false, an end-of-turn wait does not outline the core (the dot did not say waiting)', !on());
+  h.check('and the end-of-turn wait still settles the caption', cap.textContent === 'chat A \u2014 waiting for you');
+  idleMsg({ waiting: true, kind: 'self' }); tick();
+  h.check('idle waiting true outlines the core with one ripple', on() && core.classList.contains('rip'));
+  core.classList.remove('rip'); idleMsg({ waiting: true, kind: 'self', go: 'x' }); tick();
+  h.check('a repeated waiting true keeps the outline and does not ripple again', on() && !core.classList.contains('rip'));
+  idleMsg({ waiting: false, kind: 'self' }); tick();
+  h.check('waiting false clears the outline and the ripple', !on() && !core.classList.contains('rip'));
+  idleMsg({ waiting: true, kind: 'self' }); tick();
+  idleMsg({ kind: '' }); tick();
+  h.check('a chat with no dot (waiting missing, kind present) reads as not waiting: no outline', !on());
+  // A chat switch: reset, then idle (not waiting), then the old tail with its end-of-turn wait: still no outline.
+  h.deliver({ type: 'reset' }); idleMsg({ waiting: false, kind: '' }); ev({ t: 'wait', g: 'think' }); tick();
+  h.check('after a switch, reset then idle false then a tail wait leaves no core outline', !on());
+  idleMsg({ text: 'chat A \u2014 waiting for you', waiting: true, kind: '' }); tick();
+  h.check('the host-driven flag survives reset: the new chat dot still draws the outline', on());
+  idleMsg({ waiting: false, kind: '' }); tick();
   h.check('the standalone page keeps its open button hidden', h.els.get('capgo').hidden === true);
 
   ev({ t: 'caption', text: 'Running: lint' }); tick();

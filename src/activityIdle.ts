@@ -31,6 +31,7 @@ export const IDLE_STRINGS = {
   opening: 'Opening {0}…',
   openFailed: 'Could not open {0}',
   noneWorking: 'No other chat is working now',
+  notOpen: '{0} is no longer open', // a click on the followed chat found its dot gone (closed or deleted): not the same as "no other chat working"
   untitled: 'untitled chat', // the target chat has no known title yet
 } as const;
 
@@ -122,6 +123,15 @@ export function clickTargetsSelf(dot: IdleDot | undefined, others: number): bool
   return isWaiting(dot) || others <= 0;
 }
 
+/**
+ * True when `id` is a chat that still has a dot. ONE definition for the caption (idleInfoOf: is the followed chat a target) and the click
+ * (focusTarget: may self open), because two inline copies could drift and promise a click the host then refuses. A dot exists only for
+ * open chats (live process or tab), so a stale last-active id or a deleted chat has none.
+ */
+export function hasDot(dots: { [id: string]: IdleDot } | undefined, id: string): boolean {
+  return !!id && !!dots && typeof dots === 'object' && Object.prototype.hasOwnProperty.call(dots, id) && !!dots[id];
+}
+
 /** True when the dot's primary state is 'waiting' (a chat that needs the user). One reading shared by the click rule and the page's outline, so they cannot drift apart. */
 export function isWaiting(dot: IdleDot | undefined): boolean {
   return statesOf(dot)[0] === 'waiting';
@@ -148,14 +158,15 @@ export function clickKind(followed: boolean, dot: IdleDot | undefined, others: n
 export function focusTarget(kind: unknown, cur: string, dots: { [id: string]: IdleDot } | undefined, recency: { [id: string]: number } = {}): string {
   // Self needs a chat that still has a dot: the followed id can be a stale "last active" chat whose tab and process are gone (or a deleted
   // one), and opening it would resume a chat the caption no longer describes. '' then shows the none-working note instead.
-  if (kind === 'self') { return cur && dots && Object.prototype.hasOwnProperty.call(dots, cur) ? cur : ''; }
+  if (kind === 'self') { return hasDot(dots, cur) ? cur : ''; }
   return pickBusiest(dots, cur, recency);
 }
 
 /** The 'idle' message the page gets: the caption text, the click label, the click-time text and the kind of target (label, text and kind are '' when the caption has no target, which keeps it plain). */
-export interface IdleMsg { type: 'idle'; text: string; go: string; looking: string; kind: ClickKind; waiting: boolean }
-// waiting: the followed chat's dot is 'waiting'. The page uses it to drop the core's waiting outline once the dot has left that state; the
-// outline comes from the log (end of turn) and nothing else would ever clear it before the next message.
+export interface IdleMsg { type: 'idle'; text: string; go: string; looking: string; kind: ClickKind; waiting: boolean | undefined }
+// waiting: the followed chat's dot is 'waiting' (a permission or a question). The page draws the core's outline from it ALONE: the log's
+// end-of-turn event is not "waiting" (the dot goes idle or unread there), so it must not light the outline. undefined (dropped by JSON)
+// when the chat has no dot: nothing is known, so no outline (the page still treats the host as dot-driven, see activityHtml.ts).
 
 /**
  * Builds the idle message from what the host knows. Before: the caption was clickable only while other chats worked, so a caption naming
@@ -163,7 +174,7 @@ export interface IdleMsg { type: 'idle'; text: string; go: string; looking: stri
  */
 export function idleMsg(i: IdleInfo, tr: DriftTr = fillPlain): IdleMsg {
   const title = cutTitle(i.title);
-  const kind = clickKind(i.followed ?? !!title, i.dot, i.others), waiting = isWaiting(i.dot);
+  const kind = clickKind(i.followed ?? !!title, i.dot, i.others), waiting = i.dot ? isWaiting(i.dot) : undefined; // no dot: no claim either way
   // Nothing to open (no followed chat, no working others): plain text, no button.
   if (!kind) { return { type: 'idle', text: idleText(i, tr), go: '', looking: '', kind, waiting }; }
   // Self opens at once, so the click-time text names the chat (untitled fallback when its title is not known yet); the other-chat pick needs a lookup first.

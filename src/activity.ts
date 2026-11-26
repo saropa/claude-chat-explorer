@@ -113,7 +113,12 @@ export function registerActivity(ctx: vscode.ExtensionContext, currentId: () => 
     const recency = kind === 'self' ? {} : Object.fromEntries(await Promise.all(ids.map(async (id) => [id, await lastAt(id)] as const)));
     const id = focusTarget(kind, cur, dots, recency);
     // The hint can be a poll behind (the other chats went idle) or no chat is followed: say so instead of switching to the other kind.
-    if (!id) { note(tr(IDLE_STRINGS.noneWorking)); return; }
+    if (!id) {
+      // A self click whose chat lost its dot (closed or deleted since the caption was drawn) gets its own text: "no other chat is working"
+      // would be wrong, the chat itself is the one that is gone. An 'other' click with nobody left keeps the none-working note.
+      if (kind === 'self' && cur) { note(tr(IDLE_STRINGS.notOpen, cutTitle(focus.titleOf(cur)) || tr(IDLE_STRINGS.untitled)), true); } else { note(tr(IDLE_STRINGS.noneWorking)); }
+      return;
+    }
     const title = cutTitle(focus.titleOf(id)) || tr(IDLE_STRINGS.untitled);
     note(tr(IDLE_STRINGS.opening, title));
     // resume() reports false when neither the panel command nor the URI fallback took the chat (it also shows its own toast); a throw

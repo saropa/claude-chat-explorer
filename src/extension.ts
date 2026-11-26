@@ -30,7 +30,7 @@ import { keepWarmOn, toggleKeepWarm } from './smPrefs';
 import { SM_CMD_ITEMS, SM_CMD_MSG, SM_KEEPWARM_MSG, SM_PREFS_MSG } from './webviewSm';
 import { KEEP_WARM_KEY } from './keepWarmSettings';
 import { ActivityHost, registerActivity } from './activity';
-import { IdleInfo, othersWorking, TitleCache } from './activityIdle';
+import { IdleInfo, hasDot, othersWorking, TitleCache } from './activityIdle';
 import { registerActivityBrowser } from './activityBrowser';
 import { fadeMsOf } from './activityFeed';
 import { registerUsage } from './usageUi';
@@ -532,7 +532,7 @@ export function activate(ctx: vscode.ExtensionContext): ChatExplorerApi {
     // followed: a chat is followed AND still has a dot. currentId can return a stale "last active" chat whose tab and process are gone (or
     // a deleted one); such an id has no dot, so it is not a click target (the click would resume a chat the caption no longer describes).
     // An untitled chat with a dot still counts: the host click handler keys on the id too (focusTarget).
-    return { title: titleOfChat(id), dot: id ? dots[id] : undefined, others: othersWorking(dots, id), followed: !!id && !!dots[id] };
+    return { title: titleOfChat(id), dot: id ? dots[id] : undefined, others: othersWorking(dots, id), followed: hasDot(dots, id) }; // hasDot: the same test the click uses (focusTarget), so label and click agree
   };
   // The click-to-focus wiring of the idle caption: the same dots and titles as the caption, and the same resume as a click in the session list.
   const activity = registerActivity(ctx, () => provider.currentId(), (m) => provider.post(m), provider, () => provider.watcher?.liveIds ?? [], log, idleInfoOf,

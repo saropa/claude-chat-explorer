@@ -162,6 +162,11 @@ let idleText = '', liveText = ''; // idleText: host-sent description of the foll
 // idleGo: the click label of the idle caption, sent only while the caption has a target ('' keeps it plain text); idleLooking: what a click shows at once;
 // idleKind: which chat the click opens ('self' or 'other'), sent back to the host so it opens what the label promised.
 let idleGo = '', idleLooking = '', idleKind = '', capErr = false, noteTimer = 0;
+// hostDrivesCore: some idle message carried the dot-based fields, so the core's waiting outline follows the dot ALONE. The log's end-of-turn
+// event is not a real wait (the dot goes idle or unread there), and the two sources race (idle is sent before the tail events in a poll, and
+// after a chat switch the reset and idle are followed by the old tail), so letting both draw it left the outline stuck or flickering.
+// Not cleared by reset: it describes the host, not the chat. false = an older host: the event-driven outline stays as it was.
+let hostDrivesCore = false;
 let capPending = false; // a click was sent and its outcome is still on screen: further clicks are ignored, so one click posts once
 // How the caption reaches the host. null here (the standalone and browser pages have no host to ask, and never get 'idle' anyway);
 // activitySection swaps in the list page's VS Code API, so the caption can only become clickable inside the sidebar section.
@@ -305,6 +310,11 @@ function wait(g) {
   el.classList.add('wait');
   if (g === 'think') { el.classList.remove('rip'); void el.getBoundingClientRect(); el.classList.add('rip'); setTimeout(() => el.classList.remove('rip'), 2000); }
 }
+// The core's outline from the dot: turning on (false to true) gives the one ripple of wait() (the CSS skips it with reduced motion); staying
+// on changes nothing, so a repeated idle message does not ripple again; off clears the outline and any ripple still running.
+function setCore(on) {
+  if (on) { if (!core.classList.contains('wait')) { wait('think'); } } else { core.classList.remove('wait', 'rip'); }
+}
 function flash(g, err, ch, col, cur) {
   const el = grp(g), key = ch || '', last = lastOf.get(key) || '';
   if (!el) { return; }
@@ -344,10 +354,12 @@ addEventListener('message', (e) => {
   // go / looking / kind: the click label, click-time text and target kind, present only while the caption has a target (the host leaves them '' otherwise).
   // A missing kind (an older host) reads as 'other', the only click it offered.
   if (m && m.type === 'idle') { idleText = String(m.text || ''); idleGo = String(m.go || ''); idleLooking = String(m.looking || ''); idleKind = m.kind === 'self' ? 'self' : 'other';
-    // The dot says the followed chat is not waiting (the user answered elsewhere, or it is idle/unread/running): the core's waiting outline,
-    // set at end of turn from the log, would stay until the next message. Only an explicit false clears it (an older host sends no field).
-    // The Chat node's outline (a question to the user) is deliberately left alone: it clears with its own result or the next message.
-    if (m.waiting === false) { core.classList.remove('wait', 'rip'); }
+    // The core's outline is the dot's: on while it is 'waiting' (a permission or a question), off otherwise. A host that sends the dot-based
+    // fields is recognised by waiting (a boolean) or kind (a string, sent in every message). waiting is missing for a chat with no dot: that
+    // reads as not waiting (no outline), because without a dot nothing says the chat needs the user. The Chat node's outline (a question
+    // from the log) is deliberately left alone: it clears with its own result or the next message.
+    if (typeof m.waiting === 'boolean' || typeof m.kind === 'string') { hostDrivesCore = true; }
+    if (hostDrivesCore) { setCore(m.waiting === true); }
     if (!liveText) { caption(''); } return; }
   // note: the host's outcome of a click on the caption (opening <title>, nothing working, could not open).
   if (m && m.type === 'note') { capNote(m.text, m.err === true); return; }
@@ -360,7 +372,9 @@ addEventListener('message', (e) => {
     else if (v.t === 'busy' && grp(v.g)) { startCall(v.id, v.g); }
     else if (v.t === 'end') { endCall(v.id); if (v.g === 'chat') { grp('chat').classList.remove('wait'); } if (!pend.size) { settleCaption(); } }
     else if (v.t === 'wait' && grp(v.g)) {
-      wait(v.g);
+      // The end-of-turn wait (g think) is not drawn once the host drives the core outline from the dot (see hostDrivesCore); it still settles the
+      // caption and drops the unanswered calls below. The Chat node's question wait (g chat) is always drawn.
+      if (!(v.g === 'think' && hostDrivesCore)) { wait(v.g); }
       // End of the turn (g 'think'): every call of this turn is over, so a call that never got its result (a dropped tool_result, an
       // interrupted run) would keep pend non-empty and its caption ("Running: tests") on screen forever, hiding the idle caption and its
       // click button. Drop the pending calls. A question to the user (g 'chat') is mid-turn, so there the in-flight calls stay.
