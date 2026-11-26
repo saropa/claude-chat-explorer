@@ -204,7 +204,8 @@ function drive() {
   check('both shows no note', run('fromNote()', 'note3') === '');
 
   // Neutral wording: no "claude" in the generated page except the from:claude alias handling.
-  const left = [...page.matchAll(/.{0,30}claude.{0,30}/gi)].map((x) => x[0]).filter((x) => !/\|claude\||===\s*'claude'|\|claude\)|Claude Code|Claude activity|>Claude<|Claude's own work/.test(x)); // also allowed: the product name in the New session button, the Activity diagram (label, center node) and comments
+  // The Session Manager "Keep Claude sessions warm" item (src/webviewSm.ts, id="smkw") names the product legitimately, like "Claude Code", so its phrases are allowlisted below.
+  const left = [...page.matchAll(/.{0,30}claude.{0,30}/gi)].map((x) => x[0]).filter((x) => !/\|claude\||===\s*'claude'|\|claude\)|Claude Code|Claude activity|>Claude<|Claude's own work|Claude sessions|Claude settings/.test(x)); // also allowed: the product name in the New session button, the Activity diagram (label, center node), the Keep Claude sessions warm menu item (label and tooltip: "Claude sessions", "Claude settings") and comments
   check('no "claude" in the generated page outside the from:claude alias (' + left.slice(0, 3).join(' / ') + ')', left.length === 0);
   check('messages from drop-down is Both / You / Agent', /<option value="agent">agent<\/option>/.test(page) && !/value="claude"/.test(page));
   check('stat labels have a 1px top margin', /\.xs dt\{margin-top:1px/.test(page));
